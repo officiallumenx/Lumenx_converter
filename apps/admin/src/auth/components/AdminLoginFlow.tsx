@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, AtSign, Building2, Check, ChevronDown, Lock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, Contact, Lock, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { useAuth } from "@/auth/AuthContext";
@@ -124,8 +124,10 @@ export function AdminLoginFlow() {
   const [mobileOtp, setMobileOtp] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [requiresOtp, setRequiresOtp] = useState(true);
+  const [requiresOtp, setRequiresOtp] = useState(false);
   const [requiresDualOtp, setRequiresDualOtp] = useState(false);
+  /** True after login-mode resolves — OTP steps only appear when the server asks. */
+  const [modeKnown, setModeKnown] = useState(false);
   const [maskedDestination, setMaskedDestination] = useState("");
   const [maskedEmailDestination, setMaskedEmailDestination] = useState("");
   const [devOtp, setDevOtp] = useState<string | undefined>();
@@ -216,7 +218,7 @@ export function AdminLoginFlow() {
     clearError();
 
     if (!isApiIdentifierValid(identifier)) {
-      setError("Enter a registered email, username, or an exact 10-digit mobile number.");
+      setError("Enter a registered email or an exact 10-digit mobile number.");
       return;
     }
     setLoading(true);
@@ -230,6 +232,7 @@ export function AdminLoginFlow() {
       // Mobile server OTP + password is enough.
       // Email OTP needs Resend; skip until OTP_EMAIL_PROVIDER is fully configured.
       setRequiresDualOtp(false);
+      setModeKnown(true);
       setLoginMobileGrant("");
       setLoginEmailGrant("");
       if (mode.requiresOtp) {
@@ -656,7 +659,12 @@ export function AdminLoginFlow() {
       setPassword("");
       if (requiresDualOtp) setStep("email_otp");
       else if (requiresOtp) setStep("mobile_otp");
-      else setStep("identifier");
+      else {
+        setModeKnown(false);
+        setRequiresOtp(false);
+        setRequiresDualOtp(false);
+        setStep("identifier");
+      }
       return;
     }
     if (step === "email_otp" || step === "forgot_password_email_otp" || step === "forgot_pin_email_otp") {
@@ -673,6 +681,9 @@ export function AdminLoginFlow() {
     if (step === "mobile_otp") {
       setMobileOtp("");
       setDevOtp(undefined);
+      setModeKnown(false);
+      setRequiresOtp(false);
+      setRequiresDualOtp(false);
       setStep("identifier");
       return;
     }
@@ -682,59 +693,104 @@ export function AdminLoginFlow() {
     }
     if (step === "identifier") {
       setIdentifier("");
-      setRequiresOtp(true);
+      setRequiresOtp(false);
       setRequiresDualOtp(false);
+      setModeKnown(false);
       setStep("institute");
     }
   };
 
-  const stepLabels: LoginStep[] = requiresDualOtp
-    ? ["institute", "identifier", "mobile_otp", "email_otp", "password", "pin"]
-    : requiresOtp
-      ? ["institute", "identifier", "mobile_otp", "password", "pin"]
-      : ["institute", "identifier", "password", "pin"];
+  /** OTP / email OTP only appear after login-mode says they are required. */
+  const progressSteps: Array<{ id: LoginStep | "unlock"; label: string }> = (() => {
+    if (step.startsWith("forgot_")) return [];
+    if (!modeKnown) {
+      return [
+        { id: "institute", label: "Institute" },
+        { id: "identifier", label: "Your ID" },
+        { id: "unlock", label: "Secure unlock" },
+      ];
+    }
+    if (requiresDualOtp) {
+      return [
+        { id: "institute", label: "Institute" },
+        { id: "identifier", label: "Your ID" },
+        { id: "mobile_otp", label: "Mobile OTP" },
+        { id: "email_otp", label: "Email OTP" },
+        { id: "password", label: "Password" },
+        { id: "pin", label: "PIN" },
+      ];
+    }
+    if (requiresOtp) {
+      return [
+        { id: "institute", label: "Institute" },
+        { id: "identifier", label: "Your ID" },
+        { id: "mobile_otp", label: "Mobile OTP" },
+        { id: "password", label: "Password" },
+        { id: "pin", label: "PIN" },
+      ];
+    }
+    return [
+      { id: "institute", label: "Institute" },
+      { id: "identifier", label: "Your ID" },
+      { id: "password", label: "Password" },
+      { id: "pin", label: "PIN" },
+    ];
+  })();
 
-  const visibleSteps = stepLabels.filter((item) => !item.startsWith("forgot_"));
-  const showProgress = visibleSteps.includes(step as (typeof visibleSteps)[number]);
+  const showProgress = progressSteps.length > 0;
+  const currentProgressId =
+    showProgress && (step === "institute" || step === "identifier")
+      ? step
+      : showProgress && !modeKnown
+        ? "unlock"
+        : showProgress
+          ? step
+          : undefined;
 
   return (
     <AuthLayout
       title={
         step === "institute"
-          ? "Sign in"
+          ? "Choose your institute"
           : step === "identifier"
             ? "Your ID"
             : step === "mobile_otp" || step === "email_otp"
-              ? "Enter code"
+              ? "Enter verification code"
               : step === "password"
-                ? "Password"
+                ? "Enter password"
                 : step === "pin"
-                  ? "PIN"
+                  ? "Enter PIN"
                   : step.startsWith("forgot_password")
                     ? "Reset password"
                     : step.startsWith("forgot_pin")
                       ? "Reset PIN"
-                      : "Sign in"
+                      : "Login"
       }
       subtitle={
         step === "institute"
-          ? "Choose your institute"
+          ? "Pick the school this Admin account belongs to"
           : step === "identifier"
-            ? "Username, email, or mobile"
+            ? "Email or mobile registered for this institute"
             : step === "mobile_otp"
               ? maskedDestination
-                ? `Sent to ${maskedDestination}`
-                : undefined
+                ? `Code sent to ${maskedDestination}`
+                : "Confirm the code sent to your mobile"
               : step === "email_otp"
                 ? maskedEmailDestination
-                  ? `Sent to ${maskedEmailDestination}`
-                  : undefined
+                  ? `Code sent to ${maskedEmailDestination}`
+                  : "Confirm the code sent to your email"
                 : step === "password"
-                  ? displayName || undefined
+                  ? displayName
+                    ? `Welcome back, ${displayName}`
+                    : "Use the password for this Admin account"
                   : step === "pin"
-                    ? "Unlock Admin"
+                    ? "Your 4–6 digit Admin unlock PIN"
                     : undefined
       }
+      asideTitle="Sign in to run your institute"
+      asideBody="Choose your school, then sign in with the Admin email or mobile linked to that institute."
+      steps={showProgress ? progressSteps : undefined}
+      currentStepId={currentProgressId}
       showBack={step === "institute"}
       backTo="/welcome"
       backLabel="Back"
@@ -749,30 +805,6 @@ export function AdminLoginFlow() {
         ) : undefined
       }
     >
-      {showProgress && (
-        <div
-          className="mb-5 h-1 overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-valuemin={1}
-          aria-valuemax={visibleSteps.length}
-          aria-valuenow={Math.max(1, visibleSteps.indexOf(step) + 1)}
-          aria-label={`Step ${Math.max(1, visibleSteps.indexOf(step) + 1)} of ${visibleSteps.length}`}
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
-            style={{
-              width: `${
-                visibleSteps.length <= 0
-                  ? 0
-                  : ((Math.max(0, visibleSteps.indexOf(step)) + 1) /
-                      visibleSteps.length) *
-                    100
-              }%`,
-            }}
-          />
-        </div>
-      )}
-
       {step === "institute" && (
         <form onSubmit={handleInstitute} className="space-y-4" noValidate>
           <div>
@@ -888,11 +920,11 @@ export function AdminLoginFlow() {
       {step === "identifier" && (
         <form onSubmit={handleIdentifier} className="space-y-4" noValidate>
           <AuthInput
-            label="Username, email, or mobile"
+            label="Email or mobile"
             name="identifier"
             type="text"
-            icon={AtSign}
-            placeholder="username, name@institute.edu or 9876543210"
+            icon={Contact}
+            placeholder="email or mobile for this institute"
             value={identifier}
             onChange={(event) => {
               setIdentifier(event.target.value);
@@ -1058,7 +1090,7 @@ export function AdminLoginFlow() {
           </button>
           {error && <AuthFormError message={error} />}
           <AuthButton type="submit" loading={loading} disabled={!/^\d{4,8}$/.test(pin)}>
-            Sign in
+            Login
             <ArrowRight className="size-4" />
           </AuthButton>
           <AuthButton variant="outline" onClick={goBack}>

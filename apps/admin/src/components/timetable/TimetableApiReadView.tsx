@@ -16,7 +16,11 @@ import {
   TimetableAssignGrid,
   type AssignCellTarget,
 } from "@/components/timetable/TimetableAssignGrid";
-import type { ScheduleInput } from "@/lib/timetable-schedule";
+import { TimetableMobileDayView } from "@/components/timetable/TimetableMobileDayView";
+import {
+  inferScheduleInputFromSlots,
+  type ScheduleInput,
+} from "@/lib/timetable-schedule";
 import type {
   TimetableInstituteSummary,
   TimetableReadBundle,
@@ -141,7 +145,9 @@ export function TimetableApiReadView({
         : `Section ${selectedSectionId.slice(0, 8)}…`;
     const canPublish =
       writesEnabled && Boolean(selectedSummary?.inactiveCount) && onPublishSection;
-    const hasSchedule = Boolean(sectionSchedule);
+    const effectiveSchedule =
+      sectionSchedule ?? inferScheduleInputFromSlots(sectionSlots);
+    const hasWeekTable = Boolean(effectiveSchedule && onAssignCell);
     return (
       <PageStack>
         <div className="flex flex-wrap items-center gap-2">
@@ -168,7 +174,7 @@ export function TimetableApiReadView({
               Publish
             </Button>
           ) : null}
-          {writesEnabled ? (
+          {writesEnabled && !hasWeekTable ? (
             <Button
               size="sm"
               variant="outline"
@@ -180,72 +186,75 @@ export function TimetableApiReadView({
           ) : null}
         </div>
 
-        {hasSchedule && sectionSchedule && onAssignCell ? (
-          <TimetableAssignGrid
-            schedule={sectionSchedule}
-            slots={sectionSlots}
-            assignmentLabels={assignmentLabels}
-            writesEnabled={writesEnabled}
-            mutating={mutating}
-            onAssignCell={onAssignCell}
-          />
-        ) : null}
-
-        <Card>
-          <CardHeader
-            title={hasSchedule ? "Slot list" : title}
-            hint={`${sectionSlots.length} slot${sectionSlots.length === 1 ? "" : "s"}${
-              selectedSummary
-                ? ` · ${selectedSummary.activeCount} active · ${selectedSummary.inactiveCount} draft`
-                : ""
-            }`}
-          />
-          {sectionSlots.length === 0 ? (
-            <CardBody>
-              <EmptyState
-                icon={<CalendarDays className="size-5" />}
-                title={
-                  hasSchedule
-                    ? "Table created — assign subjects"
-                    : "No slots for this section"
-                }
-                hint={
-                  writesEnabled
-                    ? hasSchedule
-                      ? "Use the grid above to assign a subject to each period, then publish."
-                      : "Create a timetable for this class/section first, or add a slot."
-                    : "Timetable slots appear here once configured."
-                }
-                action={
-                  writesEnabled ? (
-                    <Button
-                      variant="primary"
-                      disabled={mutating}
-                      onClick={() =>
-                        hasSchedule
-                          ? onCreateSlot?.(selectedSectionId)
-                          : onCreateTimetable?.()
-                      }
-                    >
-                      <Plus className="size-3.5" />{" "}
-                      {hasSchedule ? "Assign subject" : "Create timetable"}
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </CardBody>
-          ) : (
-            <CardBody noPadding>
-              <SlotsTable
+        {hasWeekTable && effectiveSchedule && onAssignCell ? (
+          <>
+            <div className="md:hidden">
+              <TimetableMobileDayView
+                schedule={effectiveSchedule}
                 slots={sectionSlots}
+                assignmentLabels={assignmentLabels}
                 writesEnabled={writesEnabled}
                 mutating={mutating}
-                onEditSlot={onEditSlot}
-                onDeleteSlot={onDeleteSlot}
+                onAssignCell={onAssignCell}
               />
-            </CardBody>
-          )}
-        </Card>
+            </div>
+            <TimetableAssignGrid
+              schedule={effectiveSchedule}
+              slots={sectionSlots}
+              assignmentLabels={assignmentLabels}
+              title={title}
+              writesEnabled={writesEnabled}
+              mutating={mutating}
+              onAssignCell={onAssignCell}
+            />
+          </>
+        ) : (
+          <Card>
+            <CardHeader
+              title={title}
+              hint={`${sectionSlots.length} slot${sectionSlots.length === 1 ? "" : "s"}${
+                selectedSummary
+                  ? ` · ${selectedSummary.activeCount} active · ${selectedSummary.inactiveCount} draft`
+                  : ""
+              }`}
+            />
+            {sectionSlots.length === 0 ? (
+              <CardBody>
+                <EmptyState
+                  icon={<CalendarDays className="size-5" />}
+                  title="No slots for this section"
+                  hint={
+                    writesEnabled
+                      ? "Create a timetable for this class/section first, or add a slot."
+                      : "Timetable slots appear here once configured."
+                  }
+                  action={
+                    writesEnabled ? (
+                      <Button
+                        variant="primary"
+                        disabled={mutating}
+                        onClick={() => onCreateTimetable?.()}
+                      >
+                        <Plus className="size-3.5" /> Create timetable
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </CardBody>
+            ) : (
+              <CardBody noPadding>
+                <SlotsTable
+                  slots={sectionSlots}
+                  assignmentLabels={assignmentLabels}
+                  writesEnabled={writesEnabled}
+                  mutating={mutating}
+                  onEditSlot={onEditSlot}
+                  onDeleteSlot={onDeleteSlot}
+                />
+              </CardBody>
+            )}
+          </Card>
+        )}
       </PageStack>
     );
   }
@@ -359,12 +368,14 @@ export function TimetableApiReadView({
 
 function SlotsTable({
   slots,
+  assignmentLabels = {},
   writesEnabled = false,
   mutating = false,
   onEditSlot,
   onDeleteSlot,
 }: {
   slots: TimetableSlotListItem[];
+  assignmentLabels?: Record<string, string>;
   writesEnabled?: boolean;
   mutating?: boolean;
   onEditSlot?: (slot: TimetableSlotListItem) => void;
@@ -400,7 +411,8 @@ function SlotsTable({
               </td>
               <td className="px-3 py-2.5">{slot.room?.trim() || "—"}</td>
               <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                {slot.teacherAssignmentId.slice(0, 8)}…
+                {assignmentLabels[slot.teacherAssignmentId] ??
+                  `Period ${slot.periodIndex}`}
               </td>
               <td className="px-3 py-2.5">
                 <Pill tone={slot.status === "active" ? "success" : "warning"}>

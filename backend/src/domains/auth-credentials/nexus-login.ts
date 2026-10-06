@@ -473,6 +473,56 @@ export type CompleteNexusLoginInput = {
   emailOtpGrant?: string;
 };
 
+async function resolveOperatorAuthEmail(
+  admin: SupabaseClient,
+  profile: OperatorProfile,
+): Promise<string> {
+  const profileEmail = profile.email?.trim().toLowerCase();
+  const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
+  const authEmail =
+    authUser.user?.email?.trim().toLowerCase() || profileEmail || null;
+  if (!authEmail) {
+    throw AppError.validation("Operator account is missing an email.");
+  }
+  return authEmail;
+}
+
+async function finalizeNexusOperatorSession(
+  admin: SupabaseClient,
+  input: {
+    profile: OperatorProfile;
+    operator: PlatformOperatorRow;
+    authEmail: string;
+    cred: Awaited<ReturnType<typeof findCredentialByUserId>>;
+  },
+) {
+  if (!input.cred?.first_login_completed_at) {
+    await upsertUserAuthCredential(admin, {
+      userId: input.profile.id,
+      markFirstLoginCompleted: true,
+      markPhoneVerified: true,
+      markEmailVerified: true,
+    });
+  }
+
+  // Activate invited operators on successful login.
+  if (input.operator.status === "invited") {
+    const activated = await admin
+      .from("platform_operator")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("user_id", input.profile.id);
+    if (activated.error) throw activated.error;
+  }
+
+  const session = await createAuthSessionForEmail(admin, input.authEmail);
+  return {
+    ...session,
+    displayName: input.operator.display_name || input.profile.display_name,
+    firstLoginCompleted: true,
+    isRoot: input.operator.role_code === "nexus_root",
+  };
+}
+
 export async function completeNexusLogin(
   admin: SupabaseClient,
   input: CompleteNexusLoginInput,
@@ -487,17 +537,17 @@ export async function completeNexusLogin(
     throw AppError.validation("Verify mobile OTP before completing login.");
   }
 
-  const profileEmail = profile.email?.trim().toLowerCase();
-  const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
-  const authEmail =
-    authUser.user?.email?.trim().toLowerCase() || profileEmail || null;
-  if (!authEmail) {
-    throw AppError.validation("Operator account is missing an email.");
-  }
-
+  const authEmail = await resolveOperatorAuthEmail(admin, profile);
   const ok = await verifyPasswordWithoutPoisoning(admin, authEmail, input.password);
   if (!ok) {
     throw AppError.validation("Incorrect password.", { password: ["Invalid"] });
+  }
+
+  // Validate PIN before consuming one-use OTP grants so a mistyped PIN does not
+  // burn the login grant (Forgot PIN → Save PIN & login needs a fresh grant).
+  const pin = assertValidPin(input.pin);
+  if (cred?.pin_hash) {
+    assertPinMatches(cred, pin, { required: true });
   }
 
   await consumeAuthVerificationGrant(admin, {
@@ -515,45 +565,23 @@ export async function completeNexusLogin(
     });
   }
 
-  if (cred?.pin_hash) {
-    assertPinMatches(cred, input.pin, { required: true });
-  } else {
-    assertValidPin(input.pin);
+  if (!cred?.pin_hash) {
     await upsertUserAuthCredential(admin, {
       userId: profile.id,
       username: cred?.username || operator.handle || authEmail.split("@")[0],
-      pin: input.pin,
+      pin,
       markFirstLoginCompleted: true,
       markPhoneVerified: true,
       markEmailVerified: true,
     });
   }
 
-  if (!cred?.first_login_completed_at) {
-    await upsertUserAuthCredential(admin, {
-      userId: profile.id,
-      markFirstLoginCompleted: true,
-      markPhoneVerified: true,
-      markEmailVerified: true,
-    });
-  }
-
-  // Activate invited operators on successful login.
-  if (operator.status === "invited") {
-    const activated = await admin
-      .from("platform_operator")
-      .update({ status: "active", updated_at: new Date().toISOString() })
-      .eq("user_id", profile.id);
-    if (activated.error) throw activated.error;
-  }
-
-  const session = await createAuthSessionForEmail(admin, authEmail);
-  return {
-    ...session,
-    displayName: operator.display_name || profile.display_name,
-    firstLoginCompleted: true,
-    isRoot: operator.role_code === "nexus_root",
-  };
+  return finalizeNexusOperatorSession(admin, {
+    profile,
+    operator,
+    authEmail,
+    cred,
+  });
 }
 
 export async function requestNexusPasswordResetOtp(
@@ -632,6 +660,12 @@ export async function completeNexusPinReset(
     /** @deprecated Email OTP skipped — accepted if present for older clients. */
     emailOtpGrant?: string;
     newPin: string;
+    /**
+     * When provided (Save PIN & login), verify password and return a session.
+     * Pin-reset OTP already proved possession — do not require a separate
+     * nexus_login grant (it may already be consumed or expired).
+     */
+    password?: string;
   },
 ) {
   const pin = assertValidPin(input.newPin);
@@ -642,6 +676,17 @@ export async function completeNexusPinReset(
     admin,
     input.identifier,
   );
+  const cred = await findCredentialByUserId(admin, profile.id);
+  const password = input.password?.trim() ?? "";
+  let authEmail: string | null = null;
+  if (password) {
+    authEmail = await resolveOperatorAuthEmail(admin, profile);
+    const ok = await verifyPasswordWithoutPoisoning(admin, authEmail, password);
+    if (!ok) {
+      throw AppError.validation("Incorrect password.", { password: ["Invalid"] });
+    }
+  }
+
   await consumeAuthVerificationGrant(admin, {
     purpose: "pin_reset",
     grant: input.mobileOtpGrant,
@@ -656,7 +701,6 @@ export async function completeNexusPinReset(
       metadata: { channel: "email" },
     });
   }
-  const cred = await findCredentialByUserId(admin, profile.id);
   await upsertUserAuthCredential(admin, {
     userId: profile.id,
     username:
@@ -667,5 +711,16 @@ export async function completeNexusPinReset(
     pin,
     markFirstLoginCompleted: true,
   });
-  return { ok: true as const };
+
+  if (!password || !authEmail) {
+    return { ok: true as const };
+  }
+
+  const session = await finalizeNexusOperatorSession(admin, {
+    profile,
+    operator,
+    authEmail,
+    cred,
+  });
+  return { ok: true as const, ...session };
 }

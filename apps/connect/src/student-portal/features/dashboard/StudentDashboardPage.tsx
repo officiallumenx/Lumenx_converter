@@ -160,26 +160,54 @@ export function StudentDashboardPage() {
 
   const now = new Date();
   const todayIso = isoFromParts(now.getFullYear(), now.getMonth(), now.getDate());
-  const sectionKey = attendanceSectionKey(snap.profile.class, snap.profile.section);
-  const attendanceStudentId = toAttendanceStudentId({
-    id: snap.profile.id,
-    classLabel: snap.profile.class,
-    section: snap.profile.section,
-    rollNo: snap.profile.rollNo,
-  });
-  const monthDays = buildLearnerAttendanceDays({
-    year: now.getFullYear(),
-    month: now.getMonth(),
-    studentId: attendanceStudentId,
-    sectionKey,
-  });
-  const fromRegister = resolveLearnerTodayAttendance({
-    studentId: attendanceStudentId,
-    sectionKey,
-    date: todayIso,
-  });
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  const monthDays = isApiAuthMode()
+    ? snap.attendanceDays
+    : buildLearnerAttendanceDays({
+        year,
+        month,
+        studentId: toAttendanceStudentId({
+          id: snap.profile.id,
+          classLabel: snap.profile.class,
+          section: snap.profile.section,
+          rollNo: snap.profile.rollNo,
+        }),
+        sectionKey: attendanceSectionKey(snap.profile.class, snap.profile.section),
+      });
+
+  const fromRegister = isApiAuthMode()
+    ? (() => {
+        const portalDay = monthDays.find((d) => d.day === now.getDate());
+        const status = portalDay?.status ?? "unknown";
+        return {
+          status,
+          label: labelForAttendanceStatus(status),
+          fromRegister: status === "present" || status === "absent" || status === "leave",
+        };
+      })()
+    : resolveLearnerTodayAttendance({
+        studentId: toAttendanceStudentId({
+          id: snap.profile.id,
+          classLabel: snap.profile.class,
+          section: snap.profile.section,
+          rollNo: snap.profile.rollNo,
+        }),
+        sectionKey: attendanceSectionKey(snap.profile.class, snap.profile.section),
+        date: todayIso,
+      });
+
   const todayStatus = fromRegister.status;
-  const monthSummary = computeAttendanceSummary(monthDays, now.getFullYear(), now.getMonth());
+  const monthSummary = isApiAuthMode()
+    ? {
+        ...computeAttendanceSummary(monthDays, year, month),
+        // Prefer portal API summary — same source as profile.attendance.
+        attendancePct: Math.round(
+          snap.attendanceSummary?.attendancePct ?? snap.profile.attendance ?? 0,
+        ),
+      }
+    : computeAttendanceSummary(monthDays, year, month);
   const recentHistory = monthDays
     .filter((d) => d.status !== "future" && d.day <= now.getDate())
     .slice(-5)

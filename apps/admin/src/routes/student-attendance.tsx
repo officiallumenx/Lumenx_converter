@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
+import { SegmentedControl } from "@lumenx/ui-admin";
 import { StudentAttendanceWorkspace } from "@/components/student-attendance";
 import { StudentAttendanceApiPage } from "@/components/student-attendance/StudentAttendanceApiPage";
+import { StudentAttendanceSettingsPanel } from "@/components/student-attendance/StudentAttendanceSettingsPanel";
 import { isApiAuthMode } from "@/auth/auth-mode";
-
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/student-attendance")({
@@ -12,28 +14,48 @@ export const Route = createFileRoute("/student-attendance")({
   component: StudentAttendancePage,
 });
 
+type AttendanceSection = "take" | "settings";
+
 function StudentAttendancePage() {
   const apiMode = isApiAuthMode();
+  const [section, setSection] = useState<AttendanceSection>("take");
 
   return (
     <AppShell
       title={M.attendance}
       subtitle={
-        apiMode
-          ? "Enrollments roster · create / mark / submit registers by class · section · date"
-          : "Select class · section · date · mark via Attendance Engine"
+        section === "settings"
+          ? "Method · owner · notifications"
+          : "Mark by class · section · date"
       }
     >
       <ModuleHero
+        compact
         eyebrow="Academics"
         title={M.attendance}
         subtitle={
-          apiMode
-            ? "Enrollments roster · create / mark / submit registers by class · section · date"
-            : "Select class · section · date · mark via Attendance Engine"
+          section === "settings"
+            ? "Method · owner · notifications"
+            : "Mark by class · section · date"
         }
       />
-      {apiMode ? <StudentAttendanceApiPage /> : <StudentAttendanceWorkspace />}
+      <div className="mb-4 max-w-md">
+        <SegmentedControl
+          value={section}
+          onChange={(value) => setSection(value as AttendanceSection)}
+          options={[
+            { value: "take", label: "Take attendance" },
+            { value: "settings", label: "Attendance settings" },
+          ]}
+        />
+      </div>
+      {section === "settings" ? (
+        <StudentAttendanceSettingsPanel />
+      ) : apiMode ? (
+        <StudentAttendanceApiPage />
+      ) : (
+        <StudentAttendanceWorkspace />
+      )}
     </AppShell>
   );
 }

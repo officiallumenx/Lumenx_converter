@@ -33,6 +33,7 @@ import { TransportEmergenciesView } from "@/components/transport/views/Transport
 import { TransportApprovalApiPanel } from "@/components/transport/TransportApprovalApiPanel";
 import { TransportTripsApiPanel } from "@/components/transport/TransportTripsApiPanel";
 import { TransportAttendanceApiPanel } from "@/components/transport/TransportAttendanceApiPanel";
+import { TransportDailyExceptionsApiPanel } from "@/components/transport/TransportDailyExceptionsApiPanel";
 import { TransportEmergenciesApiPanel } from "@/components/transport/TransportEmergenciesApiPanel";
 import { TransportAnalyticsApiPanel } from "@/components/transport/TransportAnalyticsApiPanel";
 import { TransportReviewsView } from "@/components/transport/views/TransportReviewsView";
@@ -128,7 +129,7 @@ const VIEW_SUBTITLES: Record<TransportHubView, string> = {
   dashboard: "Route setup status · vehicles and student coverage",
   vehicles: "Manage buses and vans · capacity, status, assigned drivers",
   drivers: "Driver roster · licenses, vehicles, and status",
-  stops: "Driver stops · publish pending submissions for Connect & trips",
+  stops: "Driver stops · usable immediately; Publish records Admin review",
   routes: "Review driver-configured routes · lock when ready",
   students: "Assign students to a bus · stops sync from driver",
   reviews: "Approve or decline driver routes, stops, and enrollments",
@@ -882,7 +883,7 @@ function TransportPage() {
     apiMode && view === "vehicles"
       ? `${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
       : apiMode && view === "dashboard"
-        ? "Vehicles overview"
+        ? undefined
         : apiMode && view === "drivers"
           ? `${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
           : apiMode && view === "routes"
@@ -907,7 +908,12 @@ function TransportPage() {
 
   return (
     <AppShell title={pageTitle} subtitle={pageSubtitle}>
-      <ModuleHero eyebrow="Services" title={pageTitle} subtitle={pageSubtitle} />
+      <ModuleHero
+        compact
+        eyebrow="Services"
+        title={pageTitle}
+        subtitle={pageSubtitle}
+      />
       <TransportHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" ? (
@@ -917,6 +923,9 @@ function TransportPage() {
               driversView={driversListView}
               routesView={routesListView}
               enrollmentsView={enrollmentsListView}
+              instituteId={instituteId}
+              writesEnabled={writesEnabled}
+              onNotify={notify}
               onNavigate={goToView}
             />
           ) : (
@@ -1201,14 +1210,24 @@ function TransportPage() {
         ) : null}
         {view === "trips" ? (
           apiMode ? (
-            <TransportTripsApiPanel instituteId={instituteId ?? ""} />
+            <TransportTripsApiPanel
+              instituteId={instituteId ?? ""}
+              writesEnabled={writesEnabled}
+              onNotify={notify}
+            />
           ) : (
             <TransportTripsView snapshot={snapshot} />
           )
         ) : null}
         {view === "attendance" ? (
           apiMode ? (
-            <TransportAttendanceApiPanel instituteId={instituteId ?? ""} />
+            <div className="space-y-6">
+              <TransportDailyExceptionsApiPanel
+                instituteId={instituteId ?? ""}
+                writesEnabled={writesEnabled}
+              />
+              <TransportAttendanceApiPanel instituteId={instituteId ?? ""} />
+            </div>
           ) : (
             <TransportAttendanceView />
           )

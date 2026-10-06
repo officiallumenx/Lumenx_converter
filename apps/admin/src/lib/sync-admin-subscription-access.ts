@@ -19,7 +19,8 @@ import {
   type SubscriptionTrialView,
 } from "@lumenx/utils";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { getSubscriptionDetail } from "@/lib/subscriptions/api";
+import { writeApiModuleEntitlements } from "@/lib/admin-plan-config";
+import { getCurrentSubscription, getSubscriptionDetail } from "@/lib/subscriptions/api";
 import type { InstituteSubscriptionDetailDto } from "@/lib/subscriptions/types";
 
 function mapDetailToLocal(detail: InstituteSubscriptionDetailDto): InstituteSubscription {
@@ -67,7 +68,10 @@ export async function syncAdminSubscriptionAccessFromApi(
 ): Promise<void> {
   if (!instituteId.trim()) return;
   try {
-    const detail = await getSubscriptionDetail(instituteId);
+    const [detail, current] = await Promise.all([
+      getSubscriptionDetail(instituteId),
+      getCurrentSubscription(instituteId).catch(() => null),
+    ]);
     if (!detail.subscriptionId && detail.lifecycleStatus === "registered") {
       // Still hydrate so registered → read-only gate matches API.
       hydrateInstituteSubscriptionFromApi(mapDetailToLocal(detail));
@@ -77,6 +81,10 @@ export async function syncAdminSubscriptionAccessFromApi(
       hydrateInstituteSubscriptionFromApi(mapDetailToLocal(detail));
     }
     ensureRenewalReminders(instituteId);
+    // License module map drives nav ceiling (storage / attendance reports opt-in).
+    if (current?.modules) {
+      writeApiModuleEntitlements(current.modules);
+    }
   } catch {
     // Keep last known local state if network fails — never freeze Admin chrome.
   }

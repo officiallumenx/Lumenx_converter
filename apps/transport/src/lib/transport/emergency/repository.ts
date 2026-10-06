@@ -243,6 +243,60 @@ export const emergencyRepository = {
     }
 
     try {
+      const clientEventId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? `sos-${crypto.randomUUID()}`
+          : `sos-${Date.now()}`;
+
+      const { enqueueOpsEvent, isOpsOutboxOnline, flushOpsOutbox } = await import(
+        "../ops-outbox"
+      );
+
+      if (!isOpsOutboxOnline()) {
+        enqueueOpsEvent({
+          eventType: "emergency",
+          tripId,
+          clientEventId,
+          payload: {
+            instituteId,
+            tripId,
+            driverId,
+            vehicleId,
+            note: "SOS triggered by driver",
+            latitude,
+            longitude,
+          },
+        });
+        const emergency = mapApiEmergencyToLocal(
+          {
+            id: `local-${clientEventId}`,
+            status: "active",
+            emergencyType: "general",
+            note: "SOS queued offline — will sync when connection returns",
+            latitude,
+            longitude,
+            vehicleId,
+            driverId,
+          },
+          driverName,
+          vehicleNumber,
+          routeMeta,
+        );
+        apiOpenEmergencyCache = emergency;
+        apiEmergencyListCache = [
+          emergency,
+          ...apiEmergencyListCache.filter((e) => e.id !== emergency.id),
+        ];
+        emitApi();
+        return {
+          ok: true,
+          created: true,
+          simulated: false,
+          message: "Offline — SOS queued and will sync when connection returns.",
+          emergency,
+        };
+      }
+
       const created = await createTransportEmergencyApi({
         instituteId,
         tripId,
@@ -251,7 +305,9 @@ export const emergencyRepository = {
         note: "SOS triggered by driver",
         latitude,
         longitude,
+        clientEventId,
       });
+      void flushOpsOutbox();
       const emergency = mapApiEmergencyToLocal(created, driverName, vehicleNumber, routeMeta);
       apiOpenEmergencyCache = emergency;
       apiEmergencyListCache = [

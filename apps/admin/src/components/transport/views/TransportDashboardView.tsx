@@ -4,7 +4,6 @@ import {
   Bus,
   MapPin,
   Route,
-  Lock,
   Siren,
   ClipboardCheck,
   Navigation,
@@ -99,32 +98,58 @@ export function TransportDashboardView({ snapshot, onNavigate }: Props) {
     }));
 
   return (
-    <PageStack>
-      <div className="lx-kpi-grid">
-        <Kpi label="Drivers" value={String(snapshot.drivers.length)} />
-        <Kpi label="Buses" value={String(snapshot.vehicles.length)} />
-        <Kpi label="Routes" value={String(d.totalRoutes)} />
-        <Kpi label="Configured" value={String(d.configuredRoutes)} />
-        <Kpi label="Locked routes" value={String(d.lockedRoutes)} />
-        <Kpi label="Pending requests" value={String(pendingCount)} />
-        <Kpi label="Pending stops" value={String(pendingStops)} />
-        <Kpi label="Active SOS" value={String(activeCount)} />
-      </div>
+    <PageStack className="gap-3">
+      <Card>
+        <CardHeader
+          title="Fleet overview"
+          hint={`${pendingStops} driver stops waiting · ${pendingCount} total pending`}
+        />
+        <div className="grid grid-cols-2 gap-2 px-4 pb-3 sm:grid-cols-4 sm:px-5">
+          <Kpi label="Drivers" value={String(snapshot.drivers.length)} />
+          <Kpi label="Buses" value={String(snapshot.vehicles.length)} />
+          <Kpi label="Routes" value={String(d.totalRoutes)} />
+          <Kpi label="Configured" value={String(d.configuredRoutes)} />
+          <Kpi label="Locked routes" value={String(d.lockedRoutes)} />
+          <Kpi label="Pending requests" value={String(pendingCount)} />
+          <Kpi label="Pending stops" value={String(pendingStops)} />
+          <Kpi label="Active SOS" value={String(activeCount)} />
+        </div>
+        <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3 sm:px-5">
+          <Button size="sm" variant="primary" onClick={() => onNavigate("reviews")}>
+            <ClipboardCheck className="size-3.5" /> Accept driver stops
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("routes")}>
+            <Route className="size-3.5" /> Routes
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("vehicles")}>
+            <Bus className="size-3.5" /> Vehicles
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("drivers")}>
+            <UserRound className="size-3.5" /> Drivers
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("stops")}>
+            <MapPin className="size-3.5" /> Stops
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("emergencies")}>
+            <Siren className="size-3.5" /> Emergencies
+          </Button>
+        </div>
+      </Card>
 
       {pendingCount > 0 ? (
-        <div className="mt-4 space-y-2">
+        <div className="space-y-2">
           <TransportApprovalPanel
-            title="Pending requests needing review"
-            hint="Approve activates for the driver · Decline requires a reason"
+            title="Driver stops to accept"
+            hint="Approve publishes the stop · Decline needs a reason"
           />
           <Button size="sm" variant="outline" onClick={() => onNavigate("reviews")}>
             <ClipboardCheck className="size-3.5" /> Open full review queue
           </Button>
         </div>
       ) : (
-        <Card className="mt-4">
-          <CardHeader title="Pending requests" hint="Driver stop and assignment submissions" />
-          <div className="px-5 pb-5 flex flex-wrap items-center gap-2">
+        <Card>
+          <CardHeader title="Driver stops to accept" hint="Driver stop and assignment submissions" />
+          <div className="px-4 pb-4 flex flex-wrap items-center gap-2 sm:px-5">
             <p className="text-sm text-muted-foreground">No pending Transport requests.</p>
             <Button size="sm" onClick={() => onNavigate("reviews")}>
               <ClipboardCheck className="size-3.5" /> Review queue
@@ -133,7 +158,7 @@ export function TransportDashboardView({ snapshot, onNavigate }: Props) {
         </Card>
       )}
 
-      <Card className="mt-4">
+      <Card>
         <CardHeader
           title="Today trips"
           hint="Driver · Bus · Route · Status"
@@ -183,7 +208,7 @@ export function TransportDashboardView({ snapshot, onNavigate }: Props) {
         </div>
       </Card>
 
-      <Card className="mt-4">
+      <Card>
         <CardHeader
           title="Transport emergencies"
           hint="Driver SOS · frontend only · no SMS / push / calls"
@@ -191,7 +216,7 @@ export function TransportDashboardView({ snapshot, onNavigate }: Props) {
             <Pill tone={activeCount ? "danger" : "neutral"}>{activeCount} active</Pill>
           }
         />
-        <div className="px-5 pb-5 space-y-3">
+        <div className="px-4 pb-4 space-y-3 sm:px-5">
           {activeList.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No active SOS. Open Emergencies for history and resolved cases.
@@ -216,36 +241,6 @@ export function TransportDashboardView({ snapshot, onNavigate }: Props) {
           )}
           <Button variant="primary" size="sm" onClick={() => onNavigate("emergencies")}>
             <Siren className="size-3.5" /> Open emergencies
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader title="Quick actions" hint="Admin Transport controls" />
-        <div className="px-5 pb-5 flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={() => onNavigate("reviews")}>
-            <ClipboardCheck className="size-3.5" /> Pending requests
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("routes")}>
-            <Route className="size-3.5" /> Routes and lock
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("routes")}>
-            <Lock className="size-3.5" /> Lock / Unlock
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("trips")}>
-            <Navigation className="size-3.5" /> Trip overview
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("vehicles")}>
-            <Bus className="size-3.5" /> Vehicles
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("drivers")}>
-            <UserRound className="size-3.5" /> Drivers
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("stops")}>
-            <MapPin className="size-3.5" /> Catalogue Stops
-          </Button>
-          <Button size="sm" onClick={() => onNavigate("emergencies")}>
-            <Siren className="size-3.5" /> Emergencies
           </Button>
         </div>
       </Card>

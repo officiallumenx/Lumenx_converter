@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayableContactEmail,
   membershipDtoToListItem,
   membershipIdentityLabel,
+  publicLoginIdentityLines,
   toggleRoleCode,
 } from "./map";
 import { collectMembershipCandidates } from "./membership-candidates";
@@ -55,6 +57,25 @@ describe("membershipDtoToListItem", () => {
     expect(item.identityLabel).toBe("Ada Lovelace");
     expect(item.rolesLabel).toBe("institute admin, teacher");
     expect(item.email).toBe("ada@school.edu");
+  });
+});
+
+describe("publicLoginIdentityLines", () => {
+  it("never surfaces username or synthetic emails", () => {
+    expect(
+      publicLoginIdentityLines({
+        email: "teacher-1@connect.lumenx.invalid",
+        phone: "9704146155",
+      }),
+    ).toEqual(["9704146155"]);
+    expect(displayableContactEmail("x@portal.lumenx.local")).toBeNull();
+    expect(displayableContactEmail("ada@school.edu")).toBe("ada@school.edu");
+    expect(
+      publicLoginIdentityLines({
+        email: "ada@school.edu",
+        phone: "999",
+      }),
+    ).toEqual(["ada@school.edu", "999"]);
   });
 });
 

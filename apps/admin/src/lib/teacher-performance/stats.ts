@@ -1,5 +1,5 @@
 import type {
-  DepartmentRanking,
+  SubjectRanking,
   TeacherPerformanceDto,
   TeacherPerformanceSummary,
 } from "./types";
@@ -26,19 +26,28 @@ export function findTopRatedTeacher(
   return [...rated].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0] ?? null;
 }
 
-export function computeDepartmentRankings(
+export function formatSubjects(subjects: string[] | null | undefined): string {
+  const cleaned = (subjects ?? []).map((s) => s.trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned.join(", ") : "Unassigned";
+}
+
+export function computeSubjectRankings(
   rows: TeacherPerformanceDto[],
-): DepartmentRanking[] {
-  const byDept = new Map<string, TeacherPerformanceDto[]>();
+): SubjectRanking[] {
+  const bySubject = new Map<string, TeacherPerformanceDto[]>();
   for (const row of rows) {
-    const dept = row.department.trim() || "Unassigned";
-    const list = byDept.get(dept) ?? [];
-    list.push(row);
-    byDept.set(dept, list);
+    const subjects =
+      row.subjects?.map((s) => s.trim()).filter(Boolean) ?? [];
+    const keys = subjects.length > 0 ? subjects : ["Unassigned"];
+    for (const subject of keys) {
+      const list = bySubject.get(subject) ?? [];
+      list.push(row);
+      bySubject.set(subject, list);
+    }
   }
 
-  return [...byDept.entries()]
-    .map(([department, teachers]) => {
+  return [...bySubject.entries()]
+    .map(([subject, teachers]) => {
       const rated = teachers.filter((teacher) => teacher.rating != null);
       const average =
         rated.length === 0
@@ -46,12 +55,12 @@ export function computeDepartmentRankings(
           : rated.reduce((sum, teacher) => sum + (teacher.rating ?? 0), 0) /
             rated.length;
       return {
-        department,
+        subject,
         average: Math.round(average * 100) / 100,
         teacherCount: teachers.length,
       };
     })
-    .sort((a, b) => b.average - a.average || a.department.localeCompare(b.department));
+    .sort((a, b) => b.average - a.average || a.subject.localeCompare(b.subject));
 }
 
 export function trendTone(trend: string): "success" | "danger" | "neutral" {

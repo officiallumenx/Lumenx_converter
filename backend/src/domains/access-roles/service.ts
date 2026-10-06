@@ -20,7 +20,7 @@ import { findTeacherById, updateTeacherFields } from "../teachers/repository.js"
 import { findStaffAccountById, updateStaffAccountFields } from "../staff/repository.js";
 import { provisionAuthUser, ensureParentProfile } from "../parents/provision.js";
 import { SYSTEM_ACCESS_ROLE_SEEDS } from "./defaults.js";
-import { allPermissions, isAdminModuleRoute } from "./module-routes.js";
+import { ADMIN_MODULE_ROUTES, allPermissions, isAdminModuleRoute } from "./module-routes.js";
 import {
   assertValidPin,
   assertValidUsername,
@@ -73,6 +73,16 @@ function assertAccessAdmin(actor: Actor, instituteId: string): void {
 
 function normalizePhoneDigits(value: string): string {
   return value.replace(/\D/g, "").slice(-10);
+}
+
+function isSyntheticLoginEmail(email: string | null | undefined): boolean {
+  const value = email?.trim().toLowerCase() ?? "";
+  if (!value) return false;
+  return (
+    value.endsWith(".invalid") ||
+    value.includes(".lumenx.invalid") ||
+    value.includes("@portal.lumenx.local")
+  );
 }
 
 function normalizePermissions(
@@ -128,16 +138,35 @@ export async function ensureDefaultAccessRoles(
 ): Promise<void> {
   for (const seed of SYSTEM_ACCESS_ROLE_SEEDS) {
     const existing = await findAccessRoleBySystemKey(admin, instituteId, seed.systemKey);
-    if (existing) continue;
-    const created = await insertAccessRole(admin, {
-      instituteId,
-      name: seed.name,
-      scope: seed.scope,
-      description: seed.description,
-      isSystem: true,
-      systemKey: seed.systemKey,
-    });
-    await replaceRolePermissions(admin, created.id, normalizePermissions(seed.permissions));
+    if (!existing) {
+      const created = await insertAccessRole(admin, {
+        instituteId,
+        name: seed.name,
+        scope: seed.scope,
+        description: seed.description,
+        isSystem: true,
+        systemKey: seed.systemKey,
+      });
+      await replaceRolePermissions(admin, created.id, normalizePermissions(seed.permissions));
+      continue;
+    }
+
+    // Fill newly added ACL routes from seed without overwriting explicit saved values.
+    const permRows = await listPermissionsForRoles(admin, [existing.id]);
+    const have = new Set(
+      permRows
+        .filter((row) => row.access_role_id === existing.id)
+        .map((row) => row.module_route),
+    );
+    const missing = ADMIN_MODULE_ROUTES.filter((route) => !have.has(route));
+    if (missing.length === 0) continue;
+
+    const seedPerms = normalizePermissions(seed.permissions);
+    const merged = permissionsMapFromRows(existing.id, permRows);
+    for (const route of missing) {
+      merged[route] = seedPerms[route] ?? "none";
+    }
+    await replaceRolePermissions(admin, existing.id, merged);
   }
 }
 
@@ -559,13 +588,9 @@ export async function updateAccessAssigneeForActor(
   const membership = await findMembershipById(admin, existing.membership_id);
   if (!membership) throw AppError.notFound("Membership not found");
 
-  if (
-    input.password !== undefined ||
-    input.email !== undefined ||
-    input.phone !== undefined
-  ) {
+  if (input.password !== undefined) {
     throw AppError.validation(
-      "Access assignments cannot change global login email, phone, or password",
+      "Password cannot be changed from this assignment. Use forgot password on login.",
     );
   }
 
@@ -580,6 +605,67 @@ export async function updateAccessAssigneeForActor(
     await updateMembershipFields(admin, membership.id, {
       status: input.membershipStatus,
     });
+  }
+
+  const profilePatch: Record<string, unknown> = {};
+  if (input.displayName !== undefined) {
+    const name = input.displayName.trim();
+    if (!name) throw AppError.validation("Person name is required");
+    profilePatch.display_name = name;
+  }
+
+  if (input.email !== undefined) {
+    const nextEmail = input.email?.trim().toLowerCase() || null;
+    if (nextEmail && isSyntheticLoginEmail(nextEmail)) {
+      throw AppError.validation("Enter a real email address, not a system placeholder.");
+    }
+    if (nextEmail) {
+      const taken = await findProfileByEmailOrPhone(admin, { email: nextEmail });
+      if (taken && taken.id !== membership.user_id) {
+        throw AppError.conflict("That email is already used by another account.");
+      }
+      profilePatch.email = nextEmail;
+      const { data: authUser } = await admin.auth.admin.getUserById(membership.user_id);
+      const currentAuthEmail = authUser.user?.email?.trim().toLowerCase() ?? null;
+      if (currentAuthEmail !== nextEmail) {
+        const { error: emailError } = await admin.auth.admin.updateUserById(
+          membership.user_id,
+          { email: nextEmail },
+        );
+        if (emailError) {
+          throw AppError.validation(
+            emailError.message || "Unable to update login email for this user.",
+          );
+        }
+      }
+    } else {
+      // Clearing: only drop synthetic placeholders; keep a real email if present.
+      const existingProfile = await findProfileById(admin, membership.user_id);
+      if (existingProfile && isSyntheticLoginEmail(existingProfile.email)) {
+        profilePatch.email = null;
+      }
+    }
+  }
+
+  if (input.phone !== undefined) {
+    const phoneRaw = input.phone?.trim() || "";
+    if (!phoneRaw) {
+      profilePatch.phone = null;
+    } else {
+      const phoneDigits = normalizePhoneDigits(phoneRaw);
+      if (phoneDigits.length !== 10) {
+        throw AppError.validation("Mobile must be a 10-digit number.");
+      }
+      const taken = await findProfileByEmailOrPhone(admin, { phone: phoneDigits });
+      if (taken && taken.id !== membership.user_id) {
+        throw AppError.conflict("That mobile number is already used by another account.");
+      }
+      profilePatch.phone = phoneDigits;
+    }
+  }
+
+  if (Object.keys(profilePatch).length > 0) {
+    await updateProfileFields(admin, membership.user_id, profilePatch);
   }
 
   const updated = await updateAccessAssignmentFields(admin, assignmentId, {

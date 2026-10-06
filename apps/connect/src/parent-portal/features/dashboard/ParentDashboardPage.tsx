@@ -163,6 +163,19 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
     if (!child) return null;
     const now = new Date();
     const iso = isoFromParts(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (isApiAuthMode()) {
+      const portalDay = snap?.attendanceDays?.find((d) => d.day === now.getDate());
+      const status = portalDay?.status ?? "unknown";
+      return {
+        status,
+        label: labelForAttendanceStatus(status),
+        date: iso,
+        displayDate: formatDisplayDate(iso),
+        fromRegister: status === "present" || status === "absent" || status === "leave",
+      };
+    }
+
     const sectionKey = attendanceSectionKey(child.className, child.section);
     const attendanceStudentId = toAttendanceStudentId({
       id: child.id,
@@ -182,11 +195,41 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
       displayDate: formatDisplayDate(iso),
       fromRegister: fromRegister.fromRegister,
     };
-  }, [child]);
+  }, [child, snap?.attendanceDays]);
 
   const attendanceHistory = useMemo(() => {
     if (!child) return null;
     const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    if (isApiAuthMode()) {
+      const monthDays = snap?.attendanceDays ?? [];
+      const computed = computeAttendanceSummary(monthDays, year, month);
+      // Use the same API summary % as ChildSwitcher (`child.attendance`).
+      // Recomputing from current-month day rows alone can read 0% when marks
+      // are sparse even though the portal summary is correct.
+      const attendancePct = Math.round(
+        snap?.child?.attendance ?? child.attendance,
+      );
+      const summary = {
+        ...computed,
+        attendancePct,
+        monthLabel: computed.monthLabel || now.toLocaleString("en-IN", { month: "short", year: "numeric" }),
+      };
+      const recent = monthDays
+        .filter((d) => d.status !== "future" && d.status !== "unknown" && d.day <= now.getDate())
+        .slice(-5)
+        .reverse()
+        .map((d) => ({
+          day: d.day,
+          status: d.status,
+          label: labelForAttendanceStatus(d.status),
+          iso: isoFromParts(year, month, d.day),
+        }));
+      return { summary, recent };
+    }
+
     const sectionKey = attendanceSectionKey(child.className, child.section);
     const attendanceStudentId = toAttendanceStudentId({
       id: child.id,
@@ -195,12 +238,12 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
       rollNo: child.rollNo,
     });
     const monthDays = buildLearnerAttendanceDays({
-      year: now.getFullYear(),
-      month: now.getMonth(),
+      year,
+      month,
       studentId: attendanceStudentId,
       sectionKey,
     });
-    const summary = computeAttendanceSummary(monthDays, now.getFullYear(), now.getMonth());
+    const summary = computeAttendanceSummary(monthDays, year, month);
     const recent = monthDays
       .filter((d) => d.status !== "future" && d.day <= now.getDate())
       .slice(-5)
@@ -209,10 +252,10 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         day: d.day,
         status: d.status,
         label: labelForAttendanceStatus(d.status),
-        iso: isoFromParts(now.getFullYear(), now.getMonth(), d.day),
+        iso: isoFromParts(year, month, d.day),
       }));
     return { summary, recent };
-  }, [child]);
+  }, [child, snap?.attendanceDays, snap?.child?.attendance]);
 
   const attendanceNotifs = useMemo(
     () =>

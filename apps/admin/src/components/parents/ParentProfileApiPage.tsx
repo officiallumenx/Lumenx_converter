@@ -330,7 +330,14 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>
         ) : editing && draft ? (
           <Card>
-            <CardHeader title={displayParent.name} hint={displayParent.identityLabel} />
+            <CardHeader
+              title={displayParent.name}
+              hint={
+                displayParent.identityLabel
+                  ? `${displayParent.identityLabel} · ${displayParent.relationship}`
+                  : displayParent.relationship
+              }
+            />
             <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5">
               <Field label="Full name" required>
                 <TextInput
@@ -385,7 +392,11 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
             <Card>
               <CardHeader
                 title={displayParent.name}
-                hint={displayParent.identityLabel}
+                hint={
+                  displayParent.identityLabel
+                    ? `${displayParent.identityLabel} · ${displayParent.relationship}`
+                    : displayParent.relationship
+                }
                 action={
                   <div className="flex flex-wrap gap-2">
                     <Pill tone="info">{displayParent.relationship}</Pill>

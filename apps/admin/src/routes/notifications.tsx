@@ -198,20 +198,21 @@ function NotificationsPage() {
             : "Targeted announcements & emergency alerts"
       }
     >
-      <ModuleHero
-        eyebrow="Communications"
-        title="Notification Center"
-        subtitle={
-          apiMode
-            ? tab === "inbox"
-              ? "Mark read / delete notifications"
-              : "Send broadcasts"
-            : tab === "inbox"
-              ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
-              : "Targeted announcements & emergency alerts"
-        }
-      />
-      <div className="mb-4">
+      <div className="flex flex-col gap-2">
+        <ModuleHero
+          compact
+          eyebrow="Communications"
+          title="Notification Center"
+          subtitle={
+            apiMode
+              ? tab === "inbox"
+                ? "Mark read / delete notifications"
+                : "Send broadcasts"
+              : tab === "inbox"
+                ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
+                : "Targeted announcements & emergency alerts"
+          }
+        />
         <SegmentedControl
           value={tab}
           onChange={onTabChange}
@@ -222,33 +223,32 @@ function NotificationsPage() {
             },
             {
               value: "broadcast",
-              label: apiMode ? "Emit" : "Broadcast",
+              label: "Send",
             },
           ]}
         />
+        {tab === "inbox" ? (
+          <NotificationCenterInbox
+            items={displayItems}
+            onChange={refreshList}
+            writesEnabled={writesEnabled}
+            rowsValid={listView.rowsValid}
+            listHint={listHint}
+            instituteResetKey={instituteCtx.activeInstituteId}
+            instituteId={instituteCtx.activeInstituteId}
+          />
+        ) : apiMode ? (
+          <NotificationApiEmitCompose
+            onEmitted={() => {
+              refreshList();
+              setTab("inbox");
+              void navigate({ search: { tab: "inbox" } });
+            }}
+          />
+        ) : (
+          <NotificationBroadcastCompose />
+        )}
       </div>
-
-      {tab === "inbox" ? (
-        <NotificationCenterInbox
-          items={displayItems}
-          onChange={refreshList}
-          writesEnabled={writesEnabled}
-          rowsValid={listView.rowsValid}
-          listHint={listHint}
-          instituteResetKey={instituteCtx.activeInstituteId}
-          instituteId={instituteCtx.activeInstituteId}
-        />
-      ) : apiMode ? (
-        <NotificationApiEmitCompose
-          onEmitted={() => {
-            refreshList();
-            setTab("inbox");
-            void navigate({ search: { tab: "inbox" } });
-          }}
-        />
-      ) : (
-        <NotificationBroadcastCompose />
-      )}
     </AppShell>
   );
 }

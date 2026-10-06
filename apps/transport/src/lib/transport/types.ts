@@ -58,6 +58,8 @@ export type RosterStudent = {
   /** Enrollment stop id when assigned */
   stopId?: string;
   rollNo: string;
+  dropStopId?: string | null;
+  dropStopName?: string | null;
 };
 
 export type BoardingStatus = "pending" | "boarded" | "not_boarded";
@@ -68,6 +70,11 @@ export type AttendanceStudentState = RosterStudent & {
   dropping: DroppingStatus;
   boardedAt: string | null;
   droppedAt: string | null;
+  /** Optimistic mark awaiting server confirmation. */
+  syncStatus?: "idle" | "syncing" | "confirmed" | "error";
+  /** Configured drop stop for this enrollment (drop phase). */
+  dropStopId?: string | null;
+  dropStopName?: string | null;
 };
 
 export type TransportNotificationKind = "route" | "school" | "reminder" | "urgent";

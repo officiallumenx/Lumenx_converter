@@ -8,10 +8,16 @@ export type InstituteRegistrationPayload = {
   instituteCode?: string;
   instituteType?: string;
   educationBoard?: string;
+  /** School landline / contact number (institute, not admin personal mobile). */
+  schoolPhone?: string;
+  schoolEmail?: string;
   country?: string;
   state?: string;
   district?: string;
   city?: string;
+  area?: string;
+  street?: string;
+  landmark?: string;
   address?: string;
   pincode?: string;
   website?: string;
@@ -19,6 +25,15 @@ export type InstituteRegistrationPayload = {
   principalEmail?: string;
   principalMobile?: string;
   principalDesignation?: string;
+  /** Preferred Admin login username (stored on applicant profile when available). */
+  username?: string;
+  /** Admin residential address (separate from institute address). */
+  adminCountry?: string;
+  adminState?: string;
+  adminDistrict?: string;
+  adminCity?: string;
+  adminAddress?: string;
+  adminPincode?: string;
   employeeId?: string;
   /** Optional data-URL logo from signup (V1 — no separate asset upload). */
   logoPreview?: string;
@@ -43,6 +58,23 @@ export type InstituteRegistrationRow = {
   institute_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Typed mirrors of payload (nullable until migration applied / backfilled). */
+  institute_code?: string | null;
+  institute_type?: string | null;
+  education_board?: string | null;
+  school_email?: string | null;
+  school_phone?: string | null;
+  applicant_username?: string | null;
+  admin_designation?: string | null;
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  city?: string | null;
+  area?: string | null;
+  street?: string | null;
+  landmark?: string | null;
+  pincode?: string | null;
+  website?: string | null;
 };
 
 export type InstituteRegistrationDto = {

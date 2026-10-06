@@ -12,7 +12,9 @@ export type CalendarListItem = {
   date: string;
   endDate?: string;
   time?: string;
+  endTime?: string;
   kind: string;
+  description?: string;
 };
 
 export type ListCalendarParams = {

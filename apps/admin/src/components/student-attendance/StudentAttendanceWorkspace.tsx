@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { PageStack, Pill } from "@lumenx/ui-admin";
-import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { PageStack } from "@lumenx/ui-admin";
 import { useAuth } from "@/auth/AuthContext";
 import {
   adminAttendanceAccessBanner,
@@ -25,8 +23,6 @@ export type StudentAttendanceWorkspaceProps = {
   /** Optional controlled state; omit for self-contained page usage. */
   state?: StudentAttendanceWorkspaceState;
   onStateChange?: (next: StudentAttendanceWorkspaceState) => void;
-  /** Show links to insights / settings (Admin shell). */
-  showRelatedLinks?: boolean;
 };
 
 /**
@@ -36,7 +32,6 @@ export type StudentAttendanceWorkspaceProps = {
 export function StudentAttendanceWorkspace({
   state: controlledState,
   onStateChange,
-  showRelatedLinks = true,
 }: StudentAttendanceWorkspaceProps) {
   const { user } = useAuth();
   const access = useMemo(() => getAttendanceModuleAccess(user), [user]);
@@ -85,34 +80,6 @@ export function StudentAttendanceWorkspace({
 
   return (
     <PageStack>
-      {showRelatedLinks ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Pill tone="neutral">{M.attendance}</Pill>
-          <Pill tone="info">{access.label}</Pill>
-          {access.scopeMode === "assigned_classes" || access.scopeMode === "assigned_class" ? (
-            <span>Assigned classes only</span>
-          ) : access.canMark ? (
-            <span>Central workspace</span>
-          ) : access.canMonitor ? (
-            <span>Monitor only</span>
-          ) : (
-            <span>View only</span>
-          )}
-          <span className="text-border">·</span>
-          <Link to="/attendance" className="font-medium text-primary hover:underline">
-            Monitor & analytics
-          </Link>
-          <span className="text-border">·</span>
-          <Link
-            to="/academic-management"
-            search={{ view: "settings" }}
-            className="font-medium text-primary hover:underline"
-          >
-            Attendance settings
-          </Link>
-        </div>
-      ) : null}
-
       {accessBanner ? (
         <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
           {accessBanner}

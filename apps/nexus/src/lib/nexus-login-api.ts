@@ -272,13 +272,35 @@ export async function completeNexusPinReset(input: {
   mobileOtpGrant: string;
   emailOtpGrant?: string;
   newPin: string;
+  /** When set, server verifies password and returns a session (Save PIN & login). */
+  password?: string;
 }) {
-  return postJson<{ ok: true }>("/api/v1/auth/nexus/forgot-pin/complete", {
+  const data = await postJson<{
+    ok: true;
+    access_token?: string;
+    refresh_token?: string;
+    display_name?: string;
+    is_root?: boolean;
+  }>("/api/v1/auth/nexus/forgot-pin/complete", {
     identifier: input.identifier,
     mobile_otp_grant: input.mobileOtpGrant,
     ...(input.emailOtpGrant ? { email_otp_grant: input.emailOtpGrant } : {}),
     new_pin: input.newPin,
+    ...(input.password ? { password: input.password } : {}),
   });
+
+  if (data.access_token && data.refresh_token) {
+    const supabase = await syncSupabaseBrowserClientFromApi(getApiBaseUrl()).catch(
+      () => getSupabaseBrowserClient(),
+    );
+    const { error } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (error) throw new Error(error.message || "Unable to establish Nexus session.");
+    markNexusOperatorLogin();
+  }
+  return data;
 }
 
 export async function nexusSignOut(): Promise<void> {

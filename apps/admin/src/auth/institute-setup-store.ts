@@ -15,22 +15,14 @@ export const SUBMITTED_REGISTRATION_KEY  = "lx_submitted_registration_v1";
 
 export const INSTITUTE_TYPES = [
   "School (K-12)",
-  "High School (up to Grade 10)",
-  "Junior College",
-  "Degree College",
-  "University",
-  "Coaching Institute",
-  "Vocational Training",
-  "Montessori / Pre-school",
+  "School (K-10)",
+  "School (K-9)",
 ] as const;
 
 export const EDUCATION_BOARDS = [
   "CBSE",
   "ICSE / ISC",
   "State Board",
-  "IB (International Baccalaureate)",
-  "Cambridge (IGCSE)",
-  "NIOS",
   "Other",
 ] as const;
 
@@ -57,11 +49,7 @@ export const INDIA_STATES = [
 
 export const PRINCIPAL_DESIGNATIONS = [
   "Principal",
-  "Vice Principal",
   "Director",
-  "Dean",
-  "Head of Institution",
-  "Administrator",
 ] as const;
 
 export const SETUP_STEP_META = [

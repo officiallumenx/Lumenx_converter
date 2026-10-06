@@ -44,7 +44,7 @@ function chipClass(id: string, severity: AttentionSeverity): string {
   if (id === "diary-missing") return "lx-home-att-chip lx-home-att-chip--orange";
   if (id === "attendance-drafts") return "lx-home-att-chip lx-home-att-chip--info";
   if (id === "marks-review") return "lx-home-att-chip lx-home-att-chip--purple";
-  if (id === "leave") return "lx-home-att-chip lx-home-att-chip--green";
+  if (id === "leave") return "lx-home-att-chip lx-home-att-chip--info";
   if (severity === "critical" || severity === "urgent") return "lx-home-att-chip lx-home-att-chip--critical";
   if (severity === "attention") return "lx-home-att-chip lx-home-att-chip--attention";
   return "lx-home-att-chip lx-home-att-chip--info";
@@ -54,7 +54,7 @@ function badgeClass(id: string, severity: AttentionSeverity): string {
   if (id === "diary-missing") return "lx-home-att-badge lx-home-att-badge--orange";
   if (id === "attendance-drafts") return "lx-home-att-badge lx-home-att-badge--blue";
   if (id === "marks-review") return "lx-home-att-badge lx-home-att-badge--purple";
-  if (id === "leave") return "lx-home-att-badge lx-home-att-badge--green";
+  if (id === "leave") return "lx-home-att-badge lx-home-att-badge--blue";
   if (severity === "critical" || severity === "urgent") return "lx-home-att-badge lx-home-att-badge--red";
   return "lx-home-att-badge lx-home-att-badge--amber";
 }

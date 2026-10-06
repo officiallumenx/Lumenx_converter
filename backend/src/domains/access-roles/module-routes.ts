@@ -1,5 +1,6 @@
 /** Canonical Admin module routes for ACL — keep in sync with apps/admin admin-nav. */
 export const ADMIN_MODULE_ROUTES = [
+  "/",
   "/students",
   "/teachers",
   "/parents",
@@ -34,6 +35,7 @@ export const ADMIN_MODULE_ROUTES = [
   "/accounts",
   "/permissions",
   "/settings",
+  "/profile-settings",
   "/alerts",
   "/staff-attendance",
   "/recycle",

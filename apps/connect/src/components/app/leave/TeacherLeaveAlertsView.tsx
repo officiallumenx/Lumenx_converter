@@ -89,25 +89,29 @@ function ApiTeacherLeaveAlertsView() {
       return;
     }
     let cancelled = false;
-    void loadConnectPortalInbox(activeInstituteId).then((inbox) => {
-      if (cancelled) return;
-      setLeaveLog(
-        inbox
-          .filter((n) => n.category === "leave")
-          .filter(
-            (n) =>
-              n.title.toLowerCase().includes("leave") ||
-              n.desc.toLowerCase().includes("leave"),
-          )
-          .slice(0, 8)
-          .map((n) => ({
-            id: n.id,
-            title: n.title,
-            summary: n.desc,
-            time: n.time,
-          })),
-      );
-    });
+    void loadConnectPortalInbox(activeInstituteId)
+      .then((inbox) => {
+        if (cancelled) return;
+        setLeaveLog(
+          inbox
+            .filter((n) => n.category === "leave")
+            .filter(
+              (n) =>
+                n.title.toLowerCase().includes("leave") ||
+                n.desc.toLowerCase().includes("leave"),
+            )
+            .slice(0, 8)
+            .map((n) => ({
+              id: n.id,
+              title: n.title,
+              summary: n.desc,
+              time: n.time,
+            })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setLeaveLog([]);
+      });
     return () => {
       cancelled = true;
     };

@@ -87,14 +87,30 @@ export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: 
     }
 
     void (async () => {
-      if (apiMode && activeInstituteId) {
-        const rows = await listStudents({ instituteId: activeInstituteId, status: "active" });
-        if (cancelled) return;
-        const roster = rows.map(apiStudentToTeacherStudent);
-        const classes = [...new Set(roster.map((s) => s.className))].sort();
-        rosterCache = { key: cacheKey, roster, classNames: classes };
-        setClassNames(classes);
-        setInstituteRoster(roster);
+      if (apiMode) {
+        if (!activeInstituteId) {
+          if (cancelled) return;
+          setClassNames([]);
+          setInstituteRoster([]);
+          setLoading(false);
+          return;
+        }
+        try {
+          const rows = await listStudents({
+            instituteId: activeInstituteId,
+            status: "active",
+          });
+          if (cancelled) return;
+          const roster = rows.map(apiStudentToTeacherStudent);
+          const classes = [...new Set(roster.map((s) => s.className))].sort();
+          rosterCache = { key: cacheKey, roster, classNames: classes };
+          setClassNames(classes);
+          setInstituteRoster(roster);
+        } catch {
+          if (cancelled) return;
+          setClassNames([]);
+          setInstituteRoster([]);
+        }
         setLoading(false);
         return;
       }

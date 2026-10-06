@@ -105,8 +105,10 @@ export function getTripAssignmentSnapshot(): TripAssignment {
   if (!scope) return EMPTY_ASSIGNMENT;
 
   const setup = getRouteSetupSnapshot();
-  const approved = setup.stops.filter((s) => s.status === "approved");
-  const sourceStops = approved.length > 0 ? approved : [];
+  const usable = setup.stops.filter(
+    (s) => s.status === "approved" || s.status === "pending",
+  );
+  const sourceStops = usable.length > 0 ? usable : [];
   const stops =
     sourceStops.length > 0
       ? [...sourceStops]

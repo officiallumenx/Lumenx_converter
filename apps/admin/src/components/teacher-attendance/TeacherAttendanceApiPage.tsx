@@ -12,7 +12,6 @@ import {
   CardHeader,
   CascadingFiltersMenu,
   DataTable,
-  Kpi,
   Modal,
   PageStack,
   Pill,
@@ -27,13 +26,11 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
-  Clock,
   History,
   Lock,
   Pencil,
   Send,
   UserCheck,
-  UserX,
 } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { DEPARTMENTS, statusMeta } from "@/lib/teacher-attendance-data";
@@ -533,11 +530,40 @@ export function TeacherAttendanceApiPage() {
 
       {tab === "overview" ? (
         <>
-          <div className="lx-kpi-grid">
-            <Kpi label="Avg attendance" value={`${overviewKpis.avgPct}%`} />
-            <Kpi label="Half day / exceptions" value={String(overviewKpis.lates)} icon={<Clock className="size-3.5" />} />
-            <Kpi label="Leave" value={String(overviewKpis.leaves)} />
-            <Kpi label="Absent" value={String(overviewKpis.absents)} tone="down" icon={<UserX className="size-3.5" />} />
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">
+            <span className="font-medium text-muted-foreground">Overview</span>
+            <span className="text-border" aria-hidden>
+              |
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">Avg</span>
+              <span className="font-semibold tabular-nums">{overviewKpis.avgPct}%</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">H</span>
+              <span className="font-semibold tabular-nums">{overviewKpis.lates}</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">A</span>
+              <span className="font-semibold tabular-nums text-destructive">
+                {overviewKpis.absents}
+              </span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">L</span>
+              <span className="font-semibold tabular-nums text-warning">
+                {overviewKpis.leaves}
+              </span>
+            </span>
           </div>
           <OverviewPanel
             list={overviewList}
@@ -575,13 +601,56 @@ export function TeacherAttendanceApiPage() {
       {tab === "mark" ? (
         <>
           {displaySummary ? (
-            <div className="lx-kpi-grid">
-              <Kpi label="Present" value={String(displaySummary.present)} tone="up" icon={<CheckCircle2 className="size-3.5" />} />
-              <Kpi label="Absent" value={String(displaySummary.absent)} tone="down" icon={<UserX className="size-3.5" />} />
-              <Kpi label="Half day" value={String(displaySummary.halfDay)} icon={<Clock className="size-3.5" />} />
-              <Kpi label="Leave" value={String(displaySummary.leave)} />
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">
+              <span className="font-medium text-muted-foreground">Summary</span>
+              <span className="text-border" aria-hidden>
+                |
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground">P</span>
+                <span className="font-semibold tabular-nums text-success">
+                  {displaySummary.present}
+                </span>
+              </span>
+              <span className="text-border" aria-hidden>
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground">A</span>
+                <span className="font-semibold tabular-nums text-destructive">
+                  {displaySummary.absent}
+                </span>
+              </span>
+              <span className="text-border" aria-hidden>
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground">H</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {displaySummary.halfDay}
+                </span>
+              </span>
+              <span className="text-border" aria-hidden>
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground">L</span>
+                <span className="font-semibold tabular-nums text-warning">
+                  {displaySummary.leave}
+                </span>
+              </span>
               {displaySummary.unmarked > 0 ? (
-                <Kpi label="Unmarked" value={String(displaySummary.unmarked)} tone="down" />
+                <>
+                  <span className="text-border" aria-hidden>
+                    ·
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-muted-foreground">U</span>
+                    <span className="font-semibold tabular-nums text-muted-foreground">
+                      {displaySummary.unmarked}
+                    </span>
+                  </span>
+                </>
               ) : null}
             </div>
           ) : null}
@@ -669,7 +738,6 @@ export function TeacherAttendanceApiPage() {
                     <Th>Teacher</Th>
                     <Th>Status</Th>
                     <Th>Check in</Th>
-                    <Th>Note</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -677,8 +745,8 @@ export function TeacherAttendanceApiPage() {
                     <Tr key={mark.teacherId}>
                       <Td>
                         <div className="font-medium">{mark.teacherName}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground">
-                          {mark.teacherId.slice(0, 8)}…
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {mark.subject || "—"}
                         </div>
                       </Td>
                       <Td>
@@ -708,7 +776,6 @@ export function TeacherAttendanceApiPage() {
                         )}
                       </Td>
                       <Td className="font-mono text-xs">{mark.checkIn ?? "—"}</Td>
-                      <Td className="text-xs text-muted-foreground">{mark.note?.trim() || "—"}</Td>
                     </Tr>
                   ))}
                 </tbody>

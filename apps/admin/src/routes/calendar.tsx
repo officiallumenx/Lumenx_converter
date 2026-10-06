@@ -5,20 +5,16 @@ import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import {
-  Card,
-  CardHeader,
   Button,
-  Pill,
   Kpi,
   Field,
   TextInput,
+  TextArea,
   Select,
   Modal,
 } from "@lumenx/ui-admin";
-import { DateTimePicker12h, parseDateTimeLocal, toDateTimeLocal } from "@/components/DateTimePicker12h";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { ACADEMIC_YEAR } from "@/lib/admin-module-data";
-import { workingDaysInYear } from "@/lib/admin-analytics-data";
 import {
   createCalendarEventId,
   deleteCalendarEvent,
@@ -41,7 +37,19 @@ import {
   type CalendarListItem,
   type CalendarListStatus,
 } from "@/lib/calendar";
-import { Plus, CalendarDays } from "lucide-react";
+import { CalendarYearGrid } from "@/components/calendar/CalendarYearGrid";
+import { CalendarMonthGrid } from "@/components/calendar/CalendarMonthGrid";
+import {
+  kindToUiCategory,
+  uiCategoryToKind,
+  type CalendarUiCategory,
+  type CalendarViewItem,
+} from "@/components/calendar/calendar-view-helpers";
+import {
+  generateRuleHolidays,
+  useCalendarHolidayRules,
+} from "@/lib/calendar-holiday-rules";
+import { Plus, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export const Route = createFileRoute("/calendar")({
@@ -49,44 +57,46 @@ export const Route = createFileRoute("/calendar")({
   component: CalendarPage,
 });
 
-const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-
-type CalKind = "holiday" | "exam" | "meeting" | "function";
-
-const CAL_KINDS: CalKind[] = ["holiday", "exam", "meeting", "function"];
-
 type CalDisplayItem = CalendarListItem | InstituteCalendarItem;
 
-function toCalKind(kind: string): CalKind {
-  return CAL_KINDS.includes(kind as CalKind) ? (kind as CalKind) : "function";
+function toViewItem(item: CalDisplayItem): CalendarViewItem {
+  return {
+    id: item.id,
+    title: item.title,
+    date: item.date,
+    time: item.time,
+    endTime: item.endTime,
+    kind: item.kind,
+    description: item.description,
+  };
 }
 
-function monthShort(iso: string) {
-  return new Date(iso).toLocaleString("en", { month: "short" });
-}
-
-function formatCalTime(time24?: string): string {
-  if (!time24) return "";
-  const m = /^(\d{1,2}):(\d{2})$/.exec(time24);
-  if (!m) return time24;
-  let h = Number(m[1]);
-  const min = m[2];
-  const period = h >= 12 ? "PM" : "AM";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${min} ${period}`;
+function normalizeTimeInput(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!m) return undefined;
+  return `${m[1]!.padStart(2, "0")}:${m[2]}`;
 }
 
 function CalendarPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+  const writesEnabled = resolveWritesEnabled(apiMode, {
+    status: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+  });
 
+  const now = new Date();
   const [view, setView] = useState<"month" | "year">("year");
-  const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[2]!);
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [monthYear, setMonthYear] = useState(now.getFullYear());
+  const [monthIndex, setMonthIndex] = useState(now.getMonth());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
   const allItems = useCalendarEvents();
   const demoItems = useMemo(
     () => (apiMode ? [] : filterAcademicCalendarItems(allItems)),
@@ -98,9 +108,7 @@ function CalendarPage() {
     apiMode ? "loading" : "demo",
   );
   const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const listEnabled =
     apiMode &&
@@ -114,7 +122,10 @@ function CalendarPage() {
     invalidateAdminCache("admin:calendar");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.calendar),
+        queryKey: adminModulePrefix(
+          instituteCtx.activeInstituteId,
+          adminQueryRoots.calendar,
+        ),
       });
     }
   };
@@ -134,15 +145,28 @@ function CalendarPage() {
   });
   const displayItems: CalDisplayItem[] = apiMode ? listView.items : demoItems;
   const rowsValid = listView.rowsValid;
+  const holidayRules = useCalendarHolidayRules();
+  const displayYear = view === "year" ? viewYear : monthYear;
+  const viewItems = useMemo(() => {
+    const entries = displayItems.map(toViewItem);
+    const generated = generateRuleHolidays(displayYear, holidayRules, entries);
+    return [...entries, ...generated];
+  }, [displayItems, displayYear, holidayRules]);
 
   const [newTitle, setNewTitle] = useState("");
-  const [newDateTime, setNewDateTime] = useState("");
-  const [newType, setNewType] = useState<CalKind>("holiday");
+  const [newDate, setNewDate] = useState("");
+  const [newCategory, setNewCategory] = useState<CalendarUiCategory>("holiday");
+  const [newDescription, setNewDescription] = useState("");
+  const [newStartTime, setNewStartTime] = useState("");
+  const [newEndTime, setNewEndTime] = useState("");
 
   const resetForm = () => {
     setNewTitle("");
-    setNewDateTime("");
-    setNewType("holiday");
+    setNewDate("");
+    setNewCategory("holiday");
+    setNewDescription("");
+    setNewStartTime("");
+    setNewEndTime("");
     setEditingId(null);
   };
 
@@ -157,14 +181,9 @@ function CalendarPage() {
       return;
     }
 
-    if (
-      instituteCtx.status === "error" ||
-      instituteCtx.status === "forbidden"
-    ) {
+    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
       setApiItems([]);
-      setListStatus(
-        instituteCtx.status === "forbidden" ? "forbidden" : "error",
-      );
+      setListStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
       setListError(instituteCtx.errorMessage);
       setResolvedForInstituteId(null);
       return;
@@ -206,33 +225,39 @@ function CalendarPage() {
   useEffect(() => {
     resetForm();
     setOpen(false);
+    setSelectedDate(null);
   }, [instituteCtx.activeInstituteId]);
+
+  const openCreateForDate = (iso: string) => {
+    if (!writesEnabled) {
+      setSelectedDate(iso);
+      return;
+    }
+    resetForm();
+    setSelectedDate(iso);
+    setNewDate(iso);
+    setOpen(true);
+  };
 
   const openEdit = (id: string) => {
     if (!writesEnabled) return;
-    if (apiMode) {
-      const item = displayItems.find((d) => d.id === id);
-      if (!item) return;
-      setEditingId(item.id);
-      setNewTitle(item.title);
-      setNewType(toCalKind(item.kind));
-      setNewDateTime(toDateTimeLocal(item.date, item.time || "09:00"));
-      setOpen(true);
-      return;
-    }
-    const item = getCalendarEventById(id);
+    const item = displayItems.find((d) => d.id === id);
     if (!item) return;
+    const demo = !apiMode ? getCalendarEventById(id) : undefined;
     setEditingId(item.id);
     setNewTitle(item.title);
-    setNewType(toCalKind(item.kind));
-    setNewDateTime(toDateTimeLocal(item.date, item.time || "09:00"));
+    setNewDate(item.date);
+    setNewCategory(kindToUiCategory(item.kind));
+    setNewDescription(item.description ?? demo?.description ?? "");
+    setNewStartTime((item.time ?? demo?.time ?? "").slice(0, 5));
+    setNewEndTime((item.endTime ?? demo?.endTime ?? "").slice(0, 5));
+    setSelectedDate(item.date);
     setOpen(true);
   };
 
   const removeDate = (id: string) => {
     if (!writesEnabled) return;
     if (apiMode) {
-      // Published calendar dates cannot be hard-deleted; cancel hides them from the list.
       void cancelEvent(id, { cancellationReason: "Removed from calendar" })
         .then(() => deleteEvent(id))
         .then(() => {
@@ -247,31 +272,36 @@ function CalendarPage() {
     }
     deleteCalendarEvent(id);
     if (editingId === id) resetForm();
+    notify("Calendar date removed");
   };
 
-  const allDates = useMemo(
-    () => [...displayItems].sort((a, b) => a.date.localeCompare(b.date)),
-    [displayItems],
-  );
-  const monthDates = useMemo(
-    () => allDates.filter((d) => monthShort(d.date) === selectedMonth),
-    [allDates, selectedMonth],
-  );
-
   const holidayCount = useMemo(
-    () => displayItems.filter((d) => d.kind === "holiday").length,
-    [displayItems],
+    () => new Set(viewItems.filter((d) => d.kind === "holiday").map((d) => d.date)).size,
+    [viewItems],
   );
-  const examCount = useMemo(
-    () => displayItems.filter((d) => d.kind === "exam").length,
-    [displayItems],
+  const eventCount = useMemo(
+    () => viewItems.filter((d) => d.kind !== "holiday").length,
+    [viewItems],
   );
+  const daysInYear =
+    displayYear % 400 === 0 || (displayYear % 4 === 0 && displayYear % 100 !== 0)
+      ? 366
+      : 365;
+  const workingDays = Math.max(0, daysInYear - holidayCount);
 
   const saveDate = () => {
     if (!writesEnabled) return;
-    if (!newTitle.trim() || !newDateTime) return;
-    const { date, time } = parseDateTimeLocal(newDateTime);
-    if (!date) return;
+    if (!newTitle.trim() || !newDate) {
+      notify("Title and date are required");
+      return;
+    }
+    const kind = uiCategoryToKind(newCategory);
+    const startTime =
+      kind === "holiday" ? undefined : normalizeTimeInput(newStartTime);
+    const endTime =
+      kind === "holiday" ? undefined : normalizeTimeInput(newEndTime);
+    const description = newDescription.trim() || undefined;
+
     if (apiMode) {
       const instituteId = instituteCtx.activeInstituteId;
       if (!instituteId) {
@@ -286,9 +316,11 @@ function CalendarPage() {
       if (editingId) {
         void updateEvent(editingId, {
           title: newTitle.trim(),
-          kind: newType,
-          startsOn: date,
-          startTime: newType === "holiday" ? null : time || null,
+          kind,
+          startsOn: newDate,
+          startTime: startTime ?? null,
+          endTime: endTime ?? null,
+          description: description ?? null,
           source: "calendar",
         })
           .then(() => {
@@ -303,10 +335,12 @@ function CalendarPage() {
       void createEvent({
         instituteId,
         title: newTitle.trim(),
-        kind: newType,
+        kind,
         source: "calendar",
-        startsOn: date,
-        startTime: newType === "holiday" ? null : time || null,
+        startsOn: newDate,
+        startTime: startTime ?? null,
+        endTime: endTime ?? null,
+        description: description ?? null,
         published: true,
       })
         .then(() => {
@@ -318,17 +352,19 @@ function CalendarPage() {
         });
       return;
     }
+
     const existing = editingId ? getCalendarEventById(editingId) : undefined;
     upsertCalendarEvent({
       id: editingId ?? createCalendarEventId("cal"),
-      date,
+      date: newDate,
       title: newTitle.trim(),
-      kind: newType,
-      time: newType === "holiday" ? undefined : time || undefined,
+      kind,
+      time: startTime,
+      endTime,
       endDate: existing?.endDate,
       audience: existing?.audience,
       location: existing?.location,
-      description: existing?.description,
+      description,
       reminder: existing?.reminder,
       bannerDataUrl: existing?.bannerDataUrl,
       rsvp: existing?.rsvp,
@@ -337,6 +373,7 @@ function CalendarPage() {
     });
     resetForm();
     setOpen(false);
+    notify(editingId ? "Calendar date updated" : "Calendar date added");
   };
 
   const listHint =
@@ -355,56 +392,61 @@ function CalendarPage() {
   const kpiValue = (count: number) =>
     apiMode && !rowsValid ? "…" : String(count);
 
-  const monthCountDisplay = (count: number) =>
-    apiMode && !rowsValid ? "…" : count || "—";
-
   return (
     <AppShell
       title={M.calendar}
       subtitle={
         apiMode
-          ? "Create / update / delete events"
-          : `Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`
+          ? "Year & month calendar · holidays and events"
+          : `Session ${ACADEMIC_YEAR.label} · holidays & events`
       }
       actions={
         writesEnabled ? (
-          <Button variant="primary" onClick={() => { resetForm(); setOpen(true); }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              resetForm();
+              const d = new Date();
+              const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              setNewDate(selectedDate ?? iso);
+              setOpen(true);
+            }}
+          >
             <Plus className="size-3.5" /> Add date
           </Button>
         ) : null
       }
     >
       <ModuleHero
+        compact
         eyebrow="Institute"
         title={M.calendar}
-        subtitle={
-          apiMode
-            ? "Create / update / delete events"
-            : `Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`
-        }
+        subtitle="Year view for next events · month grid to add holidays and events"
       />
+
       <div className="lx-kpi-grid">
         <Kpi
-          label="Academic year"
-          value={ACADEMIC_YEAR.label}
+          label="Calendar year"
+          value={String(view === "year" ? viewYear : monthYear)}
           icon={<CalendarDays className="size-3.5" />}
         />
         <Kpi label="Holidays" value={kpiValue(holidayCount)} />
-        <Kpi label="Exam windows" value={kpiValue(examCount)} />
+        <Kpi label="Events" value={kpiValue(eventCount)} />
         <Kpi
           label="Working days"
-          value={kpiValue(workingDaysInYear(holidayCount))}
-          delta="Est. year"
+          value={kpiValue(workingDays)}
+          delta={String(displayYear)}
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mt-6 mb-4">
-        <div className="flex gap-1 p-1 w-fit bg-background rounded-md border border-border">
+      <div className="mt-4 mb-3 flex flex-wrap items-center gap-3">
+        <div className="flex w-fit gap-1 rounded-md border border-border bg-background p-1">
           {(["year", "month"] as const).map((v) => (
             <button
               key={v}
+              type="button"
               onClick={() => setView(v)}
-              className={`px-4 h-8 rounded text-[11px] font-medium capitalize transition-colors ${
+              className={`h-8 rounded px-4 text-[11px] font-medium capitalize transition-colors ${
                 view === v ? "bg-surface text-foreground" : "text-muted-foreground"
               }`}
             >
@@ -412,178 +454,79 @@ function CalendarPage() {
             </button>
           ))}
         </div>
-        {view === "month" && (
-          <Select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-28 h-9 text-xs"
-          >
-            {MONTHS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
-        )}
+
+        {view === "year" ? (
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewYear((y) => y - 1)}
+              aria-label="Previous year"
+            >
+              <ChevronLeft className="size-3.5" />
+            </Button>
+            <span className="min-w-[3.5rem] text-center text-xs font-semibold tabular-nums">
+              {viewYear}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setViewYear((y) => y + 1)}
+              aria-label="Next year"
+            >
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {apiMode && !rowsValid ? (
-        <Card className="p-5">
-          <div className="py-12 text-sm text-muted-foreground text-center">
-            {listHint}
-          </div>
-        </Card>
+        <div className="rounded-lg border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
+          {listHint}
+        </div>
       ) : (
         <>
-          {view === "year" && (
-            <Card>
-              <CardHeader
-                title="Year at a glance"
-                hint={ACADEMIC_YEAR.start + " → " + ACADEMIC_YEAR.end}
-              />
-              <div className="px-5 pb-5 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-                {MONTHS.map((m) => {
-                  const cnt = allDates.filter((d) => monthShort(d.date) === m).length;
-                  return (
-                    <button
-                      key={m}
-                      onClick={() => {
-                        setSelectedMonth(m);
-                        setView("month");
-                      }}
-                      className="p-3 rounded-lg border border-border bg-background/40 text-center hover:bg-surface-hover transition-colors"
-                    >
-                      <div className="text-[10px] font-mono uppercase text-muted-foreground">{m}</div>
-                      <div className="text-xs font-medium mt-1">{monthCountDisplay(cnt)}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
+          {view === "year" ? (
+            <CalendarYearGrid
+              year={viewYear}
+              items={viewItems}
+              loadingPlaceholder={apiMode && !rowsValid}
+              onSelectMonth={(year, month) => {
+                setMonthYear(year);
+                setMonthIndex(month);
+                setSelectedDate(null);
+                setView("month");
+              }}
+            />
+          ) : null}
 
-          {view === "month" && (
-            <Card>
-              <CardHeader
-                title={`${selectedMonth} — Important dates`}
-                hint={`${monthDates.length} entries`}
-              />
-              {monthDates.length === 0 ? (
-                <div className="px-5 pb-5 text-xs text-muted-foreground">
-                  {listHint ?? `No dates in ${selectedMonth}`}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
-                        <th className="px-5 py-3 font-semibold">Date</th>
-                        <th className="px-5 py-3 font-semibold">Time</th>
-                        <th className="px-5 py-3 font-semibold">Title</th>
-                        <th className="px-5 py-3 font-semibold">Type</th>
-                        {writesEnabled ? (
-                          <th className="px-5 py-3 font-semibold">Actions</th>
-                        ) : null}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {monthDates.map((d) => (
-                        <tr key={d.id} className="hover:bg-surface-hover">
-                          <td className="px-5 py-3 text-xs font-mono">{d.date}</td>
-                          <td className="px-5 py-3 text-xs font-mono text-muted-foreground">
-                            {formatCalTime(d.time) || "—"}
-                          </td>
-                          <td className="px-5 py-3 text-xs font-medium">{d.title}</td>
-                          <td className="px-5 py-3">
-                            <Pill
-                              tone={
-                                d.kind === "holiday"
-                                  ? "warning"
-                                  : d.kind === "exam"
-                                    ? "info"
-                                    : d.kind === "meeting"
-                                      ? "neutral"
-                                      : "success"
-                              }
-                            >
-                              {d.kind}
-                            </Pill>
-                          </td>
-                          {writesEnabled ? (
-                            <td className="px-5 py-3">
-                              <div className="flex gap-2">
-                                <Button onClick={() => openEdit(d.id)}>Edit</Button>
-                                <Button onClick={() => removeDate(d.id)}>Delete</Button>
-                              </div>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {view === "year" && (
-            <Card className="mt-6">
-              <CardHeader title="All important dates" />
-              {allDates.length === 0 ? (
-                <div className="px-5 pb-5 text-xs text-muted-foreground">
-                  {listHint ?? "No important dates yet"}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
-                        <th className="px-5 py-3 font-semibold">Date</th>
-                        <th className="px-5 py-3 font-semibold">Time</th>
-                        <th className="px-5 py-3 font-semibold">Title</th>
-                        <th className="px-5 py-3 font-semibold">Type</th>
-                        {writesEnabled ? (
-                          <th className="px-5 py-3 font-semibold">Actions</th>
-                        ) : null}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {allDates.map((d) => (
-                        <tr key={d.id} className="hover:bg-surface-hover">
-                          <td className="px-5 py-3 text-xs font-mono">{d.date}</td>
-                          <td className="px-5 py-3 text-xs font-mono text-muted-foreground">
-                            {formatCalTime(d.time) || "—"}
-                          </td>
-                          <td className="px-5 py-3 text-xs font-medium">{d.title}</td>
-                          <td className="px-5 py-3">
-                            <Pill
-                              tone={
-                                d.kind === "holiday"
-                                  ? "warning"
-                                  : d.kind === "exam"
-                                    ? "info"
-                                    : "success"
-                              }
-                            >
-                              {d.kind}
-                            </Pill>
-                          </td>
-                          {writesEnabled ? (
-                            <td className="px-5 py-3">
-                              <div className="flex gap-2">
-                                <Button onClick={() => openEdit(d.id)}>Edit</Button>
-                                <Button onClick={() => removeDate(d.id)}>Delete</Button>
-                              </div>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          )}
+          {view === "month" ? (
+            <CalendarMonthGrid
+              year={monthYear}
+              monthIndex={monthIndex}
+              items={viewItems}
+              selectedDate={selectedDate}
+              writesEnabled={writesEnabled}
+              holidayRules={holidayRules}
+              onHolidayNotify={notify}
+              onChangeMonth={(year, month) => {
+                setMonthYear(year);
+                setMonthIndex(month);
+                setSelectedDate(null);
+              }}
+              onSelectDate={(iso) => {
+                setSelectedDate(iso);
+                const hasNamed = viewItems.some(
+                  (item) => item.date === iso && item.source !== "rule",
+                );
+                if (writesEnabled && !hasNamed && !viewItems.some((item) => item.date === iso)) {
+                  openCreateForDate(iso);
+                }
+              }}
+              onAddForDate={openCreateForDate}
+              onEditItem={openEdit}
+            />
+          ) : null}
         </>
       )}
 
@@ -594,9 +537,20 @@ function CalendarPage() {
             resetForm();
             setOpen(false);
           }}
-          title={editingId ? "Edit important date" : "Add important date"}
+          title={editingId ? "Edit calendar entry" : "Add calendar entry"}
           footer={
             <>
+              {editingId ? (
+                <Button
+                  onClick={() => {
+                    removeDate(editingId);
+                    setOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Delete
+                </Button>
+              ) : null}
               <Button
                 onClick={() => {
                   resetForm();
@@ -614,25 +568,55 @@ function CalendarPage() {
           <div className="space-y-4">
             <Field label="Title" required>
               <TextInput
-                placeholder="Mid-term begins"
+                placeholder="Diwali holiday / Sports day"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
             </Field>
-            <Field label="Date & time" required hint="12-hour clock with AM / PM">
-              <DateTimePicker12h value={newDateTime} onChange={setNewDateTime} />
+            <Field label="Date" required>
+              <TextInput
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+              />
             </Field>
-            <Field label="Type">
+            <Field label="Category" required hint="Holiday or event">
               <Select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as CalKind)}
+                value={newCategory}
+                onChange={(e) =>
+                  setNewCategory(e.target.value as CalendarUiCategory)
+                }
               >
                 <option value="holiday">Holiday</option>
-                <option value="exam">Exam</option>
-                <option value="meeting">Meeting</option>
-                <option value="function">Function</option>
+                <option value="event">Event</option>
               </Select>
             </Field>
+            <Field label="Description" hint="Optional notes">
+              <TextArea
+                rows={3}
+                placeholder="Details for staff and families"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </Field>
+            {newCategory === "event" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="From" hint="Optional">
+                  <TextInput
+                    type="time"
+                    value={newStartTime}
+                    onChange={(e) => setNewStartTime(e.target.value)}
+                  />
+                </Field>
+                <Field label="To" hint="Optional">
+                  <TextInput
+                    type="time"
+                    value={newEndTime}
+                    onChange={(e) => setNewEndTime(e.target.value)}
+                  />
+                </Field>
+              </div>
+            ) : null}
           </div>
         </Modal>
       ) : null}

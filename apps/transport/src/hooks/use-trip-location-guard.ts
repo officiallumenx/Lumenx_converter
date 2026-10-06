@@ -64,5 +64,18 @@ export function useTripLocationGuard() {
     }
   }, [active, track.status]);
 
+  useEffect(() => {
+    if (!active) return;
+    const onGpsError = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ message?: string }>).detail;
+      toast.error("GPS error", {
+        id: "transport-gps-capture-error",
+        description: detail?.message ?? "Could not capture location.",
+      });
+    };
+    window.addEventListener("lumenx-transport-gps-error", onGpsError);
+    return () => window.removeEventListener("lumenx-transport-gps-error", onGpsError);
+  }, [active]);
+
   return track;
 }

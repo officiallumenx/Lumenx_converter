@@ -14,7 +14,8 @@ export type TeacherPerformanceMetrics = {
 export type TeacherPerformanceDto = {
   teacherId: string;
   name: string;
-  department: string;
+  /** Teaching subjects for display/rankings (never empty — uses "Unassigned"). */
+  subjects: string[];
   /** OPI score 0–5; null when no operational signals exist in the rating window. */
   rating: number | null;
   /** Month-over-month delta formatted as +0.12 / -0.05 / 0.00 */

@@ -44,24 +44,30 @@ export function TransportAnalyticsApiPanel({
       <Pill tone="neutral">Analytics · {analytics.tripDate}</Pill>
 
       <div className="lx-kpi-grid">
-        <Kpi label="Configured routes" value={String(analytics.configuredRoutes)} icon={<Route className="size-3.5" />} />
-        <Kpi label="Locked routes" value={String(analytics.lockedRoutes)} />
-        <Kpi label="Pending setup" value={String(analytics.pendingRouteSetup)} />
+        <Kpi label="Active buses" value={String(analytics.activeBuses ?? 0)} icon={<Bus className="size-3.5" />} />
+        <Kpi label="Total buses" value={String(analytics.totalVehicles)} icon={<Bus className="size-3.5" />} />
+        <Kpi label="Active drivers" value={String(analytics.activeDrivers ?? 0)} />
+        <Kpi label="Total drivers" value={String(analytics.totalDrivers)} />
         <Kpi
-          label="Transport students"
-          value={String(analytics.approvedEnrollments)}
+          label="Students using transport"
+          value={String(analytics.studentsUsingTransport ?? analytics.activeEnrollments)}
           icon={<Users className="size-3.5" />}
         />
-        <Kpi label="Vehicles" value={String(analytics.totalVehicles)} icon={<Bus className="size-3.5" />} />
-        <Kpi label="Approved stops" value={String(analytics.approvedStops)} icon={<MapPin className="size-3.5" />} />
-        <Kpi label="Trips today" value={String(analytics.tripsToday)} />
         <Kpi label="Active trips" value={String(analytics.activeTrips)} />
-        <Kpi label="Boarded today" value={String(analytics.boardedToday)} />
+        <Kpi label="Delayed trips" value={String(analytics.delayedTrips ?? 0)} />
         <Kpi
           label="Open SOS"
           value={String(analytics.openEmergencies)}
           icon={<Siren className="size-3.5" />}
         />
+        <Kpi
+          label="Buses with stale GPS"
+          value={String(analytics.busesWithStaleGps ?? 0)}
+          icon={<MapPin className="size-3.5" />}
+        />
+        <Kpi label="Configured routes" value={String(analytics.configuredRoutes)} icon={<Route className="size-3.5" />} />
+        <Kpi label="Trips today" value={String(analytics.tripsToday)} />
+        <Kpi label="Boarded today" value={String(analytics.boardedToday)} />
       </div>
 
       <Card>

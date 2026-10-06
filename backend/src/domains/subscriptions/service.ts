@@ -41,15 +41,18 @@ import type {
   SubmitOfflinePaymentInput,
 } from "./types.js";
 
+/** Fallback when no license entitlements exist. Opt-in modules stay off. */
 const DEFAULT_MODULES: Record<string, boolean> = {
   students: true,
   teachers: true,
   parents: true,
-  attendance: true,
   fees: true,
   analytics: true,
   reports: true,
   alerts: true,
+  /** Nexus opt-in — disabled until explicitly entitled. */
+  attendance: false,
+  storage: false,
 };
 
 const INSTITUTE_BILLING_WRITE_ROLES = ["institute_admin"] as const;

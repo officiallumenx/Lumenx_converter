@@ -192,9 +192,11 @@ export function portalAttendanceToStudentSummary(input: {
     .map((day) => ({
       date: day.date,
       status:
-        day.status === "unknown"
-          ? ("present" as const)
-          : (day.status as "present" | "absent" | "leave"),
+        day.status === "partial"
+          ? ("absent" as const)
+          : day.status === "unknown"
+            ? ("present" as const)
+            : (day.status as "present" | "absent" | "leave"),
       note: "",
     }));
 

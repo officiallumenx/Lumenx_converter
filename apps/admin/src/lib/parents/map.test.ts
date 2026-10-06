@@ -72,7 +72,7 @@ describe("parents DTO mapping", () => {
       parentIdentityLabel(
         dto({ legacyCode: null, id: "ba111111-1111-4111-8111-111111111111" }),
       ),
-    ).toBe("9876512345");
+    ).toBe("");
     expect(
       parentIdentityLabel(
         dto({

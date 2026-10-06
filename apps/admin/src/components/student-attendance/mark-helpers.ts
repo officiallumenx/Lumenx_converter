@@ -53,24 +53,33 @@ export function summarizeMarks(
   return { total: students.length, present, absent, leave, unmarked };
 }
 
+function matchesRosterSearch(query: string, student: MarkRosterStudent): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const name = student.name.toLowerCase();
+  const roll = student.roll.toLowerCase();
+  const id = student.id.toLowerCase();
+  if (name.includes(q) || roll.includes(q) || id.includes(q)) return true;
+
+  const qDigits = q.replace(/\D/g, "").replace(/^0+/, "") || q.replace(/\D/g, "");
+  if (!qDigits) return false;
+  const rollDigits =
+    student.roll.replace(/\D/g, "").replace(/^0+/, "") || student.roll.replace(/\D/g, "");
+  return Boolean(rollDigits && (rollDigits === qDigits || rollDigits.includes(qDigits)));
+}
+
 export function filterRosterByStatusAndSearch(
   students: MarkRosterStudent[],
   marks: Record<string, MarkKind>,
   status: StudentAttendanceStatusFilter,
   search: string,
 ): MarkRosterStudent[] {
-  const q = search.trim().toLowerCase();
   return students.filter((student) => {
     const kind = marks[student.id];
     if (status === "unmarked" && kind !== undefined) return false;
     if (status !== "all" && status !== "unmarked" && kind !== status) {
       return false;
     }
-    if (!q) return true;
-    return (
-      student.name.toLowerCase().includes(q) ||
-      student.roll.toLowerCase().includes(q) ||
-      student.id.toLowerCase().includes(q)
-    );
+    return matchesRosterSearch(search, student);
   });
 }

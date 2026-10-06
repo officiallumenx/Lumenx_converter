@@ -198,7 +198,7 @@ export function HomeQuickActionsCard() {
               <Link
                 key={action.to}
                 to={action.to}
-                className="lx-quick-action-tile group rounded-xl border bg-background/50 transition-colors hover:bg-surface-hover"
+                className="lx-quick-action-tile group rounded-xl border transition-[transform,box-shadow,border-color,background-color]"
                 style={adminMoreTileStyle(accent, false)}
                 onClick={() => {
                   recordQuickActionUse(action.to);

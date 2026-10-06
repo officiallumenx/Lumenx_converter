@@ -36,6 +36,47 @@ import {
 
 export const NO_TRANSPORT_ACCOUNT = "No Transport account found.";
 
+/** In-memory failed PIN attempt throttle (per phone digits). */
+const PIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const PIN_FAIL_MAX = 8;
+const pinFailBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function assertPinLoginNotRateLimited(phoneDigits: string): void {
+  const bucket = pinFailBuckets.get(phoneDigits);
+  if (!bucket) return;
+  if (Date.now() > bucket.resetAt) {
+    pinFailBuckets.delete(phoneDigits);
+    return;
+  }
+  if (bucket.count >= PIN_FAIL_MAX) {
+    throw AppError.rateLimited(
+      "Too many failed login attempts. Try again later.",
+    );
+  }
+}
+
+function recordPinLoginFailure(phoneDigits: string): void {
+  const now = Date.now();
+  const bucket = pinFailBuckets.get(phoneDigits);
+  if (!bucket || now > bucket.resetAt) {
+    pinFailBuckets.set(phoneDigits, {
+      count: 1,
+      resetAt: now + PIN_FAIL_WINDOW_MS,
+    });
+    return;
+  }
+  bucket.count += 1;
+}
+
+function clearPinLoginFailures(phoneDigits: string): void {
+  pinFailBuckets.delete(phoneDigits);
+}
+
+/** Test helper — reset throttle state between cases. */
+export function resetDriverPinLoginRateLimitForTests(): void {
+  pinFailBuckets.clear();
+}
+
 export type DriverPinLoginInput = {
   phone: string;
   pin: string;
@@ -277,10 +318,13 @@ export async function loginDriverWithAppPin(
     });
   }
 
+  assertPinLoginNotRateLimited(phoneDigits);
+
   let pin: string;
   try {
     pin = assertValidPin(input.pin);
   } catch {
+    recordPinLoginFailure(phoneDigits);
     throw AppError.notFound(NO_TRANSPORT_ACCOUNT);
   }
 
@@ -292,11 +336,13 @@ export async function loginDriverWithAppPin(
   );
   const eligible = candidates.filter(isEligibleDriverAccount);
   if (eligible.length === 0) {
+    recordPinLoginFailure(phoneDigits);
     throw AppError.notFound(NO_TRANSPORT_ACCOUNT);
   }
 
   const matched = eligible.filter((row) => pinMatches(row, pin));
   if (matched.length === 0) {
+    recordPinLoginFailure(phoneDigits);
     throw AppError.notFound(NO_TRANSPORT_ACCOUNT);
   }
   if (matched.length > 1) {
@@ -307,6 +353,7 @@ export async function loginDriverWithAppPin(
   }
 
   const driver = matched[0]!;
+  clearPinLoginFailures(phoneDigits);
   const identity = await ensureDriverLoginIdentity(admin, driver, phoneDigits);
   const session = await createServerAuthSessionForEmail(
     admin,

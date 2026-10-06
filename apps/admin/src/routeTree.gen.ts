@@ -29,6 +29,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ProfileSettingsRouteImport } from './routes/profile-settings'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PhotosRouteImport } from './routes/photos'
 import { Route as PermissionsRouteImport } from './routes/permissions'
@@ -170,6 +171,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileSettingsRoute = ProfileSettingsRouteImport.update({
+  id: '/profile-settings',
+  path: '/profile-settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -419,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/permissions': typeof PermissionsRoute
   '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
+  '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -481,6 +488,7 @@ export interface FileRoutesByTo {
   '/permissions': typeof PermissionsRoute
   '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
+  '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -545,6 +553,7 @@ export interface FileRoutesById {
   '/permissions': typeof PermissionsRoute
   '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
+  '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
@@ -611,6 +620,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/photos'
     | '/privacy'
+    | '/profile-settings'
     | '/reports'
     | '/settings'
     | '/setup'
@@ -673,6 +683,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/photos'
     | '/privacy'
+    | '/profile-settings'
     | '/reports'
     | '/settings'
     | '/setup'
@@ -736,6 +747,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/photos'
     | '/privacy'
+    | '/profile-settings'
     | '/reports'
     | '/settings'
     | '/setup'
@@ -801,6 +813,7 @@ export interface RootRouteChildren {
   PermissionsRoute: typeof PermissionsRoute
   PhotosRoute: typeof PhotosRoute
   PrivacyRoute: typeof PrivacyRoute
+  ProfileSettingsRoute: typeof ProfileSettingsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
@@ -963,6 +976,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile-settings': {
+      id: '/profile-settings'
+      path: '/profile-settings'
+      fullPath: '/profile-settings'
+      preLoaderRoute: typeof ProfileSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1350,6 +1370,7 @@ const rootRouteChildren: RootRouteChildren = {
   PermissionsRoute: PermissionsRoute,
   PhotosRoute: PhotosRoute,
   PrivacyRoute: PrivacyRoute,
+  ProfileSettingsRoute: ProfileSettingsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,

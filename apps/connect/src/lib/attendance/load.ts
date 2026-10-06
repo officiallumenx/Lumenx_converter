@@ -30,7 +30,7 @@ export async function loadLearnerAttendancePortal(input: {
     return { status: "needs_institute", portal: null, errorMessage: null };
   }
   if (!input.studentId || !isInstituteUuid(input.studentId)) {
-    return { status: "demo", portal: null, errorMessage: null };
+    return { status: "empty", portal: null, errorMessage: null };
   }
 
   try {

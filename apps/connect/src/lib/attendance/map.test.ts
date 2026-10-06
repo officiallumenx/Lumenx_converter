@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { monthIsoRange, overlayPortalAttendanceDays, portalDaysToStatusMap } from "./map";
+import {
+  monthIsoRange,
+  overlayPortalAttendanceDays,
+  portalDaysToDetailMap,
+  portalDaysToStatusMap,
+  presentAbsentRatio,
+} from "./map";
 import type { AttendanceDay, PortalLearnerAttendanceDto } from "./types";
 
 describe("connect attendance map", () => {
@@ -10,12 +16,48 @@ describe("connect attendance map", () => {
       fromDate: "2026-08-01",
       toDate: "2026-08-31",
       days: [
-        { date: "2026-08-01", status: "present" },
-        { date: "2026-08-02", status: "absent" },
+        {
+          date: "2026-08-01",
+          status: "present",
+          method: "daily",
+          presentCount: 1,
+          absentCount: 0,
+          leaveCount: 0,
+          slots: [
+            {
+              slotCode: "slot:day",
+              slotKind: "day",
+              slotLabel: "Full day",
+              status: "present",
+            },
+          ],
+        },
+        {
+          date: "2026-08-02",
+          status: "partial",
+          method: "morning_afternoon",
+          presentCount: 1,
+          absentCount: 1,
+          leaveCount: 0,
+          slots: [
+            {
+              slotCode: "slot:morning",
+              slotKind: "morning",
+              slotLabel: "Morning",
+              status: "present",
+            },
+            {
+              slotCode: "slot:afternoon",
+              slotKind: "afternoon",
+              slotLabel: "Afternoon",
+              status: "absent",
+            },
+          ],
+        },
       ],
       summary: {
         present: 1,
-        absent: 1,
+        absent: 0,
         leave: 0,
         unknown: 29,
         attendancePct: 50,
@@ -23,8 +65,9 @@ describe("connect attendance map", () => {
     };
 
     const statusByDate = portalDaysToStatusMap(dto);
-    expect(statusByDate.get("2026-08-02")).toBe("absent");
+    expect(statusByDate.get("2026-08-02")).toBe("partial");
 
+    const detailByDate = portalDaysToDetailMap(dto);
     const skeleton: AttendanceDay[] = [
       { day: 1, status: "unknown" },
       { day: 2, status: "unknown" },
@@ -33,9 +76,12 @@ describe("connect attendance map", () => {
       year: 2026,
       month: 7,
       statusByDate,
+      detailByDate,
     });
     expect(overlaid[0]?.status).toBe("present");
-    expect(overlaid[1]?.status).toBe("absent");
+    expect(overlaid[1]?.status).toBe("partial");
+    expect(overlaid[1]?.slots).toHaveLength(2);
+    expect(presentAbsentRatio(overlaid[1]!)).toBe(0.5);
   });
 
   it("computes month iso range", () => {

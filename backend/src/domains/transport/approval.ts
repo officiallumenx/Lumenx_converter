@@ -5,6 +5,17 @@ import { TRANSPORT_WRITE_ROLES } from "./service.js";
 
 export type TransportApprovalStatus = "pending" | "approved" | "rejected";
 
+/**
+ * Daily operations treat pending the same as approved.
+ * Rejected submissions remain unusable until fixed/resubmitted.
+ * Approval columns stay for Admin review history — they must not block trips.
+ */
+export function isOperationallyUsable(
+  approvalStatus: TransportApprovalStatus | string | null | undefined,
+): boolean {
+  return approvalStatus === "pending" || approvalStatus === "approved";
+}
+
 export function isTransportWriter(actor: Actor, instituteId: string): boolean {
   try {
     requireInstituteId(actor, instituteId);

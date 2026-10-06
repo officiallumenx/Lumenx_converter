@@ -1,4 +1,5 @@
 import { listApiEnrollmentsForVehicle } from "../api-roster";
+import { STOP_RADIUS_DEFAULT_M } from "../stop-radius";
 import type {
   RouteSetupRecord,
   RouteSetupStop,
@@ -149,6 +150,7 @@ export function applyApiApprovedHydration(input: {
     approvalStatus: string;
     createdAt: string;
     kind?: "waypoint" | "school" | "parking";
+    notificationRadiusM?: number;
   }>;
   students: Array<{
     enrollmentId: string;
@@ -185,6 +187,12 @@ export function applyApiApprovedHydration(input: {
     .sort((a, b) => a.routeOrder - b.routeOrder)
     .map((s) => {
       const kind = inferKind(s);
+      const radius =
+        typeof s.notificationRadiusM === "number" &&
+        Number.isFinite(s.notificationRadiusM) &&
+        s.notificationRadiusM > 0
+          ? s.notificationRadiusM
+          : STOP_RADIUS_DEFAULT_M;
       return {
         id: s.id,
         apiStopId: s.id,
@@ -192,6 +200,7 @@ export function applyApiApprovedHydration(input: {
         locationLabel: s.locationLabel || defaultLocationLabel(s.latitude, s.longitude),
         latitude: s.latitude,
         longitude: s.longitude,
+        notificationRadiusM: radius,
         timestampCreated: s.createdAt,
         updatedAt: s.createdAt,
         createdBy: "api",
@@ -489,6 +498,7 @@ export async function upsertRouteSetupStop(
         locationLabel,
         latitude: input.latitude,
         longitude: input.longitude,
+        notificationRadiusM: input.notificationRadiusM,
         timestampCreated: now,
         updatedAt: now,
         submittedAt: now,
@@ -519,6 +529,7 @@ export async function upsertRouteSetupStop(
       locationLabel,
       latitude: input.latitude,
       longitude: input.longitude,
+      notificationRadiusM: input.notificationRadiusM,
       studentIds: [...input.studentIds],
       updatedAt: now,
       status: "pending",
@@ -554,6 +565,7 @@ export async function upsertRouteSetupStop(
     locationLabel,
     latitude: input.latitude,
     longitude: input.longitude,
+    notificationRadiusM: input.notificationRadiusM,
     timestampCreated: now,
     updatedAt: now,
     submittedAt: now,

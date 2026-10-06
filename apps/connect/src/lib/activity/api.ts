@@ -114,6 +114,23 @@ export async function createActivityTeam(
   });
 }
 
+export async function updateActivityTeam(
+  id: string,
+  patch: Partial<{
+    name: string;
+    kind: ActivityTeamDto["kind"];
+    status: ActivityTeamDto["status"];
+  }>,
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<ActivityTeamDto> {
+  assertApiMode();
+  return client.patch<ActivityTeamDto>(`/api/v1/activity/teams/${id.trim()}`, {
+    name: patch.name,
+    kind: patch.kind,
+    status: patch.status,
+  });
+}
+
 export async function listActivityMemberships(
   instituteId: string,
   teamId?: string,

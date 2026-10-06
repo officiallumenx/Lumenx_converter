@@ -21,10 +21,6 @@ import {
 import { CalendarClock, Send } from "lucide-react";
 import { publishBroadcastNotification } from "@lumenx/notifications";
 import { prependAdminNotification } from "@/lib/notification-center-store";
-import {
-  isSafeAppDeepLink,
-  normalizeSafeAppDeepLink,
-} from "@/lib/notifications/safe-deep-link";
 
 function audienceKindFrom(
   v: BroadcastAudienceValue,
@@ -94,7 +90,6 @@ export function NotificationBroadcastCompose() {
   const [scheduleAt, setScheduleAt] = useState(nowDateTimeLocal);
 
   const [attachmentName, setAttachmentName] = useState("");
-  const [deepLink, setDeepLink] = useState("/notifications");
 
   const minDateTime = useMemo(() => nowDateTimeLocal(), []);
   const scheduleValid = schedule === "now" || scheduleAt.trim().length > 0;
@@ -103,13 +98,7 @@ export function NotificationBroadcastCompose() {
 
   const send = () => {
     if (!canSend) return;
-    const trimmedDeepLink = deepLink.trim();
-    if (trimmedDeepLink && !isSafeAppDeepLink(trimmedDeepLink)) {
-      notify("Deep link must be an in-app path starting with /");
-      return;
-    }
-    const safeHref =
-      normalizeSafeAppDeepLink(trimmedDeepLink, "/notifications") ?? "/notifications";
+    const safeHref = "/notifications";
     const audienceLabel = formatBroadcastAudience(audience);
     const entry: Broadcast = {
       id: String(Date.now()),
@@ -150,7 +139,6 @@ export function NotificationBroadcastCompose() {
     setTitle("");
     setMessage("");
     setAttachmentName("");
-    setDeepLink("/notifications");
     setSchedule("now");
     setScheduleAt(nowDateTimeLocal());
     setAudience(EMPTY_BROADCAST_AUDIENCE);
@@ -224,14 +212,6 @@ export function NotificationBroadcastCompose() {
               value={attachmentName}
               onChange={(e) => setAttachmentName(e.target.value)}
               placeholder="e.g. exam-schedule.pdf"
-            />
-          </Field>
-
-          <Field label="Deep link (optional)">
-            <TextInput
-              value={deepLink}
-              onChange={(e) => setDeepLink(e.target.value)}
-              placeholder="/notifications"
             />
           </Field>
 

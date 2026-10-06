@@ -24,6 +24,9 @@ import type {
   AttendanceMethod,
   AttendanceRegisterRow,
   AttendanceSlotKind,
+  PortalAttendanceDayDto,
+  PortalAttendanceDaySlotDto,
+  PortalAttendanceDayStatus,
   PortalLearnerAttendanceDto,
   PortalTeacherAttendanceDto,
   PortalTeacherAttendanceSlotDto,
@@ -269,13 +272,31 @@ function slotsWithRegisters(
   });
 }
 
-function aggregateDayStatus(
-  statuses: Array<"present" | "absent" | "leave">,
-): "present" | "absent" | "leave" | "unknown" {
-  if (statuses.length === 0) return "unknown";
-  if (statuses.some((s) => s === "leave")) return "leave";
-  if (statuses.some((s) => s === "absent")) return "absent";
-  return "present";
+function aggregateDayFromSlots(
+  slots: PortalAttendanceDaySlotDto[],
+): {
+  status: PortalAttendanceDayStatus;
+  presentCount: number;
+  absentCount: number;
+  leaveCount: number;
+} {
+  const presentCount = slots.filter((s) => s.status === "present").length;
+  const absentCount = slots.filter((s) => s.status === "absent").length;
+  const leaveCount = slots.filter((s) => s.status === "leave").length;
+
+  if (slots.length === 0) {
+    return { status: "unknown", presentCount: 0, absentCount: 0, leaveCount: 0 };
+  }
+  if (leaveCount > 0) {
+    return { status: "leave", presentCount, absentCount, leaveCount };
+  }
+  if (presentCount > 0 && absentCount > 0) {
+    return { status: "partial", presentCount, absentCount, leaveCount };
+  }
+  if (absentCount > 0) {
+    return { status: "absent", presentCount, absentCount, leaveCount };
+  }
+  return { status: "present", presentCount, absentCount, leaveCount };
 }
 
 function computeAttendancePct(
@@ -296,6 +317,20 @@ function eachDateInclusive(fromDate: string, toDate: string): string[] {
     cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
+}
+
+function sortDaySlots(slots: PortalAttendanceDaySlotDto[]): PortalAttendanceDaySlotDto[] {
+  const kindOrder: Record<AttendanceSlotKind, number> = {
+    day: 0,
+    morning: 1,
+    afternoon: 2,
+    period: 3,
+  };
+  return [...slots].sort((a, b) => {
+    const byKind = kindOrder[a.slotKind] - kindOrder[b.slotKind];
+    if (byKind !== 0) return byKind;
+    return a.slotLabel.localeCompare(b.slotLabel);
+  });
 }
 
 export async function getTeacherAttendancePortalForActor(
@@ -417,7 +452,12 @@ export async function getLearnerAttendancePortalForActor(
   });
   const sectionIds = [...new Set(enrollments.map((e) => e.section_id))];
 
-  const statusByDate = new Map<string, Array<"present" | "absent" | "leave">>();
+  type DayBucket = {
+    method: AttendanceMethod | null;
+    slots: PortalAttendanceDaySlotDto[];
+  };
+  const slotsByDate = new Map<string, DayBucket>();
+
   for (const sectionId of sectionIds) {
     const registers = await listRegisters(admin, {
       instituteId,
@@ -434,22 +474,55 @@ export async function getLearnerAttendancePortalForActor(
       const marks = await listMarksForRegister(admin, register.id);
       const studentMark = marks.find((m) => m.student_id === input.studentId);
       if (!studentMark) continue;
-      const bucket = statusByDate.get(register.attendance_date) ?? [];
-      bucket.push(studentMark.status);
-      statusByDate.set(register.attendance_date, bucket);
+
+      const bucket = slotsByDate.get(register.attendance_date) ?? {
+        method: register.method ?? null,
+        slots: [],
+      };
+      if (!bucket.method && register.method) {
+        bucket.method = register.method;
+      }
+      // Prefer register method when slots already exist (same day config).
+      bucket.method = register.method ?? bucket.method;
+      bucket.slots.push({
+        slotCode: register.slot_code,
+        slotKind: register.slot_kind,
+        slotLabel: register.slot_label,
+        status: studentMark.status,
+      });
+      slotsByDate.set(register.attendance_date, bucket);
     }
   }
 
-  const days = eachDateInclusive(fromDate, toDate).map((date) => ({
-    date,
-    status: aggregateDayStatus(statusByDate.get(date) ?? []),
-  }));
+  let slotPresent = 0;
+  let slotAbsent = 0;
+  let slotLeave = 0;
+
+  const days: PortalAttendanceDayDto[] = eachDateInclusive(fromDate, toDate).map(
+    (date) => {
+      const bucket = slotsByDate.get(date);
+      const slots = sortDaySlots(bucket?.slots ?? []);
+      const aggregated = aggregateDayFromSlots(slots);
+      slotPresent += aggregated.presentCount;
+      slotAbsent += aggregated.absentCount;
+      slotLeave += aggregated.leaveCount;
+      return {
+        date,
+        status: aggregated.status,
+        method: bucket?.method ?? null,
+        presentCount: aggregated.presentCount,
+        absentCount: aggregated.absentCount,
+        leaveCount: aggregated.leaveCount,
+        slots,
+      };
+    },
+  );
 
   const present = days.filter((d) => d.status === "present").length;
   const absent = days.filter((d) => d.status === "absent").length;
   const leave = days.filter((d) => d.status === "leave").length;
   const unknown = days.filter((d) => d.status === "unknown").length;
-  const expected = present + absent + leave;
+  const slotExpected = slotPresent + slotAbsent + slotLeave;
 
   return {
     instituteId,
@@ -462,7 +535,7 @@ export async function getLearnerAttendancePortalForActor(
       absent,
       leave,
       unknown,
-      attendancePct: computeAttendancePct(present, expected, leave),
+      attendancePct: computeAttendancePct(slotPresent, slotExpected, slotLeave),
     },
   };
 }

@@ -80,6 +80,31 @@ export type LearnerTransportSummary = {
   stops: LearnerTransportStop[];
 };
 
+export type TransportDailyExceptionDto = {
+  id: string;
+  instituteId: string;
+  studentId: string;
+  serviceDate: string;
+  exceptionType: "NOT_RIDING";
+  reason: "parent" | "admin" | "driver" | "system";
+  notes: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+  undoCutoffAt: string | null;
+  canUndo: boolean;
+};
+
+export type TransportParticipationDto = {
+  studentId: string;
+  serviceDate: string;
+  ridingToday: boolean;
+  exception: TransportDailyExceptionDto | null;
+};
+
+export type TransportRideExceptionDto = TransportDailyExceptionDto;
+
 export type ListTransportEnrollmentsParams = {
   instituteId: string;
 };
@@ -112,8 +137,11 @@ export type LearnerTransportLiveDto = {
     currentStopId: string | null;
     currentStopIndex: number;
     finalized: boolean;
+    schoolArrivedAt?: string | null;
     routeName?: string | null;
     vehicleNumber?: string | null;
+    currentStopName?: string | null;
+    nextStopName?: string | null;
   } | null;
   boarding: {
     boardingStatus: "pending" | "boarded" | "not_boarded";
@@ -140,6 +168,23 @@ export type LearnerTransportLiveDto = {
     etaMinutes: number;
     band: 30 | 15 | 5 | null;
   } | null;
+  gpsFreshness?: "live" | "recent" | "stale" | "offline";
+  notRidingToday?: boolean;
+  expectedPickupTime?: string | null;
+};
+
+export type LearnerTransportHistoryDayDto = {
+  tripDate: string;
+  tripId: string | null;
+  routeName: string | null;
+  phase: string | null;
+  boardingStatus: "pending" | "boarded" | "not_boarded" | null;
+  droppingStatus: "pending" | "dropped" | "not_dropped" | null;
+  boardedAt: string | null;
+  droppedAt: string | null;
+  notRiding: boolean;
+  pickupStopName: string | null;
+  dropStopName: string | null;
 };
 
 export type LearnerTransportLiveParams = {

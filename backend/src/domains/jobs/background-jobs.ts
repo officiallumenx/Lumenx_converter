@@ -9,11 +9,13 @@ import type { Logger } from "../../logger/logger.js";
 import { publishDueScheduledAnnouncementsSystem } from "../announcements/service.js";
 import { evaluateAlertRulesSystem } from "../alert-rules/service.js";
 import { processDiaryRemindersSystem } from "../diary/reminders.js";
+import { processTransportRemindersSystem } from "../transport/transport-reminders.js";
 
 export type BackgroundJobsResult = {
   announcements: { scanned: number; published: number };
   alerts: { institutes: number; newlyFired: number };
   diary: { institutes: number; teachers: number; emitted: number };
+  transport: { institutes: number; emitted: number };
 };
 
 async function runIsolated<T>(
@@ -65,6 +67,12 @@ export async function runBackgroundJobs(
     { institutes: 0, teachers: 0, emitted: 0 },
     logger,
   );
+  const transport = await runIsolated(
+    "transport",
+    () => processTransportRemindersSystem(admin, now),
+    { institutes: 0, emitted: 0 },
+    logger,
+  );
 
-  return { announcements, alerts, diary };
+  return { announcements, alerts, diary, transport };
 }

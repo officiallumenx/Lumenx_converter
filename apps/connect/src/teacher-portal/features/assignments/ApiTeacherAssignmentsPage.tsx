@@ -64,8 +64,9 @@ import type { SubjectDto, TeacherAssignmentDto } from "@/lib/teacher-classes/api
 const newAssignmentSchema = z.object({
   title: z.string().trim().min(3, "Title is required.").max(200),
   description: z.string().trim().min(12, "Add instructions (at least 12 characters).").max(8000),
+  className: z.string().min(1, "Select a class."),
+  sectionId: z.string().min(1, "Select a section."),
   subjectId: z.string().min(1, "Select a subject."),
-  sectionId: z.string().min(1, "Select a class."),
   dueDate: z.string().min(1, "Set a due date."),
   type: z.enum(["homework", "assignment"]),
 });
@@ -1027,35 +1028,75 @@ function ApiNewAssignmentDialog({
     defaultValues: {
       title: "",
       description: "",
-      subjectId: "",
+      className: defaultClass?.className ?? "",
       sectionId: defaultClass?.id ?? "",
+      subjectId: "",
       dueDate: "",
       type: "homework",
     },
   });
 
+  const watchedClassName = form.watch("className");
   const watchedSectionId = form.watch("sectionId");
 
+  const classOptions = useMemo(
+    () =>
+      [...new Set(classes.map((c) => c.className).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [classes],
+  );
+
+  const sectionOptions = useMemo(
+    () =>
+      classes
+        .filter((c) => c.className === watchedClassName)
+        .slice()
+        .sort((a, b) => a.section.localeCompare(b.section)),
+    [classes, watchedClassName],
+  );
+
   const subjectOptions = useMemo(() => {
-    const ids = [
+    const placementIds = [
       ...new Set(
         teacherAssignments
           .filter((a) => a.status === "active" && a.sectionId === watchedSectionId)
           .map((a) => a.subjectId),
       ),
     ];
+    const ids = placementIds.length > 0 ? placementIds : subjects.map((s) => s.id);
     return ids.map((id) => {
       const subject = subjects.find((s) => s.id === id);
       return { id, label: subject?.name?.trim() || subject?.code?.trim() || id };
     });
   }, [teacherAssignments, watchedSectionId, subjects]);
 
+  // Keep class / section / subject in sync when roster or dialog opens.
   useEffect(() => {
+    if (!open) return;
+    const className = form.getValues("className");
+    if ((!className || !classOptions.includes(className)) && classOptions[0]) {
+      form.setValue("className", classOptions[0]);
+    }
+  }, [open, classOptions, form]);
+
+  useEffect(() => {
+    if (!open) return;
+    const sectionId = form.getValues("sectionId");
+    const stillValid = sectionOptions.some((s) => s.id === sectionId);
+    if ((!sectionId || !stillValid) && sectionOptions[0]) {
+      form.setValue("sectionId", sectionOptions[0].id);
+    }
+  }, [open, sectionOptions, form]);
+
+  useEffect(() => {
+    if (!open) return;
     const current = form.getValues("subjectId");
-    if (current && !subjectOptions.some((s) => s.id === current) && subjectOptions[0]) {
+    const stillValid = subjectOptions.some((s) => s.id === current);
+    if ((!current || !stillValid) && subjectOptions[0]) {
       form.setValue("subjectId", subjectOptions[0].id);
     }
-  }, [subjectOptions, form]);
+  }, [open, subjectOptions, form]);
 
   const persistNewHomework = useCallback(
     async (data: NewAssignmentForm) => {
@@ -1063,24 +1104,34 @@ function ApiNewAssignmentDialog({
         toast.error("Institute not loaded.");
         return null;
       }
-      const match = teacherAssignments.find(
+      const sectionRow = classes.find((c) => c.id === data.sectionId);
+      const exact = teacherAssignments.find(
         (a) =>
           a.status === "active" &&
           a.sectionId === data.sectionId &&
           a.subjectId === data.subjectId,
       );
-      if (!match) {
-        toast.error("Select a valid class and subject.");
+      const sectionPlacement = teacherAssignments.find(
+        (a) => a.status === "active" && a.sectionId === data.sectionId,
+      );
+      const classId =
+        exact?.classId ?? sectionPlacement?.classId ?? sectionRow?.classRecordId;
+      const academicYearId =
+        exact?.academicYearId ??
+        sectionPlacement?.academicYearId ??
+        sectionRow?.academicYearId;
+      if (!classId || !academicYearId || !data.subjectId) {
+        toast.error("Select a valid class, section, and subject.");
         return null;
       }
       const saved = await saveHomeworkDraft({
         homeworkId: null,
         createInput: {
           instituteId,
-          academicYearId: match.academicYearId,
-          classId: match.classId,
-          sectionId: match.sectionId,
-          subjectId: match.subjectId,
+          academicYearId,
+          classId,
+          sectionId: data.sectionId,
+          subjectId: data.subjectId,
           kind: data.type,
           title: data.title,
           description: data.description,
@@ -1101,25 +1152,45 @@ function ApiNewAssignmentDialog({
       }
       return saved;
     },
-    [instituteId, teacherAssignments, attachment],
+    [instituteId, teacherAssignments, classes, attachment],
   );
+
+  const resetForm = useCallback(() => {
+    const nextClass = classes[0];
+    const nextSections = nextClass
+      ? classes.filter((c) => c.className === nextClass.className)
+      : [];
+    const nextSection = nextSections[0] ?? nextClass;
+    const nextSubjects = nextSection
+      ? [
+          ...new Set(
+            teacherAssignments
+              .filter((a) => a.status === "active" && a.sectionId === nextSection.id)
+              .map((a) => a.subjectId),
+          ),
+        ]
+      : [];
+    const subjectId = nextSubjects[0] ?? subjects[0]?.id ?? "";
+    form.reset({
+      title: "",
+      description: "",
+      className: nextClass?.className ?? "",
+      sectionId: nextSection?.id ?? "",
+      subjectId,
+      dueDate: "",
+      type: "homework",
+    });
+  }, [classes, teacherAssignments, subjects, form]);
 
   const finishCreate = useCallback(
     (message: string) => {
       setOpen(false);
       setAttachment(null);
-      form.reset({
-        title: "",
-        description: "",
-        subjectId: subjectOptions[0]?.id ?? "",
-        sectionId: defaultClass?.id ?? "",
-        dueDate: "",
-        type: "homework",
-      });
+      resetForm();
       toast.success(message);
       onCreated();
     },
-    [form, subjectOptions, defaultClass, onCreated],
+    [resetForm, onCreated],
   );
 
   const saveDraftFn = useCallback(
@@ -1146,8 +1217,20 @@ function ApiNewAssignmentDialog({
   const creating = savingDraft || sending;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Button className="gap-2 rounded-xl shadow-glow" onClick={() => setOpen(true)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) resetForm();
+      }}
+    >
+      <Button
+        className="gap-2 rounded-xl shadow-glow"
+        onClick={() => {
+          resetForm();
+          setOpen(true);
+        }}
+      >
         <Plus className="size-4" /> New
       </Button>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -1161,7 +1244,8 @@ function ApiNewAssignmentDialog({
               void form.handleSubmit(onSend)(e);
             }}
             className="space-y-4 py-2"
-          >            <FormField
+          >
+            <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
@@ -1211,20 +1295,60 @@ function ApiNewAssignmentDialog({
               />
               <FormField
                 control={form.control}
-                name="sectionId"
+                name="className"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Class · Section</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel>Class</FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(v) => {
+                        field.onChange(v);
+                        const firstSection = classes.find((c) => c.className === v);
+                        form.setValue("sectionId", firstSection?.id ?? "");
+                        form.setValue("subjectId", "");
+                      }}
+                      disabled={!classOptions.length}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Class" />
+                          <SelectValue placeholder="Select class" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent position="popper" className="z-[100]">
-                        {classes.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            Class {c.className}-{c.section}
+                        {classOptions.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            Class {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sectionId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Section</FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(v) => {
+                        field.onChange(v);
+                        form.setValue("subjectId", "");
+                      }}
+                      disabled={!sectionOptions.length}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select section" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent position="popper" className="z-[100]">
+                        {sectionOptions.map((sec) => (
+                          <SelectItem key={sec.id} value={sec.id}>
+                            Section {sec.section}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1237,16 +1361,16 @@ function ApiNewAssignmentDialog({
                 control={form.control}
                 name="subjectId"
                 render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
+                  <FormItem>
                     <FormLabel>Subject</FormLabel>
                     <Select
+                      value={field.value || undefined}
                       onValueChange={field.onChange}
-                      value={field.value}
                       disabled={!subjectOptions.length}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Subject" />
+                          <SelectValue placeholder="Select subject" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent position="popper" className="z-[100]">
@@ -1257,6 +1381,11 @@ function ApiNewAssignmentDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    {!subjectOptions.length ? (
+                      <p className="text-xs text-muted-foreground">
+                        No subjects available for this section yet.
+                      </p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

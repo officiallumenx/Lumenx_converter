@@ -43,7 +43,7 @@ export async function loadMessagesThreadList(input: {
       listMessageRecipients({
         instituteId: input.instituteId,
         studentId: input.studentId,
-      }).catch(() => []),
+      }),
     ]);
 
     const recipientByUserId = new Map(recipients.map((r) => [r.userId, r]));

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -19,7 +19,9 @@ import {
 import {
   monthIsoRange,
   overlayPortalAttendanceDays,
+  portalDaysToDetailMap,
   portalDaysToStatusMap,
+  presentAbsentRatio,
 } from "@/lib/attendance/map";
 import {
   buildAttendanceDays,
@@ -37,7 +39,11 @@ import {
   normalizeIsoRange,
   shiftMonth,
 } from "@/lib/attendance/calendar";
-import type { AttendanceDay, AttendanceDayStatus } from "@/lib/attendance/types";
+import type {
+  AttendanceDay,
+  AttendanceDayStatus,
+  AttendanceMethod,
+} from "@/lib/attendance/types";
 
 type AttendanceOverviewProps = {
   title?: string;
@@ -69,6 +75,7 @@ export function AttendanceOverview({
   const [month, setMonth] = useState(initialMonth ?? now.getMonth());
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const { activeInstituteId } = useApp();
 
   const apiPortalStudentId =
@@ -100,6 +107,11 @@ export function AttendanceOverview({
     return new Map<string, AttendanceDayStatus>();
   }, [attendanceEnabled, attendanceQuery.data]);
 
+  const portalDetailByDate = useMemo(() => {
+    if (!attendanceEnabled || !attendanceQuery.data?.portal) return null;
+    return portalDaysToDetailMap(attendanceQuery.data.portal);
+  }, [attendanceEnabled, attendanceQuery.data]);
+
   const apiHolidays =
     isApiAuthMode() && holidaysQuery.data !== undefined ? holidaysQuery.data : null;
 
@@ -110,7 +122,12 @@ export function AttendanceOverview({
     if (apiPortalStudentId && portalStatusByDate) {
       return overlayPortalAttendanceDays(
         buildAttendanceDays(year, month, holidayList),
-        { year, month, statusByDate: portalStatusByDate },
+        {
+          year,
+          month,
+          statusByDate: portalStatusByDate,
+          detailByDate: portalDetailByDate ?? undefined,
+        },
       );
     }
     if (studentId && sectionKey) {
@@ -131,6 +148,7 @@ export function AttendanceOverview({
     holidayList,
     apiPortalStudentId,
     portalStatusByDate,
+    portalDetailByDate,
   ]);
   const leadingBlanks = calendarLeadingBlanks(year, month);
   const selectableMonths = useMemo(() => listSelectableMonths(12), []);
@@ -187,6 +205,7 @@ export function AttendanceOverview({
     const next = shiftMonth(year, month, -1);
     setYear(next.year);
     setMonth(next.month);
+    setSelectedDay(null);
   };
 
   const goNext = () => {
@@ -194,12 +213,14 @@ export function AttendanceOverview({
     const next = shiftMonth(year, month, 1);
     setYear(next.year);
     setMonth(next.month);
+    setSelectedDay(null);
   };
 
   const onMonthSelect = (value: string) => {
     const [y, m] = value.split("-").map(Number);
     setYear(y);
     setMonth(m);
+    setSelectedDay(null);
   };
 
   const clearRange = () => {
@@ -211,32 +232,25 @@ export function AttendanceOverview({
     setRangeStart(iso);
     syncCalendarMonthFromIso(iso, setYear, setMonth);
     if (rangeEnd && iso > rangeEnd) setRangeEnd("");
+    setSelectedDay(null);
   };
 
   const setToDate = (iso: string) => {
     setRangeEnd(iso);
     syncCalendarMonthFromIso(iso, setYear, setMonth);
     if (rangeStart && iso < rangeStart) setRangeStart(iso);
+    setSelectedDay(null);
   };
 
   const onDayClick = (day: number, status: AttendanceDayStatus) => {
     if (status === "future") return;
-    const iso = isoFromParts(year, month, day);
-
-    if (!rangeStart || (rangeStart && rangeEnd)) {
-      setRangeStart(iso);
-      setRangeEnd("");
-      return;
-    }
-
-    if (iso < rangeStart) {
-      setRangeStart(iso);
-      setRangeEnd("");
-      return;
-    }
-
-    setRangeEnd(iso);
+    setSelectedDay((prev) => (prev === day ? null : day));
   };
+
+  const selectedDayRecord = useMemo(
+    () => (selectedDay == null ? null : days.find((d) => d.day === selectedDay) ?? null),
+    [days, selectedDay],
+  );
 
   return (
     <>
@@ -339,6 +353,14 @@ export function AttendanceOverview({
               cls="bg-destructive/10 text-destructive border-destructive/20"
             />
             <LegendDot
+              label="Partial"
+              cls="border-border text-foreground"
+              style={{
+                background:
+                  "linear-gradient(90deg, rgba(34,197,94,0.35), rgba(239,68,68,0.3))",
+              }}
+            />
+            <LegendDot
               label="Leave"
               cls="bg-warning/15 text-warning-foreground border-warning/30"
             />
@@ -363,9 +385,9 @@ export function AttendanceOverview({
             const iso = isoFromParts(year, month, d.day);
             const inRange = dayRange
               ? iso >= dayRange.startIso && iso <= dayRange.endIso
-              : rangeStart === iso;
-            const dimmed = Boolean((dayRange || rangeStart) && !inRange);
-            const isRangeStart = dayRange ? dayRange.startIso === iso : rangeStart === iso;
+              : false;
+            const dimmed = Boolean(dayRange && !inRange);
+            const isRangeStart = dayRange ? dayRange.startIso === iso : false;
             const isRangeEnd = dayRange?.endIso === iso;
             const isRangeMiddle = Boolean(dayRange && inRange && !isRangeStart && !isRangeEnd);
 
@@ -375,6 +397,8 @@ export function AttendanceOverview({
                 day={d.day}
                 status={d.status}
                 holidayTitle={d.holidayTitle}
+                presentRatio={presentAbsentRatio(d)}
+                selected={selectedDay === d.day}
                 isToday={isCurrentMonth && d.day === today}
                 dimmed={dimmed}
                 inRange={inRange}
@@ -387,6 +411,15 @@ export function AttendanceOverview({
           })}
         </div>
       </div>
+
+      {selectedDayRecord ? (
+        <DayDetailPanel
+          year={year}
+          month={month}
+          day={selectedDayRecord}
+          onClose={() => setSelectedDay(null)}
+        />
+      ) : null}
 
       <SectionCard title="Holidays" className="mb-5">
         {monthHolidays.length > 0 ? (
@@ -415,10 +448,95 @@ export function AttendanceOverview({
 
       {!rangeStart ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          Tip: tap two days on the calendar above to filter by a custom date range.
+          Tip: tap a day to see period / morning–afternoon detail. Use From / To above to filter a
+          date range.
         </p>
       ) : null}
     </>
+  );
+}
+
+function methodLabel(method: AttendanceMethod | null | undefined): string {
+  switch (method) {
+    case "morning_first_period":
+      return "First period only";
+    case "morning_afternoon":
+      return "Morning & afternoon";
+    case "period_wise":
+      return "Period wise";
+    case "daily":
+      return "Full day";
+    default:
+      return "Attendance";
+  }
+}
+
+function DayDetailPanel({
+  year,
+  month,
+  day,
+  onClose,
+}: {
+  year: number;
+  month: number;
+  day: AttendanceDay;
+  onClose: () => void;
+}) {
+  const iso = isoFromParts(year, month, day.day);
+  const slots = day.slots ?? [];
+  const title = formatDisplayDate(iso);
+
+  return (
+    <SectionCard
+      title={title}
+      className="mb-4"
+      action={
+        <Button type="button" variant="ghost" className="h-8 rounded-xl px-2 text-xs" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <p className="mb-3 text-xs text-muted-foreground">{methodLabel(day.method)}</p>
+      {day.status === "holiday" ? (
+        <p className="text-sm text-muted-foreground">{day.holidayTitle ?? "Holiday"}</p>
+      ) : day.status === "unknown" ? (
+        <p className="text-sm text-muted-foreground">No attendance marked for this day.</p>
+      ) : slots.length === 0 ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm">
+          <span className="font-medium">
+            {day.method === "morning_first_period" || day.method === "daily" || !day.method
+              ? "Full day"
+              : "Attendance"}
+          </span>
+          <StatusBadge
+            status={
+              day.status === "partial"
+                ? "absent"
+                : day.status === "present" || day.status === "absent" || day.status === "leave"
+                  ? day.status
+                  : "present"
+            }
+          />
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {slots.map((slot) => (
+            <li
+              key={`${slot.slotCode}-${slot.status}`}
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium">{slot.slotLabel}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {slot.slotKind}
+                </p>
+              </div>
+              <StatusBadge status={slot.status} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </SectionCard>
   );
 }
 
@@ -426,6 +544,8 @@ function DayCell({
   day,
   status,
   holidayTitle,
+  presentRatio,
+  selected,
   isToday,
   dimmed,
   inRange,
@@ -437,6 +557,8 @@ function DayCell({
   day: number;
   status: AttendanceDayStatus;
   holidayTitle?: string;
+  presentRatio: number;
+  selected: boolean;
   isToday: boolean;
   dimmed: boolean;
   inRange: boolean;
@@ -446,6 +568,7 @@ function DayCell({
   onClick: () => void;
 }) {
   const selectable = status !== "future";
+  const greenStop = Math.round(Math.min(1, Math.max(0, presentRatio)) * 100);
 
   return (
     <button
@@ -453,13 +576,21 @@ function DayCell({
       title={status === "holiday" ? holidayTitle : undefined}
       disabled={!selectable}
       onClick={onClick}
+      style={
+        status === "partial"
+          ? {
+              background: `linear-gradient(90deg, rgba(34,197,94,0.4) 0%, rgba(34,197,94,0.4) ${greenStop}%, rgba(239,68,68,0.35) ${greenStop}%, rgba(239,68,68,0.35) 100%)`,
+            }
+          : undefined
+      }
       className={cn(
         "aspect-square min-w-0 rounded-xl grid place-items-center text-sm font-medium border relative transition-all",
         selectable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
         !selectable && "cursor-default",
         dimmed && "opacity-30",
-        status === "present" && "bg-success/10 text-success border-success/20",
-        status === "absent" && "bg-destructive/10 text-destructive border-destructive/20",
+        status === "present" && "bg-success/25 text-success border-success/40",
+        status === "absent" && "bg-destructive/20 text-destructive border-destructive/40",
+        status === "partial" && "text-foreground border-border",
         status === "leave" && "bg-warning/15 text-warning-foreground border-warning/30",
         status === "holiday" && "bg-muted/50 text-muted-foreground border-border",
         status === "future" && "bg-muted/20 text-muted-foreground/50 border-dashed border-border",
@@ -467,7 +598,8 @@ function DayCell({
         inRange && "ring-2 ring-primary/40 ring-offset-1 ring-offset-card",
         isRangeMiddle && "bg-primary/10 border-primary/25",
         (isRangeStart || isRangeEnd) && "bg-primary/15 border-primary/40 font-semibold",
-        isToday && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+        selected && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+        isToday && !selected && "ring-2 ring-primary/50 ring-offset-1 ring-offset-card",
       )}
     >
       {day}
@@ -475,10 +607,19 @@ function DayCell({
   );
 }
 
-function LegendDot({ label, cls }: { label: string; cls: string }) {
+function LegendDot({
+  label,
+  cls,
+  style,
+}: {
+  label: string;
+  cls: string;
+  style?: CSSProperties;
+}) {
   return (
     <span
       className={cn("inline-flex items-center rounded-full border px-2 py-0.5 capitalize", cls)}
+      style={style}
     >
       {label}
     </span>

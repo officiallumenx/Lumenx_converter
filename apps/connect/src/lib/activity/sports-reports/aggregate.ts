@@ -1,5 +1,6 @@
-import { listAchievementsFromStore } from "../achievements/store";
-import { listCertificatesFromStore } from "../certificates/store";
+import { achievementsRepository } from "../achievements/repositories";
+import { certificatesRepository } from "../certificates/repositories";
+import type { ActivityAchievement } from "../achievements/types";
 import { computeCoachNoteSummary } from "../sports/coach-notes-summary";
 import { computeAttendanceSummary } from "../sports/sports-attendance-summary";
 import { listActivitiesFromStore } from "../sports/activities-store";
@@ -142,15 +143,16 @@ export function buildSportsReportsSnapshot(filters: SportsReportsFilters): Sport
     return true;
   });
 
-  const achievements = listAchievementsFromStore({
-    sourceModule: "sports",
-  }).filter((a) => {
-    if (!inDateRange(a.date, filters.dateFrom, filters.dateTo)) return false;
-    if (filters.teamId !== "all" && a.teamId !== filters.teamId) return false;
-    return true;
-  });
+  const achievements = achievementsRepository
+    .getAchievementsSnapshot()
+    .filter((a) => a.source.module === "sports")
+    .filter((a) => {
+      if (!inDateRange(a.date, filters.dateFrom, filters.dateTo)) return false;
+      if (filters.teamId !== "all" && a.teamId !== filters.teamId) return false;
+      return true;
+    });
 
-  const certificates = listCertificatesFromStore().filter((c) => {
+  const certificates = certificatesRepository.getCertificatesSnapshot().filter((c) => {
     if (c.achievementRef.sourceModule !== "sports") return false;
     if (!inDateRange(c.issueDate, filters.dateFrom, filters.dateTo)) return false;
     if (filters.teamId !== "all" && c.teamId !== filters.teamId) return false;
@@ -285,7 +287,7 @@ function buildMonthlySeries(
 function buildSportComparison(
   teams: ReturnType<typeof filterTeams>,
   matchResults: ReturnType<typeof listMatchResultsFromStore>,
-  achievements: ReturnType<typeof listAchievementsFromStore>,
+  achievements: ActivityAchievement[],
 ): SportsReportChartPoint[] {
   const sports = new Map<SportType, number>();
   teams.forEach((t) => sports.set(t.sportType, (sports.get(t.sportType) ?? 0) + t.stats.activeMembers));
@@ -326,7 +328,7 @@ function buildTeamRankings(
 
 function buildMvpStats(
   matchResults: ReturnType<typeof listMatchResultsFromStore>,
-  achievements: ReturnType<typeof listAchievementsFromStore>,
+  achievements: ActivityAchievement[],
 ): SportsMvpStatistic[] {
   const counts = new Map<string, SportsMvpStatistic>();
   const add = (name: string, team: string, category: string) => {

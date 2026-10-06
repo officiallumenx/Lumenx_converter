@@ -14,7 +14,7 @@ export const TEXT_SCALE_OPTIONS: ReadonlyArray<{
   { id: "small", label: "Small" },
   { id: "default", label: "Default" },
   { id: "large", label: "Large" },
-  { id: "xl", label: "Extra Large" },
+  { id: "xl", label: "Very Large" },
 ] as const;
 
 export const DEFAULT_TEXT_SCALE: TextScale = "default";

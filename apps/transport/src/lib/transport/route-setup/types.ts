@@ -13,6 +13,8 @@ export type RouteSetupStop = {
   locationLabel: string;
   latitude: number;
   longitude: number;
+  /** Authoritative geofence radius in meters (from stop.notification_radius_m). */
+  notificationRadiusM: number;
   /** ISO timestamp when the stop was first captured */
   timestampCreated: string;
   updatedAt: string;
@@ -90,6 +92,8 @@ export type UpsertStopInput = {
   locationLabel?: string;
   latitude: number;
   longitude: number;
+  /** Geofence radius in meters — required on create/update. */
+  notificationRadiusM: number;
   studentIds: string[];
   /** When updating GPS on an existing stop */
   refreshGps?: boolean;
@@ -105,7 +109,7 @@ export const SUBMISSION_STATUS_LABEL: Record<SubmissionStatus, string> = {
 
 export const SUBMISSION_STATUS_HINT: Record<SubmissionStatus, string> = {
   draft: "Not submitted yet",
-  pending: "Admin must approve before you can use this stop",
+  pending: "Submitted — usable for trips. Admin can still review.",
   approved: "Ready for trips",
   rejected: "Fix and resubmit",
 };

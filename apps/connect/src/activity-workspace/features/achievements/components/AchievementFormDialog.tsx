@@ -19,7 +19,8 @@ import {
 } from "@lumenx/ui";
 import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import { isoDate } from "@/activity-workspace/hub/calendar";
-import { PARTICIPANT_STUDENT_OPTIONS } from "@/activity-workspace/shared/lib/participant-mock-data";
+import type { ParticipantStudentOption } from "@/activity-workspace/shared/lib/participant-mock-data";
+import { useInstituteParticipantRoster } from "@/activity-workspace/shared/lib/use-institute-participant-roster";
 import type {
   AchievementLevel,
   AchievementSourceModule,
@@ -52,18 +53,22 @@ const MODULE_OPTIONS = Object.entries(ACHIEVEMENT_SOURCE_MODULE_LABELS) as [
   string,
 ][];
 
-function studentClassLabel(id: string): string {
-  const s = PARTICIPANT_STUDENT_OPTIONS.find((x) => x.id === id);
+function studentClassLabel(
+  id: string,
+  students: ParticipantStudentOption[],
+): string {
+  const s = students.find((x) => x.id === id);
   return s ? `${s.className}-${s.section}` : "";
 }
 
 function emptyForm(
   sourceOptions: SourceOption[],
+  students: ParticipantStudentOption[],
   lockedSourceModule?: AchievementSourceModule,
 ): ActivityAchievementInput {
   const module = lockedSourceModule ?? sourceOptions[0]?.module ?? "sports";
   const firstSource = sourceOptions.find((s) => s.module === module) ?? sourceOptions[0];
-  const firstStudent = PARTICIPANT_STUDENT_OPTIONS[0];
+  const firstStudent = students[0];
   return {
     title: "",
     achievementType: "participation",
@@ -73,7 +78,9 @@ function emptyForm(
     sourceRecordKind: firstSource?.recordKind ?? "match_result",
     studentId: firstStudent?.id ?? "",
     studentName: firstStudent?.name ?? "",
-    studentClassLabel: firstStudent ? studentClassLabel(firstStudent.id) : "",
+    studentClassLabel: firstStudent
+      ? studentClassLabel(firstStudent.id, students)
+      : "",
     date: firstSource?.date ?? isoDate(new Date()),
     description: "",
     notifications: defaultAchievementNotificationPrefs(),
@@ -101,8 +108,9 @@ export function AchievementFormDialog({
   lockedSourceModule,
   onSubmit,
 }: Props) {
-  const [form, setForm] = useState<ActivityAchievementInput>(
-    emptyForm(sourceOptions, lockedSourceModule),
+  const roster = useInstituteParticipantRoster();
+  const [form, setForm] = useState<ActivityAchievementInput>(() =>
+    emptyForm(sourceOptions, [], lockedSourceModule),
   );
   const [saving, setSaving] = useState(false);
   const [moduleSourceOptions, setModuleSourceOptions] = useState<SourceOption[]>(sourceOptions);
@@ -137,9 +145,9 @@ export function AchievementFormDialog({
         notifications: { ...achievement.notifications },
       });
     } else {
-      setForm(emptyForm(sourceOptions, lockedSourceModule));
+      setForm(emptyForm(sourceOptions, roster.students, lockedSourceModule));
     }
-  }, [open, mode, achievement, sourceOptions, lockedSourceModule]);
+  }, [open, mode, achievement, sourceOptions, lockedSourceModule, roster.students]);
 
   const set = <K extends keyof ActivityAchievementInput>(key: K, value: ActivityAchievementInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -170,13 +178,13 @@ export function AchievementFormDialog({
   };
 
   const handleStudentChange = (studentId: string) => {
-    const student = PARTICIPANT_STUDENT_OPTIONS.find((s) => s.id === studentId);
+    const student = roster.students.find((s) => s.id === studentId);
     if (!student) return;
     setForm((prev) => ({
       ...prev,
       studentId: student.id,
       studentName: student.name,
-      studentClassLabel: studentClassLabel(student.id),
+      studentClassLabel: studentClassLabel(student.id, roster.students),
     }));
   };
 
@@ -334,7 +342,7 @@ export function AchievementFormDialog({
                   <SelectValue placeholder="Select student" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PARTICIPANT_STUDENT_OPTIONS.map((s) => (
+                  {roster.students.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} · Class {s.className}-{s.section}
                     </SelectItem>

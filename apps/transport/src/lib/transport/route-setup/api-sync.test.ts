@@ -46,6 +46,7 @@ const STOP = {
   locationLabel: "Main",
   latitude: 12.9,
   longitude: 77.5,
+  notificationRadiusM: 100,
   timestampCreated: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   submittedAt: "2026-01-01T00:00:00.000Z",
@@ -115,6 +116,40 @@ describe("syncStopAndEnrollmentsToApi", () => {
       latitude: stop.latitude,
       longitude: stop.longitude,
       routeOrder: 0,
+      notificationRadiusM: 100,
+    });
+  });
+
+  it("parking GPS refresh PATCHes only lat/lng", async () => {
+    const parkingId = "33333333-3333-4333-8333-333333333333";
+    listTransportStops.mockResolvedValue([
+      {
+        id: parkingId,
+        kind: "parking",
+        name: "Bus park",
+        notificationRadiusM: 220,
+        latitude: 12.95,
+        longitude: 77.55,
+      },
+    ]);
+    updateTransportStop.mockResolvedValue({
+      id: parkingId,
+      notificationRadiusM: 220,
+      latitude: 12.951,
+      longitude: 77.551,
+    });
+
+    const { syncParkingStopToApi } = await import("./api-sync");
+    await syncParkingStopToApi(SCOPE, {
+      latitude: 12.951,
+      longitude: 77.551,
+      accuracyM: 8,
+    });
+
+    expect(submitTransportStop).not.toHaveBeenCalled();
+    expect(updateTransportStop).toHaveBeenCalledWith(parkingId, {
+      latitude: 12.951,
+      longitude: 77.551,
     });
   });
 

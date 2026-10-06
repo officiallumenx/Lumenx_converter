@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Card,
-  CardHeader,
   Pill,
   SegmentedControl,
   EmptyState,
@@ -14,11 +13,18 @@ import {
 } from "@/lib/admin-queries";
 import {
   resolveAnalyticsSummaryView,
+  chartHasAttendanceBreakdown,
   chartHasAttendanceData,
+  chartHasComplaintStatusData,
+  chartHasEnrollmentByClass,
   chartHasEnrollmentData,
   chartHasFeeData,
+  chartHasHomeworkData,
+  chartHasLeaveData,
+  chartHasLeaveStatusData,
   chartHasStatusData,
   chartHasSubjectData,
+  deriveRangeInsights,
   type AnalyticsLoadStatus,
   type AnalyticsRange,
   type AnalyticsSeriesDto,
@@ -38,6 +44,9 @@ import {
   MessageSquareWarning,
   CalendarOff,
   BookOpen,
+  Percent,
+  Wallet,
+  ClipboardList,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -62,37 +71,6 @@ const STATUS_COLORS = [
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
-];
-
-const GATED_CHARTS: Array<{ title: string; reason: string }> = [
-  {
-    title: "GPA vs attendance",
-    reason: "No GPA column or grade scheme in schema — marks % is not converted to GPA.",
-  },
-  {
-    title: "Exam outcomes (pass rate)",
-    reason: "No durable pass threshold / grade boundary on exams — only raw published scores (shown as subject averages).",
-  },
-  {
-    title: "Parent Connect engagement",
-    reason: "No engagement / MAU event store — device tokens are presence only, not monthly history.",
-  },
-  {
-    title: "Connect app adoption",
-    reason: "No portal usage time series for parent / teacher / student adoption %.",
-  },
-  {
-    title: "Complaint resolution SLA",
-    reason: "SLA timers deferred in complaints schema — only current status exists.",
-  },
-  {
-    title: "Fee collection % of target",
-    reason: "No term fee targets / collection rollup — absolute payments are shown instead.",
-  },
-  {
-    title: "Analytics narrative insights",
-    reason: "Demo callouts are hardcoded marketing copy, not derived from institute facts.",
-  },
 ];
 
 function statusHint(status: AnalyticsLoadStatus, error: string | null): string {
@@ -126,10 +104,6 @@ function AnalyticsCharts({
     v: r.presentPct,
     marks: r.markCount,
   }));
-  const fees = series.feePaymentsMonthly.map((r) => ({
-    m: r.label,
-    collected: r.collected,
-  }));
   const statusPie = series.studentStatus.map((r, i) => ({
     name: r.label,
     value: r.count,
@@ -144,6 +118,43 @@ function AnalyticsCharts({
     subject: r.subjectName,
     avg: r.avgPct,
   }));
+  const leave = (series.leaveMonthly ?? []).map((r) => ({
+    m: r.label,
+    requested: r.requested,
+    pending: r.pending,
+    approved: r.approved,
+    rejected: r.rejected,
+  }));
+  const leaveStatus = (series.leaveByStatus ?? []).map((r, i) => ({
+    name: r.label,
+    value: r.count,
+    fill: STATUS_COLORS[i % STATUS_COLORS.length],
+  }));
+  const complaints = (series.complaintsByStatus ?? []).map((r, i) => ({
+    name: r.label,
+    value: r.count,
+    fill: STATUS_COLORS[i % STATUS_COLORS.length],
+  }));
+  const homework = (series.homeworkMonthly ?? []).map((r) => ({
+    m: r.label,
+    created: r.created,
+    published: r.published,
+  }));
+  const attBreakdown = (series.attendanceBreakdown ?? []).map((r, i) => ({
+    name: r.label,
+    value: r.count,
+    fill: STATUS_COLORS[i % STATUS_COLORS.length],
+  }));
+  const enrollByClass = (series.enrollmentByClass ?? []).map((r) => ({
+    name: r.className,
+    students: r.count,
+  }));
+  const insights = deriveRangeInsights(series);
+  const feesWithCount = series.feePaymentsMonthly.map((r) => ({
+    m: r.label,
+    collected: r.collected,
+    payments: r.paymentCount,
+  }));
 
   return (
     <div className="lx-analytics-charts space-y-4">
@@ -151,7 +162,7 @@ function AnalyticsCharts({
         <div>
           <h2 className="lx-analytics-charts__title">Charts & trends</h2>
           <p className="lx-analytics-charts__hint">
-            Monthly trends · {series.fromMonth} → {series.toMonth}
+            Live institute facts · {series.fromMonth} → {series.toMonth}
           </p>
         </div>
         <SegmentedControl
@@ -163,6 +174,55 @@ function AnalyticsCharts({
           ]}
         />
       </div>
+
+      {insights ? (
+        <div className="lx-analytics-kpi-grid">
+          <div className="lx-analytics-kpi lx-analytics-kpi--students">
+            <div className="lx-analytics-kpi__top">
+              <span className="lx-analytics-kpi__icon" aria-hidden>
+                <Percent className="size-3.5" />
+              </span>
+              <span className="lx-analytics-kpi__label">Avg present %</span>
+            </div>
+            <p className="lx-analytics-kpi__value">
+              {insights.avgPresentPct != null ? `${insights.avgPresentPct}%` : "—"}
+            </p>
+          </div>
+          <div className="lx-analytics-kpi lx-analytics-kpi--homework">
+            <div className="lx-analytics-kpi__top">
+              <span className="lx-analytics-kpi__icon" aria-hidden>
+                <Wallet className="size-3.5" />
+              </span>
+              <span className="lx-analytics-kpi__label">Fees collected</span>
+            </div>
+            <p className="lx-analytics-kpi__value">
+              ₹{Math.round(insights.feesCollected).toLocaleString()}
+            </p>
+          </div>
+          <div className="lx-analytics-kpi lx-analytics-kpi--leave">
+            <div className="lx-analytics-kpi__top">
+              <span className="lx-analytics-kpi__icon" aria-hidden>
+                <CalendarOff className="size-3.5" />
+              </span>
+              <span className="lx-analytics-kpi__label">Leave requests</span>
+            </div>
+            <p className="lx-analytics-kpi__value">
+              {insights.leaveRequested.toLocaleString()}
+            </p>
+          </div>
+          <div className="lx-analytics-kpi lx-analytics-kpi--complaints">
+            <div className="lx-analytics-kpi__top">
+              <span className="lx-analytics-kpi__icon" aria-hidden>
+                <ClipboardList className="size-3.5" />
+              </span>
+              <span className="lx-analytics-kpi__label">Homework created</span>
+            </div>
+            <p className="lx-analytics-kpi__value">
+              {insights.homeworkCreated.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-12 gap-4">
         <ChartCard
@@ -289,30 +349,110 @@ function AnalyticsCharts({
 
         <ChartCard
           className="col-span-12 lg:col-span-6"
+          title="Attendance mix"
+          hint="Present / absent / leave marks in selected range"
+        >
+          {chartHasAttendanceBreakdown(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <PieChart>
+                <Pie
+                  data={attBreakdown}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={48}
+                  outerRadius={78}
+                  paddingAngle={2}
+                >
+                  {attBreakdown.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} stroke="transparent" />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={
+                    <AdminChartTooltip formatter={(_, v) => `${v.toLocaleString()} marks`} />
+                  }
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No attendance marks in this range." />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          className="col-span-12 lg:col-span-6"
           title="Fee payments collected"
-          hint="Sum of fee_payment.amount by paid_on (₹) — not % of target"
+          hint="Sum of fee payments by paid_on (₹) and payment count"
         >
           {chartHasFeeData(series) ? (
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-              <BarChart data={fees} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <ComposedChart data={feesWithCount} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
                 <XAxis dataKey="m" tick={axisTick} axisLine={false} tickLine={false} />
-                <YAxis tick={axisTick} axisLine={false} tickLine={false} width={44} />
+                <YAxis yAxisId="left" tick={axisTick} axisLine={false} tickLine={false} width={44} />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={axisTick}
+                  axisLine={false}
+                  tickLine={false}
+                  width={28}
+                />
+                <Tooltip content={<AdminChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Bar
+                  yAxisId="left"
+                  dataKey="collected"
+                  name="Collected (₹)"
+                  fill="var(--chart-4)"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="payments"
+                  name="Payments"
+                  stroke="var(--chart-1)"
+                  fill="var(--chart-1)"
+                  fillOpacity={0.12}
+                  strokeWidth={2}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No fee payments recorded in this range." />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          className="col-span-12 lg:col-span-6"
+          title="Students by class"
+          hint="Active enrollments per class (current)"
+        >
+          {chartHasEnrollmentByClass(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={enrollByClass} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
                 <Tooltip
                   content={
-                    <AdminChartTooltip formatter={(_, v) => `₹${v.toLocaleString()}`} />
+                    <AdminChartTooltip formatter={(_, v) => `${v.toLocaleString()} students`} />
                   }
                 />
                 <Bar
-                  dataKey="collected"
-                  name="Collected"
-                  fill="var(--chart-4)"
+                  dataKey="students"
+                  name="Active students"
+                  fill="var(--chart-3)"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <ChartEmpty hint="No fee payments recorded in this range." />
+            <ChartEmpty hint="No active enrollments to chart." />
           )}
         </ChartCard>
 
@@ -387,26 +527,135 @@ function AnalyticsCharts({
             <ChartEmpty hint="No published mark scores yet." />
           )}
         </ChartCard>
-      </div>
 
-      <Card className="lx-analytics-gated">
-        <CardHeader
-          title="Unavailable charts"
-          hint="Not backed by durable product data — demo series are not shown"
-          action={<Pill tone="warning">Gated</Pill>}
-        />
-        <ul className="px-4 pb-4 space-y-2">
-          {GATED_CHARTS.map((item) => (
-            <li
-              key={item.title}
-              className="lx-analytics-gated__row"
-            >
-              <span className="font-medium">{item.title}</span>
-              <span className="block text-[11px] text-muted-foreground mt-0.5">{item.reason}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+        <ChartCard
+          className="col-span-12 lg:col-span-8"
+          title="Leave requests"
+          hint="Leave starting in each month · status breakdown"
+        >
+          {chartHasLeaveData(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={leave} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis dataKey="m" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
+                <Tooltip content={<AdminChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Bar dataKey="approved" name="Approved" stackId="leave" fill="var(--chart-2)" />
+                <Bar dataKey="pending" name="Pending" stackId="leave" fill="var(--chart-4)" />
+                <Bar
+                  dataKey="rejected"
+                  name="Rejected"
+                  stackId="leave"
+                  fill="var(--chart-5)"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No leave requests with start dates in this range." />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          className="col-span-12 lg:col-span-4"
+          title="Leave status"
+          hint="All leave requests (current statuses)"
+        >
+          {chartHasLeaveStatusData(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <PieChart>
+                <Pie
+                  data={leaveStatus}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={48}
+                  outerRadius={78}
+                  paddingAngle={2}
+                >
+                  {leaveStatus.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} stroke="transparent" />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={
+                    <AdminChartTooltip formatter={(_, v) => `${v.toLocaleString()} requests`} />
+                  }
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No leave requests yet." />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          className="col-span-12 lg:col-span-6"
+          title="Homework activity"
+          hint="Homework created each month · published count"
+        >
+          {chartHasHomeworkData(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <ComposedChart data={homework} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis dataKey="m" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
+                <Tooltip content={<AdminChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Bar
+                  dataKey="created"
+                  name="Created"
+                  fill="var(--chart-3)"
+                  radius={[4, 4, 0, 0]}
+                  barSize={16}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="published"
+                  name="Published"
+                  stroke="var(--chart-1)"
+                  fill="var(--chart-1)"
+                  fillOpacity={0.15}
+                  strokeWidth={2}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No homework created in this range." />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          className="col-span-12 lg:col-span-6"
+          title="Complaints by status"
+          hint="Current complaint statuses (not invented SLA)"
+        >
+          {chartHasComplaintStatusData(series) ? (
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={complaints} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
+                <Tooltip
+                  content={
+                    <AdminChartTooltip formatter={(_, v) => `${v.toLocaleString()} complaints`} />
+                  }
+                />
+                <Bar dataKey="value" name="Complaints" radius={[4, 4, 0, 0]}>
+                  {complaints.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty hint="No complaints recorded yet." />
+          )}
+        </ChartCard>
+      </div>
     </div>
   );
 }

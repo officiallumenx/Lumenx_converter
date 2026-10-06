@@ -7,7 +7,8 @@ export type TransportRealtimeTable =
   | "transport_trip"
   | "transport_boarding_event"
   | "transport_emergency"
-  | "vehicle_location";
+  | "vehicle_location"
+  | "transport_daily_exception";
 
 export type TransportRealtimeEvent = {
   table: TransportRealtimeTable;
@@ -17,18 +18,21 @@ export type TransportRealtimeEvent = {
 export type SubscribeTransportRealtimeOptions = {
   instituteId: string;
   onChange: (event: TransportRealtimeEvent) => void;
+  /** Optional: only listen to a subset of tables (reduces fan-in). */
+  tables?: TransportRealtimeTable[];
 };
 
 /**
- * Subscribe to Supabase Realtime changes on transport approval tables.
- * Filters server-side by institute_id when present on the row payload.
+ * Subscribe to Supabase Realtime changes on transport tables.
+ * Filters server-side by institute_id when the Realtime filter is supported;
+ * still guards client-side as defense-in-depth.
  */
 export function subscribeTransportRealtime(
   supabase: SupabaseClient,
   options: SubscribeTransportRealtimeOptions,
 ): () => void {
   const instituteId = options.instituteId.trim();
-  const tables: TransportRealtimeTable[] = [
+  const tables: TransportRealtimeTable[] = options.tables ?? [
     "route",
     "stop",
     "transport_enrollment",
@@ -36,6 +40,7 @@ export function subscribeTransportRealtime(
     "transport_boarding_event",
     "transport_emergency",
     "vehicle_location",
+    "transport_daily_exception",
   ];
 
   const channels: RealtimeChannel[] = [];
@@ -45,7 +50,12 @@ export function subscribeTransportRealtime(
       .channel(`transport-${table}-${instituteId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table },
+        {
+          event: "*",
+          schema: "public",
+          table,
+          filter: `institute_id=eq.${instituteId}`,
+        },
         (payload) => {
           const row =
             (payload.new as Record<string, unknown> | null) ??

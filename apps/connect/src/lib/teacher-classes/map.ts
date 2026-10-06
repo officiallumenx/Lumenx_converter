@@ -67,6 +67,8 @@ export function assignmentsToTeacherClasses(
       attendanceRate: 0,
       homeworkSubmissionRate: 0,
       avgScore: 0,
+      classRecordId: section.classId,
+      academicYearId: section.academicYearId,
     });
   }
 

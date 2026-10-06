@@ -26,6 +26,7 @@ import {
   type LocationPasteValue,
 } from "@/components/transport/LocationPastePicker";
 import { mapsUrlForCoords } from "@/lib/parse-location-paste";
+import { parseStopRadiusInput, STOP_RADIUS_MAX_M, STOP_RADIUS_MIN_M } from "@/lib/transport/stop-radius";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -89,7 +90,9 @@ export function TransportStopsView({
   const [declineReason, setDeclineReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [radius, setRadius] = useState(snapshot.settings.defaultNotificationRadiusM);
+  const [radius, setRadius] = useState<number | "">(
+    snapshot.settings.defaultNotificationRadiusM,
+  );
   const [location, setLocation] = useState<LocationPasteValue | null>(null);
   const [editId, setEditId] = useState<string | undefined>();
   const [routeId, setRouteId] = useState("");
@@ -178,6 +181,11 @@ export function TransportStopsView({
       notify("Paste a location from Google Maps or OpenStreetMap");
       return;
     }
+    const radiusParsed = parseStopRadiusInput(radius);
+    if (!radiusParsed.ok) {
+      notify(radiusParsed.error);
+      return;
+    }
     if (onPersistStop) {
       const resolvedRouteId = editId ? editRouteId ?? routeId : routeId;
       if (!resolvedRouteId) {
@@ -192,11 +200,7 @@ export function TransportStopsView({
           locationLabel: location.locationLabel,
           lat: location.lat,
           lng: location.lng,
-          notificationRadiusM: (() => {
-            const parsed = Number.parseInt(String(radius), 10);
-            if (Number.isFinite(parsed) && parsed > 0) return parsed;
-            return snapshot.settings.defaultNotificationRadiusM;
-          })(),
+          notificationRadiusM: radiusParsed.meters,
         }),
       )
         .then(() => {
@@ -215,11 +219,7 @@ export function TransportStopsView({
         locationLabel: location.locationLabel,
         lat: location.lat,
         lng: location.lng,
-        notificationRadiusM: (() => {
-          const parsed = Number.parseInt(String(radius), 10);
-          if (Number.isFinite(parsed) && parsed > 0) return parsed;
-          return snapshot.settings.defaultNotificationRadiusM;
-        })(),
+        notificationRadiusM: radiusParsed.meters,
       }),
     );
     setOpen(false);
@@ -259,7 +259,7 @@ export function TransportStopsView({
               : `${rows.length} stops · ${
                   canCreate
                     ? "paste from Google Maps or OSM"
-                    : "publish pending driver stops to make them live"
+                  : "Driver stops are usable immediately. Publish still records Admin review."
                 }`
           }
         />
@@ -275,7 +275,7 @@ export function TransportStopsView({
               hint={
                 allowCreate
                   ? "Open a map site, copy the link or coordinates, and paste here."
-                  : "When drivers submit stops, use Publish on each pending stop here."
+                  : "When drivers submit stops they are usable immediately. Publish records Admin review."
               }
               action={
                 canCreate ? (
@@ -412,20 +412,22 @@ export function TransportStopsView({
               </Field>
               <Field
                 label="Notification radius (m)"
-                hint={`Default ${snapshot.settings.defaultNotificationRadiusM}m`}
+                hint={`Stored value · ${STOP_RADIUS_MIN_M}–${STOP_RADIUS_MAX_M} m`}
               >
                 <TextInput
                   type="number"
-                  min={20}
+                  min={STOP_RADIUS_MIN_M}
+                  max={STOP_RADIUS_MAX_M}
+                  step={1}
                   value={radius}
                   onChange={(e) => {
                     const raw = e.target.value.trim();
                     if (raw === "") {
-                      setRadius(snapshot.settings.defaultNotificationRadiusM);
+                      setRadius("");
                       return;
                     }
                     const parsed = Number.parseInt(raw, 10);
-                    if (Number.isFinite(parsed) && parsed > 0) {
+                    if (Number.isFinite(parsed)) {
                       setRadius(parsed);
                     }
                   }}

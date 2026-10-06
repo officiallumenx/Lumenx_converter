@@ -37,3 +37,4 @@ export { StudentAttendanceSummary } from "./StudentAttendanceSummary";
 export { StudentAttendanceRosterPlaceholder } from "./StudentAttendanceRosterPlaceholder";
 export { StudentAttendanceMarkPanel } from "./StudentAttendanceMarkPanel";
 export { StudentAttendanceWorkspace } from "./StudentAttendanceWorkspace";
+export { StudentAttendanceSettingsPanel } from "./StudentAttendanceSettingsPanel";

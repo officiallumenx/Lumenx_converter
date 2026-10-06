@@ -34,8 +34,10 @@ export function buildStudentAttendanceApiSectionOptions(
   classId: string,
   sections: SectionDto[],
   classesById: Map<string, ClassDto>,
+  opts?: { includeClassInLabel?: boolean },
 ): StudentAttendanceSectionOption[] {
   if (!classId) return [];
+  const includeClassInLabel = opts?.includeClassInLabel === true;
   return sections
     .filter((section) => section.classId === classId)
     .sort(
@@ -44,9 +46,15 @@ export function buildStudentAttendanceApiSectionOptions(
         (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
         a.name.localeCompare(b.name),
     )
-    .map((section) => ({
-      id: section.id,
-      classId,
-      label: `${classLabelForSection(section, classesById)} · Sec ${section.code?.trim() || section.name}`,
-    }));
+    .map((section) => {
+      const sectionOnly =
+        section.code?.trim() || section.name.trim() || section.id;
+      return {
+        id: section.id,
+        classId,
+        label: includeClassInLabel
+          ? `${classLabelForSection(section, classesById)} · Sec ${sectionOnly}`
+          : sectionOnly,
+      };
+    });
 }

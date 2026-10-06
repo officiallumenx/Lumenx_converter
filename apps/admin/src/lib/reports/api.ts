@@ -44,7 +44,12 @@ export async function listReportJobs(
 }
 
 export async function createReportJob(
-  input: { instituteId: string; reportId: string },
+  input: {
+    instituteId: string;
+    reportId: string;
+    fromDate?: string | null;
+    toDate?: string | null;
+  },
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<ReportJobDto> {
   assertApiMode();
@@ -54,6 +59,8 @@ export async function createReportJob(
   return client.post<ReportJobDto>("/api/v1/reports/jobs", {
     institute_id: input.instituteId.trim(),
     report_id: input.reportId,
+    from_date: input.fromDate?.trim() || null,
+    to_date: input.toDate?.trim() || null,
   });
 }
 

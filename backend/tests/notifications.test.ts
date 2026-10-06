@@ -298,6 +298,33 @@ describe("notifications — templates and device tokens", () => {
       ).status,
     ).toBe(200);
   });
+
+  it("phase9: transport FCM tokens bind to actor; cross-user delete denied", async () => {
+    const app = appWithDb(baseDb());
+    const registered = await app.request("/api/v1/notifications/device-tokens", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        app: "transport",
+        platform: "android",
+        token: "fcm-token-transport-admin-1",
+      }),
+    });
+    expect(registered.status).toBe(201);
+    const body = await json(registered);
+    expect(body.data.app).toBe("transport");
+    expect(body.data.userProfileId).toBe(USER_ADMIN);
+    const tokenId = body.data.id as string;
+
+    expect(
+      (
+        await app.request(`/api/v1/notifications/device-tokens/${tokenId}`, {
+          method: "DELETE",
+          headers: auth("token-teacher"),
+        })
+      ).status,
+    ).toBe(403);
+  });
 });
 
 describe("notifications — auth and validation", () => {

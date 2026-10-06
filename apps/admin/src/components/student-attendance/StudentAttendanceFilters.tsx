@@ -1,14 +1,12 @@
-import { Card, Select } from "@lumenx/ui-admin";
+import { Card } from "@lumenx/ui-admin";
 import { StudentAttendanceClassSelect } from "./StudentAttendanceClassSelect";
 import { StudentAttendanceDateField } from "./StudentAttendanceDateField";
 import { StudentAttendanceSearchField } from "./StudentAttendanceSearchField";
 import { StudentAttendanceSectionSelect } from "./StudentAttendanceSectionSelect";
-import {
-  STUDENT_ATTENDANCE_STATUS_OPTIONS,
-  type StudentAttendanceClassOption,
-  type StudentAttendanceSectionOption,
-  type StudentAttendanceStatusFilter,
-  type StudentAttendanceWorkspaceState,
+import type {
+  StudentAttendanceClassOption,
+  StudentAttendanceSectionOption,
+  StudentAttendanceWorkspaceState,
 } from "./types";
 
 export type StudentAttendanceFiltersProps = {
@@ -20,7 +18,7 @@ export type StudentAttendanceFiltersProps = {
 };
 
 /**
- * Filters: class · section | date · status | search — one row each.
+ * Filters: class · section | date · search.
  */
 export function StudentAttendanceFilters({
   state,
@@ -53,31 +51,6 @@ export function StudentAttendanceFilters({
             disabled={disabled}
             onChange={(date) => onChange({ date })}
           />
-          <label className="block min-w-0 text-xs" htmlFor="student-attendance-status">
-            <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Status
-            </span>
-            <Select
-              id="student-attendance-status"
-              fieldSize="compact"
-              className="lx-filter-field"
-              value={state.status}
-              disabled={disabled}
-              onChange={(e) =>
-                onChange({ status: e.target.value as StudentAttendanceStatusFilter })
-              }
-              aria-label="Attendance status"
-            >
-              {STUDENT_ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-        </div>
-
-        <div className="min-w-0">
           <StudentAttendanceSearchField
             value={state.search}
             disabled={disabled}

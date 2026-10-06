@@ -12,7 +12,6 @@ import {
   HardDrive,
   Settings,
   Siren,
-  KeyRound,
   Megaphone,
   Layers,
   ClipboardList,
@@ -20,7 +19,6 @@ import {
   UserCheck,
   UserPlus,
   Briefcase,
-  Landmark,
   FileBarChart,
   Award,
   BookOpen,
@@ -39,6 +37,7 @@ import {
   NotebookPen,
   CreditCard,
   Camera,
+  User,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_MODULE_LABEL_BY_ROUTE as L } from "@/lib/admin-module-labels";
@@ -65,7 +64,7 @@ export const adminNav: readonly AdminNavGroup[] = [
       { to: "/teachers", label: L["/teachers"],          icon: GraduationCap  },
       { to: "/photos",   label: L["/photos"],            icon: Camera         },
       { to: "/parents",  label: L["/parents"],           icon: Heart          },
-      { to: "/accounts", label: L["/accounts"], icon: KeyRound       },
+      { to: "/accounts", label: L["/accounts"],          icon: UserCog        },
     ],
   },
   {
@@ -77,7 +76,7 @@ export const adminNav: readonly AdminNavGroup[] = [
       { to: "/subjects",             label: L["/subjects"],            icon: BookOpen       },
       { to: "/timetable",             label: L["/timetable"],            icon: CalendarRange  },
       { to: "/student-attendance",   label: L["/student-attendance"],  icon: ClipboardCheck },
-      { to: "/attendance",           label: L["/attendance"], icon: BarChart3      },
+      { to: "/attendance",           label: L["/attendance"],          icon: BarChart3      },
       { to: "/teacher-attendance",   label: L["/teacher-attendance"],  icon: CalendarCheck  },
       { to: "/exams",                label: L["/exams"],               icon: ClipboardPen   },
       { to: "/marks",                label: L["/marks"],               icon: ClipboardList  },
@@ -102,7 +101,6 @@ export const adminNav: readonly AdminNavGroup[] = [
       { to: "/subscription", label: L["/subscription"], icon: CreditCard },
       { to: "/modules",     label: L["/modules"], icon: Layers      },
       { to: "/storage",     label: L["/storage"],        icon: HardDrive   },
-      { to: "/settings",    label: L["/settings"],       icon: Settings    },
     ],
   },
   {
@@ -118,7 +116,6 @@ export const adminNav: readonly AdminNavGroup[] = [
   {
     label: "Institute",
     items: [
-      { to: "/institute", label: L["/institute"],   icon: Landmark       },
       { to: "/templates", label: L["/templates"],        icon: LayoutTemplate },
       { to: "/documents", label: L["/documents"], icon: FolderOpen     },
       { to: "/calendar",  label: L["/calendar"],   icon: Calendar       },
@@ -130,6 +127,13 @@ export const adminNav: readonly AdminNavGroup[] = [
     items: [
       { to: "/reports",             label: L["/reports"],    icon: FileBarChart },
       { to: "/teacher-performance", label: L["/teacher-performance"], icon: Award        },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { to: "/settings",         label: L["/settings"],         icon: Settings },
+      { to: "/profile-settings", label: L["/profile-settings"], icon: User     },
     ],
   },
 ] as const;

@@ -51,6 +51,7 @@ import type { AnalyticsRange } from "@/lib/analytics/types";
 import {
   getTransportAnalytics,
   listTransportBoardingMarks,
+  listTransportDailyExceptions,
   listTransportEmergencies,
   listTransportTrips,
 } from "@/lib/transport/ops-api";
@@ -94,6 +95,7 @@ import type { MembershipStatus } from "@/lib/identity";
 import { loadInstituteProfile } from "@/lib/institutes";
 import { loadStorageUsage } from "@/lib/assets";
 import { loadReportsCatalog } from "@/lib/reports";
+import { loadTeacherPerformanceList } from "@/lib/teacher-performance";
 import { loadAlertRules } from "@/lib/alert-rules-api";
 
 function instituteEnabled(
@@ -498,6 +500,25 @@ export function useTransportBoardingMarksQuery(
     queryKey: adminQueryKeys.transport(id, `boarding:${tripDate}`),
     queryFn: () =>
       listTransportBoardingMarks({ instituteId: instituteId!, tripDate }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTransportDailyExceptionsQuery(
+  instituteId: string | null | undefined,
+  serviceDate: string,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, `daily-exceptions:${serviceDate}`),
+    queryFn: () =>
+      listTransportDailyExceptions({
+        instituteId: instituteId!,
+        serviceDate,
+      }),
     enabled: instituteEnabled(instituteId, enabled),
     staleTime: TRANSPORT_OPS_STALE_MS,
     placeholderData: keepPreviousData,
@@ -1060,12 +1081,32 @@ export function useStorageUsageQuery(
 export function useReportsCatalogQuery(
   instituteId: string | null | undefined,
   enabled = true,
+  options?: {
+    refetchInterval?: UseQueryOptions<
+      Awaited<ReturnType<typeof loadReportsCatalog>>
+    >["refetchInterval"];
+  },
 ) {
   const id = instituteId ?? "_";
   return useAdminQuery({
     queryKey: adminQueryKeys.reports(id),
     queryFn: () => loadReportsCatalog(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
+    refetchInterval: options?.refetchInterval,
+  });
+}
+
+export function useTeacherPerformanceQuery(
+  instituteId: string | null | undefined,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.teacherPerformance(id),
+    queryFn: () => loadTeacherPerformanceList(instituteId!),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
   });
 }
 

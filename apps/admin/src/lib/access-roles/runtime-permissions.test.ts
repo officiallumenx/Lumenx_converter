@@ -29,7 +29,7 @@ describe("runtime access permissions", () => {
       accessRoleId: "role-1",
       accessRoleName: "Financial",
       accessRoleSystemKey: "financial",
-      permissions: { "/fees": "full", "/students": "none" },
+      permissions: { "/": "none", "/fees": "full", "/students": "none" },
       assignedSectionKeys: [],
       instituteWide: false,
     });
@@ -37,6 +37,7 @@ describe("runtime access permissions", () => {
     await syncApiAccessPermissions("inst-a");
     const state = getApiAccessState();
     expect(state.accessRoleSystemKey).toBe("financial");
+    expect(getApiRolePermission("/")).toBe("none");
     expect(getApiRolePermission("/fees")).toBe("full");
     expect(getApiRolePermission("/fees/plans")).toBe("full");
     expect(getApiRolePermission("/students")).toBe("none");

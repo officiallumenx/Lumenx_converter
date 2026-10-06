@@ -340,6 +340,159 @@ describe("server-consumed Nexus factors", () => {
       db.auth_verification_grant.every((grant) => Boolean(grant.consumed_at)),
     ).toBe(true);
   });
+
+  it("does not burn nexus_login grant when PIN is wrong", async () => {
+    const db = emptyMockDb();
+    db.user_profile.push({
+      ...profile(operatorId, "operator@test.edu", "9876543210"),
+      pin_hash: "deadbeef",
+      pin_salt: "00",
+      pin_set_at: now,
+      first_login_completed_at: now,
+    });
+    db.platform_operator.push({
+      user_id: operatorId,
+      handle: "operator",
+      display_name: "Operator",
+      status: "active",
+      role_code: "nexus_root",
+    });
+    const app = createApp(
+      loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
+      createLogger("error"),
+      createMockSupabaseClients({
+        db,
+        tokens: {},
+        authUsersByEmail: { "operator@test.edu": { id: operatorId } },
+        authPasswords: { "operator@test.edu": "correct-password" },
+      }),
+    );
+
+    await app.request("/api/v1/auth/nexus/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "operator@test.edu", channel: "mobile" }),
+    });
+    const verified = await app.request("/api/v1/auth/nexus/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "operator@test.edu",
+        channel: "mobile",
+        otp: WORKFLOW_DEMO_OTP,
+      }),
+    });
+    expect(verified.status).toBe(200);
+    const { grant } = ((await verified.json()) as { data: { grant: string } }).data;
+
+    const wrongPin = await app.request("/api/v1/auth/nexus/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "operator@test.edu",
+        pin: "9999",
+        password: "correct-password",
+        mobile_otp_grant: grant,
+      }),
+    });
+    expect(wrongPin.status).toBe(400);
+    expect(
+      db.auth_verification_grant.every((row) => row.consumed_at == null),
+    ).toBe(true);
+  });
+
+  it("Save PIN & login uses pin_reset grant + password (no nexus_login grant)", async () => {
+    const db = emptyMockDb();
+    db.user_profile.push({
+      ...profile(operatorId, "root@lumenx.edu", "9123456780"),
+      display_name: "Nexus Root",
+      pin_hash: "deadbeef",
+      pin_salt: "00",
+      pin_set_at: now,
+      first_login_completed_at: now,
+    });
+    db.platform_operator.push({
+      user_id: operatorId,
+      handle: "nexus-root",
+      display_name: "Nexus Root",
+      status: "active",
+      role_code: "nexus_root",
+    });
+    const app = createApp(
+      loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
+      createLogger("error"),
+      createMockSupabaseClients({
+        db,
+        tokens: {},
+        authUsersByEmail: { "root@lumenx.edu": { id: operatorId } },
+        authPasswords: { "root@lumenx.edu": "correct-password" },
+      }),
+    );
+
+    await app.request("/api/v1/auth/nexus/forgot-pin/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "nexus-root", channel: "mobile" }),
+    });
+    const verified = await app.request("/api/v1/auth/nexus/forgot-pin/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "nexus-root",
+        channel: "mobile",
+        otp: WORKFLOW_DEMO_OTP,
+      }),
+    });
+    expect(verified.status).toBe(200);
+    const { grant } = ((await verified.json()) as { data: { grant: string } }).data;
+
+    const withoutPassword = await app.request("/api/v1/auth/nexus/forgot-pin/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "nexus-root",
+        mobile_otp_grant: grant,
+        new_pin: "4321",
+      }),
+    });
+    // Grant already consumed by the no-password complete above — re-issue for session path.
+    expect(withoutPassword.status).toBe(200);
+
+    await app.request("/api/v1/auth/nexus/forgot-pin/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "nexus-root", channel: "mobile" }),
+    });
+    const verifiedAgain = await app.request("/api/v1/auth/nexus/forgot-pin/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "nexus-root",
+        channel: "mobile",
+        otp: WORKFLOW_DEMO_OTP,
+      }),
+    });
+    const grant2 = ((await verifiedAgain.json()) as { data: { grant: string } }).data
+      .grant;
+
+    const saveAndLogin = await app.request("/api/v1/auth/nexus/forgot-pin/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: "nexus-root",
+        mobile_otp_grant: grant2,
+        new_pin: "5678",
+        password: "correct-password",
+      }),
+    });
+    expect(saveAndLogin.status).toBe(200);
+    const body = (await saveAndLogin.json()) as {
+      data: { ok: true; access_token: string; refresh_token: string; is_root?: boolean };
+    };
+    expect(body.data.access_token).toBeTruthy();
+    expect(body.data.refresh_token).toBeTruthy();
+    expect(body.data.is_root).toBe(true);
+  });
 });
 
 describe("Connect passwordless role and factor enforcement", () => {

@@ -775,7 +775,7 @@ describe("access roles API", () => {
     expect(body.data.displayName).toBe("Admin User");
   });
 
-  it("rehomes orphan phone onto sole institute admin without mobile", async () => {
+  it("does not match orphan phones outside institute membership", async () => {
     const db = baseDb();
     const orphanId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
     db.user_profile[0]!.phone = null;
@@ -805,47 +805,50 @@ describe("access roles API", () => {
       },
     );
 
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      data: { displayName: string };
-    };
-    expect(body.data.displayName).toBe("Admin User");
-    expect(db.user_profile[0]!.phone_digits).toBe("9876500001");
-    expect(db.user_profile[0]!.phone).toBe("9876500001");
-    const orphan = db.user_profile.find((row) => row.id === orphanId);
-    expect(orphan?.phone).toBeNull();
-    expect(orphan?.phone_digits).toBeNull();
+    expect(response.status).toBe(404);
+    expect(await response.text()).toMatch(/selected institute/i);
+    expect(db.user_profile[0]!.phone).toBeNull();
+    expect(db.user_profile[0]!.phone_digits).toBeNull();
   });
 
-  it("does not steal Nexus operator phone; bridges Admin by shared email", async () => {
+  it("does not resolve unrelated usernames/phones into Admin login", async () => {
     const db = baseDb();
-    const operatorId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const otherId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     db.user_profile[0]!.phone = null;
     db.user_profile[0]!.phone_digits = null;
-    db.user_profile[0]!.email = "leo@lumenx.edu";
+    db.user_profile[0]!.username = "admin-lokesh";
+    db.user_profile[0]!.email = "admin@demo.edu";
     db.user_profile.push({
-      id: operatorId,
-      display_name: "Leo Nexus",
-      email: "leo@lumenx.edu",
+      id: otherId,
+      display_name: "Other User",
+      email: "other@example.com",
       phone: "9876500001",
       phone_digits: "9876500001",
+      username: "lokesh",
       avatar_url: null,
       status: "active",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
       deleted_at: null,
     });
-    db.platform_operator = [
-      {
-        user_id: operatorId,
-        handle: "leo",
-        display_name: "Leo",
-        status: "active",
-        role_code: "nexus_root",
-      },
-    ];
 
-    const response = await appWithDb(db).request(
+    const byUsername = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "lokesh",
+        }),
+      },
+    );
+    const usernameBody = await byUsername.text();
+    expect(byUsername.status).toBe(404);
+    expect(usernameBody).not.toMatch(/nexus/i);
+    expect(usernameBody).toMatch(/selected institute/i);
+
+    const byPhone = await appWithDb(db).request(
       "/api/v1/auth/staff/login-mode",
       {
         method: "POST",
@@ -856,16 +859,67 @@ describe("access roles API", () => {
         }),
       },
     );
+    const phoneBody = await byPhone.text();
+    expect(byPhone.status).toBe(404);
+    expect(phoneBody).not.toMatch(/nexus/i);
+  });
 
+  it("bridges username to institute Admin when emails match", async () => {
+    const db = baseDb();
+    const aliasId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    db.user_profile[0]!.username = null;
+    db.user_profile[0]!.email = "shared@demo.edu";
+    db.user_profile.push({
+      id: aliasId,
+      display_name: "Alias Profile",
+      email: "shared@demo.edu",
+      phone: null,
+      phone_digits: null,
+      username: "lokesh",
+      avatar_url: null,
+      status: "active",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    });
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "lokesh",
+        }),
+      },
+    );
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       data: { displayName: string };
     };
     expect(body.data.displayName).toBe("Admin User");
-    expect(db.user_profile[0]!.phone_digits).toBeNull();
-    expect(db.user_profile[0]!.phone).toBeNull();
-    const operator = db.user_profile.find((row) => row.id === operatorId);
-    expect(operator?.phone_digits).toBe("9876500001");
-    expect(operator?.phone).toBe("9876500001");
+  });
+
+  it("resolves username only for members of the selected institute", async () => {
+    const db = baseDb();
+    db.user_profile[0]!.username = "lokesh";
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "lokesh",
+        }),
+      },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { displayName: string };
+    };
+    expect(body.data.displayName).toBe("Admin User");
   });
 });

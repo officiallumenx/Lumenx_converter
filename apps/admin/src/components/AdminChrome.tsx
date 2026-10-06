@@ -15,7 +15,6 @@ import {
 } from "@/lib/admin-module-colors";
 import { isAdminRouteModuleEnabled, useEnabledModules } from "@/lib/admin-plan-config";
 import { IconChip } from "@/components/IconChip";
-import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import { useAuth } from "@/auth/AuthContext";
@@ -73,7 +72,10 @@ import {
   subscribeAdminNotifications,
 } from "@/lib/notification-center-store";
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
-import { ApiInstituteSwitcher } from "@/components/ApiInstituteSwitcher";
+import {
+  ApiInstituteSwitcher,
+  SidebarInstituteLogo,
+} from "@/components/ApiInstituteSwitcher";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { InstituteContextProvider, useInstituteContext } from "@/lib/institutes";
 import {
@@ -297,6 +299,15 @@ export function AdminChrome() {
   /** Drawer section driving the mobile bottom nav (config order, not flattened). */
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
 
+  // Role accounts: leave denied routes (including Home) for the first checked module.
+  useEffect(() => {
+    if (!user?.accessRoleId) return;
+    if (getRolePermission(user.accessRoleId, path) !== "none") return;
+    const firstAllowed = visibleNav.flatMap((group) => group.items)[0]?.to;
+    if (!firstAllowed || firstAllowed === path) return;
+    void navigate({ to: firstAllowed as never, replace: true });
+  }, [user?.accessRoleId, path, visibleNav, navigate, rolesRevision]);
+
   const sectionForPath = useMemo(() => {
     return getAdminSectionForPath(path, visibleNav);
   }, [visibleNav, path]);
@@ -334,7 +345,7 @@ export function AdminChrome() {
   );
 
   const settingsPath =
-    visibleNav.flatMap((g) => g.items).find((item) => item.label === "Settings")?.to ?? "/settings";
+    visibleNav.flatMap((g) => g.items).find((item) => item.to === "/settings")?.to ?? "/settings";
 
   const goToAdminModule = useCallback(
     (to: string) => {
@@ -398,14 +409,29 @@ export function AdminChrome() {
   };
   const displayName = user?.name ?? profile.admin.principalName;
   const displayTitle = user?.title ?? profile.admin.principalTitle;
-  const displayIdentity = user?.email || user?.phone || "Admin user";
+  const displayIdentity = (() => {
+    const email = user?.email?.trim() ?? "";
+    const phone = user?.phone?.trim() ?? "";
+    const emailOk =
+      email &&
+      !email.toLowerCase().endsWith(".invalid") &&
+      !email.toLowerCase().includes(".lumenx.invalid") &&
+      !email.toLowerCase().includes("@portal.lumenx.local");
+    if (phone) return phone;
+    if (emailOk) return email;
+    return "Admin user";
+  })();
   /** Shell wash stays brand blue; per-module hues stay on IconChip only. */
   const chromeAccentStyle = {
     ["--lx-module-accent" as string]: "#2563EB",
     ["--lx-module-chip" as string]: "#DBEAFE",
   } as CSSProperties;
   const canAccessSettings =
-    !user?.accessRoleId || getRolePermission(user.accessRoleId, "/settings") !== "none";
+    !user?.accessRoleId ||
+    getRolePermission(user.accessRoleId, "/settings") !== "none" ||
+    getRolePermission(user.accessRoleId, "/profile-settings") !== "none";
+  const canAccessProfileSettings =
+    !user?.accessRoleId || getRolePermission(user.accessRoleId, "/profile-settings") !== "none";
   const writesAllowed = canAdminMutate(user?.accessRoleId, path);
   const writeBlockReason = adminWriteBlockReason(user?.accessRoleId, path);
   const displayInitials = user?.initials ?? getInitials(displayName, 2);
@@ -467,10 +493,10 @@ export function AdminChrome() {
   const SidebarContent = (
     <>
       <div className="flex items-center gap-2.5 px-6 h-16 border-b border-sidebar-border shrink-0">
-        <LumenXAdminLogo size="sm" className="max-h-9" />
+        {apiMode ? <SidebarInstituteLogo /> : null}
         <div className="leading-tight min-w-0 flex-1">
           {apiMode ? (
-            <ApiInstituteSwitcher className="mt-0.5 max-w-[12rem]" />
+            <ApiInstituteSwitcher hideMark className="mt-0.5 max-w-[12rem]" />
           ) : (
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate max-w-[11rem]">
               {profile.admin.headerSubtitle}
@@ -575,23 +601,22 @@ export function AdminChrome() {
               </div>
             </div>
             {/* Menu items */}
-            {canAccessSettings && <div className="p-1.5 space-y-0.5">
+            {canAccessProfileSettings && <div className="p-1.5 space-y-0.5">
               <Link
-                to="/settings"
+                to="/profile-settings"
                 onClick={(event) => {
-                  onModuleLinkClick("/settings", event);
+                  onModuleLinkClick("/profile-settings", event);
                   setProfileOpen(false);
                 }}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full"
               >
                 <User className="size-3.5 text-muted-foreground" />
-                <span>Profile &amp; Settings</span>
+                <span>Profile Settings</span>
               </Link>
               <Link
-                to="/settings"
-                search={{ tab: "appearance" } as never}
+                to="/profile-settings"
                 onClick={(event) => {
-                  onModuleLinkClick("/settings", event);
+                  onModuleLinkClick("/profile-settings", event);
                   setProfileOpen(false);
                 }}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full"
@@ -600,6 +625,21 @@ export function AdminChrome() {
                 <span>Appearance</span>
               </Link>
             </div>}
+            {canAccessSettings && !canAccessProfileSettings ? (
+              <div className="p-1.5 space-y-0.5">
+                <Link
+                  to="/settings"
+                  onClick={(event) => {
+                    onModuleLinkClick("/settings", event);
+                    setProfileOpen(false);
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full"
+                >
+                  <User className="size-3.5 text-muted-foreground" />
+                  <span>Institute Settings</span>
+                </Link>
+              </div>
+            ) : null}
             <div className="p-1.5 border-t border-border">
               <button
                 onClick={handleLogout}
@@ -690,15 +730,12 @@ export function AdminChrome() {
                 <Menu className="size-5" />
               </Button>
               <div
-                className="lx-admin-header__brand lx-admin-header__brand--mobile lg:hidden"
+                className="lx-admin-header__brand"
                 aria-label="LumenX Admin"
               >
                 <div className="lx-admin-header__brand-mark leading-tight">
-                  <span className="block text-[0.95rem] font-bold tracking-tight text-primary">
-                    LumenX
-                  </span>
-                  <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Admin
+                  <span className="block text-[0.95rem] font-bold tracking-tight text-primary md:text-[1.05rem]">
+                    LumenX Admin
                   </span>
                 </div>
               </div>

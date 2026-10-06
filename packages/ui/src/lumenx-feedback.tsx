@@ -30,6 +30,8 @@ export type LumenXFeedbackFormProps = {
   source: LumenXFeedbackSource;
   /** Compact layout for dialogs */
   compact?: boolean;
+  /** Lock feedback type (hides the type picker). */
+  fixedKind?: LumenXFeedbackKind;
   className?: string;
   onSubmitted?: () => void;
 };
@@ -37,11 +39,12 @@ export type LumenXFeedbackFormProps = {
 export function LumenXFeedbackForm({
   source,
   compact,
+  fixedKind,
   className,
   onSubmitted,
 }: LumenXFeedbackFormProps) {
   const [rating, setRating] = useState(0);
-  const [kind, setKind] = useState<LumenXFeedbackKind>("experience");
+  const [kind, setKind] = useState<LumenXFeedbackKind>(fixedKind ?? "experience");
   const [message, setMessage] = useState("");
   const [screenshot, setScreenshot] = useState<SimpleUploadValue | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +52,11 @@ export function LumenXFeedbackForm({
   const [submitMode, setSubmitMode] = useState<"api" | "demo" | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const activeKind = fixedKind ?? kind;
+
   const reset = () => {
     setRating(0);
-    setKind("experience");
+    setKind(fixedKind ?? "experience");
     setMessage("");
     setScreenshot(null);
     setError(null);
@@ -73,7 +78,7 @@ export function LumenXFeedbackForm({
     setSaving(true);
     void submitLumenXFeedbackAsync({
       source,
-      kind,
+      kind: activeKind,
       rating,
       message,
       screenshotFileName: screenshot?.fileName ?? null,
@@ -128,26 +133,28 @@ export function LumenXFeedbackForm({
         </p>
       </div>
 
-      <div>
-        <Label className="text-xs text-muted-foreground">Type</Label>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {LUMENX_FEEDBACK_KINDS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setKind(item.value)}
-              className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                kind === item.value
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-background hover:bg-muted/50",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
+      {fixedKind ? null : (
+        <div>
+          <Label className="text-xs text-muted-foreground">Type</Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {LUMENX_FEEDBACK_KINDS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setKind(item.value)}
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                  kind === item.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-background hover:bg-muted/50",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <Label className="text-xs text-muted-foreground" htmlFor="lumenx-feedback-message">
@@ -158,9 +165,9 @@ export function LumenXFeedbackForm({
           value={message}
           onChange={(e) => setMessage(e.target.value.slice(0, 1000))}
           placeholder={
-            kind === "bug"
+            activeKind === "bug"
               ? "What went wrong? Steps to reproduce…"
-              : kind === "feature"
+              : activeKind === "feature"
                 ? "What should we add or improve?"
                 : "Tell us about your experience with LumenX…"
           }

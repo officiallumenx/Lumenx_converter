@@ -45,6 +45,7 @@ import { HomeOverview } from "./HomeOverview";
 import { HomeBirthdays } from "./HomeBirthdays";
 import { HomeRecentActivity } from "./HomeRecentActivity";
 import { HomeOperationalLists } from "./HomeOperationalLists";
+import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
 
 function emptyWidgets(): DashboardWidgetsState {
   return {
@@ -72,6 +73,7 @@ export function HomeCommandCenter() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const notify = useAdminToast();
+  const { writesAllowed } = useAdminWriteAccess();
   const apiMode = isApiAuthMode();
   const queriesEnabled =
     apiMode &&
@@ -414,6 +416,11 @@ export function HomeCommandCenter() {
               : []
           }
           transportEmergencies={transportEmergencies}
+          transportInstituteId={
+            queriesEnabled ? instituteCtx.activeInstituteId : null
+          }
+          transportWritesEnabled={writesAllowed}
+          onTransportNotify={notify}
         />
     </div>
   );

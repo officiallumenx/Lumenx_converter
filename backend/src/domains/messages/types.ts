@@ -50,6 +50,12 @@ export type MessageRecipientDto = {
   userId: string;
   displayName: string;
   role: "teacher" | "parent" | "student" | "staff";
+  /** Present for students — class / section for display. */
+  classLabel?: string | null;
+  sectionLabel?: string | null;
+  studentId?: string | null;
+  /** Parent user profile IDs linked via guardian_link (for student → parent send). */
+  linkedParentUserIds?: string[];
 };
 
 export type MessageRow = {

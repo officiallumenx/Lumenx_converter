@@ -1,14 +1,40 @@
 import type { MembershipDto, MembershipListItem } from "./types";
 
-/** Provisioned Connect placeholders — not useful as admin-facing contact. */
+/** Provisioned Connect / portal placeholders — never show in Admin UI. */
 export function isInternalSystemEmail(email: string | null | undefined): boolean {
   const value = email?.trim().toLowerCase() ?? "";
   if (!value) return false;
   return (
     value.endsWith(".invalid") ||
-    value.endsWith("@connect.lumenx.invalid") ||
-    value.includes(".lumenx.invalid")
+    value.includes(".lumenx.invalid") ||
+    value.endsWith("@portal.lumenx.local") ||
+    value.includes("@portal.lumenx.local")
   );
+}
+
+/** Real contact email for display, or null when internal/synthetic. */
+export function displayableContactEmail(
+  email: string | null | undefined,
+): string | null {
+  const value = email?.trim() || null;
+  if (!value || isInternalSystemEmail(value)) return null;
+  return value;
+}
+
+/**
+ * Public login identity lines for Admin UI — phone and real email only.
+ * Never includes username or synthetic @*.invalid / portal addresses.
+ */
+export function publicLoginIdentityLines(input: {
+  email?: string | null;
+  phone?: string | null;
+}): string[] {
+  const lines: string[] = [];
+  const email = displayableContactEmail(input.email);
+  if (email) lines.push(email);
+  const phone = input.phone?.trim();
+  if (phone) lines.push(phone);
+  return lines;
 }
 
 export function membershipIdentityLabel(dto: {

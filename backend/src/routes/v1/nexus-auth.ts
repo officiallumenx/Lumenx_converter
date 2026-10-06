@@ -196,6 +196,8 @@ nexusAuth.post("/forgot-pin/complete", async (c) => {
       mobile_otp_grant: grantSchema,
       email_otp_grant: grantSchema.optional(),
       new_pin: z.string().min(4).max(8),
+      /** Optional: when set, verify password and return a login session. */
+      password: z.string().min(1).max(200).optional(),
     }),
     await c.req.json(),
   );
@@ -204,7 +206,20 @@ nexusAuth.post("/forgot-pin/complete", async (c) => {
     mobileOtpGrant: body.mobile_otp_grant,
     emailOtpGrant: body.email_otp_grant,
     newPin: body.new_pin,
+    password: body.password,
   });
+  if ("accessToken" in data && data.accessToken) {
+    return c.json({
+      data: {
+        ok: true as const,
+        access_token: data.accessToken,
+        refresh_token: data.refreshToken,
+        display_name: data.displayName,
+        first_login_completed: data.firstLoginCompleted,
+        is_root: data.isRoot,
+      },
+    });
+  }
   return c.json({ data });
 });
 

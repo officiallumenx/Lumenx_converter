@@ -39,7 +39,14 @@ function resolveInstituteMarkUrl(profile: {
   return null;
 }
 
-function SwitcherMark({
+function markDim(size: "sm" | "md" | "lg"): string {
+  if (size === "lg") return "size-9";
+  if (size === "md") return "size-7";
+  return "size-5";
+}
+
+/** School mark for sidebar / switcher (profile photo, logo URL, or monogram). */
+export function InstituteSwitcherMark({
   name,
   imageUrl,
   instituteId,
@@ -48,9 +55,9 @@ function SwitcherMark({
   name: string;
   imageUrl?: string | null;
   instituteId: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 }) {
-  const dim = size === "md" ? "size-7" : "size-5";
+  const dim = markDim(size);
   const src = imageUrl?.trim() || null;
 
   if (src && isImageUrl(src)) {
@@ -88,7 +95,55 @@ function SwitcherMark({
   );
 }
 
-export function ApiInstituteSwitcher({ className }: { className?: string }) {
+function SwitcherMark(props: {
+  name: string;
+  imageUrl?: string | null;
+  instituteId: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  return <InstituteSwitcherMark {...props} />;
+}
+
+/** School logo tile for Admin sidebar chrome (large mark beside institute name). */
+export function SidebarInstituteLogo() {
+  const ctx = useInstituteContext();
+  const profileEnabled =
+    ctx.isApiMode && ctx.status === "ready" && Boolean(ctx.activeInstituteId);
+  const profileQuery = useInstituteProfileQuery(
+    ctx.activeInstituteId,
+    profileEnabled,
+  );
+
+  const active = ctx.activeInstitute;
+  if (!ctx.isApiMode || !active || ctx.status === "needs_selection") {
+    return null;
+  }
+
+  const institute = profileQuery.data?.institute;
+  const settings = profileQuery.data?.settings;
+  const imageUrl =
+    institute && settings
+      ? resolveInstituteMarkUrl(settingsToDemoProfile(institute, settings))
+      : null;
+
+  return (
+    <InstituteSwitcherMark
+      name={active.name?.trim() || "Institute"}
+      imageUrl={imageUrl}
+      instituteId={active.id}
+      size="lg"
+    />
+  );
+}
+
+export function ApiInstituteSwitcher({
+  className,
+  hideMark = false,
+}: {
+  className?: string;
+  /** Sidebar chrome: show institute name/code only (no logo tile). */
+  hideMark?: boolean;
+}) {
   const ctx = useInstituteContext();
   const { applyApiActiveInstitute, clearApiActiveInstitutePresentation } = useAuth();
   const [open, setOpen] = useState(false);
@@ -222,15 +277,17 @@ export function ApiInstituteSwitcher({ className }: { className?: string }) {
           needsSelection ? "Select an institute to continue" : fullLabel
         }
       >
-        {active && !needsSelection ? (
-          <SwitcherMark
-            name={titleName}
-            imageUrl={activeMarkUrl}
-            instituteId={active.id}
-          />
-        ) : (
-          <Building2 className="size-4 shrink-0 opacity-70" aria-hidden />
-        )}
+        {!hideMark ? (
+          active && !needsSelection ? (
+            <SwitcherMark
+              name={titleName}
+              imageUrl={activeMarkUrl}
+              instituteId={active.id}
+            />
+          ) : (
+            <Building2 className="size-4 shrink-0 opacity-70" aria-hidden />
+          )
+        ) : null}
         <span className="min-w-0 flex-1 leading-tight">
           {needsSelection ? (
             <span className="block truncate text-[11px]">Select institute…</span>

@@ -1,4 +1,7 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { createActivityTeam, updateActivityTeam } from "../api";
+import type { ActivityTeamDto } from "../api-types";
+import { getActivityApiSnapshot, loadActivityApiHierarchy } from "../api-store";
 import { getActivityApiInstituteId } from "../context";
 import {
   getSportsV2ApiSnapshot,
@@ -161,6 +164,87 @@ function parseScore(score: string): [number | null, number | null] {
   return parts.length === 2 && parts.every(Number.isFinite) ? [parts[0], parts[1]] : [null, null];
 }
 
+function inferSportType(sectionName: string | undefined): SportType {
+  const name = (sectionName ?? "").toLowerCase();
+  if (name.includes("basket")) return "basketball";
+  if (name.includes("cricket")) return "cricket";
+  if (name.includes("volley")) return "volleyball";
+  if (name.includes("kabaddi")) return "kabaddi";
+  if (name.includes("athlet")) return "athletics";
+  if (name.includes("badminton")) return "badminton";
+  if (name.includes("chess")) return "chess";
+  if (name.includes("table") || name.includes("tt")) return "table_tennis";
+  if (name.includes("swim")) return "swimming";
+  return "football";
+}
+
+function mapActivityTeamDto(
+  row: ActivityTeamDto,
+  extras?: Partial<SportsTeamInput> & { sportType?: SportType },
+): SportsTeam {
+  const snapshot = getActivityApiSnapshot();
+  const section = snapshot.sections.find((s) => s.id === row.sectionId);
+  const members = snapshot.memberships
+    .filter((m) => m.teamId === row.id && m.status === "active")
+    .map((m) => {
+      const student = snapshot.studentsById.get(m.studentId);
+      return {
+        id: m.studentId,
+        name: student?.name ?? "Student",
+        rollNo: student?.rollNo ?? "—",
+        classLabel: student?.classLabel ?? "—",
+        role: m.role === "captain" ? ("captain" as const) : ("player" as const),
+        isActive: true,
+      };
+    });
+  const now = row.updatedAt.slice(0, 10);
+  return {
+    id: row.id,
+    sectionId: row.sectionId,
+    unitType: row.kind,
+    studentCapacity: extras?.studentCapacity ?? Math.max(members.length, 15),
+    name: row.name,
+    sportType: extras?.sportType ?? inferSportType(section?.name),
+    logoEmoji: extras?.logoEmoji ?? "🏅",
+    description: extras?.description ?? "",
+    academicYear: extras?.academicYear ?? new Date().getFullYear().toString(),
+    status: row.status,
+    coach: extras?.coach ?? "—",
+    assistantCoach: extras?.assistantCoach,
+    captain: extras?.captain ?? members.find((m) => m.role === "captain")?.name ?? "—",
+    gender: extras?.gender ?? "mixed",
+    ageCategory: extras?.ageCategory ?? "open",
+    house: extras?.house,
+    members,
+    stats: {
+      totalMembers: members.length,
+      activeMembers: members.length,
+      practiceSessions: 0,
+      matchesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      tournamentsParticipated: 0,
+      achievements: 0,
+    },
+    createdAt: row.createdAt.slice(0, 10),
+    updatedAt: now,
+    archivedAt: row.status === "archived" ? now : undefined,
+  };
+}
+
+async function loadApiSportsTeams(): Promise<SportsTeam[]> {
+  await loadActivityApiHierarchy();
+  const snapshot = getActivityApiSnapshot();
+  teamsStore = snapshot.teams
+    .filter((t) => {
+      const section = snapshot.sections.find((s) => s.id === t.sectionId);
+      return section?.domain === "sports";
+    })
+    .map((t) => mapActivityTeamDto(t));
+  return teamsStore;
+}
+
 let dashboardStore: SportsDashboardSnapshot = { ...sportsDashboardSnapshot };
 let teamsStore: SportsTeam[] = isApiAuthMode() ? [] : sportTeamsSeed.map(cloneSportsTeam);
 
@@ -240,6 +324,10 @@ export const sportsRepository = {
   },
 
   async listTeams(filters?: SportsTeamListFilters): Promise<SportsTeam[]> {
+    if (isApiAuthMode()) {
+      const rows = await loadApiSportsTeams();
+      return applyTeamFilters(rows, filters);
+    }
     await delay();
     return applyTeamFilters(teamsStore, filters);
   },
@@ -247,26 +335,84 @@ export const sportsRepository = {
     return teamsStore.map(cloneSportsTeam);
   },
   async getTeamById(id: string): Promise<SportsTeam | null> {
+    if (isApiAuthMode()) {
+      const rows = await loadApiSportsTeams();
+      const team = rows.find((t) => t.id === id);
+      return team ? cloneSportsTeam(team) : null;
+    }
     await delay(120);
     const team = teamsStore.find((t) => t.id === id);
     return team ? cloneSportsTeam(team) : null;
   },
   async createTeam(input: SportsTeamInput): Promise<SportsTeam> {
-    if (isApiAuthMode()) unsupported("Sports team creation from this screen");
+    if (isApiAuthMode()) {
+      const instituteId = requireApiInstitute();
+      const sectionId = input.sectionId?.trim();
+      if (!sectionId) throw new Error("Sport section is required");
+      const row = await createActivityTeam({
+        instituteId,
+        sectionId,
+        kind: input.unitType === "group" ? "group" : "team",
+        name: input.name,
+      });
+      await loadActivityApiHierarchy();
+      const mapped = mapActivityTeamDto(row, input);
+      teamsStore = [mapped, ...teamsStore.filter((t) => t.id !== mapped.id)];
+      return cloneSportsTeam(mapped);
+    }
     await delay(280);
     const team = createTeamFromInput(input);
     teamsStore = [team, ...teamsStore];
     return cloneSportsTeam(team);
   },
   async createTeamGroup(input: SportsTeamGroupInput): Promise<SportsTeam> {
-    if (isApiAuthMode()) unsupported("Sports team-group creation from this screen");
+    if (isApiAuthMode()) {
+      const instituteId = requireApiInstitute();
+      const row = await createActivityTeam({
+        instituteId,
+        sectionId: input.sectionId,
+        kind: input.unitType === "group" ? "group" : "team",
+        name: input.name,
+      });
+      await loadActivityApiHierarchy();
+      const mapped = mapActivityTeamDto(row, {
+        studentCapacity: input.studentCapacity,
+        unitType: input.unitType,
+      });
+      teamsStore = [mapped, ...teamsStore.filter((t) => t.id !== mapped.id)];
+      return cloneSportsTeam(mapped);
+    }
     await delay(280);
     const team = createTeamFromGroupInput(input);
     teamsStore = [team, ...teamsStore];
     return cloneSportsTeam(team);
   },
   async updateTeam(id: string, input: Partial<SportsTeamInput>): Promise<SportsTeam> {
-    if (isApiAuthMode()) unsupported("Sports team editing from this screen");
+    if (isApiAuthMode()) {
+      const name = input.name?.trim();
+      if (!name) unsupported("Sports team field updates beyond rename");
+      const row = await updateActivityTeam(id, { name });
+      await loadActivityApiHierarchy();
+      const prev = teamsStore.find((t) => t.id === id);
+      const mapped = mapActivityTeamDto(row, {
+        name,
+        sectionId: input.sectionId ?? prev?.sectionId,
+        unitType: input.unitType ?? prev?.unitType,
+        studentCapacity: input.studentCapacity ?? prev?.studentCapacity,
+        sportType: input.sportType ?? prev?.sportType ?? "football",
+        logoEmoji: input.logoEmoji ?? prev?.logoEmoji,
+        description: input.description ?? prev?.description ?? "",
+        academicYear: input.academicYear ?? prev?.academicYear ?? "",
+        coach: input.coach ?? prev?.coach ?? "—",
+        assistantCoach: input.assistantCoach ?? prev?.assistantCoach,
+        captain: input.captain ?? prev?.captain ?? "—",
+        gender: input.gender ?? prev?.gender ?? "mixed",
+        ageCategory: input.ageCategory ?? prev?.ageCategory ?? "open",
+        house: input.house ?? prev?.house,
+      });
+      teamsStore = teamsStore.map((t) => (t.id === id ? mapped : t));
+      return cloneSportsTeam(mapped);
+    }
     await delay(280);
     const idx = teamsStore.findIndex((t) => t.id === id);
     if (idx < 0) throw new Error("Sports team not found");
@@ -287,7 +433,13 @@ export const sportsRepository = {
     return cloneSportsTeam(updated);
   },
   async archiveTeam(id: string): Promise<SportsTeam> {
-    if (isApiAuthMode()) unsupported("Sports team archiving from this screen");
+    if (isApiAuthMode()) {
+      const row = await updateActivityTeam(id, { status: "archived" });
+      await loadActivityApiHierarchy();
+      const mapped = mapActivityTeamDto(row);
+      teamsStore = teamsStore.map((t) => (t.id === id ? mapped : t));
+      return cloneSportsTeam(mapped);
+    }
     await delay(220);
     const idx = teamsStore.findIndex((t) => t.id === id);
     if (idx < 0) throw new Error("Sports team not found");

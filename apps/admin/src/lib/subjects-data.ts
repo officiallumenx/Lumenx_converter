@@ -802,7 +802,8 @@ const ADMIN_TEACHER_FALLBACK: AdminTeacherDirectoryRecord[] = [
 
 function readAdminTeachers(): AdminTeacherDirectoryRecord[] {
   const storageKey = adminTeachersStorageKey();
-  const raw = localStorage.getItem(storageKey);
+  const raw =
+    typeof localStorage === "undefined" ? null : localStorage.getItem(storageKey);
   if (raw === adminTeachersStorageRaw && adminTeachersCache) {
     return adminTeachersCache.map((teacher) => ({ ...teacher }));
   }

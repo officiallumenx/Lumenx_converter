@@ -11,7 +11,7 @@ export type TeacherPerformanceMetrics = {
 export type TeacherPerformanceDto = {
   teacherId: string;
   name: string;
-  department: string;
+  subjects: string[];
   rating: number | null;
   trend: string;
   rank: number | null;
@@ -31,8 +31,8 @@ export type TeacherPerformanceListPayload = {
   summary: TeacherPerformanceSummary;
 };
 
-export type DepartmentRanking = {
-  department: string;
+export type SubjectRanking = {
+  subject: string;
   average: number;
   teacherCount: number;
 };

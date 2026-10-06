@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { NotificationCategory } from "@lumenx/types";
 import {
-  ALERT_ICON_CHIP_CLASS,
   ALERT_ROW_CLASS,
   isAlertPresentationPayload,
 } from "@lumenx/notifications";
@@ -10,12 +9,11 @@ import {
   Button,
   Card,
   CardBody,
-  CardHeader,
   EmptyState,
+  IconButton,
   Modal,
   Pill,
   SearchInput,
-  SegmentedControl,
   Select,
 } from "@lumenx/ui-admin";
 import {
@@ -27,7 +25,6 @@ import {
   markAllAdminNotificationsRead,
   type AdminNotification,
   type NotificationDateFilter,
-  type NotificationReadFilter,
 } from "@/lib/notification-center-store";
 import type { NotificationInboxListItem } from "@/lib/notification-inbox";
 import {
@@ -42,14 +39,15 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   Bell,
   CheckCheck,
   ExternalLink,
-  Info,
-  Sparkles,
   Trash2,
 } from "lucide-react";
+import {
+  notificationIconChipClass,
+  notificationTypeIcon,
+} from "@/lib/notification-presentation";
 
 const CATEGORY_OPTIONS: { value: NotificationCategory | "all"; label: string }[] = [
   { value: "all", label: "All categories" },
@@ -69,10 +67,15 @@ function isInboxAlertRow(n: InboxRow): boolean {
   return false;
 }
 
-function TypeIcon({ type }: { type: InboxRow["type"] }) {
-  if (type === "warning") return <AlertTriangle className="size-4" />;
-  if (type === "positive") return <Sparkles className="size-4" />;
-  return <Info className="size-4" />;
+function TypeIcon({
+  type,
+  category,
+}: {
+  type: InboxRow["type"];
+  category: NotificationCategory;
+}) {
+  const Icon = notificationTypeIcon(type, category);
+  return <Icon className="size-4" />;
 }
 
 function typeTone(type: InboxRow["type"]): "info" | "warning" | "success" {
@@ -102,14 +105,12 @@ export function NotificationCenterInbox({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
-  const [read, setRead] = useState<NotificationReadFilter>("all");
   const [date, setDate] = useState<NotificationDateFilter>("all");
   const [category, setCategory] = useState<NotificationCategory | "all">("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<InboxRow | null>(null);
 
   useEffect(() => {
-    setRead("all");
     setDate("all");
     setCategory("all");
     setQuery("");
@@ -124,16 +125,13 @@ export function NotificationCenterInbox({
   const filtered = useMemo(
     () =>
       filterAdminNotifications(items as AdminNotification[], {
-        read,
+        read: "all",
         category,
         date,
         query,
       }),
-    [items, read, category, date, query],
+    [items, category, date, query],
   );
-
-  const countLabel = (count: number) =>
-    !rowsValid ? "…" : String(count);
 
   const markRead = async (id: string) => {
     if (apiMode) {
@@ -196,128 +194,111 @@ export function NotificationCenterInbox({
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title="Inbox"
-          hint={`${countLabel(unreadCount)} unread · ${countLabel(items.length)} total · shared notification templates`}
-          action={
-            writesEnabled ? (
-              <div className="flex flex-wrap gap-1.5 justify-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={unreadCount === 0}
-                  onClick={() => {
-                    if (apiMode) {
-                      if (instituteId) {
-                        optimisticMarkAllNotificationsRead(queryClient, instituteId);
-                      }
-                      const run = instituteId
-                        ? markAllInboxRead(instituteId)
-                        : Promise.all(
-                            items.filter((n) => n.unread).map((n) => updateInboxItem(n.id, { read: true })),
-                          );
-                      void run
-                        .then(() => {
-                          notify("All notifications marked read");
-                        })
-                        .catch(async (err) => {
-                          if (instituteId) {
-                            await refreshAdminNotificationsQuery(queryClient, instituteId);
-                          } else {
-                            onChange();
-                          }
-                          notify(
-                            err instanceof Error
-                              ? err.message
-                              : "Failed to mark notifications read",
-                          );
-                        });
-                      return;
-                    }
-                    markAllAdminNotificationsRead();
-                    onChange();
-                    notify("All notifications marked read");
-                  }}
-                >
-                  <CheckCheck className="size-3.5" /> Mark all read
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={items.length === 0}
-                  onClick={() => {
-                    if (!window.confirm("Delete all notifications from the center?")) return;
-                    if (apiMode) {
-                      void Promise.all(items.map((n) => deleteInboxItem(n.id)))
-                        .then(() => {
-                          setSelected(null);
-                          onChange();
-                          notify("All notifications deleted");
-                        })
-                        .catch(async (err) => {
-                          if (instituteId) {
-                            await refreshAdminNotificationsQuery(queryClient, instituteId);
-                          } else {
-                            onChange();
-                          }
-                          notify(
-                            err instanceof Error
-                              ? err.message
-                              : "Failed to delete notifications",
-                          );
-                        });
-                      return;
-                    }
-                    deleteAllAdminNotifications();
-                    setSelected(null);
-                    onChange();
-                    notify("All notifications deleted");
-                  }}
-                >
-                  <Trash2 className="size-3.5" /> Delete all
-                </Button>
-              </div>
-            ) : null
+  const markAllRead = () => {
+    if (apiMode) {
+      if (instituteId) {
+        optimisticMarkAllNotificationsRead(queryClient, instituteId);
+      }
+      const run = instituteId
+        ? markAllInboxRead(instituteId)
+        : Promise.all(
+            items.filter((n) => n.unread).map((n) => updateInboxItem(n.id, { read: true })),
+          );
+      void run
+        .then(() => {
+          notify("All notifications marked read");
+        })
+        .catch(async (err) => {
+          if (instituteId) {
+            await refreshAdminNotificationsQuery(queryClient, instituteId);
+          } else {
+            onChange();
           }
-        />
-        <CardBody className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <SegmentedControl
-              value={read}
-              onChange={setRead}
-              options={[
-                { value: "all", label: "All" },
-                {
-                  value: "unread",
-                  label: `Unread (${countLabel(unreadCount)})`,
-                },
-                { value: "read", label: "Read" },
-              ]}
-            />
-            <SegmentedControl
-              value={date}
-              onChange={setDate}
-              options={[
-                { value: "all", label: "Any date" },
-                { value: "today", label: "Today" },
-                { value: "7d", label: "7 days" },
-                { value: "30d", label: "30 days" },
-              ]}
-            />
-          </div>
+          notify(
+            err instanceof Error ? err.message : "Failed to mark notifications read",
+          );
+        });
+      return;
+    }
+    markAllAdminNotificationsRead();
+    onChange();
+    notify("All notifications marked read");
+  };
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <SearchInput
-              placeholder="Search title, body, template…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+  const deleteAll = () => {
+    if (!window.confirm("Delete all notifications from the center?")) return;
+    if (apiMode) {
+      void Promise.all(items.map((n) => deleteInboxItem(n.id)))
+        .then(() => {
+          setSelected(null);
+          onChange();
+          notify("All notifications deleted");
+        })
+        .catch(async (err) => {
+          if (instituteId) {
+            await refreshAdminNotificationsQuery(queryClient, instituteId);
+          } else {
+            onChange();
+          }
+          notify(
+            err instanceof Error ? err.message : "Failed to delete notifications",
+          );
+        });
+      return;
+    }
+    deleteAllAdminNotifications();
+    setSelected(null);
+    onChange();
+    notify("All notifications deleted");
+  };
+
+  return (
+    <div className="space-y-2">
+      <Card>
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 sm:px-4 border-b border-border/60">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">Inbox</h3>
+          {writesEnabled ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={unreadCount === 0}
+                onClick={markAllRead}
+              >
+                <CheckCheck className="size-3.5" /> Mark all read
+              </Button>
+              <IconButton
+                label="Delete all"
+                size="sm"
+                disabled={items.length === 0}
+                onClick={deleteAll}
+              >
+                <Trash2 className="size-3.5" />
+              </IconButton>
+            </div>
+          ) : null}
+        </div>
+        <CardBody className="space-y-1.5 !pt-2 !pb-2.5">
+          <SearchInput
+            placeholder="Search…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            <Select
+              value={date}
+              onChange={(e) => setDate(e.target.value as NotificationDateFilter)}
+              aria-label="Date range"
+            >
+              <option value="all">Any date</option>
+              <option value="today">Today</option>
+              <option value="7d">7 days</option>
+              <option value="30d">30 days</option>
+            </Select>
             <Select
               value={category}
               onChange={(e) => setCategory(e.target.value as NotificationCategory | "all")}
+              aria-label="Category"
             >
               {CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -359,18 +340,10 @@ export function NotificationCenterInbox({
                     }`}
                   >
                     <div
-                      className={`mt-0.5 size-9 shrink-0 rounded-lg border flex items-center justify-center ${
-                        isAlert
-                          ? ALERT_ICON_CHIP_CLASS
-                          : n.type === "warning"
-                          ? "bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400"
-                          : n.type === "positive"
-                            ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
-                            : "bg-muted/50 border-border text-muted-foreground"
-                      }`}
+                      className={`mt-0.5 size-9 shrink-0 rounded-lg border flex items-center justify-center ${notificationIconChipClass(n)}`}
                       aria-hidden
                     >
-                      <TypeIcon type={n.type} />
+                      <TypeIcon type={n.type} category={n.category} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -484,12 +457,6 @@ export function NotificationCenterInbox({
                 <div className="sm:col-span-2">
                   <dt className="text-muted-foreground">Template</dt>
                   <dd className="font-mono text-[11px] break-all">{selected.templateId}</dd>
-                </div>
-              ) : null}
-              {selected.href ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground">Deep link</dt>
-                  <dd className="font-mono text-[11px]">{selected.href}</dd>
                 </div>
               ) : null}
               {selected.createdAt ? (

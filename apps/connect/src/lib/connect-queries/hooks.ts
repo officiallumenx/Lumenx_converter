@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { connectQueryKeys } from "./keys";
 import { loadTeacherFeeRoster, loadStudentFeePortal } from "@/lib/fees";
@@ -18,7 +19,12 @@ import { listDiaryDays } from "@/lib/diary/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAnnouncement, listAnnouncements } from "@/lib/announcements/api";
 import { loadLearnerComplaints, loadTeacherComplaints } from "@/lib/complaints";
-import { loadLearnerTransport, loadTeacherClassTransport } from "@/lib/transport";
+import {
+  getTransportParticipation,
+  loadLearnerTransport,
+  loadLearnerTransportLive,
+  loadTeacherClassTransport,
+} from "@/lib/transport";
 import { loadTeacherStudentDetail } from "@/lib/students";
 import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import { loadStudentEnrollmentHistory } from "@/lib/academic-history/load-enrollments";
@@ -102,12 +108,35 @@ export function useTeacherTimetableQuery(
 ) {
   return useQuery({
     queryKey: connectQueryKeys.timetableTeacher(instituteId ?? "_", scope),
-    queryFn: () =>
-      loadTeacherTimetable({
+    queryFn: async () => {
+      const result = await loadTeacherTimetable({
         instituteId: instituteId!,
         ...(scope !== "mine" ? { sectionId: scope } : {}),
-      }),
+      });
+      // Convert legacy soft auth failures (and any residual cache) into retries.
+      if (
+        result.status === "error" &&
+        /authentication required/i.test(result.errorMessage ?? "")
+      ) {
+        throw new ApiClientError({
+          status: 401,
+          code: "UNAUTHENTICATED",
+          message: result.errorMessage ?? "Authentication required",
+        });
+      }
+      return result;
+    },
     enabled: enabled && Boolean(instituteId) && isInstituteUuid(instituteId ?? ""),
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiClientError &&
+        (error.status === 401 || error.code === "UNAUTHENTICATED")
+      ) {
+        return failureCount < 3;
+      }
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => 250 * (attempt + 1),
   });
 }
 
@@ -530,9 +559,120 @@ export function useLearnerTransportQuery(
       Boolean(studentId) &&
       isInstituteUuid(instituteId ?? "") &&
       isInstituteUuid(studentId ?? ""),
+    staleTime: 30_000,
   });
   const refresh = () => {
     if (!instituteId || !studentId) return;
+    void qc.invalidateQueries({
+      queryKey: connectQueryKeys.transportLearner(instituteId, studentId),
+    });
+  };
+  return { ...query, refresh };
+}
+
+export function useLearnerTransportLiveQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+  enabled: boolean,
+  options?: { pollMs?: number | false },
+) {
+  const qc = useQueryClient();
+  const pollMs = options?.pollMs;
+  const query = useQuery({
+    queryKey: connectQueryKeys.transportLearnerLive(
+      instituteId ?? "_",
+      studentId ?? "_",
+    ),
+    queryFn: () =>
+      loadLearnerTransportLive({
+        instituteId: instituteId!,
+        studentId: studentId!,
+      }),
+    enabled:
+      enabled &&
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+    staleTime: 10_000,
+    refetchInterval: pollMs === false ? false : (pollMs ?? false),
+  });
+  const refresh = () => {
+    if (!instituteId || !studentId) return;
+    void qc.invalidateQueries({
+      queryKey: connectQueryKeys.transportLearnerLive(instituteId, studentId),
+    });
+  };
+  return { ...query, refresh };
+}
+
+export function useLearnerTransportHistoryQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+  enabled: boolean,
+) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: connectQueryKeys.transportLearnerHistory(
+      instituteId ?? "_",
+      studentId ?? "_",
+    ),
+    queryFn: async () => {
+      const { getLearnerTransportHistory } = await import("@/lib/transport/api");
+      return getLearnerTransportHistory({
+        instituteId: instituteId!,
+        studentId: studentId!,
+        limit: 14,
+      });
+    },
+    enabled:
+      enabled &&
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+    staleTime: 60_000,
+  });
+  const refresh = () => {
+    if (!instituteId || !studentId) return;
+    void qc.invalidateQueries({
+      queryKey: connectQueryKeys.transportLearnerHistory(instituteId, studentId),
+    });
+  };
+  return { ...query, refresh };
+}
+
+export function useRideExceptionQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+  enabled: boolean,
+) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: connectQueryKeys.transportRideException(
+      instituteId ?? "_",
+      studentId ?? "_",
+    ),
+    queryFn: () =>
+      getTransportParticipation({
+        instituteId: instituteId!,
+        studentId: studentId!,
+      }),
+    enabled:
+      enabled &&
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+  });
+  const refresh = () => {
+    if (!instituteId || !studentId) return;
+    void qc.invalidateQueries({
+      queryKey: connectQueryKeys.transportRideException(instituteId, studentId),
+    });
     void qc.invalidateQueries({
       queryKey: connectQueryKeys.transportLearner(instituteId, studentId),
     });

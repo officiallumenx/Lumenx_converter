@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
-import { IconChip } from "@/components/IconChip";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
 import { PinInput } from "@/auth/components/PinInput";
@@ -15,51 +14,13 @@ import {
   Field,
   Select,
 } from "@lumenx/ui-admin";
-import {
-  Users,
-  GraduationCap,
-  Heart,
-  CalendarRange,
-  ClipboardCheck,
-  MessageSquareWarning,
-  Bell,
-  Megaphone,
-  CalendarDays,
-  Siren,
-  ShieldCheck,
-  HardDrive,
-  BarChart3,
-  ClipboardList,
-  Bus,
-  UserCheck,
-  Briefcase,
-  Landmark,
-  FileBarChart,
-  Award,
-  BookOpen,
-  LayoutGrid,
-  CalendarOff,
-  IndianRupee,
-  CalendarCheck,
-  ClipboardPen,
-  Layers,
-  Calendar,
-  LayoutTemplate,
-  LayoutDashboard,
-  KeyRound,
-  Settings,
-  CreditCard,
-  FileText,
-  Lock,
-  Download,
-} from "lucide-react";
+import { CreditCard, FileText, Lock, Download } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ModulesApiSubscriptionPanel } from "@/components/modules/ModulesApiSubscriptionPanel";
-import { useMemo, useState } from "react";
+import { ModulesCatalogPanel } from "@/components/modules/ModulesCatalogPanel";
+import { useState } from "react";
 import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
-import { MODULE_CATALOG, inferPlanFromStudentCount, isModuleToggleable, planMeetsMin, saveEnabledModules, useEnabledModules } from "@/lib/admin-plan-config";
-import { readNexusModuleEntitlements } from "@lumenx/config";
 import { getBoundSubscriptionTrialView } from "@/lib/sync-admin-subscription-access";
 import { labelSubscriptionLifecycle } from "@lumenx/utils";
 import {
@@ -86,46 +47,10 @@ export const Route = createFileRoute("/modules")({
 
 type PayStep = "review" | "pin" | "processing" | "invoice";
 
-const iconMap: Record<string, typeof Users> = {
-  overview: LayoutDashboard,
-  analytics: BarChart3,
-  students: Users,
-  teachers: GraduationCap,
-  parents: Heart,
-  accounts: KeyRound,
-  classes: LayoutGrid,
-  subjects: BookOpen,
-  attendance: ClipboardCheck,
-  "teacher-attendance": CalendarCheck,
-  timetable: CalendarRange,
-  exams: ClipboardPen,
-  marks: ClipboardList,
-  complaints: MessageSquareWarning,
-  notifications: Bell,
-  announcements: Megaphone,
-  events: CalendarDays,
-  alerts: Siren,
-  modules: Layers,
-  permissions: ShieldCheck,
-  storage: HardDrive,
-  settings: Settings,
-  transport: Bus,
-  leave: CalendarOff,
-  fees: IndianRupee,
-  admissions: UserCheck,
-  careers: Briefcase,
-  institute: Landmark,
-  templates: LayoutTemplate,
-  calendar: Calendar,
-  reports: FileBarChart,
-  "teacher-performance": Award,
-};
-
 function ModulesDemoPage() {
   const notify = useAdminToast();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const { user } = useAuth();
-  const enabled = useEnabledModules();
   const [billing, setBilling] = useState<InstituteBillingPlan>(() => loadInstituteBilling());
   const [payOpen, setPayOpen] = useState(false);
   const [payStep, setPayStep] = useState<PayStep>("review");
@@ -136,34 +61,6 @@ function ModulesDemoPage() {
   const [pinAttempts, setPinAttempts] = useState(0);
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
 
-  const nexusEntitlements = useMemo(() => readNexusModuleEntitlements(), [enabled]);
-
-  const toggle = (id: string) => {
-    const mod = MODULE_CATALOG.find((m) => m.id === id);
-    if (!mod || !isModuleToggleable(mod)) return;
-    const turningOn = !enabled[id];
-    if (turningOn) {
-      const entitlements = readNexusModuleEntitlements();
-      if (entitlements && entitlements[id] === false) {
-        notify(`${mod.label} is disabled by Nexus for this institute. Re-enable it in Nexus to restore access.`);
-        return;
-      }
-      const current = inferPlanFromStudentCount(billing.studentCount);
-      if (!planMeetsMin(current, mod.minPlan)) {
-        notify(
-          `${mod.label} needs ${mod.minPlan} or higher (this institute is on ${current} by student count).`,
-        );
-        return;
-      }
-    }
-    const next = { ...enabled, [id]: !enabled[id] };
-    saveEnabledModules(next);
-  };
-
-  const groups = useMemo(() => Array.from(new Set(MODULE_CATALOG.map((m) => m.group))), []);
-  const toggleableModules = MODULE_CATALOG.filter((m) => isModuleToggleable(m));
-  const activeCount = toggleableModules.filter((m) => enabled[m.id]).length;
-  const disabledCount = toggleableModules.filter((m) => !enabled[m.id]).length;
   const renewal = nextRenewalDate(billing);
   const subView = getBoundSubscriptionTrialView();
   const inFreeTrial =
@@ -252,7 +149,7 @@ function ModulesDemoPage() {
   return (
     <AppShell
       title={M.modules}
-      subtitle="Turn off to disable in Admin · core modules stay on"
+      subtitle="Enable or disable modules for this Admin app"
       actions={
         inFreeTrial ? (
           <Pill tone="info">
@@ -277,9 +174,10 @@ function ModulesDemoPage() {
       }
     >
       <ModuleHero
+        compact
         eyebrow="Operations"
         title={M.modules}
-        subtitle="Turn off to disable in Admin · core modules stay on"
+        subtitle="Enable or disable modules for this Admin app"
       />
       <Card className="mb-6">
         <CardHeader
@@ -287,7 +185,7 @@ function ModulesDemoPage() {
           hint={
             inFreeTrial
               ? "60-day free trial after Nexus approval · full access · no payment required"
-              : "Module toggles live here · renew on Subscription"
+              : "Toggle modules below · renew on Subscription"
           }
         />
         <div className="px-5 pb-5">
@@ -325,9 +223,15 @@ function ModulesDemoPage() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Cadence
+                    Plan
                   </div>
-                  <div className="mt-1 text-sm font-semibold capitalize">{billing.cadence}</div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {inFreeTrial
+                      ? "Free trial"
+                      : billing.cadence === "monthly"
+                        ? "Month"
+                        : "Annual"}
+                  </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -398,88 +302,7 @@ function ModulesDemoPage() {
         </div>
       </Card>
 
-      <div className="lx-kpi-grid mb-3">
-        <Card>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            Enabled
-          </div>
-          <div className="lx-kpi-stat__value">{activeCount}</div>
-        </Card>
-        <Card>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            Disabled
-          </div>
-          <div className="lx-kpi-stat__value">{disabledCount}</div>
-        </Card>
-        <Card>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            Catalog
-          </div>
-          <div className="lx-kpi-stat__value">{MODULE_CATALOG.length}</div>
-        </Card>
-        <Card>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-            Groups
-          </div>
-          <div className="lx-kpi-stat__value">{groups.length}</div>
-        </Card>
-      </div>
-
-      {groups.map((g) => (
-        <Card key={g} className="mb-4">
-          <CardHeader
-            title={g}
-            hint={`${MODULE_CATALOG.filter((m) => m.group === g).length} modules`}
-          />
-          <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {MODULE_CATALOG.filter((m) => m.group === g).map((m) => {
-              const Icon = iconMap[m.id] ?? Users;
-              const locked = !isModuleToggleable(m);
-              const nexusOff = nexusEntitlements?.[m.id] === false;
-              const on = locked || Boolean(enabled[m.id]);
-              return (
-                <div
-                  key={m.id}
-                  className={`p-4 rounded-lg border transition-all ${
-                    on
-                      ? "border-primary/30 bg-primary/[0.04]"
-                      : "border-border bg-background/40 opacity-80"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <IconChip icon={Icon} size="md" variant={on ? "brand" : "soft"} />
-                    <div>
-                      <div className="text-xs font-semibold flex items-center gap-1.5 flex-wrap">
-                        {m.label}
-                        {locked && <Pill tone="info">Always on</Pill>}
-                        {nexusOff && <Pill tone="warning">Nexus disabled</Pill>}
-                        {!locked && !nexusOff && !on && <Pill tone="neutral">Disabled</Pill>}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">{m.description}</div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase text-muted-foreground">
-                      {locked
-                        ? "Required"
-                        : nexusOff
-                          ? "Hidden by Nexus"
-                          : on
-                            ? "Enabled"
-                            : "Disabled in Admin"}
-                    </span>
-                    {locked || nexusOff ? (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    ) : (
-                      <Toggle on={on} onChange={() => guardWriteAction(() => toggle(m.id))} />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      ))}
+      <ModulesCatalogPanel />
 
       <Modal
         open={payOpen}
@@ -700,31 +523,22 @@ function ModulesDemoPage() {
 function ModulesPage() {
   if (isApiAuthMode()) {
     return (
-      <AppShell title={adminPageTitle("/modules")} subtitle="Module subscription and billing">
+      <AppShell
+        title={adminPageTitle("/modules")}
+        subtitle="Enable or disable modules for this Admin app"
+      >
         <ModuleHero
+          compact
           eyebrow="Operations"
           title={adminPageTitle("/modules")}
-          subtitle="Module subscription and billing"
+          subtitle="Enable or disable modules for this Admin app"
         />
-        <ModulesApiSubscriptionPanel />
+        <div className="space-y-4">
+          <ModulesApiSubscriptionPanel />
+          <ModulesCatalogPanel />
+        </div>
       </AppShell>
     );
   }
   return <ModulesDemoPage />;
-}
-
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative w-10 h-5 rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"}`}
-    >
-      <span
-        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${
-          on ? "left-[22px]" : "left-0.5"
-        }`}
-      />
-    </button>
-  );
 }

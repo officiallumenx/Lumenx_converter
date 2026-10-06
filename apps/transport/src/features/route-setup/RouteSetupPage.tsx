@@ -185,6 +185,7 @@ export function RouteSetupPage() {
     studentIds: string[];
     latitude: number;
     longitude: number;
+    notificationRadiusM: number;
   }) => {
     if (locked) {
       toast.message("Route is locked", {
@@ -201,6 +202,7 @@ export function RouteSetupPage() {
           studentIds: data.studentIds,
           latitude: data.latitude,
           longitude: data.longitude,
+          notificationRadiusM: data.notificationRadiusM,
           refreshGps: Boolean(editing),
         },
         driverId,
@@ -232,7 +234,7 @@ export function RouteSetupPage() {
     }
     await routeSetupRepository.finishSetup();
     toast.success("Stops saved", {
-      description: "Stops still waiting for Admin must be approved before you can start a trip.",
+      description: "Stops are live for today's trip. Admin can still review them later.",
     });
   };
 
@@ -253,6 +255,7 @@ export function RouteSetupPage() {
           initialLocationLabel={editing?.locationLabel}
           initialStudentIds={editing?.studentIds ?? []}
           initialGps={pendingGps}
+          initialNotificationRadiusM={editing?.notificationRadiusM}
           allowGpsRefresh
           submitLabel={
             isChangeRequest
@@ -371,7 +374,7 @@ export function RouteSetupPage() {
               subtitle={
                 waypointStops.length === 0
                   ? `Aim for about ${record.targetStopCount} stops`
-                  : `${waypointStops.length} pickup stop(s) · ${record.assignments.filter((a) => a.status === "pending").length} waiting for Admin`
+                  : `${waypointStops.length} pickup stop(s) · ${record.assignments.filter((a) => a.status === "pending").length} in Admin review`
               }
             />
             <div className="h-2 overflow-hidden rounded-full bg-muted">

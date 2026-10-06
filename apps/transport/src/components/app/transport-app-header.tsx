@@ -45,7 +45,7 @@ export function TransportAppHeader() {
   const signOutAndLeave = () => {
     signOut();
     toast.message("Signed out", {
-      description: "Trip and attendance data were reset for this demo.",
+      description: "Your session has ended.",
     });
     void navigate({ to: ROUTES.login });
   };

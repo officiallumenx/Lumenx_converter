@@ -47,6 +47,7 @@ describe("staff-attendance map", () => {
           name: "Jane Doe",
           email: "jane@example.com",
           employeeId: "T-001",
+          subjects: ["Mathematics"],
         }),
       ],
     ]);
@@ -91,6 +92,7 @@ describe("staff-attendance map", () => {
     expect(summary.dayStatus).toBe("submitted");
     expect(summary.submittedAt).toBe("2026-06-01T10:00:00Z");
     expect(summary.marks[0]?.teacherName).toBe("Jane Doe");
+    expect(summary.marks[0]?.subject).toBe("Mathematics");
     expect(summary.marks[0]?.checkIn).toBe("08:15");
   });
 

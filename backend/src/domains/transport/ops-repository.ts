@@ -15,21 +15,22 @@ import type {
 } from "./ops-types.js";
 
 const TRIP_COLS =
-  "id, institute_id, route_id, vehicle_id, driver_id, slot, trip_date, phase, started_at, completed_at, current_stop_id, current_stop_index, finalized, created_at, updated_at, deleted_at";
+  "id, institute_id, route_id, vehicle_id, driver_id, slot, trip_date, phase, started_at, completed_at, current_stop_id, current_stop_index, finalized, timeline, school_arrived_at, client_event_id, created_at, updated_at, deleted_at";
 
 const BOARDING_COLS =
-  "id, institute_id, trip_id, student_id, stop_id, boarding_status, dropping_status, boarded_at, dropped_at, finalized, created_at, updated_at";
+  "id, institute_id, trip_id, student_id, stop_id, boarding_status, dropping_status, boarded_at, dropped_at, finalized, boarding_client_event_id, dropping_client_event_id, created_at, updated_at";
 
 const EMERGENCY_COLS =
-  "id, institute_id, trip_id, driver_id, vehicle_id, emergency_type, status, latitude, longitude, note, acknowledged_at, acknowledged_by_user_id, resolved_at, resolved_by_user_id, resolve_note, timeline, created_at, updated_at, deleted_at";
+  "id, institute_id, trip_id, driver_id, vehicle_id, emergency_type, status, latitude, longitude, note, acknowledged_at, acknowledged_by_user_id, resolved_at, resolved_by_user_id, resolve_note, timeline, client_event_id, created_at, updated_at, deleted_at";
 
 const LOCATION_COLS =
-  "id, institute_id, trip_id, vehicle_id, latitude, longitude, accuracy_m, captured_at";
+  "id, institute_id, trip_id, vehicle_id, latitude, longitude, accuracy_m, captured_at, client_event_id, driver_id, sequence_number";
 
 export async function listTrips(
   admin: SupabaseClient,
   instituteId: string,
   tripDate?: string,
+  opts?: { routeId?: string; limit?: number },
 ): Promise<TransportTripRow[]> {
   let query = admin
     .from("transport_trip")
@@ -37,7 +38,12 @@ export async function listTrips(
     .eq("institute_id", instituteId)
     .is("deleted_at", null);
   if (tripDate) query = query.eq("trip_date", tripDate);
-  const result = await query.order("created_at", { ascending: false });
+  if (opts?.routeId) query = query.eq("route_id", opts.routeId);
+  query = query.order("created_at", { ascending: false });
+  if (opts?.limit != null && opts.limit > 0) {
+    query = query.limit(Math.min(opts.limit, 500));
+  }
+  const result = await query;
   return ensureDbOk(result) as TransportTripRow[];
 }
 
@@ -90,10 +96,27 @@ export async function insertTrip(
       started_at: new Date().toISOString(),
       finalized: false,
       current_stop_index: 0,
+      client_event_id: input.clientEventId ?? null,
     })
     .select(TRIP_COLS)
     .single();
   return ensureDbOk(result) as TransportTripRow;
+}
+
+export async function findTripByClientEventId(
+  admin: SupabaseClient,
+  instituteId: string,
+  clientEventId: string,
+): Promise<TransportTripRow | null> {
+  const result = await admin
+    .from("transport_trip")
+    .select(TRIP_COLS)
+    .eq("institute_id", instituteId)
+    .eq("client_event_id", clientEventId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportTripRow | null) ?? null;
 }
 
 export async function updateTripFields(
@@ -141,6 +164,30 @@ export async function listBoardingEventsForTrip(
   return ensureDbOk(result) as TransportBoardingEventRow[];
 }
 
+export async function listBoardingStatusesForTripIds(
+  admin: SupabaseClient,
+  tripIds: string[],
+): Promise<Array<{ boarding_status: string }>> {
+  if (tripIds.length === 0) return [];
+  const result = await admin
+    .from("transport_boarding_event")
+    .select("boarding_status")
+    .in("trip_id", tripIds);
+  return ensureDbOk(result) as Array<{ boarding_status: string }>;
+}
+
+export async function listEmergencyAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<Array<{ status: string }>> {
+  const result = await admin
+    .from("transport_emergency")
+    .select("status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{ status: string }>;
+}
+
 export async function findBoardingEvent(
   admin: SupabaseClient,
   tripId: string,
@@ -168,6 +215,8 @@ export async function upsertBoardingEvent(
     boardedAt?: string | null;
     droppedAt?: string | null;
     finalized?: boolean;
+    boardingClientEventId?: string | null;
+    droppingClientEventId?: string | null;
   },
 ): Promise<TransportBoardingEventRow> {
   const existing = await findBoardingEvent(admin, input.tripId, input.studentId);
@@ -182,6 +231,12 @@ export async function upsertBoardingEvent(
       patch.dropped_at = input.droppedAt ?? null;
     }
     if (input.finalized !== undefined) patch.finalized = input.finalized;
+    if (input.boardingClientEventId !== undefined) {
+      patch.boarding_client_event_id = input.boardingClientEventId;
+    }
+    if (input.droppingClientEventId !== undefined) {
+      patch.dropping_client_event_id = input.droppingClientEventId;
+    }
     const result = await admin
       .from("transport_boarding_event")
       .update(patch)
@@ -203,10 +258,53 @@ export async function upsertBoardingEvent(
       boarded_at: input.boardedAt ?? null,
       dropped_at: input.droppedAt ?? null,
       finalized: input.finalized ?? false,
+      boarding_client_event_id: input.boardingClientEventId ?? null,
+      dropping_client_event_id: input.droppingClientEventId ?? null,
     })
     .select(BOARDING_COLS)
     .single();
   return ensureDbOk(result) as TransportBoardingEventRow;
+}
+
+export async function findBoardingByClientEventId(
+  admin: SupabaseClient,
+  instituteId: string,
+  clientEventId: string,
+  kind: "boarding" | "dropping",
+): Promise<TransportBoardingEventRow | null> {
+  const col =
+    kind === "boarding" ? "boarding_client_event_id" : "dropping_client_event_id";
+  const result = await admin
+    .from("transport_boarding_event")
+    .select(BOARDING_COLS)
+    .eq("institute_id", instituteId)
+    .eq(col, clientEventId)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportBoardingEventRow | null) ?? null;
+}
+
+export async function appendTripTimeline(
+  admin: SupabaseClient,
+  tripId: string,
+  event: {
+    id: string;
+    at: string;
+    kind: string;
+    label: string;
+    note?: string;
+    stopId?: string;
+    studentId?: string;
+  },
+  extraPatch?: Record<string, unknown>,
+): Promise<TransportTripRow | null> {
+  const trip = await findTripById(admin, tripId);
+  if (!trip) return null;
+  const timeline = [...(trip.timeline ?? []), event];
+  return updateTripFields(admin, tripId, {
+    timeline,
+    ...(extraPatch ?? {}),
+  });
 }
 
 export async function finalizeBoardingForTrip(
@@ -283,6 +381,7 @@ export async function insertEmergency(
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       note: input.note ?? null,
+      client_event_id: input.clientEventId ?? null,
       timeline: [
         { id: "evt-1", at: now, label: "SOS triggered", note: input.note ?? undefined },
       ],
@@ -290,6 +389,65 @@ export async function insertEmergency(
     .select(EMERGENCY_COLS)
     .single();
   return ensureDbOk(result) as TransportEmergencyRow;
+}
+
+export async function findEmergencyByClientEventId(
+  admin: SupabaseClient,
+  instituteId: string,
+  clientEventId: string,
+): Promise<TransportEmergencyRow | null> {
+  const result = await admin
+    .from("transport_emergency")
+    .select(EMERGENCY_COLS)
+    .eq("institute_id", instituteId)
+    .eq("client_event_id", clientEventId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportEmergencyRow | null) ?? null;
+}
+
+export async function findOpsIdempotency(
+  admin: SupabaseClient,
+  instituteId: string,
+  clientEventId: string,
+): Promise<{ trip_id: string | null; result_ref: string | null; event_type: string } | null> {
+  const result = await admin
+    .from("transport_ops_idempotency")
+    .select("trip_id, result_ref, event_type")
+    .eq("institute_id", instituteId)
+    .eq("client_event_id", clientEventId)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as {
+    trip_id: string | null;
+    result_ref: string | null;
+    event_type: string;
+  } | null) ?? null;
+}
+
+export async function insertOpsIdempotency(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    clientEventId: string;
+    eventType: string;
+    tripId?: string | null;
+    resultRef?: string | null;
+  },
+): Promise<void> {
+  const result = await admin.from("transport_ops_idempotency").insert({
+    institute_id: input.instituteId,
+    client_event_id: input.clientEventId,
+    event_type: input.eventType,
+    trip_id: input.tripId ?? null,
+    result_ref: input.resultRef ?? null,
+  });
+  if (result.error) {
+    // Unique violation = concurrent duplicate; treat as idempotent success.
+    if ((result.error as { code?: string }).code === "23505") return;
+    ensureDbOk(result);
+  }
 }
 
 export async function updateEmergencyFields(
@@ -308,15 +466,34 @@ export async function updateEmergencyFields(
   return (result.data as TransportEmergencyRow | null) ?? null;
 }
 
+export async function findVehicleLocationByClientEventId(
+  admin: SupabaseClient,
+  instituteId: string,
+  clientEventId: string,
+): Promise<VehicleLocationRow | null> {
+  const result = await admin
+    .from("vehicle_location")
+    .select(LOCATION_COLS)
+    .eq("institute_id", instituteId)
+    .eq("client_event_id", clientEventId)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as VehicleLocationRow | null) ?? null;
+}
+
 export async function insertVehicleLocation(
   admin: SupabaseClient,
   input: {
     instituteId: string;
     tripId: string;
     vehicleId: string;
+    driverId?: string | null;
     latitude: number;
     longitude: number;
     accuracyM?: number | null;
+    capturedAt?: string;
+    clientEventId?: string | null;
+    sequenceNumber?: number | null;
   },
 ): Promise<VehicleLocationRow> {
   const result = await admin
@@ -325,10 +502,13 @@ export async function insertVehicleLocation(
       institute_id: input.instituteId,
       trip_id: input.tripId,
       vehicle_id: input.vehicleId,
+      driver_id: input.driverId ?? null,
       latitude: input.latitude,
       longitude: input.longitude,
       accuracy_m: input.accuracyM ?? null,
-      captured_at: new Date().toISOString(),
+      captured_at: input.capturedAt ?? new Date().toISOString(),
+      client_event_id: input.clientEventId ?? null,
+      sequence_number: input.sequenceNumber ?? null,
     })
     .select(LOCATION_COLS)
     .single();
@@ -367,14 +547,15 @@ export async function findActiveTripForStudent(
   instituteId: string,
   studentId: string,
 ): Promise<TransportTripRow | null> {
+  // Pending enrollments are operationally usable; only rejected stay out of live trip lookup.
   const enrollResult = await admin
     .from("transport_enrollment")
-    .select("route_id")
+    .select("route_id, approval_status")
     .eq("institute_id", instituteId)
     .eq("student_id", studentId)
-    .eq("approval_status", "approved")
     .eq("status", "active")
     .is("deleted_at", null)
+    .in("approval_status", ["pending", "approved"])
     .maybeSingle();
   if (enrollResult.error) ensureDbOk(enrollResult);
   const enrollment = enrollResult.data as { route_id: string } | null;

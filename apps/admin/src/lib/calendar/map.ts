@@ -22,6 +22,8 @@ export function eventDtoToCalendarListItem(dto: EventDto): CalendarListItem {
   const endDate =
     dto.endsOn && dto.endsOn !== dto.startsOn ? dto.endsOn : undefined;
   const time = normalizeTime(dto.startTime);
+  const endTime = normalizeTime(dto.endTime);
+  const description = dto.description?.trim() || undefined;
 
   return {
     id: dto.id,
@@ -29,7 +31,9 @@ export function eventDtoToCalendarListItem(dto: EventDto): CalendarListItem {
     date: dto.startsOn,
     endDate,
     time,
+    endTime,
     kind: kindDisplay(dto),
+    description,
   };
 }
 

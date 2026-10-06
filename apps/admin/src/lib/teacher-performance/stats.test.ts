@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  computeDepartmentRankings,
   computeInstituteAverage,
+  computeSubjectRankings,
   findTopRatedTeacher,
+  formatSubjects,
   instituteTrendDelta,
   trendTone,
 } from "./stats";
@@ -12,7 +13,7 @@ const rows: TeacherPerformanceDto[] = [
   {
     teacherId: "1",
     name: "Alpha",
-    department: "Math",
+    subjects: ["Math"],
     rating: 4.8,
     trend: "+0.10",
     rank: 1,
@@ -28,7 +29,7 @@ const rows: TeacherPerformanceDto[] = [
   {
     teacherId: "2",
     name: "Beta",
-    department: "Math",
+    subjects: ["Math", "Physics"],
     rating: 4.2,
     trend: "-0.05",
     rank: 2,
@@ -44,7 +45,7 @@ const rows: TeacherPerformanceDto[] = [
   {
     teacherId: "3",
     name: "Gamma",
-    department: "Science",
+    subjects: ["Science"],
     rating: null,
     trend: "0.00",
     rank: null,
@@ -78,11 +79,16 @@ describe("teacher-performance stats", () => {
     expect(findTopRatedTeacher(rows)?.name).toBe("Alpha");
   });
 
-  it("builds department rankings", () => {
-    const rankings = computeDepartmentRankings(rows);
-    expect(rankings[0]?.department).toBe("Math");
-    expect(rankings[0]?.average).toBe(4.5);
-    expect(rankings[0]?.teacherCount).toBe(2);
+  it("builds subject rankings (multi-subject teachers count in each)", () => {
+    const rankings = computeSubjectRankings(rows);
+    expect(rankings.find((r) => r.subject === "Math")?.average).toBe(4.5);
+    expect(rankings.find((r) => r.subject === "Math")?.teacherCount).toBe(2);
+    expect(rankings.find((r) => r.subject === "Physics")?.teacherCount).toBe(1);
+  });
+
+  it("formats subject labels", () => {
+    expect(formatSubjects(["Math", "Physics"])).toBe("Math, Physics");
+    expect(formatSubjects([])).toBe("Unassigned");
   });
 
   it("classifies trend tone", () => {

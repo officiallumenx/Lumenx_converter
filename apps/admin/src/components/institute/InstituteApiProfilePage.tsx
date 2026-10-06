@@ -66,7 +66,7 @@ const STATUS_OPTIONS: InstituteStatus[] = [
   "archived",
 ];
 
-export function InstituteApiProfilePage() {
+export function InstituteApiProfilePage({ embedded = false }: { embedded?: boolean }) {
   const notify = useAdminToast();
   const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
@@ -291,128 +291,134 @@ export function InstituteApiProfilePage() {
       });
   };
 
+  const body = (
+    <div className="space-y-4">
+      <InstituteCreateApiPanel />
+      {hint ? (
+        <Card>
+          <EmptyState
+            icon={<Building2 className="size-5" />}
+            title="Institute profile"
+            hint={hint}
+          />
+        </Card>
+      ) : view.detailValid && view.institute ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="Identity" hint="Institute identity" />
+            <CardBody className="space-y-3">
+              <Field label="Name" required>
+                <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
+              <Field label="Code" required>
+                <TextInput value={code} onChange={(e) => setCode(e.target.value)} />
+              </Field>
+              <p className="text-[11px] text-muted-foreground">
+                Saving updates the login list and header switcher name/code.
+              </p>
+              <Field label="Kind">
+                <Select
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value as InstituteKind)}
+                >
+                  {KIND_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Status">
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as InstituteStatus)}
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Institute ID">
+                <TextInput value={view.institute.id} readOnly className="bg-muted/30" />
+              </Field>
+              <Button
+                variant="primary"
+                onClick={saveIdentity}
+                disabled={savingIdentity || !name.trim() || !code.trim()}
+              >
+                {savingIdentity ? "Saving…" : "Save identity"}
+              </Button>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Settings" hint="Institute settings" />
+            <CardBody className="space-y-3">
+              <Field label="Timezone" required>
+                <TextInput
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  placeholder="Asia/Kolkata"
+                />
+              </Field>
+              <Field label="Locale" required>
+                <TextInput
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value)}
+                  placeholder="en-IN"
+                />
+              </Field>
+              {view.settings ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Updated {new Date(view.settings.updatedAt).toLocaleString()}
+                </p>
+              ) : null}
+              <Button
+                variant="primary"
+                onClick={saveSettings}
+                disabled={savingSettings || !timezone.trim() || !locale.trim()}
+              >
+                {savingSettings ? "Saving…" : "Save settings"}
+              </Button>
+            </CardBody>
+          </Card>
+          {richProfile ? (
+            <Card className="lg:col-span-2">
+              <CardHeader
+                title="Public institute profile"
+                hint="Stored in institute_settings.settings.profile · shown in Admissions and Careers"
+              />
+              <CardBody className="space-y-4">
+                <AdminInstituteProfileEditor
+                  value={richProfile}
+                  onChange={(next) => setRichProfile(normalizeInstituteProfile(next))}
+                />
+                <Button
+                  variant="primary"
+                  onClick={saveRichProfile}
+                  disabled={savingProfile || !richProfile.name.trim()}
+                >
+                  {savingProfile ? "Saving…" : "Save public profile"}
+                </Button>
+              </CardBody>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (embedded) return body;
+
   return (
     <AppShell title="Institute" subtitle="Institute identity and settings">
       <ModuleHero
-        eyebrow="Institute"
-        title="Institute"
+        eyebrow="Settings"
+        title="Institute profile"
         subtitle="Institute identity and settings"
       />
-      <div className="space-y-4">
-        <InstituteCreateApiPanel />
-        {hint ? (
-          <Card>
-            <EmptyState
-              icon={<Building2 className="size-5" />}
-              title="Institute profile"
-              hint={hint}
-            />
-          </Card>
-        ) : view.detailValid && view.institute ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader title="Identity" hint="Institute identity" />
-              <CardBody className="space-y-3">
-                <Field label="Name" required>
-                  <TextInput value={name} onChange={(e) => setName(e.target.value)} />
-                </Field>
-                <Field label="Code" required>
-                  <TextInput value={code} onChange={(e) => setCode(e.target.value)} />
-                </Field>
-                <p className="text-[11px] text-muted-foreground">
-                  Saving updates the login list and header switcher name/code.
-                </p>
-                <Field label="Kind">
-                  <Select
-                    value={kind}
-                    onChange={(e) => setKind(e.target.value as InstituteKind)}
-                  >
-                    {KIND_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Status">
-                  <Select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as InstituteStatus)}
-                  >
-                    {STATUS_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Institute ID">
-                  <TextInput value={view.institute.id} readOnly className="bg-muted/30" />
-                </Field>
-                <Button
-                  variant="primary"
-                  onClick={saveIdentity}
-                  disabled={savingIdentity || !name.trim() || !code.trim()}
-                >
-                  {savingIdentity ? "Saving…" : "Save identity"}
-                </Button>
-              </CardBody>
-            </Card>
-            <Card>
-              <CardHeader title="Settings" hint="Institute settings" />
-              <CardBody className="space-y-3">
-                <Field label="Timezone" required>
-                  <TextInput
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    placeholder="Asia/Kolkata"
-                  />
-                </Field>
-                <Field label="Locale" required>
-                  <TextInput
-                    value={locale}
-                    onChange={(e) => setLocale(e.target.value)}
-                    placeholder="en-IN"
-                  />
-                </Field>
-                {view.settings ? (
-                  <p className="text-[11px] text-muted-foreground">
-                    Updated {new Date(view.settings.updatedAt).toLocaleString()}
-                  </p>
-                ) : null}
-                <Button
-                  variant="primary"
-                  onClick={saveSettings}
-                  disabled={savingSettings || !timezone.trim() || !locale.trim()}
-                >
-                  {savingSettings ? "Saving…" : "Save settings"}
-                </Button>
-              </CardBody>
-            </Card>
-            {richProfile ? (
-              <Card className="lg:col-span-2">
-                <CardHeader
-                  title="Public institute profile"
-                  hint="Stored in institute_settings.settings.profile · shown in Admissions and Careers"
-                />
-                <CardBody className="space-y-4">
-                  <AdminInstituteProfileEditor
-                    value={richProfile}
-                    onChange={(next) => setRichProfile(normalizeInstituteProfile(next))}
-                  />
-                  <Button
-                    variant="primary"
-                    onClick={saveRichProfile}
-                    disabled={savingProfile || !richProfile.name.trim()}
-                  >
-                    {savingProfile ? "Saving…" : "Save public profile"}
-                  </Button>
-                </CardBody>
-              </Card>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      {body}
     </AppShell>
   );
 }

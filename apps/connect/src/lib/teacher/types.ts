@@ -62,6 +62,9 @@ export interface TeacherClass {
   attendanceRate: number;
   homeworkSubmissionRate: number;
   avgScore: number;
+  /** Catalog class UUID — used when creating homework without a subject placement. */
+  classRecordId?: string;
+  academicYearId?: string;
 }
 
 export interface TeacherStudent {

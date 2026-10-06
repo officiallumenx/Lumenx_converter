@@ -187,7 +187,7 @@ export function SupportPage() {
             Privacy Policy
           </p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            How demo data stays on device
+            How we handle your data
           </p>
         </button>
         <button

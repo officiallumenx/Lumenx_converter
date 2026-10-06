@@ -66,6 +66,7 @@ export function RouteSetupStopList({
                   <p className="text-xs text-muted-foreground">{stop.locationLabel}</p>
                   <p className="font-mono text-[10px] text-muted-foreground">
                     {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+                    {` · ${stop.notificationRadiusM} m`}
                   </p>
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Users className="size-3.5 shrink-0" aria-hidden />

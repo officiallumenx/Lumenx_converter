@@ -9,6 +9,7 @@ import {
 import { KeyRound, ShieldCheck, Users } from "lucide-react";
 import { useInstituteContext } from "@/lib/institutes";
 import { listAccessAssignees, type AccessAssigneeDto } from "@/lib/access-roles";
+import { publicLoginIdentityLines } from "@/lib/identity";
 
 export function AccountsApiStaffPanel() {
   const instituteCtx = useInstituteContext();
@@ -109,10 +110,27 @@ export function AccountsApiStaffPanel() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {assignee.email && <div>{assignee.email}</div>}
-                    {assignee.phone && (
-                      <div className="text-muted-foreground">{assignee.phone}</div>
-                    )}
+                    {(() => {
+                      const lines = publicLoginIdentityLines({
+                        email: assignee.email,
+                        phone: assignee.phone,
+                      });
+                      if (lines.length === 0) {
+                        return (
+                          <div className="text-muted-foreground">No login identity</div>
+                        );
+                      }
+                      return lines.map((line) => (
+                        <div
+                          key={line}
+                          className={
+                            line.includes("@") ? undefined : "text-muted-foreground"
+                          }
+                        >
+                          {line}
+                        </div>
+                      ));
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <div>{assignee.accessRoleName}</div>

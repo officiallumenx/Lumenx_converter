@@ -142,6 +142,21 @@ export function StudentAttendanceCard({
               {mode === "boarding" ? "Tap = Boarded · Hold = Not boarded" : "Tap = Dropped · Hold = Not dropped"}
             </p>
           ) : null}
+          {student.syncStatus === "syncing" ? (
+            <p className="mt-1 text-xs font-medium text-transport" role="status">
+              Syncing
+            </p>
+          ) : null}
+          {student.syncStatus === "confirmed" ? (
+            <p className="mt-1 text-xs font-medium text-success" role="status">
+              Confirmed
+            </p>
+          ) : null}
+          {student.syncStatus === "error" ? (
+            <p className="mt-1 text-xs font-medium text-destructive" role="status">
+              Failed — retry
+            </p>
+          ) : null}
         </div>
       </div>
     </button>

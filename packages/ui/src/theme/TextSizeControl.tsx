@@ -39,7 +39,7 @@ export function useTextScale(): {
 
 /**
  * Appearance → Text Size control.
- * Options: Small · Default · Large · Extra Large
+ * Options: Small · Default · Large · Very Large
  */
 export function TextSizeControl({
   className,

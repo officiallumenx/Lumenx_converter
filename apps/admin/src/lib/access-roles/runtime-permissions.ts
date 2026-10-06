@@ -87,15 +87,21 @@ export async function syncApiAccessPermissions(instituteId: string | null): Prom
   }
 }
 
-export function getApiRolePermission(pathname: string): AccessPermission {
-  if (pathname === "/") return "full";
-  if (state.instituteWide) return "full";
-  const modules = Object.keys(state.permissions);
-  const module = modules
-    .filter((route) => pathname === route || pathname.startsWith(`${route}/`))
+function matchPermissionRoute(pathname: string, routes: readonly string[]): string | undefined {
+  return routes
+    .filter((route) =>
+      route === "/"
+        ? pathname === "/"
+        : pathname === route || pathname.startsWith(`${route}/`),
+    )
     .sort((a, b) => b.length - a.length)[0];
+}
+
+export function getApiRolePermission(pathname: string): AccessPermission {
+  if (state.instituteWide) return "full";
+  const module = matchPermissionRoute(pathname, Object.keys(state.permissions));
   if (!module) {
-    // Unknown route — allow home/settings-ish paths for institute-wide already handled.
+    // Unknown route — role-scoped accounts stay closed; institute admins stay open.
     return state.accessRoleId ? "none" : "full";
   }
   return state.permissions[module] ?? "none";

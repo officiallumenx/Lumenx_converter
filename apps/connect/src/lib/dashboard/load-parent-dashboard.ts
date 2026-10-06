@@ -1,6 +1,7 @@
 /**
  * Parent home dashboard — scoped snapshot for one linked learner.
  */
+import { ApiClientError } from "@/lib/api";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 import { childClassTag } from "@/lib/parent-portal-data";
 import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
@@ -17,6 +18,21 @@ import {
   reportCardsToTrend,
   weeklyTimetableToStudentRecord,
 } from "./map";
+
+/** Secondary enrichment may soft-empty; auth/forbidden must surface. */
+async function optionalList<T>(promise: Promise<T[]>): Promise<T[]> {
+  try {
+    return await promise;
+  } catch (err) {
+    if (
+      err instanceof ApiClientError &&
+      (err.status === 401 || err.status === 403 || err.code === "UNAUTHENTICATED")
+    ) {
+      throw err;
+    }
+    return [];
+  }
+}
 
 function portalDaysToAttendanceDays(
   days: Array<{ date: string; status: string }>,
@@ -57,7 +73,7 @@ export async function loadParentPortalSnapshotFromApi(input: {
       loadLearnerAttendancePortal({ instituteId, studentId }),
       loadConnectPortalInbox(instituteId),
       loadLearnerTimetable({ instituteId, studentId }),
-      listStudentRemarks({ instituteId, studentId }).catch(() => []),
+      optionalList(listStudentRemarks({ instituteId, studentId })),
     ]);
 
   const reportCards =

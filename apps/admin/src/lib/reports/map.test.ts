@@ -3,6 +3,7 @@ import {
   catalogById,
   filterCatalogByModule,
   formatReportJobWhen,
+  latestJobByReportId,
   listReportModules,
   resolveReportName,
   sortJobsNewestFirst,
@@ -70,5 +71,49 @@ describe("reports map", () => {
 
   it("builds catalog lookup map", () => {
     expect(catalogById(catalog).get("transport")?.module).toBe("Transport");
+  });
+
+  it("picks newest job per report id", () => {
+    const jobs: ReportJobDto[] = [
+      {
+        id: "old",
+        instituteId: "x",
+        reportId: "students",
+        status: "ready",
+        downloadUrl: null,
+        fileName: "old.csv",
+        errorMessage: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        completedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        id: "new",
+        instituteId: "x",
+        reportId: "students",
+        status: "ready",
+        downloadUrl: null,
+        fileName: "new.csv",
+        errorMessage: null,
+        createdAt: "2026-08-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+        completedAt: "2026-08-03T00:00:00.000Z",
+      },
+      {
+        id: "att",
+        instituteId: "x",
+        reportId: "attendance",
+        status: "running",
+        downloadUrl: null,
+        fileName: null,
+        errorMessage: null,
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+        completedAt: null,
+      },
+    ];
+    const latest = latestJobByReportId(jobs);
+    expect(latest.get("students")?.id).toBe("new");
+    expect(latest.get("attendance")?.status).toBe("running");
   });
 });

@@ -37,6 +37,28 @@ describe("teacher-performance score", () => {
     expect(rating!).toBeLessThanOrEqual(5);
   });
 
+  it("fair OPI ignores zero components so specialists are not penalized", () => {
+    const registersOnly = computeOperationalScore({
+      staffPresent: 0,
+      staffTotal: 0,
+      publishedMarks: 0,
+      publishedHomework: 0,
+      submittedDiaryDays: 0,
+      submittedAttendanceRegisters: 20,
+    });
+    expect(registersOnly).toBe(5);
+
+    const withEmptyMarks = computeOperationalScore({
+      staffPresent: 20,
+      staffTotal: 20,
+      publishedMarks: 0,
+      publishedHomework: 0,
+      submittedDiaryDays: 0,
+      submittedAttendanceRegisters: 20,
+    });
+    expect(withEmptyMarks).toBe(5);
+  });
+
   it("formats trend deltas with sign", () => {
     expect(formatPerformanceTrend(4.5, 4.2)).toBe("+0.30");
     expect(formatPerformanceTrend(4.1, 4.3)).toBe("-0.20");
@@ -99,7 +121,7 @@ describe("teacher-performance aggregation", () => {
     expect(computeOperationalScore(counts.ratingWindow)).not.toBeNull();
   });
 
-  it("builds monthly institute averages from shared facts", () => {
+  it("builds continuous monthly institute averages from shared facts", () => {
     const facts = {
       staff: [
         {
@@ -117,10 +139,20 @@ describe("teacher-performance aggregation", () => {
     const trend = aggregateMonthlyInstituteAverages(
       facts,
       [teacherId],
-      3,
+      7,
       asOf,
     );
-    expect(trend.length).toBeGreaterThan(0);
+    expect(trend).toHaveLength(7);
+    expect(trend.map((point) => point.label)).toEqual([
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+    ]);
     expect(trend[trend.length - 1]?.value).toBeGreaterThan(0);
+    expect(trend[0]?.value).toBe(0);
   });
 });

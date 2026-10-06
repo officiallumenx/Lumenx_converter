@@ -59,6 +59,11 @@ export function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/** Escape `%` `_` `\` so ILIKE cannot match a different username. */
+export function escapeIlikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 export function assertValidUsername(value: string): string {
   const username = normalizeUsername(value);
   if (!USERNAME_RE.test(username)) {
@@ -115,10 +120,21 @@ export async function findCredentialByUsername(
   username: string,
 ): Promise<UserAuthCredentialRow | null> {
   const normalized = normalizeUsername(username);
+  const exact = await admin
+    .from("user_profile")
+    .select(COLS)
+    .eq("username", normalized)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (exact.error) ensureDbOk(exact);
+  const exactRow = exact.data as ProfileAuthRow | null;
+  if (exactRow) return toCredentialRow(exactRow);
+
+  // Legacy mixed-case rows; never use raw ILIKE (underscore is a wildcard).
   const result = await admin
     .from("user_profile")
     .select(COLS)
-    .ilike("username", normalized)
+    .ilike("username", escapeIlikePattern(normalized))
     .is("deleted_at", null)
     .maybeSingle();
   if (result.error) ensureDbOk(result);

@@ -78,6 +78,7 @@ export type MockDb = {
   route: Row[];
   stop: Row[];
   transport_enrollment: Row[];
+  transport_daily_exception: Row[];
   transport_settings: Row[];
   transport_trip: Row[];
   transport_boarding_event: Row[];
@@ -164,6 +165,8 @@ class QueryBuilder {
   private updatePatch: Row = {};
   private upsertConflictColumn: string | null = null;
   private pendingError: PendingError = null;
+  private rangeFrom: number | null = null;
+  private rangeTo: number | null = null;
 
   constructor(
     private readonly table: string,
@@ -285,6 +288,13 @@ class QueryBuilder {
     return this;
   }
 
+  /** PostgREST-style inclusive range for paging (used by fetchAllPagedRows). */
+  range(from: number, to: number) {
+    this.rangeFrom = from;
+    this.rangeTo = to;
+    return this;
+  }
+
   private tableRows(): Row[] {
     if (!(this.table in this.db)) {
       (this.db as Record<string, Row[]>)[this.table] = [];
@@ -332,6 +342,28 @@ class QueryBuilder {
               error: {
                 code: "23505",
                 message: "duplicate key value violates unique constraint",
+              },
+            };
+          }
+        }
+      }
+      if (this.table === "notification") {
+        for (const row of this.insertRows) {
+          const key = row.dedupe_key;
+          if (key == null || key === "") continue;
+          const duplicate = rows.find(
+            (r) =>
+              r.institute_id === row.institute_id &&
+              r.dedupe_key === key &&
+              (r.deleted_at == null || r.deleted_at === undefined),
+          );
+          if (duplicate) {
+            return {
+              data: [],
+              error: {
+                code: "23505",
+                message:
+                  "duplicate key value violates unique constraint \"notification_institute_dedupe_uidx\"",
               },
             };
           }
@@ -394,7 +426,11 @@ class QueryBuilder {
       return { data: matched.map((r) => ({ ...r })), error: null };
     }
 
-    return { data: applyFilters(rows, this.filters).map((r) => ({ ...r })), error: null };
+    let data = applyFilters(rows, this.filters).map((r) => ({ ...r }));
+    if (this.rangeFrom != null && this.rangeTo != null) {
+      data = data.slice(this.rangeFrom, this.rangeTo + 1);
+    }
+    return { data, error: null };
   }
 
   async maybeSingle() {
@@ -817,6 +853,7 @@ export function emptyMockDb(): MockDb {
     route: [],
     stop: [],
     transport_enrollment: [],
+    transport_daily_exception: [],
     transport_settings: [],
     transport_trip: [],
     transport_boarding_event: [],

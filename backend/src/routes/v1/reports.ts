@@ -55,16 +55,39 @@ reports.get("/jobs", async (c) => {
 reports.post("/jobs", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
+  const isoDate = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+    .optional()
+    .nullable();
   const body = validateBody(
-    z.object({
-      institute_id: uuid,
-      report_id: z.string().min(1).max(100),
-    }),
+    z
+      .object({
+        institute_id: uuid,
+        report_id: z.string().min(1).max(100),
+        from_date: isoDate,
+        to_date: isoDate,
+      })
+      .superRefine((value, ctx) => {
+        if (
+          value.from_date &&
+          value.to_date &&
+          value.from_date > value.to_date
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "from_date must be on or before to_date",
+            path: ["from_date"],
+          });
+        }
+      }),
     await c.req.json(),
   );
   const data = await createReportJobForActor(admin, actor, {
     instituteId: body.institute_id,
     reportId: body.report_id,
+    fromDate: body.from_date ?? null,
+    toDate: body.to_date ?? null,
   });
   return c.json({ data }, 201);
 });

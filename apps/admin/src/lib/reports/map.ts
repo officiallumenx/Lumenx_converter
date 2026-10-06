@@ -49,3 +49,14 @@ export function sortJobsNewestFirst(jobs: ReportJobDto[]): ReportJobDto[] {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
+
+/** Newest job per report id (for inline download beside catalog rows). */
+export function latestJobByReportId(
+  jobs: ReportJobDto[],
+): Map<string, ReportJobDto> {
+  const map = new Map<string, ReportJobDto>();
+  for (const job of sortJobsNewestFirst(jobs)) {
+    if (!map.has(job.reportId)) map.set(job.reportId, job);
+  }
+  return map;
+}

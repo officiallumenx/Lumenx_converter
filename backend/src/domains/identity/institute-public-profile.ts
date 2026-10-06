@@ -112,11 +112,21 @@ export function publicProfileFromRegistrationPayload(
   payload: InstituteRegistrationPayload,
 ): InstitutePublicProfile {
   const addressParts = [
+    payload.street?.trim(),
+    payload.area?.trim(),
+    payload.landmark?.trim(),
     payload.address?.trim(),
     payload.city?.trim(),
+    payload.district?.trim(),
     payload.state?.trim(),
     payload.pincode?.trim(),
+    payload.country?.trim(),
   ].filter(Boolean);
+  // Prefer institute office contacts over the Admin applicant's personal mobile/email.
+  const phone =
+    payload.schoolPhone?.trim() || payload.principalMobile?.trim() || "";
+  const email =
+    payload.schoolEmail?.trim() || payload.principalEmail?.trim() || "";
   return normalizeInstitutePublicProfile({
     name: instituteName.trim(),
     founded: "",
@@ -127,8 +137,8 @@ export function publicProfileFromRegistrationPayload(
     ranking: "",
     logo: payload.logoPreview?.trim() || "",
     profilePhoto: "",
-    phone: payload.principalMobile?.trim() || "",
-    email: payload.principalEmail?.trim() || "",
+    phone,
+    email,
     address: addressParts.join(", "),
     history: [],
     awards: [],

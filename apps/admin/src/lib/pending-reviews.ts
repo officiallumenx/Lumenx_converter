@@ -151,10 +151,10 @@ export function buildPendingReviews(input: {
   if (input.pendingTransportStops > 0) {
     rows.push({
       id: "transport-stops",
-      label: "Pending transport stops",
-      detail: "Driver-submitted stops awaiting individual approval",
+      label: "Driver stops to accept",
+      detail: "Driver-submitted stops awaiting accept or decline",
       to: "/transport",
-      search: { view: "reviews" },
+      search: { view: "dashboard" },
       count: input.pendingTransportStops,
     });
   }

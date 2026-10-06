@@ -12,6 +12,7 @@ import {
   writeTimetableDrag,
 } from "@/components/timetable/timetable-theme";
 import { TimetableSubjectPalette } from "@/components/timetable/TimetableSubjectPalette";
+import { TimetableMobileDayViewDemo } from "@/components/timetable/TimetableMobileDayView";
 import { isLockedCell } from "@/lib/timetable-manager";
 
 function teacherInitial(name: string) {
@@ -99,6 +100,10 @@ export function TimetableWeekGrid({
 
   return (
     <div className="space-y-3">
+      <div className="md:hidden">
+        <TimetableMobileDayViewDemo grid={grid} schedule={schedule} onEdit={onEdit} />
+      </div>
+      <div className="hidden md:block space-y-3">
       {dnd && subjects && subjects.length > 0 && <TimetableSubjectPalette subjects={subjects} />}
       <TimetableSubjectLegend subjects={uniqueSubjects} />
       {dnd && (
@@ -114,10 +119,8 @@ export function TimetableWeekGrid({
               <th className="lx-timetable-grid__time-col">Period</th>
               {days.map((d) => (
                 <th key={d.name} className="lx-timetable-grid__day-col">
-                  <span className="lx-timetable-grid__day-name">{d.name}</span>
-                  {d.periods < Math.max(...days.map((x) => x.periods)) && (
-                    <span className="lx-timetable-grid__day-meta">{d.periods} periods</span>
-                  )}
+                  <span className="lx-timetable-grid__day-name">{d.name.slice(0, 3)}</span>
+                  <span className="lx-timetable-grid__day-meta">{d.name}</span>
                 </th>
               ))}
             </tr>
@@ -201,7 +204,7 @@ export function TimetableWeekGrid({
                             onDragOver={dnd ? (e) => e.preventDefault() : undefined}
                             onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
                             onClick={() => onEdit(dayIdx, periodIdx)}
-                            className={`lx-timetable-slot lx-timetable-slot--filled ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""} ${dnd && !locked ? "lx-timetable-slot--draggable" : ""} ${locked ? "opacity-95 ring-1 ring-primary/40" : ""}`}
+                            className={`lx-timetable-slot lx-timetable-slot--filled border-l-2 ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""} ${dnd && !locked ? "lx-timetable-slot--draggable" : ""} ${locked ? "opacity-95 ring-1 ring-primary/40" : ""}`}
                           >
                             <div className="lx-timetable-slot__subject">{slot.subject}</div>
                             <div className="lx-timetable-slot__teacher">
@@ -243,6 +246,7 @@ export function TimetableWeekGrid({
             })}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

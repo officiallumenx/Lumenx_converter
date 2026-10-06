@@ -143,7 +143,7 @@ describe("Admin Home Pending Reviews workflow", () => {
       expect(row.count).toBeGreaterThan(0);
     }
 
-    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "reviews" });
+    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "dashboard" });
     expect(rows.find((r) => r.id === "transport-assignments")?.search).toEqual({ view: "reviews" });
   });
 
@@ -203,7 +203,7 @@ describe("Admin Home Pending Reviews workflow", () => {
       view: "emergencies",
     });
     expect(pendingRows.find((r) => r.id === "transport-stops")?.search).toEqual({
-      view: "reviews",
+      view: "dashboard",
     });
 
     const submittedForReview = countSubmittedMarks([

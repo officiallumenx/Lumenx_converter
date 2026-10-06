@@ -169,6 +169,8 @@ export async function loadTeacherPortalApiData(
         attendanceRate: 0,
         homeworkSubmissionRate: 0,
         avgScore: 0,
+        classRecordId: section.classId,
+        academicYearId: section.academicYearId,
       });
       presentIds.add(sectionId);
       continue;

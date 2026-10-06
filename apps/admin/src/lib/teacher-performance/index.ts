@@ -1,5 +1,5 @@
 export type {
-  DepartmentRanking,
+  SubjectRanking,
   TeacherPerformanceDto,
   TeacherPerformanceListPayload,
   TeacherPerformanceMetrics,
@@ -16,10 +16,11 @@ export {
   shouldCommitTeacherPerformanceLoad,
 } from "./list-view";
 export {
-  computeDepartmentRankings,
+  computeSubjectRankings,
   computeInstituteAverage,
   findTopRatedTeacher,
   formatRating,
+  formatSubjects,
   instituteTrendDelta,
   trendTone,
 } from "./stats";

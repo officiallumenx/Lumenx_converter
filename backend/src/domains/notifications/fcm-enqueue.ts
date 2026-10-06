@@ -44,7 +44,10 @@ export async function enqueueFcmDeliveryAttempts(
 
 export function isAlertNotificationRow(notification: NotificationRow): boolean {
   const payload = notification.payload ?? {};
+  // Soft transport chime must NOT use the critical alert channel.
+  if (payload.presentation === "chime") return false;
   if (payload.presentation === "alert") return true;
+  if (payload.severity === "critical") return true;
   if (notification.category === "system" && notification.priority === "critical") {
     return true;
   }

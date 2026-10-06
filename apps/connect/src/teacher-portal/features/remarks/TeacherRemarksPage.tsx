@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { useTeacherRemarksQuery } from "@/lib/connect-queries/hooks";
@@ -44,6 +46,7 @@ const TONE_LABEL: Record<RemarkTone, string> = {
 export function TeacherRemarksPage() {
   const portal = useTeacherPortal();
   const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
   const [studentId, setStudentId] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
@@ -76,17 +79,30 @@ export function TeacherRemarksPage() {
 
   useEffect(() => {
     if (!portal.isTeacher) return;
+    if (apiMode) {
+      setClassNames(uniqueSortedClassNames(portal.classes));
+      return;
+    }
     teacherRepository.getInstituteClassNames().then(setClassNames);
-  }, [portal.isTeacher]);
+  }, [portal.isTeacher, portal.classes, apiMode]);
 
   useEffect(() => {
     if (!portal.isTeacher) return;
+    if (apiMode) {
+      const next = sectionsForClassName(
+        portal.classes,
+        classFilter === "all" ? "all" : classFilter,
+      );
+      setSections(next);
+      setSectionFilter((prev) => (prev !== "all" && !next.includes(prev) ? "all" : prev));
+      return;
+    }
     const grade = classFilter === "all" ? undefined : classFilter;
     teacherRepository.getInstituteSections(grade).then((next) => {
       setSections(next);
       setSectionFilter((prev) => (prev !== "all" && !next.includes(prev) ? "all" : prev));
     });
-  }, [portal.isTeacher, classFilter]);
+  }, [portal.isTeacher, classFilter, apiMode, portal.classes]);
 
   const studentOptions = useMemo(() => {
     if (!portal.isTeacher) return [];
@@ -185,6 +201,11 @@ export function TeacherRemarksPage() {
                 ))}
               </SelectContent>
             </Select>
+            {apiMode && portal.classes.length === 0 && !portal.isLoading ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                No assigned classes yet for this institute.
+              </p>
+            ) : null}
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Section</label>
@@ -224,7 +245,7 @@ export function TeacherRemarksPage() {
 
         <div>
           <label className="text-xs font-medium text-muted-foreground">Student</label>
-          <Select value={studentId} onValueChange={setStudentId}>
+          <Select value={studentId || undefined} onValueChange={setStudentId}>
             <SelectTrigger className="mt-1 rounded-xl">
               <SelectValue
                 placeholder={

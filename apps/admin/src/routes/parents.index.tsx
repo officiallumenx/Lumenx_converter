@@ -82,10 +82,10 @@ type ParentListEntry = {
 };
 
 function parentIdentityCode(parent: ParentRow): string {
-  if ("identityLabel" in parent && parent.identityLabel) {
-    return parent.identityLabel;
+  if ("identityLabel" in parent && parent.identityLabel?.trim()) {
+    return parent.identityLabel.trim();
   }
-  if (parent.phone?.trim()) return parent.phone.trim();
+  // Do not fall back to phone — it is shown separately in contact/meta.
   return "";
 }
 

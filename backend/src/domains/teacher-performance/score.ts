@@ -28,27 +28,29 @@ function componentScore(value: number, target: number): number {
   return Math.min(value / target, 1) * 5;
 }
 
-/** Counts with zero activity still contribute a 0 component when the signal type exists in scope. */
+/**
+ * Fair OPI: only components with real signal are averaged.
+ * Specialists (e.g. registers-only) are not pulled down by zero marks/homework.
+ */
 export function computeOperationalScore(counts: TeacherOperationalCounts): number | null {
   const components: number[] = [];
 
   if (counts.staffTotal > 0) {
     components.push((counts.staffPresent / counts.staffTotal) * 5);
   }
-  if (
-    counts.publishedMarks > 0 ||
-    counts.publishedHomework > 0 ||
-    counts.submittedDiaryDays > 0 ||
-    counts.submittedAttendanceRegisters > 0
-  ) {
+  if (counts.publishedMarks > 0) {
     components.push(componentScore(counts.publishedMarks, MARKS_TARGET));
+  }
+  if (counts.publishedHomework > 0) {
     components.push(componentScore(counts.publishedHomework, HOMEWORK_TARGET));
+  }
+  if (counts.submittedDiaryDays > 0) {
     components.push(componentScore(counts.submittedDiaryDays, DIARY_TARGET));
+  }
+  if (counts.submittedAttendanceRegisters > 0) {
     components.push(
       componentScore(counts.submittedAttendanceRegisters, REGISTER_TARGET),
     );
-  } else if (counts.staffTotal === 0) {
-    return null;
   }
 
   if (components.length === 0) return null;
@@ -69,16 +71,24 @@ export function formatPerformanceTrend(
   return "0.00";
 }
 
-export function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+/** Institute-local calendar day (Asia/Kolkata) for operational windows. */
+export const PERFORMANCE_TZ = "Asia/Kolkata";
+
+export function toIsoDate(date: Date, timeZone: string = PERFORMANCE_TZ): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 export function subtractDays(from: Date, days: number): Date {
-  const next = new Date(from);
+  const next = new Date(from.getTime());
   next.setUTCDate(next.getUTCDate() - days);
   return next;
 }
 
-export function monthLabel(date: Date): string {
-  return date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+export function monthLabel(date: Date, timeZone: string = PERFORMANCE_TZ): string {
+  return date.toLocaleString("en-US", { month: "short", timeZone });
 }

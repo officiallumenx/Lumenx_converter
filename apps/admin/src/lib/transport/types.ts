@@ -188,6 +188,31 @@ export type TransportTripDto = {
   routeName?: string | null;
   vehicleNumber?: string | null;
   driverName?: string | null;
+  latestLocation?: {
+    id: string;
+    latitude: number;
+    longitude: number;
+    accuracyM: number | null;
+    capturedAt: string;
+  } | null;
+  gpsFreshness?: "live" | "recent" | "stale" | "offline";
+  currentStopName?: string | null;
+  nextStopName?: string | null;
+  distanceToNextStopM?: number | null;
+  etaToNextStopMinutes?: number | null;
+  timeline?: Array<{
+    id: string;
+    at: string;
+    kind: string;
+    label: string;
+    note?: string;
+    stopId?: string;
+    studentId?: string;
+  }>;
+  schoolArrivedAt?: string | null;
+  isDelayed?: boolean;
+  pickupStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
+  dropStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -266,6 +291,11 @@ export type TransportAnalyticsDto = {
   boardingMarksToday: number;
   boardedToday: number;
   openEmergencies: number;
+  activeBuses: number;
+  activeDrivers: number;
+  studentsUsingTransport: number;
+  delayedTrips: number;
+  busesWithStaleGps: number;
 };
 
 export type GetTransportAnalyticsParams = {

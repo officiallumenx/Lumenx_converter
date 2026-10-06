@@ -9,14 +9,17 @@ export function ModuleHero({
   title,
   subtitle,
   action,
+  compact = false,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  /** Tighter padding / type for dense modules (e.g. Notifications). */
+  compact?: boolean;
 }) {
   return (
-    <section className="lx-module-hero">
+    <section className={`lx-module-hero${compact ? " lx-module-hero--compact" : ""}`}>
       <div className="lx-module-hero__content">
         <p className="lx-module-hero__eyebrow">{eyebrow}</p>
         <h1 className="lx-module-hero__title">{title}</h1>

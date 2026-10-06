@@ -42,6 +42,7 @@ describe("route setup API memory store", () => {
         locationLabel: "Lakeview Apartments",
         latitude: 28.1,
         longitude: 77.2,
+        notificationRadiusM: 100,
         studentIds: ["STU-1"],
       },
       "drv-1",
@@ -50,6 +51,7 @@ describe("route setup API memory store", () => {
     const snapshot = getRouteSetupSnapshot();
     expect(snapshot.stops).toHaveLength(1);
     expect(snapshot.stops[0]?.status).toBe("pending");
+    expect(snapshot.stops[0]?.notificationRadiusM).toBe(100);
     expect(snapshot.assignments).toHaveLength(1);
   });
 
@@ -62,6 +64,7 @@ describe("route setup API memory store", () => {
         name: "Local Only",
         latitude: 1,
         longitude: 2,
+        notificationRadiusM: 50,
         studentIds: ["STU-LOCAL"],
       },
       "drv-1",
@@ -80,6 +83,7 @@ describe("route setup API memory store", () => {
           routeOrder: 0,
           approvalStatus: "pending",
           createdAt: "2026-01-01T00:00:00.000Z",
+          notificationRadiusM: 100,
         },
       ],
       students: [
@@ -96,7 +100,9 @@ describe("route setup API memory store", () => {
 
     const snap = getRouteSetupSnapshot();
     expect(snap.stops.some((s) => s.id === "api-stop-1")).toBe(true);
+    expect(snap.stops.find((s) => s.id === "api-stop-1")?.notificationRadiusM).toBe(100);
     expect(snap.stops.some((s) => s.id === localId)).toBe(true);
+    expect(snap.stops.find((s) => s.id === localId)?.notificationRadiusM).toBe(50);
     expect(snap.assignments.some((a) => a.studentId === "STU-API")).toBe(true);
   });
 
@@ -118,6 +124,7 @@ describe("route setup API memory store", () => {
           name: "Fail Stop",
           latitude: 1,
           longitude: 2,
+          notificationRadiusM: 150,
           studentIds: ["STU-1"],
         },
         "drv-1",

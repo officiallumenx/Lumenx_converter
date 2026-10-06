@@ -1,4 +1,3 @@
-import { Card, Pill } from "@lumenx/ui-admin";
 import type { StudentAttendanceSummaryModel } from "./types";
 
 export type StudentAttendanceSummaryProps = {
@@ -12,50 +11,48 @@ export type StudentAttendanceSummaryProps = {
 const STATS: Array<{
   key: keyof StudentAttendanceSummaryModel;
   label: string;
-  tone: "neutral" | "success" | "danger" | "warning" | "info";
+  toneClass: string;
 }> = [
-  { key: "total", label: "Total", tone: "neutral" },
-  { key: "present", label: "Present", tone: "success" },
-  { key: "absent", label: "Absent", tone: "danger" },
-  { key: "leave", label: "Leave", tone: "warning" },
-  { key: "unmarked", label: "Unmarked", tone: "info" },
+  { key: "total", label: "Total", toneClass: "text-foreground" },
+  { key: "present", label: "P", toneClass: "text-success" },
+  { key: "absent", label: "A", toneClass: "text-destructive" },
+  { key: "leave", label: "L", toneClass: "text-warning" },
+  { key: "unmarked", label: "U", toneClass: "text-muted-foreground" },
 ];
 
-/** Compact attendance summary strip — sits above filters. */
+/** Compact single-line attendance counts. */
 export function StudentAttendanceSummary({
   summary,
   placeholder = false,
   dateLabel,
   scopeLabel,
 }: StudentAttendanceSummaryProps) {
-  const hintParts = [scopeLabel, dateLabel].filter(Boolean);
+  const hint = [scopeLabel, dateLabel].filter(Boolean).join(" · ");
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4">
-        <div className="min-w-0 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-foreground">Attendance summary</p>
-            {placeholder ? <Pill tone="neutral">UI only</Pill> : null}
-          </div>
-          <p className="truncate text-[10px] text-muted-foreground">
-            {hintParts.length ? hintParts.join(" · ") : "Selected class & date"}
-          </p>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
-          {STATS.map(({ key, label, tone }) => (
-            <span
-              key={key}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1"
-            >
-              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {label}
-              </span>
-              <Pill tone={tone}>{String(summary[key])}</Pill>
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-0.5 py-0.5 text-[11px]">
+      <span className="font-medium text-muted-foreground">
+        Summary{placeholder ? " (preview)" : ""}
+        {hint ? (
+          <span className="font-normal text-muted-foreground/80"> · {hint}</span>
+        ) : null}
+      </span>
+      <span className="text-border" aria-hidden>
+        |
+      </span>
+      {STATS.map(({ key, label, toneClass }, i) => (
+        <span key={key} className="inline-flex items-center gap-1">
+          {i > 0 ? (
+            <span className="mr-0.5 text-border" aria-hidden>
+              ·
             </span>
-          ))}
-        </div>
-      </div>
-    </Card>
+          ) : null}
+          <span className="text-muted-foreground">{label}</span>
+          <span className={`font-semibold tabular-nums ${toneClass}`}>
+            {summary[key]}
+          </span>
+        </span>
+      ))}
+    </div>
   );
 }

@@ -8,44 +8,84 @@ import {
 import { findStudentById, listGuardianStudentIds } from "../students/repository.js";
 import { isDriverForInstitute, isTransportWriter } from "./approval.js";
 import {
+  assertAuthenticatedDriverId,
+  assertBoardingTargetAllowed,
+  assertDriverCanAccessTripRow,
+  assertDriverCanAccessVehicle,
+  assertDriverCanStartTrip,
+  assertDriverOwnsTrip,
+  assertDriverOwnsVehicle,
+  isDriverOnlyActor,
+  isElevatedTransportReader,
+  resolveAuthenticatedDriver,
+} from "./access.js";
+import {
   findDriverById,
   findDriverByUserProfileId,
   findRouteById,
   findStopById,
+  findTransportSettings,
   findVehicleById,
-  listDrivers,
+  listDriverAnalyticsRows,
+  listEnrollmentAnalyticsRows,
   listEnrollments,
-  listRoutes,
+  listRouteAnalyticsRows,
+  listStopAnalyticsRows,
   listStopsForRoute,
-  listVehicles,
+  listVehicleAnalyticsRows,
 } from "./repository.js";
 import {
   finalizeBoardingForTrip,
   findActiveTripForStudent,
   findActiveTripForVehicle,
   findBoardingEvent,
+  findEmergencyByClientEventId,
   findEmergencyById,
   findLatestLocationForTrip,
   findOpenEmergencyForVehicle,
+  findOpsIdempotency,
+  findTripByClientEventId,
   findTripById,
+  findVehicleLocationByClientEventId,
   insertEmergency,
+  insertOpsIdempotency,
   insertTrip,
   insertVehicleLocation,
   listBoardingEventsForTrip,
+  listBoardingStatusesForTripIds,
   listEmergencies,
+  listEmergencyAnalyticsRows,
   listTrips,
   toTripPhasePatch,
   updateEmergencyFields,
   updateTripFields,
   upsertBoardingEvent,
+  appendTripTimeline,
+  findBoardingByClientEventId,
 } from "./ops-repository.js";
 import {
   notifyBoardingMarked,
   notifyDroppingMarked,
   notifyEmergencyOpened,
+  notifyEmergencyResolved,
   notifyTripEnded,
+  notifyTripPhaseChanged,
   notifyTripStarted,
 } from "./ops-notifications.js";
+import { validateGpsPingInput } from "./gps-validation.js";
+import { haversineMeters, etaMinutesFromDistance } from "./geo.js";
+import {
+  classifyGpsFreshness,
+  type GpsFreshness,
+} from "./gps-freshness.js";
+import { assertValidTripPhaseTransition, isPickupPhase } from "./trip-lifecycle.js";
+import {
+  buildDropStopSequence,
+  buildPickupStopSequence,
+} from "./trip-stop-plan.js";
+import { TRANSPORT_EVENT } from "./transport-events.js";
+import { isBusWithinStopRadius } from "./approach.js";
+import { getEffectiveTripParticipants } from "./effective-participants.js";
 import type {
   BoardingStatus,
   CreateEmergencyInput,
@@ -69,6 +109,31 @@ import {
   TRANSPORT_STAFF_READ_ROLES,
   TRANSPORT_WRITE_ROLES,
 } from "./service.js";
+
+function requireClientEventId(raw: string | null | undefined): string {
+  const id = typeof raw === "string" ? raw.trim() : "";
+  if (!id) {
+    throw AppError.validation("client_event_id is required");
+  }
+  if (id.length > 128) {
+    throw AppError.validation("client_event_id is too long");
+  }
+  return id;
+}
+
+function timelineEvent(input: {
+  kind: string;
+  label: string;
+  note?: string;
+  stopId?: string;
+  studentId?: string;
+}) {
+  return {
+    id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    at: new Date().toISOString(),
+    ...input,
+  };
+}
 
 function isStaffReader(actor: Actor, instituteId: string): boolean {
   if (actor.isPlatformOperator) return true;
@@ -128,16 +193,108 @@ async function enrichTrip(
   admin: SupabaseClient,
   row: TransportTripRow,
 ): Promise<TransportTripDto> {
-  const [route, vehicle, driver] = await Promise.all([
+  const [route, vehicle, driver, locationRow, stops] = await Promise.all([
     findRouteById(admin, row.route_id),
     findVehicleById(admin, row.vehicle_id),
     findDriverById(admin, row.driver_id),
+    findLatestLocationForTrip(admin, row.id),
+    listStopsForRoute(admin, row.route_id),
   ]);
-  return toTripDto(row, {
+
+  const base = toTripDto(row, {
     routeName: route?.name ?? null,
     vehicleNumber: vehicle?.vehicle_number ?? null,
     driverName: driver?.display_name ?? null,
   });
+
+  const latestLocation = locationRow ? toLocationDto(locationRow) : null;
+  const gpsFreshness: GpsFreshness = classifyGpsFreshness(
+    latestLocation?.capturedAt ?? null,
+  );
+
+  const ordered = stops
+    .slice()
+    .sort((a, b) => a.route_order - b.route_order);
+  const enrollments = await listEnrollments(admin, row.institute_id);
+  const routeEnrollments = enrollments.filter(
+    (e) => e.route_id === row.route_id && e.status === "active",
+  );
+  const stopRefs = ordered.map((s) => ({
+    id: s.id,
+    name: s.name,
+    route_order: s.route_order,
+    kind: s.kind ?? "waypoint",
+  }));
+  const pickupPlan = buildPickupStopSequence(stopRefs);
+  const dropPlan = buildDropStopSequence(
+    stopRefs,
+    routeEnrollments.map((e) => ({
+      student_id: e.student_id,
+      pickup_stop_id: e.pickup_stop_id,
+      drop_stop_id: e.drop_stop_id,
+    })),
+  );
+  const plan =
+    row.phase === "dropping" ? dropPlan : pickupPlan;
+
+  const currentStop =
+    (row.current_stop_id
+      ? plan.find((s) => s.id === row.current_stop_id) ??
+        ordered.find((s) => s.id === row.current_stop_id)
+      : null) ??
+    plan[row.current_stop_index] ??
+    ordered[row.current_stop_index] ??
+    null;
+  const currentIdx = currentStop
+    ? plan.findIndex((s) => s.id === currentStop.id)
+    : row.current_stop_index;
+  const nextStop =
+    currentIdx >= 0 && currentIdx + 1 < plan.length
+      ? plan[currentIdx + 1]
+      : null;
+
+  let distanceToNextStopM: number | null = null;
+  let etaToNextStopMinutes: number | null = null;
+  if (
+    latestLocation &&
+    nextStop &&
+    Number.isFinite(
+      ordered.find((s) => s.id === nextStop.id)?.latitude ?? NaN,
+    )
+  ) {
+    const nextFull = ordered.find((s) => s.id === nextStop.id)!;
+    distanceToNextStopM = Math.round(
+      haversineMeters(
+        {
+          latitude: latestLocation.latitude,
+          longitude: latestLocation.longitude,
+        },
+        { latitude: nextFull.latitude, longitude: nextFull.longitude },
+      ),
+    );
+    etaToNextStopMinutes = etaMinutesFromDistance(distanceToNextStopM, null);
+  }
+
+  return {
+    ...base,
+    latestLocation,
+    gpsFreshness,
+    currentStopName: currentStop?.name ?? null,
+    nextStopName: nextStop?.name ?? null,
+    distanceToNextStopM,
+    etaToNextStopMinutes,
+    isDelayed: (row.timeline ?? []).some((e) => e.kind === "TRIP_DELAYED"),
+    pickupStopPlan: pickupPlan.map((s) => ({
+      id: s.id,
+      name: s.name,
+      routeOrder: s.route_order,
+    })),
+    dropStopPlan: dropPlan.map((s) => ({
+      id: s.id,
+      name: s.name,
+      routeOrder: s.route_order,
+    })),
+  };
 }
 
 export function toTripDto(
@@ -165,6 +322,8 @@ export function toTripDto(
     routeName: extra?.routeName ?? null,
     vehicleNumber: extra?.vehicleNumber ?? null,
     driverName: extra?.driverName ?? null,
+    timeline: row.timeline ?? [],
+    schoolArrivedAt: row.school_arrived_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -232,6 +391,8 @@ export function toLocationDto(row: {
   longitude: number;
   accuracy_m: number | null;
   captured_at: string;
+  client_event_id?: string | null;
+  sequence_number?: number | null;
 }): VehicleLocationDto {
   return {
     id: row.id,
@@ -242,6 +403,8 @@ export function toLocationDto(row: {
     longitude: row.longitude,
     accuracyM: row.accuracy_m,
     capturedAt: row.captured_at,
+    clientEventId: row.client_event_id ?? null,
+    sequenceNumber: row.sequence_number ?? null,
   };
 }
 
@@ -297,7 +460,11 @@ export async function listTripsForActor(
 ): Promise<TransportTripDto[]> {
   const id = requireInstituteId(actor, instituteId);
   assertTransportStaffReader(actor, id);
-  const rows = await listTrips(admin, id, tripDate);
+  let rows = await listTrips(admin, id, tripDate);
+  if (isDriverOnlyActor(actor, id)) {
+    const driver = await resolveAuthenticatedDriver(admin, actor, id);
+    rows = rows.filter((row) => row.driver_id === driver.id);
+  }
   return Promise.all(rows.map((row) => enrichTrip(admin, row)));
 }
 
@@ -309,6 +476,7 @@ export async function getTripForActor(
   const trip = await getTripOrThrow(admin, tripId);
   assertInstituteAccess(actor, trip.institute_id);
   assertTransportStaffReader(actor, trip.institute_id);
+  await assertDriverCanAccessTripRow(admin, actor, trip);
   return enrichTrip(admin, trip);
 }
 
@@ -318,17 +486,19 @@ export async function getActiveTripForVehicleForActor(
   vehicleId: string,
 ): Promise<TransportTripDto | null> {
   const vehicle = await findVehicleById(admin, vehicleId);
-  if (!vehicle) throw AppError.notFound("Vehicle not found");
+  if (!vehicle || vehicle.deleted_at) throw AppError.notFound("Vehicle not found");
   assertInstituteAccess(actor, vehicle.institute_id);
-  if (isDriverForInstitute(actor, vehicle.institute_id)) {
-    const driver = await findDriverByUserProfileId(
+  if (isElevatedTransportReader(actor, vehicle.institute_id)) {
+    // staff OK
+  } else if (isDriverForInstitute(actor, vehicle.institute_id)) {
+    await assertDriverCanAccessVehicle(
       admin,
-      actor.userId,
+      actor,
       vehicle.institute_id,
+      vehicleId,
     );
-    if (!driver) throw AppError.forbidden("Insufficient permissions");
   } else {
-    assertTransportStaffReader(actor, vehicle.institute_id);
+    throw AppError.forbidden("Insufficient permissions");
   }
   const trip = await findActiveTripForVehicle(admin, vehicleId);
   if (!trip) return null;
@@ -341,22 +511,44 @@ export async function startTripForActor(
   input: StartTripInput,
 ): Promise<TransportTripDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  await assertDriverForTrip(admin, actor, instituteId, input.driverId);
+  const { route } = await assertDriverCanStartTrip(admin, actor, {
+    instituteId,
+    driverId: input.driverId,
+    routeId: input.routeId,
+    vehicleId: input.vehicleId,
+  });
 
-  const route = await findRouteById(admin, input.routeId);
-  if (!route || route.institute_id !== instituteId) {
-    throw AppError.notFound("Route not found");
+  if (input.clientEventId?.trim()) {
+    const existingByEvent = await findTripByClientEventId(
+      admin,
+      instituteId,
+      input.clientEventId.trim(),
+    );
+    if (existingByEvent) {
+      return enrichTrip(admin, existingByEvent);
+    }
   }
-  if (route.approval_status !== "approved") {
-    throw AppError.conflict("Route is not approved");
+
+  // Pending driver submissions are operationally usable (Master Product Contract §3).
+  // Only rejected routes stay blocked.
+  if (route.approval_status === "rejected") {
+    throw AppError.conflict("Route was rejected and cannot start a trip");
   }
 
   const existing = await findActiveTripForVehicle(admin, input.vehicleId);
   if (existing) {
+    // Server wins: active trip already exists — return it for offline reconciliation.
+    if (input.clientEventId?.trim()) {
+      return enrichTrip(admin, existing);
+    }
     throw AppError.conflict("Vehicle already has an active trip");
   }
 
-  const trip = await insertTrip(admin, { ...input, instituteId });
+  const trip = await insertTrip(admin, {
+    ...input,
+    instituteId,
+    clientEventId: input.clientEventId?.trim() || null,
+  });
   await notifyTripStarted(admin, trip, actor.userId);
   return enrichTrip(admin, trip);
 }
@@ -373,12 +565,64 @@ export async function updateTripPhaseForActor(
     throw AppError.conflict("Trip is already completed");
   }
 
+  if (input.clientEventId?.trim()) {
+    const prior = await findOpsIdempotency(
+      admin,
+      trip.institute_id,
+      input.clientEventId.trim(),
+    );
+    if (prior) {
+      return enrichTrip(admin, trip);
+    }
+  }
+
+  assertValidTripPhaseTransition(trip.phase, input.phase);
+
+  if (
+    input.phase === "dropping" &&
+    trip.slot === "morning" &&
+    !trip.school_arrived_at
+  ) {
+    throw AppError.conflict(
+      "Cannot start drop phase before school arrival (SCHOOL_ARRIVED)",
+    );
+  }
+
+  const now = new Date().toISOString();
   const updated = await updateTripFields(
     admin,
     tripId,
-    toTripPhasePatch(input),
+    {
+      ...toTripPhasePatch(input),
+      ...(input.phase !== trip.phase
+        ? {
+            timeline: [
+              ...(trip.timeline ?? []),
+              {
+                id: `evt-${Date.now()}`,
+                at: now,
+                kind: TRANSPORT_EVENT.TRIP_PHASE_CHANGED,
+                label: `Phase → ${input.phase}`,
+                note: `From ${trip.phase}`,
+              },
+            ],
+          }
+        : {}),
+    },
   );
   if (!updated) throw AppError.notFound("Trip not found");
+  if (input.clientEventId?.trim()) {
+    await insertOpsIdempotency(admin, {
+      instituteId: trip.institute_id,
+      clientEventId: input.clientEventId.trim(),
+      eventType: "trip_phase",
+      tripId,
+      resultRef: updated.phase,
+    });
+  }
+  if (updated.phase !== trip.phase) {
+    await notifyTripPhaseChanged(admin, updated, actor.userId, trip.phase);
+  }
   return enrichTrip(admin, updated);
 }
 
@@ -386,22 +630,149 @@ export async function endTripForActor(
   admin: SupabaseClient,
   actor: Actor,
   tripId: string,
+  clientEventId?: string | null,
 ): Promise<TransportTripDto> {
   const trip = await getTripOrThrow(admin, tripId);
   await assertDriverForTrip(admin, actor, trip.institute_id, trip.driver_id);
+
+  if (clientEventId?.trim()) {
+    const prior = await findOpsIdempotency(
+      admin,
+      trip.institute_id,
+      clientEventId.trim(),
+    );
+    if (prior) {
+      return enrichTrip(admin, trip);
+    }
+  }
+
   if (trip.finalized || trip.phase === "completed") {
+    // Server wins: already completed — return current state for offline reconciliation.
+    if (clientEventId?.trim()) {
+      await insertOpsIdempotency(admin, {
+        instituteId: trip.institute_id,
+        clientEventId: clientEventId.trim(),
+        eventType: "trip_end",
+        tripId,
+        resultRef: "completed",
+      });
+      return enrichTrip(admin, trip);
+    }
     throw AppError.conflict("Trip is already completed");
   }
 
+  assertValidTripPhaseTransition(trip.phase, "completed");
+
   await finalizeBoardingForTrip(admin, tripId);
+  const now = new Date().toISOString();
   const updated = await updateTripFields(admin, tripId, {
     phase: "completed",
-    completed_at: new Date().toISOString(),
+    completed_at: now,
     finalized: true,
+    timeline: [
+      ...(trip.timeline ?? []),
+      {
+        id: `evt-${Date.now()}`,
+        at: now,
+        kind: TRANSPORT_EVENT.TRIP_COMPLETED,
+        label: "Trip completed",
+      },
+    ],
   });
   if (!updated) throw AppError.notFound("Trip not found");
+  if (clientEventId?.trim()) {
+    await insertOpsIdempotency(admin, {
+      instituteId: trip.institute_id,
+      clientEventId: clientEventId.trim(),
+      eventType: "trip_end",
+      tripId,
+      resultRef: "completed",
+    });
+  }
   await notifyTripEnded(admin, updated, actor.userId);
   return enrichTrip(admin, updated);
+}
+
+async function maybeCompleteTripAfterAllDropped(
+  admin: SupabaseClient,
+  actor: Actor,
+  trip: TransportTripRow,
+): Promise<TransportTripDto | null> {
+  if (trip.phase !== "dropping" || trip.finalized) return null;
+
+  const participants = await getEffectiveTripParticipants(admin, trip.id);
+  const events = await listBoardingEventsForTrip(admin, trip.id);
+  const byStudent = new Map(events.map((e) => [e.student_id, e]));
+
+  const boarded = participants.expectedOnboard.filter((p) => {
+    const ev = byStudent.get(p.studentId);
+    return ev?.boarding_status === "boarded";
+  });
+  if (boarded.length === 0) return null;
+
+  const allResolved = boarded.every((p) => {
+    const ev = byStudent.get(p.studentId);
+    return (
+      ev?.dropping_status === "dropped" || ev?.dropping_status === "not_dropped"
+    );
+  });
+  if (!allResolved) return null;
+
+  return endTripForActor(admin, actor, trip.id);
+}
+
+async function maybeMarkSchoolArrivedOnPing(
+  admin: SupabaseClient,
+  trip: TransportTripRow,
+  location: { latitude: number; longitude: number },
+): Promise<void> {
+  if (trip.school_arrived_at) return;
+  if (!isPickupPhase(trip.phase)) return;
+
+  const stops = await listStopsForRoute(admin, trip.route_id);
+  const schoolStop = stops.find((s) => (s.kind ?? "waypoint") === "school");
+  const settings = await findTransportSettings(admin, trip.institute_id);
+
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+  let radiusM: number = 150;
+
+  if (
+    schoolStop &&
+    Number.isFinite(schoolStop.latitude) &&
+    Number.isFinite(schoolStop.longitude)
+  ) {
+    latitude = schoolStop.latitude;
+    longitude = schoolStop.longitude;
+    radiusM = Number(schoolStop.notification_radius_m) || 150;
+  } else if (
+    settings?.school_latitude != null &&
+    settings?.school_longitude != null
+  ) {
+    latitude = settings.school_latitude;
+    longitude = settings.school_longitude;
+    radiusM = settings.school_notification_radius_m ?? 150;
+  }
+
+  if (latitude == null || longitude == null) return;
+
+  const distanceM = haversineMeters(location, { latitude, longitude });
+  if (!isBusWithinStopRadius(distanceM, radiusM)) return;
+
+  const now = new Date().toISOString();
+  await appendTripTimeline(
+    admin,
+    trip.id,
+    {
+      id: `evt-school-${Date.now()}`,
+      at: now,
+      kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
+      label: "Arrived at school",
+      note: "Pickup phase complete — students not auto-boarded",
+      stopId: schoolStop?.id,
+    },
+    { school_arrived_at: now },
+  );
 }
 
 export async function listBoardingForTripForActor(
@@ -412,6 +783,7 @@ export async function listBoardingForTripForActor(
   const trip = await getTripOrThrow(admin, tripId);
   assertInstituteAccess(actor, trip.institute_id);
   assertTransportStaffReader(actor, trip.institute_id);
+  await assertDriverCanAccessTripRow(admin, actor, trip);
   const rows = await listBoardingEventsForTrip(admin, tripId);
   return Promise.all(rows.map((row) => enrichBoarding(admin, row)));
 }
@@ -428,6 +800,29 @@ export async function upsertBoardingForActor(
     throw AppError.conflict("Trip is already completed");
   }
 
+  await assertBoardingTargetAllowed(admin, trip, {
+    studentId: input.studentId,
+    stopId: input.stopId,
+    kind: "boarding",
+  });
+
+  const clientEventId = requireClientEventId(input.clientEventId);
+  const existingByEvent = await findBoardingByClientEventId(
+    admin,
+    trip.institute_id,
+    clientEventId,
+    "boarding",
+  );
+  if (existingByEvent) {
+    if (
+      existingByEvent.trip_id !== tripId ||
+      existingByEvent.student_id !== input.studentId
+    ) {
+      throw AppError.conflict("client_event_id already used");
+    }
+    return enrichBoarding(admin, existingByEvent);
+  }
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -435,6 +830,7 @@ export async function upsertBoardingForActor(
     studentId: input.studentId,
     stopId: input.stopId,
     boardingStatus: input.boardingStatus,
+    boardingClientEventId: clientEventId,
     boardedAt:
       input.boardingStatus === "boarded"
         ? now
@@ -442,6 +838,18 @@ export async function upsertBoardingForActor(
           ? null
           : undefined,
   });
+
+  await appendTripTimeline(admin, tripId, timelineEvent({
+    kind:
+      input.boardingStatus === "boarded"
+        ? TRANSPORT_EVENT.STUDENT_BOARDED
+        : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
+    label:
+      input.boardingStatus === "boarded" ? "Student boarded" : "Student not boarded",
+    stopId: input.stopId,
+    studentId: input.studentId,
+  }));
+
   await notifyBoardingMarked(admin, {
     trip,
     studentId: input.studentId,
@@ -463,6 +871,29 @@ export async function upsertDroppingForActor(
     throw AppError.conflict("Trip is already completed");
   }
 
+  await assertBoardingTargetAllowed(admin, trip, {
+    studentId: input.studentId,
+    stopId: input.stopId,
+    kind: "dropping",
+  });
+
+  const clientEventId = requireClientEventId(input.clientEventId);
+  const existingByEvent = await findBoardingByClientEventId(
+    admin,
+    trip.institute_id,
+    clientEventId,
+    "dropping",
+  );
+  if (existingByEvent) {
+    if (
+      existingByEvent.trip_id !== tripId ||
+      existingByEvent.student_id !== input.studentId
+    ) {
+      throw AppError.conflict("client_event_id already used");
+    }
+    return enrichBoarding(admin, existingByEvent);
+  }
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -470,6 +901,7 @@ export async function upsertDroppingForActor(
     studentId: input.studentId,
     stopId: input.stopId,
     droppingStatus: input.droppingStatus,
+    droppingClientEventId: clientEventId,
     droppedAt:
       input.droppingStatus === "dropped"
         ? now
@@ -477,12 +909,31 @@ export async function upsertDroppingForActor(
           ? null
           : undefined,
   });
+
+  await appendTripTimeline(admin, tripId, timelineEvent({
+    kind: TRANSPORT_EVENT.STUDENT_DROPPED,
+    label:
+      input.droppingStatus === "dropped"
+        ? "Student dropped"
+        : "Student not dropped",
+    stopId: input.stopId,
+    studentId: input.studentId,
+  }));
+
   await notifyDroppingMarked(admin, {
     trip,
     studentId: input.studentId,
+    stopId: input.stopId,
     droppingStatus: input.droppingStatus,
     createdByUserId: actor.userId,
   });
+
+  // Parent notification only after backend confirmation (notifyDroppingMarked above).
+  const refreshed = await findTripById(admin, tripId);
+  if (refreshed) {
+    await maybeCompleteTripAfterAllDropped(admin, actor, refreshed);
+  }
+
   return enrichBoarding(admin, row);
 }
 
@@ -515,20 +966,69 @@ export async function createEmergencyForActor(
   input: CreateEmergencyInput,
 ): Promise<TransportEmergencyDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  await assertDriverForTrip(admin, actor, instituteId, input.driverId);
+  const driver = await assertAuthenticatedDriverId(
+    admin,
+    actor,
+    instituteId,
+    input.driverId,
+  );
+
+  if (driver) {
+    assertDriverOwnsVehicle(driver, input.vehicleId);
+    if (!driver.assigned_vehicle_id) {
+      throw AppError.forbidden("Driver has no assigned vehicle");
+    }
+    if (input.tripId) {
+      const trip = await getTripOrThrow(admin, input.tripId);
+      if (trip.institute_id !== instituteId) {
+        throw AppError.notFound("Trip not found");
+      }
+      assertDriverOwnsTrip(driver, trip);
+      if (trip.vehicle_id !== input.vehicleId) {
+        throw AppError.forbidden("Vehicle does not match the trip");
+      }
+    }
+  } else if (isTransportWriter(actor, instituteId)) {
+    const vehicle = await findVehicleById(admin, input.vehicleId);
+    if (!vehicle || vehicle.institute_id !== instituteId || vehicle.deleted_at) {
+      throw AppError.notFound("Vehicle not found");
+    }
+  } else {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  if (input.clientEventId?.trim()) {
+    const existingByEvent = await findEmergencyByClientEventId(
+      admin,
+      instituteId,
+      input.clientEventId.trim(),
+    );
+    if (existingByEvent) {
+      return enrichEmergency(admin, existingByEvent);
+    }
+  }
 
   const open = await findOpenEmergencyForVehicle(admin, input.vehicleId);
   if (open) {
+    // Server wins: open SOS already exists — return it for offline reconciliation.
+    if (input.clientEventId?.trim()) {
+      return enrichEmergency(admin, open);
+    }
     throw AppError.conflict("An emergency is already open for this vehicle");
   }
 
-  const row = await insertEmergency(admin, { ...input, instituteId });
+  const row = await insertEmergency(admin, {
+    ...input,
+    instituteId,
+    clientEventId: input.clientEventId?.trim() || null,
+  });
   await notifyEmergencyOpened(admin, {
     instituteId,
     emergencyId: row.id,
     vehicleId: input.vehicleId,
     note: input.note ?? null,
     createdByUserId: actor.userId,
+    tripId: input.tripId ?? null,
   });
   return enrichEmergency(admin, row);
 }
@@ -591,6 +1091,13 @@ export async function resolveEmergencyForActor(
     timeline,
   });
   if (!updated) throw AppError.notFound("Emergency not found");
+  await notifyEmergencyResolved(admin, {
+    instituteId: updated.institute_id,
+    emergencyId: updated.id,
+    vehicleId: updated.vehicle_id,
+    createdByUserId: actor.userId,
+    tripId: updated.trip_id,
+  });
   return enrichEmergency(admin, updated);
 }
 
@@ -603,6 +1110,9 @@ export async function pingLocationForActor(
     longitude: number;
     accuracyM?: number | null;
     speedKmh?: number | null;
+    capturedAt?: string | null;
+    clientEventId?: string | null;
+    sequenceNumber?: number | null;
   },
 ): Promise<VehicleLocationDto> {
   const trip = await getTripOrThrow(admin, input.tripId);
@@ -611,28 +1121,82 @@ export async function pingLocationForActor(
     throw AppError.conflict("Trip is already completed");
   }
 
-  const row = await insertVehicleLocation(admin, {
-    instituteId: trip.institute_id,
-    tripId: input.tripId,
-    vehicleId: trip.vehicle_id,
+  const validated = validateGpsPingInput({
     latitude: input.latitude,
     longitude: input.longitude,
-    accuracyM: input.accuracyM ?? null,
+    accuracyM: input.accuracyM,
+    capturedAt: input.capturedAt,
+    clientEventId: input.clientEventId,
+    sequenceNumber: input.sequenceNumber,
   });
 
+  if (validated.clientEventId) {
+    const existing = await findVehicleLocationByClientEventId(
+      admin,
+      trip.institute_id,
+      validated.clientEventId,
+    );
+    if (existing) {
+      if (existing.trip_id !== trip.id) {
+        throw AppError.conflict("client_event_id already used on another trip");
+      }
+      return toLocationDto(existing);
+    }
+  }
+
+  const previous = await findLatestLocationForTrip(admin, trip.id);
+  const { shouldPersistGpsSample } = await import("./gps-persist.js");
+  const persist = shouldPersistGpsSample({
+    previous: previous
+      ? {
+          latitude: previous.latitude,
+          longitude: previous.longitude,
+          capturedAt: previous.captured_at,
+        }
+      : null,
+    next: {
+      latitude: validated.latitude,
+      longitude: validated.longitude,
+      capturedAt: validated.capturedAt,
+    },
+  });
+
+  let row = previous;
+  if (persist.shouldPersist || !previous) {
+    row = await insertVehicleLocation(admin, {
+      instituteId: trip.institute_id,
+      tripId: input.tripId,
+      vehicleId: trip.vehicle_id,
+      driverId: trip.driver_id,
+      latitude: validated.latitude,
+      longitude: validated.longitude,
+      accuracyM: validated.accuracyM,
+      capturedAt: validated.capturedAt,
+      clientEventId: validated.clientEventId,
+      sequenceNumber: validated.sequenceNumber,
+    });
+  }
+
+  // Approach bands enqueue async; rare arrival emit is awaited inside.
+  // Keep await so timeline/school side-effects settle before the response returns.
   const { evaluateApproachAlertsOnPing } = await import("./approach.js");
   await evaluateApproachAlertsOnPing(
     admin,
     trip,
     {
-      latitude: input.latitude,
-      longitude: input.longitude,
+      latitude: validated.latitude,
+      longitude: validated.longitude,
       speedKmh: input.speedKmh ?? null,
     },
     actor.userId,
   );
 
-  return toLocationDto(row);
+  await maybeMarkSchoolArrivedOnPing(admin, trip, {
+    latitude: validated.latitude,
+    longitude: validated.longitude,
+  });
+
+  return toLocationDto(row!);
 }
 
 export async function getLearnerTransportLiveForActor(
@@ -691,7 +1255,104 @@ export async function getLearnerTransportLiveForActor(
     }
   }
 
-  return { activeTrip, boarding, openEmergency, latestLocation, approach };
+  const serviceDate =
+    tripRow?.trip_date ?? new Date().toISOString().slice(0, 10);
+  const { listNotRidingStudentIds } = await import(
+    "./daily-exception-repository.js"
+  );
+  const notRidingSet = await listNotRidingStudentIds(
+    admin,
+    instituteId,
+    serviceDate,
+    [input.studentId],
+  );
+  const settings = await findTransportSettings(admin, instituteId);
+  const expectedPickupTime = settings?.default_pickup_time
+    ? String(settings.default_pickup_time).slice(0, 5)
+    : null;
+
+  return {
+    activeTrip,
+    boarding,
+    openEmergency,
+    latestLocation,
+    approach,
+    gpsFreshness: classifyGpsFreshness(latestLocation?.capturedAt ?? null),
+    notRidingToday: notRidingSet.has(input.studentId),
+    expectedPickupTime,
+  };
+}
+
+export async function listLearnerTransportHistoryForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: { instituteId: string; studentId: string; limit?: number },
+): Promise<
+  import("./ops-types.js").LearnerTransportHistoryDayDto[]
+> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertInstituteAccess(actor, instituteId);
+
+  const linked = await resolveLinkedStudentIds(admin, actor, instituteId);
+  const isStaff = isStaffReader(actor, instituteId);
+  if (!isStaff && !linked.has(input.studentId)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const enrollments = await listEnrollments(admin, instituteId, [
+    input.studentId,
+  ]);
+  const enrollment =
+    enrollments.find((e) => e.status === "active") ?? enrollments[0] ?? null;
+  if (!enrollment) return [];
+
+  const limit = Math.min(Math.max(input.limit ?? 14, 1), 60);
+  // Bound scan: route-scoped + extra headroom for not-riding-only days.
+  const trips = await listTrips(admin, instituteId, undefined, {
+    routeId: enrollment.route_id,
+    limit: Math.min(limit * 3, 120),
+  });
+
+  const { listActiveDailyExceptionsForStudents } = await import(
+    "./daily-exception-repository.js"
+  );
+  const route = await findRouteById(admin, enrollment.route_id);
+  const pickup = enrollment.pickup_stop_id
+    ? await findStopById(admin, enrollment.pickup_stop_id)
+    : null;
+  const drop = enrollment.drop_stop_id
+    ? await findStopById(admin, enrollment.drop_stop_id)
+    : null;
+
+  const out: import("./ops-types.js").LearnerTransportHistoryDayDto[] = [];
+  for (const trip of trips) {
+    const boardingRow = await findBoardingEvent(admin, trip.id, input.studentId);
+    const exceptions = await listActiveDailyExceptionsForStudents(
+      admin,
+      instituteId,
+      trip.trip_date,
+      [input.studentId],
+      "NOT_RIDING",
+    );
+    // Privacy: only surface days where this student participated or was
+    // explicitly not-riding — never other students' trip activity alone.
+    if (!boardingRow && exceptions.length === 0) continue;
+    out.push({
+      tripDate: trip.trip_date,
+      tripId: trip.id,
+      routeName: route?.name ?? null,
+      phase: trip.phase,
+      boardingStatus: boardingRow?.boarding_status ?? null,
+      droppingStatus: boardingRow?.dropping_status ?? null,
+      boardedAt: boardingRow?.boarded_at ?? null,
+      droppedAt: boardingRow?.dropped_at ?? null,
+      notRiding: exceptions.length > 0,
+      pickupStopName: pickup?.name ?? null,
+      dropStopName: drop?.name ?? null,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 export async function getOpenEmergencyForVehicleForActor(
@@ -700,17 +1361,19 @@ export async function getOpenEmergencyForVehicleForActor(
   vehicleId: string,
 ): Promise<TransportEmergencyDto | null> {
   const vehicle = await findVehicleById(admin, vehicleId);
-  if (!vehicle) throw AppError.notFound("Vehicle not found");
+  if (!vehicle || vehicle.deleted_at) throw AppError.notFound("Vehicle not found");
   assertInstituteAccess(actor, vehicle.institute_id);
-  if (isDriverForInstitute(actor, vehicle.institute_id)) {
-    const driver = await findDriverByUserProfileId(
+  if (isElevatedTransportReader(actor, vehicle.institute_id)) {
+    // staff OK
+  } else if (isDriverForInstitute(actor, vehicle.institute_id)) {
+    await assertDriverCanAccessVehicle(
       admin,
-      actor.userId,
+      actor,
       vehicle.institute_id,
+      vehicleId,
     );
-    if (!driver) throw AppError.forbidden("Insufficient permissions");
   } else {
-    assertTransportStaffReader(actor, vehicle.institute_id);
+    throw AppError.forbidden("Insufficient permissions");
   }
   const row = await findOpenEmergencyForVehicle(admin, vehicleId);
   if (!row) return null;
@@ -724,13 +1387,14 @@ export async function listBoardingMarksForInstituteForActor(
   tripDate?: string,
 ): Promise<TransportBoardingEventDto[]> {
   const id = requireInstituteId(actor, instituteId);
-  assertTransportStaffReader(actor, id);
-  const trips = await listTrips(admin, id, tripDate);
-  const all: TransportBoardingEventRow[] = [];
-  for (const trip of trips) {
-    const marks = await listBoardingEventsForTrip(admin, trip.id);
-    all.push(...marks);
+  if (!isElevatedTransportReader(actor, id)) {
+    throw AppError.forbidden("Insufficient permissions");
   }
+  const trips = await listTrips(admin, id, tripDate);
+  const boardingLists = await Promise.all(
+    trips.map((trip) => listBoardingEventsForTrip(admin, trip.id)),
+  );
+  const all = boardingLists.flat();
   return Promise.all(all.map((row) => enrichBoarding(admin, row)));
 }
 
@@ -741,39 +1405,59 @@ export async function getTransportAnalyticsForActor(
   tripDate?: string,
 ): Promise<TransportAnalyticsDto> {
   const id = requireInstituteId(actor, instituteId);
-  assertTransportStaffReader(actor, id);
+  if (!isElevatedTransportReader(actor, id)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
   const date = tripDate?.trim() || new Date().toISOString().slice(0, 10);
 
-  const [vehicles, drivers, routes, enrollments, trips, emergencies] =
+  const [vehicles, drivers, routes, enrollments, trips, emergencies, stops] =
     await Promise.all([
-      listVehicles(admin, id),
-      listDrivers(admin, id),
-      listRoutes(admin, id),
-      listEnrollments(admin, id),
+      listVehicleAnalyticsRows(admin, id),
+      listDriverAnalyticsRows(admin, id),
+      listRouteAnalyticsRows(admin, id),
+      listEnrollmentAnalyticsRows(admin, id),
       listTrips(admin, id, date),
-      listEmergencies(admin, id),
+      listEmergencyAnalyticsRows(admin, id),
+      listStopAnalyticsRows(admin, id),
     ]);
 
-  let totalStops = 0;
-  let approvedStops = 0;
-  for (const route of routes) {
-    const stops = await listStopsForRoute(admin, route.id);
-    totalStops += stops.length;
-    approvedStops += stops.filter((s) => s.approval_status === "approved").length;
-  }
+  const totalStops = stops.length;
+  const approvedStops = stops.filter((s) => s.approval_status === "approved")
+    .length;
 
-  const boardingRows: TransportBoardingEventRow[] = [];
-  for (const trip of trips) {
-    const marks = await listBoardingEventsForTrip(admin, trip.id);
-    boardingRows.push(...marks);
-  }
+  const boardingRows = await listBoardingStatusesForTripIds(
+    admin,
+    trips.map((t) => t.id),
+  );
 
-  const activeTrips = trips.filter(
+  const activeTripRows = trips.filter(
     (t) => !t.finalized && t.phase !== "completed",
-  ).length;
+  );
+  const activeTrips = activeTripRows.length;
   const completedTripsToday = trips.filter(
     (t) => t.finalized || t.phase === "completed",
   ).length;
+
+  const activeBuses = new Set(activeTripRows.map((t) => t.vehicle_id)).size;
+  const activeDrivers = new Set(activeTripRows.map((t) => t.driver_id)).size;
+  const delayedTrips = activeTripRows.filter((t) =>
+    (t.timeline ?? []).some((e) => e.kind === "TRIP_DELAYED"),
+  ).length;
+
+  const locations = await Promise.all(
+    activeTripRows.map((trip) => findLatestLocationForTrip(admin, trip.id)),
+  );
+  let busesWithStaleGps = 0;
+  for (const locationRow of locations) {
+    const freshness = classifyGpsFreshness(
+      locationRow ? toLocationDto(locationRow).capturedAt : null,
+    );
+    if (freshness === "stale" || freshness === "offline") {
+      busesWithStaleGps += 1;
+    }
+  }
+
+  const activeEnrollments = enrollments.filter((e) => e.status === "active").length;
 
   return {
     instituteId: id,
@@ -788,7 +1472,7 @@ export async function getTransportAnalyticsForActor(
     totalStops,
     approvedStops,
     totalEnrollments: enrollments.length,
-    activeEnrollments: enrollments.filter((e) => e.status === "active").length,
+    activeEnrollments,
     approvedEnrollments: enrollments.filter(
       (e) => e.approval_status === "approved",
     ).length,
@@ -800,5 +1484,10 @@ export async function getTransportAnalyticsForActor(
     openEmergencies: emergencies.filter(
       (e) => e.status === "active" || e.status === "acknowledged",
     ).length,
+    activeBuses,
+    activeDrivers,
+    studentsUsingTransport: activeEnrollments,
+    delayedTrips,
+    busesWithStaleGps,
   };
 }

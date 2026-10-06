@@ -2,12 +2,15 @@
  * Attendance report CSV builders shared by catalog attendance-* ids.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  listMarksForInstitute,
-  listRegisters,
-} from "../attendance/repository.js";
+import { fetchAllPagedRows } from "../../db/fetch-all-pages.js";
 import type { AttendanceMarkRow, AttendanceRegisterRow } from "../attendance/types.js";
-import type { GeneratedReportFile } from "./types.js";
+import type { GeneratedReportFile, ReportDateRange } from "./types.js";
+
+const REGISTER_COLS =
+  "id, institute_id, academic_year_id, class_id, section_id, config_version_id, method, owner, attendance_date, slot_kind, slot_code, period_index, timetable_slot_id, slot_label, subject_label, starts_at, ends_at, status, marked_by_teacher_id, submitted_at, created_at, updated_at, deleted_at";
+
+const MARK_COLS =
+  "id, institute_id, register_id, student_id, enrollment_id, status, created_at, updated_at, deleted_at";
 
 function esc(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -26,8 +29,11 @@ function toCsv(
   return `${lines.join("\n")}\n`;
 }
 
-function stamp(reportId: string): string {
+function stamp(reportId: string, range?: ReportDateRange): string {
   const d = new Date().toISOString().slice(0, 10);
+  if (range?.fromDate || range?.toDate) {
+    return `${reportId}-${range.fromDate ?? "start"}_${range.toDate ?? "end"}.csv`;
+  }
   return `${reportId}-${d}.csv`;
 }
 
@@ -39,22 +45,67 @@ function weekStart(isoDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Prefer newest register's class_id per section (avoids stale class after section moves). */
+function buildSectionClassMap(
+  registers: AttendanceRegisterRow[],
+): Map<string, string> {
+  const sorted = [...registers].sort((a, b) =>
+    b.attendance_date.localeCompare(a.attendance_date),
+  );
+  const map = new Map<string, string>();
+  for (const reg of sorted) {
+    if (reg.section_id && reg.class_id && !map.has(reg.section_id)) {
+      map.set(reg.section_id, reg.class_id);
+    }
+  }
+  return map;
+}
+
 type AttendanceContext = {
   registers: AttendanceRegisterRow[];
   registerById: Map<string, AttendanceRegisterRow>;
   marks: AttendanceMarkRow[];
+  sectionClassMap: Map<string, string>;
 };
 
 async function loadAttendanceContext(
   admin: SupabaseClient,
   instituteId: string,
+  range?: ReportDateRange,
 ): Promise<AttendanceContext> {
-  const registers = await listRegisters(admin, { instituteId });
+  const registersPage = await fetchAllPagedRows<AttendanceRegisterRow>((from, to) => {
+    let query = admin
+      .from("attendance_register")
+      .select(REGISTER_COLS)
+      .eq("institute_id", instituteId)
+      .is("deleted_at", null)
+      .order("attendance_date", { ascending: true })
+      .order("id", { ascending: true });
+    if (range?.fromDate) query = query.gte("attendance_date", range.fromDate);
+    if (range?.toDate) query = query.lte("attendance_date", range.toDate);
+    return query.range(from, to);
+  });
+  const registers = registersPage.rows;
   const registerById = new Map(registers.map((row) => [row.id, row]));
-  const marks = (await listMarksForInstitute(admin, instituteId)).filter(
-    (row) => row.institute_id === instituteId,
+  const registerIds = new Set(registers.map((row) => row.id));
+
+  const marksPage = await fetchAllPagedRows<AttendanceMarkRow>((from, to) =>
+    admin
+      .from("attendance_mark")
+      .select(MARK_COLS)
+      .eq("institute_id", instituteId)
+      .is("deleted_at", null)
+      .order("id", { ascending: true })
+      .range(from, to),
   );
-  return { registers, registerById, marks };
+  const marks = marksPage.rows.filter((row) => registerIds.has(row.register_id));
+
+  return {
+    registers,
+    registerById,
+    marks,
+    sectionClassMap: buildSectionClassMap(registers),
+  };
 }
 
 function countStatuses(marks: AttendanceMarkRow[]) {
@@ -75,13 +126,16 @@ export async function generateAttendanceReportCsv(
   admin: SupabaseClient,
   instituteId: string,
   reportId: string,
+  range?: ReportDateRange,
 ): Promise<GeneratedReportFile> {
-  const ctx = await loadAttendanceContext(admin, instituteId);
+  const ctx = await loadAttendanceContext(admin, instituteId, range);
+  const classForSection = (sectionId: string | undefined, fallback?: string | null) =>
+    (sectionId ? ctx.sectionClassMap.get(sectionId) : undefined) ?? fallback ?? "";
 
   switch (reportId) {
     case "attendance":
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -131,7 +185,7 @@ export async function generateAttendanceReportCsv(
           const counts = countStatuses(marks);
           return [
             date,
-            reg?.class_id ?? "",
+            classForSection(sectionId, reg?.class_id),
             sectionId,
             String(counts.present),
             String(counts.absent),
@@ -141,7 +195,7 @@ export async function generateAttendanceReportCsv(
           ];
         });
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -172,11 +226,10 @@ export async function generateAttendanceReportCsv(
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, marks]) => {
           const [weekOf, sectionId] = key.split("|");
-          const reg = ctx.registers.find((row) => row.section_id === sectionId);
           const counts = countStatuses(marks);
           return [
             weekOf,
-            reg?.class_id ?? "",
+            classForSection(sectionId),
             sectionId,
             String(counts.present),
             String(counts.absent),
@@ -186,7 +239,7 @@ export async function generateAttendanceReportCsv(
           ];
         });
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -205,7 +258,7 @@ export async function generateAttendanceReportCsv(
     }
     case "attendance-student":
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -222,7 +275,7 @@ export async function generateAttendanceReportCsv(
               return [
                 mark.student_id,
                 reg?.attendance_date,
-                reg?.class_id,
+                classForSection(reg?.section_id, reg?.class_id),
                 reg?.section_id,
                 reg?.slot_label,
                 mark.status,
@@ -237,7 +290,7 @@ export async function generateAttendanceReportCsv(
       };
     case "attendance-teacher":
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -253,7 +306,7 @@ export async function generateAttendanceReportCsv(
             .map((reg) => [
               reg.marked_by_teacher_id,
               reg.attendance_date,
-              reg.class_id,
+              classForSection(reg.section_id, reg.class_id),
               reg.section_id,
               reg.slot_label,
               reg.status,
@@ -271,7 +324,8 @@ export async function generateAttendanceReportCsv(
       for (const mark of ctx.marks) {
         const reg = ctx.registerById.get(mark.register_id);
         if (!reg) continue;
-        const key = `${reg.attendance_date}|${reg.class_id}`;
+        const classId = classForSection(reg.section_id, reg.class_id);
+        const key = `${reg.attendance_date}|${classId}`;
         const list = buckets.get(key) ?? [];
         list.push(mark);
         buckets.set(key, list);
@@ -292,7 +346,7 @@ export async function generateAttendanceReportCsv(
           ];
         });
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -310,7 +364,7 @@ export async function generateAttendanceReportCsv(
     }
     case "attendance-section":
       return {
-        fileName: stamp(reportId),
+        fileName: stamp(reportId, range),
         contentType: "text/csv; charset=utf-8",
         contentText: toCsv(
           [
@@ -337,11 +391,10 @@ export async function generateAttendanceReportCsv(
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([key, marks]) => {
                 const [sectionId, date] = key.split("|");
-                const reg = ctx.registers.find((row) => row.section_id === sectionId);
                 const counts = countStatuses(marks);
                 return [
                   sectionId,
-                  reg?.class_id ?? "",
+                  classForSection(sectionId),
                   date,
                   String(counts.present),
                   String(counts.absent),

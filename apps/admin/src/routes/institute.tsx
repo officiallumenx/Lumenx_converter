@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import {
@@ -28,8 +28,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useState, useCallback, useEffect, useRef, type ReactNode, type ChangeEvent } from "react";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { InstituteApiProfilePage } from "@/components/institute/InstituteApiProfilePage";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/institute")({
@@ -49,7 +47,7 @@ function newSectionEntry(): DemoInstituteSectionEntry {
   return { id: newId("entry"), heading: "", year: "", subheading: "", fields: [] };
 }
 
-function InstituteDemoPage() {
+export function InstituteDemoPage({ embedded = false }: { embedded?: boolean }) {
   const { instituteProfile, profileId, profile, saveInstituteProfile } = useDemoProfile();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<DemoInstituteProfile>(() =>
@@ -319,372 +317,370 @@ function InstituteDemoPage() {
 
   const display = editing ? form : normalizeInstituteProfile(instituteProfile);
 
-  return (
-    <AppShell
-      title={M.institute}
-      subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
-      actions={
-        editing ? (
-          <>
-            <Button onClick={cancelEdit}>
-              <X className="size-3.5" /> Cancel
-            </Button>
-            <Button variant="primary" onClick={handleSave}>
-              <Save className="size-3.5" /> Save profile
-            </Button>
-          </>
-        ) : (
-          <Button variant="primary" onClick={startEdit}>
-            <Pencil className="size-3.5" /> Edit profile
-          </Button>
-        )
-      }
-    >
-      <ModuleHero
-        eyebrow="Institute"
-        title={M.institute}
-        subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
-      />
+  const actions = editing ? (
+    <>
+      <Button onClick={cancelEdit}>
+        <X className="size-3.5" /> Cancel
+      </Button>
+      <Button variant="primary" onClick={handleSave}>
+        <Save className="size-3.5" /> Save profile
+      </Button>
+    </>
+  ) : (
+    <Button variant="primary" onClick={startEdit}>
+      <Pencil className="size-3.5" /> Edit profile
+    </Button>
+  );
+
+  const body = (
+    <>
       {saved && (
         <div className="mb-4 px-4 py-3 rounded-lg border border-success/30 bg-success/10 text-xs text-success flex items-center gap-2">
           <CheckCircle2 className="size-3.5" /> Profile saved successfully
         </div>
       )}
 
-      {editing && (
-        <div className="mb-4 px-4 py-3 rounded-lg border border-primary/30 bg-primary/5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Edit any section below. Use <span className="font-medium text-foreground">Add section</span> to
-            create a block like History — with a title, entries, headings, sub-headings, and fields.
-          </p>
-          <Button size="sm" onClick={addCustomSection}>
-            <Plus className="size-3" /> Add section
-          </Button>
-        </div>
-      )}
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div>
 
       <div className="grid grid-cols-12 gap-4">
-        <Card className="col-span-12 lg:col-span-8">
-          <CardHeader title="Institute information" />
-          <CardBody>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {editing ? (
-                <>
-                  <Field label="Institute name" required>
-                    <TextInput
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Founded">
-                    <TextInput
-                      value={form.founded}
-                      onChange={(e) => setForm({ ...form, founded: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Founder">
-                    <TextInput
-                      value={form.founder}
-                      onChange={(e) => setForm({ ...form, founder: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Principal">
-                    <TextInput
-                      value={form.principal}
-                      onChange={(e) => setForm({ ...form, principal: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Ranking" className="sm:col-span-2">
-                    <TextInput
-                      value={form.ranking}
-                      onChange={(e) => setForm({ ...form, ranking: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Vision" className="sm:col-span-2">
-                    <TextArea
-                      rows={3}
-                      value={form.vision}
-                      onChange={(e) => setForm({ ...form, vision: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Mission" className="sm:col-span-2">
-                    <TextArea
-                      rows={3}
-                      value={form.mission}
-                      onChange={(e) => setForm({ ...form, mission: e.target.value })}
-                    />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <InfoRow label="Institute name" value={display.name} />
-                  <InfoRow label="Founded" value={display.founded} />
-                  <InfoRow label="Founder" value={display.founder} />
-                  <InfoRow label="Principal" value={display.principal} />
-                  <InfoRow label="Ranking" value={display.ranking} className="sm:col-span-2" />
-                  <InfoRow label="Vision" value={display.vision} className="sm:col-span-2" multiline />
-                  <InfoRow label="Mission" value={display.mission} className="sm:col-span-2" multiline />
-                </>
-              )}
-            </div>
-          </CardBody>
-        </Card>
+              <Card className="col-span-12 lg:col-span-8">
+                <CardHeader title="Institute information" />
+                <CardBody>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {editing ? (
+                      <>
+                        <Field label="Institute name" required>
+                          <TextInput
+                            value={form.name}
+                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Founded">
+                          <TextInput
+                            value={form.founded}
+                            onChange={(e) => setForm({ ...form, founded: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Founder">
+                          <TextInput
+                            value={form.founder}
+                            onChange={(e) => setForm({ ...form, founder: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Principal">
+                          <TextInput
+                            value={form.principal}
+                            onChange={(e) => setForm({ ...form, principal: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Ranking" className="sm:col-span-2">
+                          <TextInput
+                            value={form.ranking}
+                            onChange={(e) => setForm({ ...form, ranking: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Vision" className="sm:col-span-2">
+                          <TextArea
+                            rows={3}
+                            value={form.vision}
+                            onChange={(e) => setForm({ ...form, vision: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Mission" className="sm:col-span-2">
+                          <TextArea
+                            rows={3}
+                            value={form.mission}
+                            onChange={(e) => setForm({ ...form, mission: e.target.value })}
+                          />
+                        </Field>
+                      </>
+                    ) : (
+                      <>
+                        <InfoRow label="Institute name" value={display.name} />
+                        <InfoRow label="Founded" value={display.founded} />
+                        <InfoRow label="Founder" value={display.founder} />
+                        <InfoRow label="Principal" value={display.principal} />
+                        <InfoRow label="Ranking" value={display.ranking} className="sm:col-span-2" />
+                        <InfoRow label="Vision" value={display.vision} className="sm:col-span-2" multiline />
+                        <InfoRow label="Mission" value={display.mission} className="sm:col-span-2" multiline />
+                      </>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
 
-        <Card className="col-span-12 lg:col-span-4">
-          <CardHeader title="Branding & contact" />
-          <CardBody>
-            <FormStack>
-              <InstituteProfilePhoto
-                name={display.name}
-                logoLabel={display.logo}
-                photoUrl={display.profilePhoto}
-                editing={editing}
-                onPhotoChange={(url) => setForm({ ...form, profilePhoto: url })}
-                onPhotoRemove={() => setForm({ ...form, profilePhoto: "" })}
-              />
-              {editing ? (
-                <>
-                  <Field label="Logo label">
-                    <TextInput
-                      value={form.logo}
-                      onChange={(e) => setForm({ ...form, logo: e.target.value })}
-                      placeholder="e.g. LumenX crest"
+              <Card className="col-span-12 lg:col-span-4">
+                <CardHeader title="Branding & contact" />
+                <CardBody>
+                  <FormStack>
+                    <InstituteProfilePhoto
+                      name={display.name}
+                      logoLabel={display.logo}
+                      photoUrl={display.profilePhoto}
+                      editing={editing}
+                      onPhotoChange={(url) => setForm({ ...form, profilePhoto: url })}
+                      onPhotoRemove={() => setForm({ ...form, profilePhoto: "" })}
                     />
-                  </Field>
-                  <Field label="Phone">
-                    <TextInput
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Email">
-                    <TextInput
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Address">
-                    <TextArea
-                      rows={3}
-                      value={form.address}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    />
-                  </Field>
-                </>
-              ) : (
-                <>
-                  <InfoRow label="Logo" value={display.logo} />
-                  <InfoRow label="Phone" value={display.phone} />
-                  <InfoRow label="Email" value={display.email} />
-                  <InfoRow label="Address" value={display.address} multiline />
-                </>
-              )}
-            </FormStack>
-          </CardBody>
-        </Card>
+                    {editing ? (
+                      <>
+                        <Field label="Logo label">
+                          <TextInput
+                            value={form.logo}
+                            onChange={(e) => setForm({ ...form, logo: e.target.value })}
+                            placeholder="e.g. LumenX crest"
+                          />
+                        </Field>
+                        <Field label="Phone">
+                          <TextInput
+                            value={form.phone}
+                            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Email">
+                          <TextInput
+                            value={form.email}
+                            onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Address">
+                          <TextArea
+                            rows={3}
+                            value={form.address}
+                            onChange={(e) => setForm({ ...form, address: e.target.value })}
+                          />
+                        </Field>
+                      </>
+                    ) : (
+                      <>
+                        <InfoRow label="Logo" value={display.logo} />
+                        <InfoRow label="Phone" value={display.phone} />
+                        <InfoRow label="Email" value={display.email} />
+                        <InfoRow label="Address" value={display.address} multiline />
+                      </>
+                    )}
+                  </FormStack>
+                </CardBody>
+              </Card>
 
-        <Card className="col-span-12 lg:col-span-6">
-          <CardHeader
-            title="History"
-            hint={editing ? "Add milestones with year and description" : undefined}
-            action={
-              editing ? (
-                <Button size="sm" onClick={addHistory}>
-                  <Plus className="size-3" /> Add entry
-                </Button>
-              ) : undefined
-            }
-          />
-          <CardBody>
-            {editing ? (
-              <FormStack>
-                {form.history.length === 0 && (
-                  <EmptyEditHint text="No history entries yet. Click Add entry to record a milestone." />
-                )}
-                {form.history.map((h, i) => (
-                  <EditEntryCard
-                    key={`history-${i}`}
-                    title={`Entry ${i + 1}`}
-                    onRemove={() => removeHistory(i)}
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)] gap-4">
-                      <Field label="Year">
-                        <TextInput
-                          value={h.year}
-                          placeholder="1987"
-                          onChange={(e) => updateHistory(i, { year: e.target.value })}
-                        />
-                      </Field>
-                      <Field label="Event">
-                        <TextInput
-                          value={h.event}
-                          placeholder="Describe what happened"
-                          onChange={(e) => updateHistory(i, { event: e.target.value })}
-                        />
-                      </Field>
+              <Card className="col-span-12 lg:col-span-6">
+                <CardHeader
+                  title="History"
+                  hint={editing ? "Add milestones with year and description" : undefined}
+                  action={
+                    editing ? (
+                      <Button size="sm" onClick={addHistory}>
+                        <Plus className="size-3" /> Add entry
+                      </Button>
+                    ) : undefined
+                  }
+                />
+                <CardBody>
+                  {editing ? (
+                    <FormStack>
+                      {form.history.length === 0 && (
+                        <EmptyEditHint text="No history entries yet. Click Add entry to record a milestone." />
+                      )}
+                      {form.history.map((h, i) => (
+                        <EditEntryCard
+                          key={`history-${i}`}
+                          title={`Entry ${i + 1}`}
+                          onRemove={() => removeHistory(i)}
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)] gap-4">
+                            <Field label="Year">
+                              <TextInput
+                                value={h.year}
+                                placeholder="1987"
+                                onChange={(e) => updateHistory(i, { year: e.target.value })}
+                              />
+                            </Field>
+                            <Field label="Event">
+                              <TextInput
+                                value={h.event}
+                                placeholder="Describe what happened"
+                                onChange={(e) => updateHistory(i, { event: e.target.value })}
+                              />
+                            </Field>
+                          </div>
+                        </EditEntryCard>
+                      ))}
+                      <div ref={historyEndRef} aria-hidden className="h-px" />
+                    </FormStack>
+                  ) : display.history.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No history entries yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {display.history.map((h) => (
+                        <div
+                          key={`${h.year}-${h.event}`}
+                          className="flex gap-4 text-sm border-b border-border/60 pb-4 last:border-0 last:pb-0"
+                        >
+                          <span className="font-mono text-sm font-semibold text-primary shrink-0 w-14">
+                            {h.year}
+                          </span>
+                          <span className="text-foreground leading-relaxed">{h.event}</span>
+                        </div>
+                      ))}
                     </div>
-                  </EditEntryCard>
-                ))}
-                <div ref={historyEndRef} aria-hidden className="h-px" />
-              </FormStack>
-            ) : display.history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No history entries yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {display.history.map((h) => (
-                  <div
-                    key={`${h.year}-${h.event}`}
-                    className="flex gap-4 text-sm border-b border-border/60 pb-4 last:border-0 last:pb-0"
-                  >
-                    <span className="font-mono text-sm font-semibold text-primary shrink-0 w-14">
-                      {h.year}
-                    </span>
-                    <span className="text-foreground leading-relaxed">{h.event}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardBody>
-        </Card>
+                  )}
+                </CardBody>
+              </Card>
 
-        <Card className="col-span-12 lg:col-span-6">
-          <CardHeader
-            title="Awards & achievements"
-            action={
-              editing ? (
-                <div className="flex flex-wrap gap-1.5">
-                  <Button size="sm" onClick={addAward}>
-                    <Plus className="size-3" /> Award
-                  </Button>
-                  <Button size="sm" onClick={addAchievement}>
-                    <Plus className="size-3" /> Achievement
-                  </Button>
-                </div>
-              ) : undefined
-            }
-          />
-          <CardBody>
-            <FormStack>
-              <div>
-                <SubsectionTitle>Awards</SubsectionTitle>
-                {editing ? (
-                  <FormStack>
-                    {form.awards.length === 0 && (
-                      <EmptyEditHint text="No awards yet. Click Award to add one." />
-                    )}
-                    {form.awards.map((a, i) => (
-                      <EditEntryCard
-                        key={`award-${i}`}
-                        title={a.title.trim() || `Award ${i + 1}`}
-                        onRemove={() => removeAward(i)}
-                      >
-                        <Field label="Award title">
-                          <TextInput
-                            value={a.title}
-                            placeholder="Excellence in STEM Education"
-                            onChange={(e) => updateAward(i, { title: e.target.value })}
-                          />
-                        </Field>
-                        <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)] gap-4">
-                          <Field label="Year">
-                            <TextInput
-                              value={a.year}
-                              placeholder="2024"
-                              onChange={(e) => updateAward(i, { year: e.target.value })}
-                            />
-                          </Field>
-                          <Field label="Awarding body">
-                            <TextInput
-                              value={a.body}
-                              placeholder="National Education Council"
-                              onChange={(e) => updateAward(i, { body: e.target.value })}
-                            />
-                          </Field>
-                        </div>
-                      </EditEntryCard>
-                    ))}
-                  </FormStack>
-                ) : display.awards.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No awards listed.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {display.awards.map((a) => (
-                      <div key={`${a.title}-${a.year}`} className="text-sm">
-                        <div className="font-medium text-foreground">{a.title}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {a.year} · {a.body}
-                        </div>
+              <Card className="col-span-12 lg:col-span-6">
+                <CardHeader
+                  title="Awards & achievements"
+                  action={
+                    editing ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button size="sm" onClick={addAward}>
+                          <Plus className="size-3" /> Award
+                        </Button>
+                        <Button size="sm" onClick={addAchievement}>
+                          <Plus className="size-3" /> Achievement
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <SubsectionTitle>Achievements</SubsectionTitle>
-                {editing ? (
+                    ) : undefined
+                  }
+                />
+                <CardBody>
                   <FormStack>
-                    {form.achievements.length === 0 && (
-                      <EmptyEditHint text="No achievements yet. Click Achievement to add one." />
-                    )}
-                    {form.achievements.map((a, i) => (
-                      <div key={`ach-${i}`} className="flex gap-2 items-end">
-                        <Field label={`Achievement ${i + 1}`} className="flex-1 min-w-0">
-                          <TextInput
-                            value={a}
-                            placeholder="e.g. 100% board pass rate · Class 12 · 2025"
-                            onChange={(e) => updateAchievement(i, e.target.value)}
-                          />
-                        </Field>
-                        <RemoveButton onClick={() => removeAchievement(i)} label="Remove achievement" />
-                      </div>
-                    ))}
+                    <div>
+                      <SubsectionTitle>Awards</SubsectionTitle>
+                      {editing ? (
+                        <FormStack>
+                          {form.awards.length === 0 && (
+                            <EmptyEditHint text="No awards yet. Click Award to add one." />
+                          )}
+                          {form.awards.map((a, i) => (
+                            <EditEntryCard
+                              key={`award-${i}`}
+                              title={a.title.trim() || `Award ${i + 1}`}
+                              onRemove={() => removeAward(i)}
+                            >
+                              <Field label="Award title">
+                                <TextInput
+                                  value={a.title}
+                                  placeholder="Excellence in STEM Education"
+                                  onChange={(e) => updateAward(i, { title: e.target.value })}
+                                />
+                              </Field>
+                              <div className="grid grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)] gap-4">
+                                <Field label="Year">
+                                  <TextInput
+                                    value={a.year}
+                                    placeholder="2024"
+                                    onChange={(e) => updateAward(i, { year: e.target.value })}
+                                  />
+                                </Field>
+                                <Field label="Awarding body">
+                                  <TextInput
+                                    value={a.body}
+                                    placeholder="National Education Council"
+                                    onChange={(e) => updateAward(i, { body: e.target.value })}
+                                  />
+                                </Field>
+                              </div>
+                            </EditEntryCard>
+                          ))}
+                        </FormStack>
+                      ) : display.awards.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No awards listed.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {display.awards.map((a) => (
+                            <div key={`${a.title}-${a.year}`} className="text-sm">
+                              <div className="font-medium text-foreground">{a.title}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {a.year} · {a.body}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <SubsectionTitle>Achievements</SubsectionTitle>
+                      {editing ? (
+                        <FormStack>
+                          {form.achievements.length === 0 && (
+                            <EmptyEditHint text="No achievements yet. Click Achievement to add one." />
+                          )}
+                          {form.achievements.map((a, i) => (
+                            <div key={`ach-${i}`} className="flex gap-2 items-end">
+                              <Field label={`Achievement ${i + 1}`} className="flex-1 min-w-0">
+                                <TextInput
+                                  value={a}
+                                  placeholder="e.g. 100% board pass rate · Class 12 · 2025"
+                                  onChange={(e) => updateAchievement(i, e.target.value)}
+                                />
+                              </Field>
+                              <RemoveButton onClick={() => removeAchievement(i)} label="Remove achievement" />
+                            </div>
+                          ))}
+                        </FormStack>
+                      ) : display.achievements.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No achievements listed.</p>
+                      ) : (
+                        <ul className="text-sm text-foreground space-y-2 list-disc pl-5 leading-relaxed">
+                          {display.achievements.map((a) => (
+                            <li key={a}>{a}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </FormStack>
-                ) : display.achievements.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No achievements listed.</p>
-                ) : (
-                  <ul className="text-sm text-foreground space-y-2 list-disc pl-5 leading-relaxed">
-                    {display.achievements.map((a) => (
-                      <li key={a}>{a}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </FormStack>
-          </CardBody>
-        </Card>
+                </CardBody>
+              </Card>
 
-        {(editing ? form.customFields : display.customFields).map((section) => (
-          <CustomSectionCard
-            key={section.id}
-            section={section}
-            editing={editing}
-            onUpdateTitle={(title) => updateCustomSectionTitle(section.id, title)}
-            onRemoveSection={() => removeCustomSection(section.id)}
-            onAddField={() => addSectionEntry(section.id)}
-            onUpdateField={(entryId, patch) =>
-              updateSectionEntry(section.id, entryId, patch)
-            }
-            onRemoveField={(entryId) => removeSectionEntry(section.id, entryId)}
-            onAddSubField={(entryId) => addEntrySubField(section.id, entryId)}
-            onUpdateSubField={(entryId, fieldId, value) =>
-              updateEntrySubField(section.id, entryId, fieldId, value)
-            }
-            onRemoveSubField={(entryId, fieldId) =>
-              removeEntrySubField(section.id, entryId, fieldId)
-            }
-          />
-        ))}
+              {(editing ? form.customFields : display.customFields).map((section) => (
+                <CustomSectionCard
+                  key={section.id}
+                  section={section}
+                  editing={editing}
+                  onUpdateTitle={(title) => updateCustomSectionTitle(section.id, title)}
+                  onRemoveSection={() => removeCustomSection(section.id)}
+                  onAddField={() => addSectionEntry(section.id)}
+                  onUpdateField={(entryId, patch) =>
+                    updateSectionEntry(section.id, entryId, patch)
+                  }
+                  onRemoveField={(entryId) => removeSectionEntry(section.id, entryId)}
+                  onAddSubField={(entryId) => addEntrySubField(section.id, entryId)}
+                  onUpdateSubField={(entryId, fieldId, value) =>
+                    updateEntrySubField(section.id, entryId, fieldId, value)
+                  }
+                  onRemoveSubField={(entryId, fieldId) =>
+                    removeEntrySubField(section.id, entryId, fieldId)
+                  }
+                />
+              ))}
 
-        <div ref={customSectionsEndRef} aria-hidden className="col-span-12 h-px" />
-      </div>
+              <div ref={customSectionsEndRef} aria-hidden className="col-span-12 h-px" />
+            </div>
+    </>
+  );
+
+  if (embedded) return <div className="space-y-4">{body}</div>;
+
+  return (
+    <AppShell
+      title={M.institute}
+      subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
+      actions={actions}
+    >
+      <ModuleHero
+        eyebrow="Settings"
+        title="Institute profile"
+        subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
+      />
+      {body}
     </AppShell>
   );
 }
 
+
 function InstitutePage() {
-  if (isApiAuthMode()) return <InstituteApiProfilePage />;
-  return <InstituteDemoPage />;
+  return <Navigate to="/settings" replace />;
 }
 
 function CustomSectionCard({

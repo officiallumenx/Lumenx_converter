@@ -18,6 +18,7 @@ function createRosterBase(): AttendanceStudentState[] {
     dropping: "pending" as const,
     boardedAt: null,
     droppedAt: null,
+    syncStatus: "idle" as const,
   }));
 }
 
@@ -109,6 +110,7 @@ export function applyLocalBoarding(
         ...current,
         boarding: "boarded",
         boardedAt: now,
+        syncStatus: "syncing",
       };
     }
     if (status === "not_boarded") {
@@ -118,6 +120,7 @@ export function applyLocalBoarding(
         boardedAt: null,
         dropping: "pending",
         droppedAt: null,
+        syncStatus: "syncing",
       };
     }
     return {
@@ -126,6 +129,7 @@ export function applyLocalBoarding(
       boardedAt: null,
       dropping: "pending",
       droppedAt: null,
+      syncStatus: "syncing",
     };
   });
 
@@ -147,6 +151,7 @@ export function applyLocalDropping(
         ...current,
         dropping: "dropped",
         droppedAt: now,
+        syncStatus: "syncing",
       };
     }
     if (status === "not_dropped") {
@@ -154,12 +159,14 @@ export function applyLocalDropping(
         ...current,
         dropping: "not_dropped",
         droppedAt: null,
+        syncStatus: "syncing",
       };
     }
     return {
       ...current,
       dropping: "pending",
       droppedAt: null,
+      syncStatus: "syncing",
     };
   });
 
@@ -167,6 +174,13 @@ export function applyLocalDropping(
     return { ok: false, reason: "Student not found.", code: "not_found", student: null };
   }
   return { ok: true, student };
+}
+
+export function setStudentSyncStatus(
+  id: string,
+  syncStatus: NonNullable<AttendanceStudentState["syncStatus"]>,
+): void {
+  replaceStudent(id, (current) => ({ ...current, syncStatus }));
 }
 
 /** Restore a prior student row after a failed API sync. */
@@ -210,7 +224,7 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
     const byId = new Map(shared.map((m) => [m.studentId, m]));
     students = base.map((student) => {
       const mark = byId.get(student.id);
-      if (!mark) return student;
+      if (!mark) return { ...student, syncStatus: student.syncStatus ?? "idle" };
       return {
         ...student,
         boarding: mark.boardingStatus,
@@ -219,6 +233,7 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
         droppedAt: mark.droppedAt,
         stopName: mark.stopName || student.stopName,
         stopId: mark.stopId || student.stopId,
+        syncStatus: "idle",
       };
     });
     emit();

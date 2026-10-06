@@ -112,7 +112,7 @@ export function TransportVehicleDetail({ snapshot, vehicleId, onEdit }: Props) {
         <Card>
           <CardHeader
             title="Transport app account"
-            hint={isApiAuthMode() ? "Driver login · API auth" : "Driver login · demo OTP"}
+            hint={isApiAuthMode() ? "Driver login · API auth" : "Driver login"}
           />
           <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2">
             {driverAccount ? (

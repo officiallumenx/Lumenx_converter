@@ -498,7 +498,7 @@ function InstituteBrandingBanner() {
           appear on every template automatically.
         </p>
       </div>
-      <Link to="/institute">
+      <Link to="/settings">
         <Button size="sm">
           <ExternalLink className="size-3" /> Edit institute details
         </Button>

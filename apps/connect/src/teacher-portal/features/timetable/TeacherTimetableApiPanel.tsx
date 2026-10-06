@@ -29,7 +29,7 @@ import type { WeeklyTimetable } from "@/lib/timetable";
 type TimetablePeriod = WeeklyTimetable[string][number];
 
 export function TeacherTimetableApiPanel() {
-  const { activeInstituteId } = useApp();
+  const { activeInstituteId, hydrated } = useApp();
   const portal = useTeacherPortal();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"my" | "class">("my");
@@ -55,21 +55,56 @@ export function TeacherTimetableApiPanel() {
   }, [portal.classes, classNameFilter, sectionFilter]);
 
   const scope = mode === "class" && sectionId ? sectionId : "mine";
+  const queryEnabled = hydrated && Boolean(activeInstituteId);
+
+  // Drop sticky auth-error cache from early prefetch before the session token was ready.
+  useEffect(() => {
+    if (!queryEnabled || !activeInstituteId) return;
+    const key = connectQueryKeys.timetableTeacher(activeInstituteId, scope);
+    const cached = queryClient.getQueryData<{
+      status?: string;
+      errorMessage?: string | null;
+    }>(key);
+    if (
+      cached?.status === "error" &&
+      /authentication required/i.test(cached.errorMessage ?? "")
+    ) {
+      queryClient.removeQueries({ queryKey: key });
+    }
+  }, [queryEnabled, activeInstituteId, scope, queryClient]);
+
   const timetableQuery = useTeacherTimetableQuery(
     activeInstituteId,
     scope,
-    Boolean(activeInstituteId),
+    queryEnabled,
   );
 
   const schedule = timetableQuery.data?.schedule ?? {};
   const weekdays = timetableQuery.data?.weekdays ?? [];
-  const isFirstLoad = timetableQuery.isLoading && !timetableQuery.data;
+  const isFirstLoad =
+    (!hydrated || timetableQuery.isLoading || timetableQuery.isFetching) &&
+    !timetableQuery.data;
+  const authQueryError =
+    timetableQuery.isError &&
+    /authentication required/i.test(
+      timetableQuery.error instanceof Error
+        ? timetableQuery.error.message
+        : String(timetableQuery.error ?? ""),
+    );
   const status =
     timetableQuery.data?.status ??
-    (isFirstLoad ? "loading" : timetableQuery.isError ? "error" : "empty");
+    (isFirstLoad || (timetableQuery.isFetching && authQueryError)
+      ? "loading"
+      : timetableQuery.isError
+        ? "error"
+        : "empty");
   const error =
     timetableQuery.data?.errorMessage ??
-    (timetableQuery.isError ? "Failed to load timetable." : null);
+    (timetableQuery.isError
+      ? timetableQuery.error instanceof Error
+        ? timetableQuery.error.message
+        : "Failed to load timetable."
+      : null);
 
   useEffect(() => {
     if (portal.classes[0] && !classNameFilter) {

@@ -112,13 +112,16 @@ export function HomeBirthdays({
   const isEmpty = !isError && rows.length === 0;
 
   return (
-    <section className="lx-home-section lx-home-birthdays" style={{ "--lx-home-i": 4 } as CSSProperties}>
+    <section
+      className={`lx-home-section lx-home-birthdays${isEmpty && !isError ? " lx-home-birthdays--empty" : ""}`}
+      style={{ "--lx-home-i": 4 } as CSSProperties}
+    >
       <div className="lx-home-birthdays__head">
         <div className="lx-home-birthdays__title-row">
           <span className="lx-home-birthdays__icon" aria-hidden>
             <Cake className="size-3.5" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="lx-home-panel__title">Today&apos;s Birthdays</h2>
               {rows.length > 0 ? (
@@ -129,12 +132,14 @@ export function HomeBirthdays({
               {isError
                 ? "Could not load today's birthdays"
                 : isEmpty
-                  ? "No birthdays today"
+                  ? "No one's birthday today"
                   : "Tap a name to wish on WhatsApp"}
             </p>
           </div>
         </div>
-        <ChevronRight className="size-4 text-muted-foreground shrink-0" aria-hidden />
+        {rows.length > 0 ? (
+          <ChevronRight className="size-4 text-muted-foreground shrink-0" aria-hidden />
+        ) : null}
       </div>
 
       {isError ? (
@@ -153,10 +158,15 @@ export function HomeBirthdays({
       ) : null}
 
       {isEmpty && !isError ? (
-        <p className="text-sm text-muted-foreground px-0.5">
-          Set Date of birth on Teachers or Students profiles to see matches here
-          (month and day only).
-        </p>
+        <div className="lx-home-birthdays__empty" role="status">
+          <span className="lx-home-birthdays__empty-icon" aria-hidden>
+            <Cake className="size-5" />
+          </span>
+          <p className="lx-home-birthdays__empty-title">No one&apos;s birthday today</p>
+          <p className="lx-home-birthdays__empty-hint">
+            Celebrate here when a student or teacher has a birthday.
+          </p>
+        </div>
       ) : null}
 
       {rows.length > 0 ? (

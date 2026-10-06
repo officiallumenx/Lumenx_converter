@@ -43,4 +43,15 @@ describe("transport-utils", () => {
       ),
     ).toBe("Reached school");
   });
+
+  it("prefers parent-facing status labels", () => {
+    expect(
+      trackingStatusLabel(
+        tracking({ parentStatus: "location_unavailable", sharedTripActive: true }),
+      ),
+    ).toBe("Location unavailable");
+    expect(
+      trackingStatusLabel(tracking({ parentStatus: "arrived", etaMinutes: 0 })),
+    ).toBe("Arrived");
+  });
 });

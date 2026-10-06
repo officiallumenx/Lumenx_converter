@@ -19,6 +19,54 @@ function assertApiMode(): void {
   }
 }
 
+export async function getTransportTrip(
+  tripId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<TransportTripDto> {
+  assertApiMode();
+  if (!isInstituteUuid(tripId)) {
+    throw new Error("trip id must be a valid UUID");
+  }
+  return client.get<TransportTripDto>(`/api/v1/transport/trips/${tripId.trim()}`);
+}
+
+export type EffectiveTripParticipantDto = {
+  studentId: string;
+  studentName: string;
+  enrollmentId: string;
+  pickupStopId: string | null;
+  dropStopId: string | null;
+  notRidingToday: boolean;
+  exceptionId: string | null;
+  exceptionReason: string | null;
+};
+
+export type EffectiveTripParticipantsDto = {
+  tripId: string;
+  instituteId: string;
+  routeId: string;
+  serviceDate: string;
+  expectedCount: number;
+  notRidingCount: number;
+  expectedOnboardCount: number;
+  participants: EffectiveTripParticipantDto[];
+  expectedOnboard: EffectiveTripParticipantDto[];
+  notRiding: EffectiveTripParticipantDto[];
+};
+
+export async function getTripEffectiveParticipants(
+  tripId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<EffectiveTripParticipantsDto> {
+  assertApiMode();
+  if (!isInstituteUuid(tripId)) {
+    throw new Error("trip id must be a valid UUID");
+  }
+  return client.get<EffectiveTripParticipantsDto>(
+    `/api/v1/transport/trips/${tripId.trim()}/effective-participants`,
+  );
+}
+
 export async function listTransportTrips(
   params: ListTransportTripsParams,
   client: AdminApiClient = getAdminApiClient(),
@@ -121,4 +169,72 @@ export async function exportTransportReport(
   }
   const { blob, fileName } = await downloadReportJob(job.id);
   return { fileName, blob };
+}
+
+export type TransportDailyExceptionDto = {
+  id: string;
+  instituteId: string;
+  studentId: string;
+  serviceDate: string;
+  exceptionType: "NOT_RIDING";
+  reason: "parent" | "admin" | "driver" | "system";
+  notes: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+  undoCutoffAt: string | null;
+  canUndo: boolean;
+};
+
+export async function listTransportDailyExceptions(params: {
+  instituteId: string;
+  serviceDate: string;
+  studentId?: string;
+}): Promise<TransportDailyExceptionDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  query.set("date", params.serviceDate.trim());
+  if (params.studentId?.trim()) query.set("student_id", params.studentId.trim());
+  const client = getAdminApiClient();
+  return client.get<TransportDailyExceptionDto[]>(
+    `/api/v1/transport/daily-exceptions?${query.toString()}`,
+  );
+}
+
+export async function cancelTransportDailyException(
+  exceptionId: string,
+): Promise<TransportDailyExceptionDto> {
+  assertApiMode();
+  if (!isInstituteUuid(exceptionId)) {
+    throw new Error("exception id must be a valid UUID");
+  }
+  const client = getAdminApiClient();
+  return client.delete<TransportDailyExceptionDto>(
+    `/api/v1/transport/daily-exceptions/${exceptionId.trim()}`,
+  );
+}
+
+export async function createTransportDailyException(params: {
+  instituteId: string;
+  studentId: string;
+  serviceDate?: string;
+  notes?: string | null;
+}): Promise<TransportDailyExceptionDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.studentId)) {
+    throw new Error("institute_id and student_id must be valid UUIDs");
+  }
+  const client = getAdminApiClient();
+  return client.post<TransportDailyExceptionDto>(`/api/v1/transport/daily-exceptions`, {
+    institute_id: params.instituteId.trim(),
+    student_id: params.studentId.trim(),
+    exception_type: "NOT_RIDING",
+    ...(params.serviceDate?.trim() ? { service_date: params.serviceDate.trim() } : {}),
+    ...(params.notes !== undefined ? { notes: params.notes } : {}),
+  });
 }

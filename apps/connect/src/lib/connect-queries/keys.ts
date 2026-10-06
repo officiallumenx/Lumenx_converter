@@ -122,6 +122,12 @@ export const connectQueryKeys = {
     [connectQueryRoots.transport, "teacher", instituteId] as const,
   transportLearner: (instituteId: string, studentId: string) =>
     [connectQueryRoots.transport, "learner", instituteId, studentId] as const,
+  transportLearnerLive: (instituteId: string, studentId: string) =>
+    [connectQueryRoots.transport, "learner-live", instituteId, studentId] as const,
+  transportLearnerHistory: (instituteId: string, studentId: string) =>
+    [connectQueryRoots.transport, "learner-history", instituteId, studentId] as const,
+  transportRideException: (instituteId: string, studentId: string) =>
+    [connectQueryRoots.transport, "daily-exception", instituteId, studentId] as const,
 
   studentDetail: (instituteId: string, studentId: string) =>
     [connectQueryRoots.students, "detail", instituteId, studentId] as const,

@@ -23,7 +23,7 @@ export type AssignmentReadinessResult = {
 const LABELS: Record<AssignmentReadinessKey, string> = {
   bus: "Assigned Bus",
   route: "Assigned Route",
-  approved_stops: "Approved Stops",
+  approved_stops: "Stops ready",
   students: "Students on Bus",
 };
 
@@ -43,7 +43,11 @@ function check(
   };
 }
 
-/** Sync assignment gates for Start Trip (bus, route, approved stops, students). */
+function isUsableStopStatus(status: string): boolean {
+  return status === "approved" || status === "pending";
+}
+
+/** Sync assignment gates for Start Trip (bus, route, usable stops, students). */
 export function getAssignmentReadiness(): AssignmentReadinessResult {
   const scope = getRouteSetupDriverScope();
   const setup = getRouteSetupSnapshot();
@@ -53,12 +57,11 @@ export function getAssignmentReadiness(): AssignmentReadinessResult {
   const hasRoute = Boolean(
     scope?.routeId && (assignment.route.adminRouteId || assignment.route.code !== "—"),
   );
-  const approvedStops = setup.stops.filter((s) => s.status === "approved");
-  const hasApprovedStops = approvedStops.length > 0;
+  const usableStops = setup.stops.filter((s) => isUsableStopStatus(s.status));
+  const hasUsableStops = usableStops.length > 0;
   const studentCount = getApiApprovedStudentCount(scope?.vehicleId);
   const hasStudents = studentCount > 0;
 
-  const pendingStops = setup.stops.some((s) => s.status === "pending");
   const declinedStops = setup.stops.some((s) => s.status === "rejected");
 
   const checks: AssignmentReadinessCheck[] = [
@@ -76,13 +79,11 @@ export function getAssignmentReadiness(): AssignmentReadinessResult {
     ),
     check(
       "approved_stops",
-      hasApprovedStops,
-      `${approvedStops.length} approved stop${approvedStops.length === 1 ? "" : "s"} ready.`,
-      pendingStops
-        ? "Stops are waiting for Admin approval. You cannot start yet."
-        : declinedStops
-          ? "Some stops were declined. Fix and resubmit, then wait for approval."
-          : "No approved stops yet. Add stops in Route Setup and wait for Admin approval.",
+      hasUsableStops,
+      `${usableStops.length} stop${usableStops.length === 1 ? "" : "s"} ready.`,
+      declinedStops && !hasUsableStops
+        ? "Stops were declined. Fix and resubmit in Route Setup."
+        : "No stops yet. Add stops in Route Setup.",
     ),
     check(
       "students",

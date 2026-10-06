@@ -1,27 +1,64 @@
-import { MapPin, MapPinOff } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { MapPin, MapPinOff, WifiOff } from "lucide-react";
 
 import { useLocationTrack } from "@/hooks/use-trip-location-guard";
+import {
+  getGpsOutboxSnapshot,
+  subscribeGpsOutbox,
+} from "@/lib/transport/gps-outbox";
 import { cn } from "@lumenx/ui";
 
-/** Banner shown during an active trip when live GPS is lost. */
+/** Banner shown during an active trip for GPS + upload connection state. */
 export function LocationTrackingBanner({ className }: { className?: string }) {
   const track = useLocationTrack();
+  const outbox = useSyncExternalStore(
+    subscribeGpsOutbox,
+    getGpsOutboxSnapshot,
+    getGpsOutboxSnapshot,
+  );
 
-  if (track.status === "unknown") return null;
+  if (track.status === "unknown" && outbox.pendingCount === 0) return null;
 
-  if (track.status === "on") {
+  if (outbox.connection === "offline" || outbox.connection === "degraded") {
     return (
       <div
         className={cn(
-          "flex items-start gap-2.5 rounded-2xl border border-success/30 bg-success/10 px-3.5 py-3",
+          "flex items-start gap-2.5 rounded-2xl border border-warning/40 bg-warning/10 px-3.5 py-3",
           className,
         )}
+        role="status"
       >
-        <MapPin className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+        <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-success">GPS tracking on</p>
+          <p className="text-sm font-semibold text-foreground">
+            {outbox.connection === "offline" ? "Connection lost" : "Uploading GPS…"}
+          </p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            Live location is being monitored for this trip.
+            {outbox.pendingCount > 0
+              ? `${outbox.pendingCount} GPS point${outbox.pendingCount === 1 ? "" : "s"} queued — will retry when online.`
+              : outbox.lastError ?? "Waiting to sync location."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (outbox.connection === "gps_error" || track.status === "off") {
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-2.5 rounded-2xl border border-destructive/30 bg-destructive/10 px-3.5 py-3",
+          className,
+        )}
+        role="alert"
+      >
+        <MapPinOff className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-destructive">
+            {track.status === "off" ? "Location is off" : "GPS problem"}
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {outbox.lastGpsError ?? track.message}
           </p>
         </div>
       </div>
@@ -47,21 +84,39 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
     );
   }
 
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 rounded-2xl border border-destructive/30 bg-destructive/10 px-3.5 py-3",
-        className,
-      )}
-      role="alert"
-    >
-      <MapPinOff className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-destructive">Location is off</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          {track.message} Attendance marking is paused until GPS is back on.
-        </p>
+  if (track.status === "on" || outbox.connection === "online") {
+    const lastUpload =
+      outbox.lastSentAt != null
+        ? (() => {
+            try {
+              return new Date(outbox.lastSentAt).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-2.5 rounded-2xl border border-success/30 bg-success/10 px-3.5 py-3",
+          className,
+        )}
+      >
+        <MapPin className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-success">GPS tracking on</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Live location is sent about every 15 seconds
+            {lastUpload ? ` · last uploaded ${lastUpload}` : ""}.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }

@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateAttendanceBreakdown,
   aggregateAttendanceByClass,
   aggregateAttendanceMonthly,
+  aggregateComplaintsByStatus,
+  aggregateEnrollmentByClass,
   aggregateEnrollmentMonthly,
   aggregateFeePaymentsMonthly,
+  aggregateHomeworkMonthly,
+  aggregateLeaveByStatus,
+  aggregateLeaveMonthly,
   aggregateStudentStatus,
   aggregateSubjectAverages,
   monthsForRange,
   seriesHasAttendanceSignal,
   seriesHasEnrollmentSignal,
   seriesHasFeeSignal,
+  seriesHasHomeworkSignal,
+  seriesHasLeaveSignal,
   ymdInInclusiveRange,
 } from "./aggregate.js";
 
@@ -195,5 +203,69 @@ describe("aggregateSubjectAverages", () => {
         new Map([["s1", "Math"]]),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("aggregateLeaveMonthly / leaveByStatus", () => {
+  it("counts leave by start month and status without inventing rows", () => {
+    const months = monthsForRange("term", new Date(2026, 7, 1));
+    const monthly = aggregateLeaveMonthly(months, [
+      { startDate: "2026-08-02", status: "pending" },
+      { startDate: "2026-08-10", status: "approved" },
+      { startDate: "2026-07-01", status: "rejected" },
+    ]);
+    const aug = monthly.find((r) => r.month === "2026-08");
+    expect(aug?.requested).toBe(2);
+    expect(aug?.pending).toBe(1);
+    expect(aug?.approved).toBe(1);
+    expect(seriesHasLeaveSignal(monthly)).toBe(true);
+    expect(aggregateLeaveByStatus([{ status: "pending" }, { status: "pending" }])).toEqual([
+      { status: "pending", label: "Pending", count: 2 },
+    ]);
+  });
+});
+
+describe("aggregateHomeworkMonthly / complaints / enrollmentByClass / breakdown", () => {
+  it("aggregates real homework, complaints, class rolls, and attendance mix", () => {
+    const months = monthsForRange("term", new Date(2026, 7, 1));
+    const homework = aggregateHomeworkMonthly(months, [
+      { createdAt: "2026-08-01T10:00:00.000Z", status: "published" },
+      { createdAt: "2026-08-05T10:00:00.000Z", status: "draft" },
+    ]);
+    expect(homework.find((r) => r.month === "2026-08")).toMatchObject({
+      created: 2,
+      published: 1,
+    });
+    expect(seriesHasHomeworkSignal(homework)).toBe(true);
+
+    expect(
+      aggregateComplaintsByStatus([{ status: "pending" }, { status: "resolved" }]),
+    ).toEqual([
+      { status: "pending", label: "Pending", count: 1 },
+      { status: "resolved", label: "Resolved", count: 1 },
+    ]);
+
+    expect(
+      aggregateEnrollmentByClass(
+        [
+          { classId: "c1", status: "active" },
+          { classId: "c1", status: "active" },
+          { classId: "c2", status: "withdrawn" },
+        ],
+        new Map([["c1", "Grade 5"]]),
+      ),
+    ).toEqual([{ classId: "c1", className: "Grade 5", count: 2 }]);
+
+    expect(
+      aggregateAttendanceBreakdown([
+        { attendanceDate: "2026-08-01", classId: "c1", status: "present" },
+        { attendanceDate: "2026-08-01", classId: "c1", status: "absent" },
+        { attendanceDate: "2026-08-01", classId: "c1", status: "leave" },
+      ]),
+    ).toEqual([
+      { status: "absent", label: "Absent", count: 1 },
+      { status: "leave", label: "Leave", count: 1 },
+      { status: "present", label: "Present", count: 1 },
+    ]);
   });
 });

@@ -27,16 +27,30 @@ const TOKEN_ADMIN = "token-admin";
 
 const validPayload = {
   instituteName: "Test1School",
+  instituteCode: "TEST1SCHOOL",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
+  schoolPhone: "04012345678",
+  schoolEmail: "office@greenfield.edu.in",
   country: "India",
   state: "Karnataka",
+  district: "Bengaluru Urban",
   city: "Bengaluru",
-  address: "45 Residency Road",
+  area: "Residency Road",
+  street: "45 Residency Road",
+  address: "45 Residency Road, Residency Road",
   pincode: "560025",
   principalName: "Anita Rao",
   principalEmail: "registrar@greenfield.edu.in",
   principalMobile: "9876543210",
+  principalDesignation: "Principal",
+  username: "anita.rao",
+  adminCountry: "India",
+  adminState: "Karnataka",
+  adminDistrict: "Bengaluru Urban",
+  adminCity: "Bengaluru",
+  adminAddress: "12 Palm Grove",
+  adminPincode: "560038",
 };
 
 beforeEach(() => {

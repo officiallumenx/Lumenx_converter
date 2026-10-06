@@ -1,6 +1,7 @@
 /**
  * Teacher home dashboard — composed from existing teacher portal APIs.
  */
+import { ApiClientError } from "@/lib/api";
 import type { DashboardSnapshot, TeacherClass } from "@/lib/teacher/types";
 import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
 import { loadConnectEvents, pickUpcomingEvents } from "@/lib/events";
@@ -14,6 +15,20 @@ import {
   notificationsToTeacherFeed,
   teacherExamPaperToTeacherExam,
 } from "./map";
+
+async function optionalList<T>(promise: Promise<T[]>): Promise<T[]> {
+  try {
+    return await promise;
+  } catch (err) {
+    if (
+      err instanceof ApiClientError &&
+      (err.status === 401 || err.status === 403 || err.code === "UNAUTHENTICATED")
+    ) {
+      throw err;
+    }
+    return [];
+  }
+}
 
 export async function enrichTeacherDashboardSnapshot(input: {
   instituteId: string;
@@ -37,8 +52,8 @@ export async function enrichTeacherDashboardSnapshot(input: {
     loadTeacherExamPapers({ instituteId, defaultClassId: classes[0]?.id }),
     loadConnectEvents({ instituteId }),
     loadConnectPortalInbox(instituteId),
-    listMarkEntries({ instituteId, teacherId, status: "submitted" }).catch(() => []),
-    listAttendanceRegisters({ instituteId, attendanceDate: today }).catch(() => []),
+    optionalList(listMarkEntries({ instituteId, teacherId, status: "submitted" })),
+    optionalList(listAttendanceRegisters({ instituteId, attendanceDate: today })),
   ]);
 
   const homeworkItems =

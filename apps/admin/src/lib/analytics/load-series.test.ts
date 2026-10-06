@@ -30,6 +30,12 @@ describe("loadAnalyticsSeries", () => {
       attendanceByClass: [],
       feePaymentsMonthly: [],
       subjectAverages: [],
+      leaveMonthly: [],
+      leaveByStatus: [],
+      complaintsByStatus: [],
+      homeworkMonthly: [],
+      attendanceBreakdown: [],
+      enrollmentByClass: [],
     });
     vi.doMock("./api", () => ({ getAnalyticsSeries }));
     const { loadAnalyticsSeries, chartHasStatusData } = await import("./load-series");
@@ -79,6 +85,23 @@ describe("loadAnalyticsSeries", () => {
         { month: "2026-05", label: "May 26", collected: 0, paymentCount: 0 },
       ],
       subjectAverages: [],
+      leaveMonthly: [
+        {
+          month: "2026-05",
+          label: "May 26",
+          requested: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+        },
+      ],
+      leaveByStatus: [],
+      complaintsByStatus: [],
+      homeworkMonthly: [
+        { month: "2026-05", label: "May 26", created: 0, published: 0 },
+      ],
+      attendanceBreakdown: [],
+      enrollmentByClass: [],
     };
     expect(chartHasEnrollmentData(empty)).toBe(false);
     expect(chartHasAttendanceData(empty)).toBe(false);

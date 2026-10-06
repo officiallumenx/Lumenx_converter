@@ -176,11 +176,24 @@ export type PortalAttendanceDayStatus =
   | "present"
   | "absent"
   | "leave"
-  | "unknown";
+  | "unknown"
+  | "partial";
+
+export type PortalAttendanceDaySlotDto = {
+  slotCode: string;
+  slotKind: AttendanceSlotKind;
+  slotLabel: string;
+  status: AttendanceMarkStatus;
+};
 
 export type PortalAttendanceDayDto = {
   date: string;
   status: PortalAttendanceDayStatus;
+  method: AttendanceMethod | null;
+  presentCount: number;
+  absentCount: number;
+  leaveCount: number;
+  slots: PortalAttendanceDaySlotDto[];
 };
 
 export type PortalLearnerAttendanceDto = {

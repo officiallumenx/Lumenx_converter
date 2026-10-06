@@ -57,6 +57,8 @@ function sampleRoster(): DriverRouteRoster {
         pickupStopName: null,
         status: "active",
         approvalStatus: "pending",
+        notRidingToday: false,
+        rideExceptionId: null,
       },
     ],
   };
@@ -67,10 +69,11 @@ describe("api-roster", () => {
     clearApiDriverRoster();
   });
 
-  it("splits new vs existing enrollments and counts approved students", () => {
+  it("splits new vs existing enrollments and counts operational students", () => {
     setApiDriverRoster(sampleRoster(), { vehicleNumber: "TN-01" });
 
-    expect(getApiApprovedStudentCount(VEHICLE)).toBe(2);
+    // Pending enrollments are operationally usable (Master Product Contract §3).
+    expect(getApiApprovedStudentCount(VEHICLE)).toBe(3);
     expect(getApiPendingStopCount(VEHICLE)).toBe(2);
     expect(listApiNewEnrollmentsForVehicle(VEHICLE).map((s) => s.studentId)).toEqual([
       "s1",

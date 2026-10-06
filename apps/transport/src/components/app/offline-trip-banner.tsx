@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { WifiOff } from "lucide-react";
 
 import { cn } from "@lumenx/ui";
+import {
+  getOpsOutboxSnapshot,
+  subscribeOpsOutbox,
+} from "@/lib/transport/ops-outbox";
 
-/** Shown during an active trip when the device reports offline. */
+/** Shown when the device is offline or the ops outbox has pending work offline. */
 export function OfflineTripBanner({ className }: { className?: string }) {
   const [offline, setOffline] = useState(() =>
     typeof navigator !== "undefined" ? !navigator.onLine : false,
+  );
+  const outbox = useSyncExternalStore(
+    subscribeOpsOutbox,
+    getOpsOutboxSnapshot,
+    getOpsOutboxSnapshot,
   );
 
   useEffect(() => {
@@ -21,7 +30,7 @@ export function OfflineTripBanner({ className }: { className?: string }) {
     };
   }, []);
 
-  if (!offline) return null;
+  if (!offline && outbox.online) return null;
 
   return (
     <div
@@ -33,10 +42,12 @@ export function OfflineTripBanner({ className }: { className?: string }) {
     >
       <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground">No internet</p>
+        <p className="text-sm font-semibold text-foreground">Offline</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          You can keep marking attendance on this phone. Changes sync when internet is back (same
-          device demo).
+          Offline — changes will sync when connection returns.
+          {outbox.pendingCount > 0
+            ? ` ${outbox.pendingCount} event${outbox.pendingCount === 1 ? "" : "s"} queued.`
+            : ""}
         </p>
       </div>
     </div>

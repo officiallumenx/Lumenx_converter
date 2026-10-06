@@ -7,10 +7,10 @@ const HEIGHT = {
   md: "h-10",
   lg: "h-12",
   xl: "h-16",
-  hero: "h-20",
+  hero: "h-24",
 } as const;
 
-/** LumenX Admin brand mark (graduation cap + A + wordmark). */
+/** LumenX Admin brand mark (transparent corners). */
 export function LumenXAdminLogo({
   className,
   size = "md",
@@ -24,7 +24,11 @@ export function LumenXAdminLogo({
     <img
       src={logo}
       alt={alt}
-      className={cn("w-auto max-w-full object-contain shrink-0", HEIGHT[size], className)}
+      className={cn(
+        "w-auto max-w-full shrink-0 object-contain bg-transparent",
+        HEIGHT[size],
+        className,
+      )}
       decoding="async"
     />
   );

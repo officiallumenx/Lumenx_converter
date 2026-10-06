@@ -3,6 +3,7 @@ import { listSubjects, listTeacherAssignments } from "@/lib/teacher-classes/api"
 import { loadTeacherHomeworkList } from "@/lib/homework";
 import { loadTeacherTimetable } from "@/lib/timetable";
 import { loadTeacherExamPapers } from "@/lib/exams";
+import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { connectQueryKeys } from "./keys";
 
 /**
@@ -28,7 +29,14 @@ export function prefetchTeacherModuleQueries(
 
   void queryClient.prefetchQuery({
     queryKey: connectQueryKeys.timetableTeacher(instituteId, "mine"),
-    queryFn: () => loadTeacherTimetable({ instituteId }),
+    queryFn: async () => {
+      // Avoid caching "Authentication required" when session hydrate lags roster.
+      const token = await getSupabaseAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+      return loadTeacherTimetable({ instituteId });
+    },
   });
 
   void queryClient.prefetchQuery({

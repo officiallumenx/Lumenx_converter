@@ -1,4 +1,5 @@
 import type { TransportAlert, TransportEventType, TransportTracking } from "@/lib/transport/types";
+import { PARENT_TRANSPORT_STATUS_LABEL } from "@/lib/transport/parent-status";
 
 export const TRANSPORT_EVENT_LABELS: Record<TransportEventType, string> = {
   eta_10min: "10 min to arrive",
@@ -44,6 +45,9 @@ export function formatEtaMinutes(minutes: number): string {
 }
 
 export function trackingStatusLabel(tracking: TransportTracking): string {
+  if (tracking.parentStatus) {
+    return PARENT_TRANSPORT_STATUS_LABEL[tracking.parentStatus];
+  }
   if (tracking.emergencyActive) return tracking.emergencyLabel || "Emergency on bus";
   if (tracking.runStatus === "delayed") return `Delayed · +${tracking.delayMinutes} min`;
   if (tracking.learnerStatus === "reached_school") return "Reached school";

@@ -27,7 +27,7 @@ import {
 import { tripRepository } from "@/lib/transport/trip/repository";
 import { attendanceRepository } from "@/lib/transport/attendance/repository";
 import type { TransportNotification } from "@/lib/transport/types";
-import "@/lib/transport/gps-ping";
+import "@/lib/transport/gps-outbox";
 
 import { transportQueryKeys } from "./keys";
 

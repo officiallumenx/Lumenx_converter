@@ -11,6 +11,7 @@ export type InstituteCalendarItem = {
   date: string;
   endDate?: string;
   time?: string;
+  endTime?: string;
   kind: string;
   audience?: string;
   location?: string;

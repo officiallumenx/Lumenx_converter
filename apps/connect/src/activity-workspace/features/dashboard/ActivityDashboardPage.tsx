@@ -1,5 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   Trophy,
   Sparkles,
@@ -19,6 +25,7 @@ import {
   WORKSPACE_CALENDAR_CATEGORY_LABELS,
   type WorkspaceCalendarEntry,
 } from "@/lib/activity/workspace-calendar";
+import { workspaceAchievementsRepository } from "@/lib/activity/workspace-achievements";
 import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
 import { ActivityEmptyState } from "@/activity-workspace/shared/ui/ActivityEmptyState";
 import { DiaryOverdueBanner } from "@/components/app/diary/DiaryBookPage";
@@ -106,6 +113,12 @@ const QUICK_ACTIONS = [
 export function ActivityDashboardPage() {
   const teacherPortal = useTeacherPortal();
   const today = useMemo(() => todayIso(), []);
+
+  useEffect(() => {
+    void workspaceCalendarRepository.preload();
+    void workspaceCommunicationRepository.preload();
+    void workspaceAchievementsRepository.preload();
+  }, []);
 
   const calendar = useSyncExternalStore(
     workspaceCalendarRepository.subscribe,

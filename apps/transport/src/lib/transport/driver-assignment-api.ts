@@ -87,7 +87,11 @@ export async function loadApiDriverAssignment(input: {
   ]);
 
   const route =
-    routes.find((r) => r.driverId === driverMe.driverId && r.approvalStatus === "approved") ??
+    routes.find(
+      (r) =>
+        r.driverId === driverMe.driverId &&
+        (r.approvalStatus === "approved" || r.approvalStatus === "pending"),
+    ) ??
     routes.find((r) => r.driverId === driverMe.driverId) ??
     null;
 
@@ -126,8 +130,8 @@ export async function loadApiDriverAssignment(input: {
     capacity: 40,
   };
 
-  const approvedStops = (roster?.stops ?? [])
-    .filter((s) => s.approvalStatus === "approved")
+  const usableStops = (roster?.stops ?? [])
+    .filter((s) => s.approvalStatus === "approved" || s.approvalStatus === "pending")
     .slice()
     .sort((a, b) => a.routeOrder - b.routeOrder);
 
@@ -135,17 +139,18 @@ export async function loadApiDriverAssignment(input: {
     adminRouteId: route.id,
     code: route.name.slice(0, 3).toUpperCase(),
     name: route.name,
-    stops: approvedStops.map((s) => ({
+    stops: usableStops.map((s) => ({
       id: s.id,
       name: s.name,
       sequence: s.routeOrder + 1,
     })),
   };
 
-  const approvedStudents = (roster?.students ?? []).filter(
-    (s) => s.approvalStatus === "approved",
+  const usableStudents = (roster?.students ?? []).filter(
+    (s) => s.approvalStatus === "approved" || s.approvalStatus === "pending",
   );
-  const studentCount = approvedStudents.length;
+  const expectedStudents = usableStudents.filter((s) => !s.notRidingToday);
+  const studentCount = usableStudents.length;
 
   if (roster) {
     setApiDriverRoster(roster, { vehicleNumber: busNumber });
@@ -154,7 +159,7 @@ export async function loadApiDriverAssignment(input: {
   }
 
   setApiAttendanceRoster(
-    approvedStudents.map((s) => ({
+    expectedStudents.map((s) => ({
       id: s.studentId,
       name: s.studentName,
       grade: s.classLabel,

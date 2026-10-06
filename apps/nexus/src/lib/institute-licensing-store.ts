@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Nexus institute licensing — plan truth, module entitlement, renewals.
  * Single store for Plans & Modules (demo/localStorage). Admin consumes what Nexus grants.
  */
@@ -235,10 +235,21 @@ export function getPlanDef(plan: PlanTier): PlanDef {
   return PLAN_CATALOG.find((p) => p.id === plan) ?? PLAN_CATALOG[0]!;
 }
 
+/**
+ * Modules that stay off until Nexus explicitly enables them on approve / license edit.
+ * (Storage + Attendance Reports are opt-in, not plan defaults.)
+ */
+export const NEXUS_OPT_IN_ADMIN_MODULES = ["storage", "attendance"] as const;
+
 /** Default entitlements for a plan (all modules at or below the tier on). */
 export function defaultModulesForPlan(plan: PlanTier): Record<string, boolean> {
   return Object.fromEntries(
-    NEXUS_MODULE_CATALOG.map((m) => [m.id, planMeetsMin(plan, m.minPlan)]),
+    NEXUS_MODULE_CATALOG.map((m) => {
+      if ((NEXUS_OPT_IN_ADMIN_MODULES as readonly string[]).includes(m.id)) {
+        return [m.id, false];
+      }
+      return [m.id, planMeetsMin(plan, m.minPlan)];
+    }),
   );
 }
 

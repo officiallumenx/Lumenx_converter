@@ -4,12 +4,31 @@ export type AttendanceDayStatus =
   | "leave"
   | "holiday"
   | "future"
-  | "unknown";
+  | "unknown"
+  | "partial";
+
+export type AttendanceMethod =
+  | "daily"
+  | "morning_first_period"
+  | "morning_afternoon"
+  | "period_wise";
+
+export type AttendanceDaySlot = {
+  slotCode: string;
+  slotKind: AttendanceSlotKind;
+  slotLabel: string;
+  status: AttendanceMarkStatus;
+};
 
 export type AttendanceDay = {
   day: number;
   status: AttendanceDayStatus;
   holidayTitle?: string;
+  method?: AttendanceMethod | null;
+  presentCount?: number;
+  absentCount?: number;
+  leaveCount?: number;
+  slots?: AttendanceDaySlot[];
 };
 
 export type InstituteHoliday = {
@@ -82,14 +101,30 @@ export type PortalAttendanceDayStatus =
   | "present"
   | "absent"
   | "leave"
-  | "unknown";
+  | "unknown"
+  | "partial";
+
+export type PortalAttendanceDaySlotDto = {
+  slotCode: string;
+  slotKind: AttendanceSlotKind;
+  slotLabel: string;
+  status: AttendanceMarkStatus;
+};
 
 export type PortalLearnerAttendanceDto = {
   instituteId: string;
   studentId: string;
   fromDate: string;
   toDate: string;
-  days: Array<{ date: string; status: PortalAttendanceDayStatus }>;
+  days: Array<{
+    date: string;
+    status: PortalAttendanceDayStatus;
+    method?: AttendanceMethod | null;
+    presentCount?: number;
+    absentCount?: number;
+    leaveCount?: number;
+    slots?: PortalAttendanceDaySlotDto[];
+  }>;
   summary: {
     present: number;
     absent: number;

@@ -1,6 +1,11 @@
 import {
   AlertTriangle,
+  Bus,
+  CalendarDays,
+  ClipboardList,
+  IndianRupee,
   Info,
+  MessageSquare,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -42,13 +47,22 @@ export function notificationIconChipClass(
   row: Pick<NotificationInboxListItem, "type" | "priority" | "payload" | "category">,
 ): string {
   if (isNotificationAlertRow(row)) return ALERT_ICON_CHIP_CLASS;
+  if (row.category === "leave") {
+    return "bg-violet-500/15 border-violet-500/30 text-violet-700 dark:text-violet-300";
+  }
+  if (row.category === "transport") {
+    return "bg-cyan-500/15 border-cyan-500/30 text-cyan-700 dark:text-cyan-300";
+  }
+  if (row.category === "fees") {
+    return "bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300";
+  }
   if (row.type === "warning") {
-    return "bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400";
+    return "bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300";
   }
   if (row.type === "positive") {
-    return "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400";
+    return "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300";
   }
-  return "bg-sky-500/10 border-sky-500/25 text-sky-700 dark:text-sky-400";
+  return "bg-sky-500/15 border-sky-500/30 text-sky-700 dark:text-sky-300";
 }
 
 export function notificationRowSurfaceClass(
@@ -59,9 +73,16 @@ export function notificationRowSurfaceClass(
   return "";
 }
 
+/** Prefer category-specific icons so leave/transport/etc. are not a blank Info mark. */
 export function notificationTypeIcon(
   type: NotificationInboxListItem["type"],
+  category?: NotificationCategory,
 ): LucideIcon {
+  if (category === "leave") return CalendarDays;
+  if (category === "transport") return Bus;
+  if (category === "fees") return IndianRupee;
+  if (category === "attendance") return ClipboardList;
+  if (category === "messages") return MessageSquare;
   if (type === "warning") return AlertTriangle;
   if (type === "positive") return Sparkles;
   return Info;

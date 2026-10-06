@@ -18,6 +18,7 @@ import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTripSession } from "@/hooks/use-trip-session";
 import {
   getApiPendingStopCount,
+  getApiRosterParticipationCounts,
   subscribeApiDriverRoster,
 } from "@/lib/transport/api-roster";
 import { isTripActive, tripPhaseLabel, tripRepository } from "@/lib/transport/trip";
@@ -43,6 +44,9 @@ export function HomePage() {
   const greeting = getGreeting();
   const [readinessOpen, setReadinessOpen] = useState(false);
   const [pendingStops, setPendingStops] = useState(0);
+  const [participation, setParticipation] = useState(() =>
+    getApiRosterParticipationCounts(session.assignment.bus.vehicleId),
+  );
   const [dismissing, setDismissing] = useState(false);
   const tripActive = isTripActive(session.phase);
   const tripCompleted = session.phase === "completed";
@@ -52,8 +56,8 @@ export function HomePage() {
     () => routeSetup.stops.filter((s) => s.status === "pending").length,
     [routeSetup.stops],
   );
-  const hasApprovedStops = useMemo(
-    () => routeSetup.stops.some((s) => s.status === "approved"),
+  const hasUsableStops = useMemo(
+    () => routeSetup.stops.some((s) => s.status === "approved" || s.status === "pending"),
     [routeSetup.stops],
   );
   const homeStatus = tripActive
@@ -62,8 +66,8 @@ export function HomePage() {
       ? { label: "Completed", tone: "success" as const }
       : needsRouteSetup
         ? { label: "Set up route", tone: "warning" as const }
-        : waitingAdminStops > 0 && !hasApprovedStops
-          ? { label: "Waiting for Admin", tone: "warning" as const }
+        : !hasUsableStops
+          ? { label: "Add stops", tone: "warning" as const }
           : { label: "Ready to start", tone: "transport" as const };
 
   const primaryLabel = tripActive
@@ -72,7 +76,7 @@ export function HomePage() {
       ? "Trip completed"
       : needsRouteSetup
         ? "Set up route"
-        : waitingAdminStops > 0 && !hasApprovedStops
+        : !hasUsableStops
           ? "View stops"
           : "Start trip";
 
@@ -88,9 +92,13 @@ export function HomePage() {
   useEffect(() => {
     if (!bus.vehicleId) {
       setPendingStops(0);
+      setParticipation({ expectedCount: 0, notRidingCount: 0, expectedOnboardCount: 0 });
       return;
     }
-    const refresh = () => setPendingStops(getApiPendingStopCount(bus.vehicleId));
+    const refresh = () => {
+      setPendingStops(getApiPendingStopCount(bus.vehicleId));
+      setParticipation(getApiRosterParticipationCounts(bus.vehicleId));
+    };
     refresh();
     return subscribeApiDriverRoster(refresh);
   }, [bus.vehicleId]);
@@ -106,7 +114,7 @@ export function HomePage() {
       });
       return;
     }
-    if (needsRouteSetup || (waitingAdminStops > 0 && !hasApprovedStops)) {
+    if (needsRouteSetup || !hasUsableStops) {
       void navigate({ to: ROUTES.routeSetup });
       return;
     }
@@ -152,7 +160,7 @@ export function HomePage() {
               <div className="min-w-0">
                 <p className="font-display text-base font-semibold text-foreground">Set up your route</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Drive to each stop, save GPS, and add students. Admin must approve before trips.
+                  Drive to each stop, save GPS, and add students. You can start trips once stops are saved.
                 </p>
               </div>
               <Button
@@ -193,16 +201,14 @@ export function HomePage() {
         ) : null}
 
         {waitingAdminStops > 0 && !needsRouteSetup && !tripActive && !tripCompleted ? (
-          <Card className="border-warning/40 bg-warning/10">
+          <Card className="border-border bg-muted/30">
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
               <div className="min-w-0">
                 <p className="font-display text-base font-semibold text-foreground">
-                  {waitingAdminStops} stop{waitingAdminStops === 1 ? "" : "s"} waiting for Admin
+                  {waitingAdminStops} stop{waitingAdminStops === 1 ? "" : "s"} in Admin review
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {hasApprovedStops
-                    ? "You can start with approved stops. New ones go live after Admin approves."
-                    : "Admin must approve your stops before you can start a trip."}
+                  You can start the trip now. Admin review does not block daily operations.
                 </p>
               </div>
               <Button
@@ -272,9 +278,9 @@ export function HomePage() {
                   : tripCompleted
                     ? "Last trip finished. Tap Done when you are ready for the next one."
                     : needsRouteSetup
-                      ? "Add your stops first, then wait for Admin approval."
-                      : waitingAdminStops > 0 && !hasApprovedStops
-                        ? "Stops sent. Waiting for Admin before you can start."
+                      ? "Add your stops first, then start the trip."
+                      : !hasUsableStops
+                        ? "Add at least one pickup stop before starting."
                         : "When you are at the first stop, start the trip."}
               </p>
               <div className="mt-3">
@@ -283,6 +289,36 @@ export function HomePage() {
             </div>
 
             <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
+                <Users className="size-4 text-transport" aria-hidden />
+                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
+                  {participation.expectedCount || totalStudents}
+                </p>
+                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+                  Expected
+                </p>
+              </div>
+              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
+                <Users className="size-4 text-muted-foreground" aria-hidden />
+                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
+                  {participation.notRidingCount}
+                </p>
+                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+                  Not riding
+                </p>
+              </div>
+              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
+                <Bus className="size-4 text-transport" aria-hidden />
+                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
+                  {participation.expectedOnboardCount || totalStudents}
+                </p>
+                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+                  Onboard
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
               <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
                 <Bus className="size-4 text-transport" aria-hidden />
                 <p className="mt-1.5 truncate font-display text-sm font-semibold text-foreground sm:text-base">
@@ -299,15 +335,6 @@ export function HomePage() {
                 </p>
                 <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
                   Route
-                </p>
-              </div>
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Users className="size-4 text-transport" aria-hidden />
-                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
-                  {totalStudents}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Students
                 </p>
               </div>
             </div>

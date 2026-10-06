@@ -614,7 +614,22 @@ describe("attendance — portal reads", () => {
     expect(res.status).toBe(200);
     const body = await json(res);
     expect(body.data.days).toEqual([
-      { date: "2026-08-01", status: "present" },
+      {
+        date: "2026-08-01",
+        status: "present",
+        method: "daily",
+        presentCount: 1,
+        absentCount: 0,
+        leaveCount: 0,
+        slots: [
+          {
+            slotCode: "slot:day",
+            slotKind: "day",
+            slotLabel: "Full day",
+            status: "present",
+          },
+        ],
+      },
     ]);
   });
 

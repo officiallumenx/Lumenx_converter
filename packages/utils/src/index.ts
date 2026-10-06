@@ -375,6 +375,20 @@ export {
   type SubscribeTransportRealtimeOptions,
 } from "./transport-realtime";
 export {
+  GPS_LIVE_MAX_MS,
+  GPS_RECENT_MAX_MS,
+  GPS_STALE_MAX_MS,
+  classifyGpsFreshness,
+  formatGpsAgeLabel,
+  formatRelativeTransportTime,
+  isGpsShownAsLive,
+  type GpsFreshness,
+} from "./gps-freshness";
+export {
+  TRANSPORT_EVENT,
+  type TransportEventKind,
+} from "./transport-events";
+export {
   loadDashboardLayout,
   saveDashboardLayout,
   resetDashboardLayout,

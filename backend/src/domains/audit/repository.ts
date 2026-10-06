@@ -31,12 +31,14 @@ export async function listAuditEvents(
     throw AppError.validation("instituteId is required for institute audit queries");
   }
 
-  const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
+  const limit = Math.min(Math.max(filter.limit ?? 50, 1), 5000);
 
   let query = admin
     .from("audit_event")
     .select(AUDIT_COLS)
-    .eq("scope", filter.scope);
+    .eq("scope", filter.scope)
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
   if (filter.scope === "institute" && filter.instituteId) {
     query = query.eq("institute_id", filter.instituteId);
@@ -55,11 +57,7 @@ export async function listAuditEvents(
   }
 
   const result = await query;
-  const rows = ensureDbOk(result) as AuditEventRow[];
-  return rows
-    .slice()
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, limit);
+  return ensureDbOk(result) as AuditEventRow[];
 }
 
 export async function insertAuditEvent(

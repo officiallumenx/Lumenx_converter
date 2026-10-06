@@ -97,10 +97,22 @@ function buildAttendanceRoleRouteCaps(): Record<
 const ATTENDANCE_ROLE_ROUTE_CAPS = buildAttendanceRoleRouteCaps();
 
 export const ACCESS_MODULES: readonly AccessModule[] = adminNav.flatMap((group) =>
-  group.items
-    .filter((item) => item.to !== "/")
-    .map((item) => ({ route: item.to, label: item.label, group: group.label })),
+  group.items.map((item) => ({ route: item.to, label: item.label, group: group.label })),
 );
+
+/** Match pathname to an ACL module route (`/` is exact-only so it never swallows other paths). */
+export function matchAccessModuleRoute(
+  pathname: string,
+  routes: readonly string[],
+): string | undefined {
+  return routes
+    .filter((route) =>
+      route === "/"
+        ? pathname === "/"
+        : pathname === route || pathname.startsWith(`${route}/`),
+    )
+    .sort((a, b) => b.length - a.length)[0];
+}
 
 const STORAGE_KEY = "lx_admin_roles_access_v1";
 const listeners = new Set<() => void>();
@@ -359,14 +371,15 @@ export function getRolePermission(
   if (isApiAuthMode()) {
     return getApiRolePermission(pathname);
   }
-  if (!roleId || pathname === "/") return "full";
+  if (!roleId) return "full";
   const role = getAccessRole(roleId);
   if (!role) return "full";
-  const module = ACCESS_MODULES.filter(
-    (item) => pathname === item.route || pathname.startsWith(`${item.route}/`),
-  ).sort((a, b) => b.route.length - a.route.length)[0];
-  if (!module) return "full";
-  return role.permissions[module.route] ?? "none";
+  const moduleRoute = matchAccessModuleRoute(
+    pathname,
+    ACCESS_MODULES.map((item) => item.route),
+  );
+  if (!moduleRoute) return "full";
+  return role.permissions[moduleRoute] ?? "none";
 }
 
 export function saveAccessRole(role: AccessRole): void {

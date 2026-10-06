@@ -60,6 +60,7 @@ export type DriverRouteRosterStop = {
   approvalStatus: string;
   createdAt: string;
   kind?: "waypoint" | "school" | "parking";
+  notificationRadiusM?: number;
 };
 
 export type DriverRouteRosterStudent = {
@@ -71,8 +72,11 @@ export type DriverRouteRosterStudent = {
   pickupStopId: string;
   dropStopId: string;
   pickupStopName: string | null;
+  dropStopName?: string | null;
   status: string;
   approvalStatus: string;
+  notRidingToday?: boolean;
+  rideExceptionId?: string | null;
 };
 
 export type DriverRouteRoster = {
@@ -83,6 +87,9 @@ export type DriverRouteRoster = {
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];
+  expectedCount?: number;
+  notRidingCount?: number;
+  expectedOnboardCount?: number;
 };
 
 export async function getDriverRouteRoster(instituteId: string): Promise<DriverRouteRoster> {
@@ -118,6 +125,7 @@ export async function submitTransportStop(input: {
   longitude: number;
   routeOrder: number;
   kind?: "waypoint" | "parking";
+  notificationRadiusM?: number;
 }) {
   return transportFetch<{
     id: string;
@@ -126,6 +134,7 @@ export async function submitTransportStop(input: {
     name: string;
     approvalStatus: string;
     kind?: string;
+    notificationRadiusM?: number;
   }>(`/api/v1/transport/stops`, {
     method: "POST",
     body: {
@@ -137,6 +146,9 @@ export async function submitTransportStop(input: {
       longitude: input.longitude,
       route_order: input.routeOrder,
       ...(input.kind ? { kind: input.kind } : {}),
+      ...(input.notificationRadiusM !== undefined
+        ? { notification_radius_m: input.notificationRadiusM }
+        : {}),
     },
   });
 }
@@ -149,6 +161,7 @@ export async function updateTransportStop(
     latitude?: number;
     longitude?: number;
     routeOrder?: number;
+    notificationRadiusM?: number;
   },
 ) {
   const body: Record<string, unknown> = {};
@@ -157,12 +170,16 @@ export async function updateTransportStop(
   if (input.latitude !== undefined) body.latitude = input.latitude;
   if (input.longitude !== undefined) body.longitude = input.longitude;
   if (input.routeOrder !== undefined) body.route_order = input.routeOrder;
+  if (input.notificationRadiusM !== undefined) {
+    body.notification_radius_m = input.notificationRadiusM;
+  }
   return transportFetch<{
     id: string;
     instituteId: string;
     routeId: string;
     name: string;
     approvalStatus: string;
+    notificationRadiusM?: number;
   }>(`/api/v1/transport/stops/${stopId}`, {
     method: "PATCH",
     body,
@@ -180,6 +197,7 @@ export type StopDto = {
   routeOrder: number;
   approvalStatus: string;
   kind?: "waypoint" | "school" | "parking";
+  notificationRadiusM?: number;
 };
 
 export async function listTransportStops(input: {
@@ -246,6 +264,18 @@ export type TransportTripDto = {
   currentStopId: string | null;
   currentStopIndex: number;
   finalized: boolean;
+  timeline?: Array<{
+    id: string;
+    at: string;
+    kind: string;
+    label: string;
+    note?: string;
+    stopId?: string;
+    studentId?: string;
+  }>;
+  schoolArrivedAt?: string | null;
+  pickupStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
+  dropStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
 };
 
 export type TransportBoardingEventDto = {
@@ -291,6 +321,7 @@ export async function startTransportTrip(input: {
   driverId: string;
   slot?: "morning" | "evening";
   tripDate?: string;
+  clientEventId?: string;
 }): Promise<TransportTripDto> {
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips`, {
     method: "POST",
@@ -301,6 +332,7 @@ export async function startTransportTrip(input: {
       driver_id: input.driverId,
       slot: input.slot,
       trip_date: input.tripDate,
+      ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
     },
   });
 }
@@ -311,6 +343,7 @@ export async function updateTransportTripPhase(
     phase: string;
     currentStopId?: string | null;
     currentStopIndex?: number;
+    clientEventId?: string;
   },
 ): Promise<TransportTripDto> {
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/phase`, {
@@ -319,13 +352,20 @@ export async function updateTransportTripPhase(
       phase: input.phase,
       current_stop_id: input.currentStopId ?? null,
       current_stop_index: input.currentStopIndex,
+      ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
     },
   });
 }
 
-export async function endTransportTrip(tripId: string): Promise<TransportTripDto> {
+export async function endTransportTrip(
+  tripId: string,
+  clientEventId?: string,
+): Promise<TransportTripDto> {
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/end`, {
     method: "POST",
+    body: {
+      ...(clientEventId ? { client_event_id: clientEventId } : {}),
+    },
   });
 }
 
@@ -351,6 +391,7 @@ export async function markTripBoarding(
     studentId: string;
     stopId: string;
     boardingStatus: "pending" | "boarded" | "not_boarded";
+    clientEventId: string;
   },
 ): Promise<TransportBoardingEventDto> {
   return transportFetch<TransportBoardingEventDto>(
@@ -361,6 +402,7 @@ export async function markTripBoarding(
         student_id: input.studentId,
         stop_id: input.stopId,
         boarding_status: input.boardingStatus,
+        client_event_id: input.clientEventId,
       },
     },
   );
@@ -372,6 +414,7 @@ export async function markTripDropping(
     studentId: string;
     stopId: string;
     droppingStatus: "pending" | "dropped" | "not_dropped";
+    clientEventId: string;
   },
 ): Promise<TransportBoardingEventDto> {
   return transportFetch<TransportBoardingEventDto>(
@@ -382,6 +425,7 @@ export async function markTripDropping(
         student_id: input.studentId,
         stop_id: input.stopId,
         dropping_status: input.droppingStatus,
+        client_event_id: input.clientEventId,
       },
     },
   );
@@ -406,6 +450,7 @@ export async function createTransportEmergency(input: {
   note?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  clientEventId?: string;
 }): Promise<TransportEmergencyDto> {
   return transportFetch<TransportEmergencyDto>(`/api/v1/transport/emergencies`, {
     method: "POST",
@@ -417,6 +462,7 @@ export async function createTransportEmergency(input: {
       note: input.note ?? null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
     },
   });
 }
@@ -431,7 +477,14 @@ export async function getOpenEmergencyForVehicle(
 
 export async function pingTripLocation(
   tripId: string,
-  input: { latitude: number; longitude: number; accuracyM?: number | null },
+  input: {
+    latitude: number;
+    longitude: number;
+    accuracyM?: number | null;
+    capturedAt?: string;
+    clientEventId?: string;
+    sequenceNumber?: number;
+  },
 ): Promise<void> {
   await transportFetch(`/api/v1/transport/trips/${tripId}/location`, {
     method: "POST",
@@ -439,6 +492,11 @@ export async function pingTripLocation(
       latitude: input.latitude,
       longitude: input.longitude,
       accuracy_m: input.accuracyM ?? null,
+      ...(input.capturedAt ? { captured_at: input.capturedAt } : {}),
+      ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
+      ...(input.sequenceNumber !== undefined
+        ? { sequence_number: input.sequenceNumber }
+        : {}),
     },
   });
 }

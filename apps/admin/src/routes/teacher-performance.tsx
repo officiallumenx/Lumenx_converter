@@ -16,7 +16,7 @@ export const Route = createFileRoute("/teacher-performance")({
 
 function TeacherPerformanceDemoPage() {
   const top = TEACHER_PERFORMANCE[0]!;
-  const depts = [...new Set(TEACHER_PERFORMANCE.map((t) => t.dept))];
+  const subjects = [...new Set(TEACHER_PERFORMANCE.map((t) => t.dept))];
 
   const instituteAvg = useMemo(() => {
     const sum = TEACHER_PERFORMANCE.reduce((a, t) => a + t.rating, 0);
@@ -55,7 +55,7 @@ function TeacherPerformanceDemoPage() {
           tone="up"
           icon={<Award className="size-3.5" />}
         />
-        <Kpi label="Departments" value={String(depts.length)} />
+        <Kpi label="Subjects" value={String(subjects.length)} />
         <Kpi label="Faculty count" value={String(TEACHER_PERFORMANCE.length)} delta="Rated" />
       </div>
 
@@ -68,7 +68,7 @@ function TeacherPerformanceDemoPage() {
                 <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
                   <th className="px-5 py-3 font-semibold">Rank</th>
                   <th className="px-5 py-3 font-semibold">Teacher</th>
-                  <th className="px-5 py-3 font-semibold">Department</th>
+                  <th className="px-5 py-3 font-semibold">Subject</th>
                   <th className="px-5 py-3 font-semibold">Rating</th>
                   <th className="px-5 py-3 font-semibold">Trend</th>
                 </tr>
@@ -104,19 +104,26 @@ function TeacherPerformanceDemoPage() {
         </Card>
 
         <Card className="col-span-12 lg:col-span-4">
-          <CardHeader title="Department rankings" />
+          <CardHeader title="Subject rankings" hint="Average OPI by subject" />
           <div className="px-5 pb-5 space-y-3">
-            {depts.map((d) => {
-              const deptTeachers = TEACHER_PERFORMANCE.filter((t) => t.dept === d);
-              const avg = deptTeachers.reduce((a, t) => a + t.rating, 0) / deptTeachers.length;
+            {subjects.map((subject) => {
+              const subjectTeachers = TEACHER_PERFORMANCE.filter(
+                (t) => t.dept === subject,
+              );
+              const avg =
+                subjectTeachers.reduce((a, t) => a + t.rating, 0) /
+                subjectTeachers.length;
               return (
-                <div key={d}>
+                <div key={subject}>
                   <div className="flex justify-between text-xs mb-1">
-                    <span>{d}</span>
+                    <span>{subject}</span>
                     <span className="font-mono">{avg.toFixed(2)}</span>
                   </div>
                   <div className="h-1.5 rounded bg-muted overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${(avg / 5) * 100}%` }} />
+                    <div
+                      className="h-full bg-primary"
+                      style={{ width: `${(avg / 5) * 100}%` }}
+                    />
                   </div>
                 </div>
               );

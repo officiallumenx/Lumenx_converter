@@ -17,7 +17,7 @@ export type AttentionItem = {
     | "/leave"
     | "/complaints"
     | "/diary"
-    | "/attendance"
+    | "/student-attendance"
     | "/admissions"
     | "/careers";
   search?: Record<string, string>;
@@ -112,7 +112,7 @@ export function buildNeedsAttentionItems(input: AttentionInput): AttentionItem[]
     label: "Attendance drafts today",
     count: input.attendanceDraftCount ?? 0,
     severity: "attention",
-    to: "/attendance",
+    to: "/student-attendance",
     actionLabel: "Review",
   });
 
@@ -154,12 +154,12 @@ export function buildNeedsAttentionItems(input: AttentionInput): AttentionItem[]
 
   pushIfPositive(items, seen, {
     id: "transport-stops",
-    label: "Pending transport stops",
+    label: "Driver stops to accept",
     count: input.pendingTransportStops ?? 0,
     severity: "attention",
     to: "/transport",
-    search: { view: "reviews" },
-    actionLabel: "Review",
+    search: { view: "dashboard" },
+    actionLabel: "Accept",
   });
 
   pushIfPositive(items, seen, {

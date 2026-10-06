@@ -25,6 +25,7 @@ export {
   countSupportedReports,
   filterCatalogByModule,
   formatReportJobWhen,
+  latestJobByReportId,
   listReportModules,
   resolveReportName,
   sortJobsNewestFirst,

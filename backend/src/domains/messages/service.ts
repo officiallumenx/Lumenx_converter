@@ -10,6 +10,7 @@ import { emitNotificationForInstituteSystem } from "../notifications/service.js"
 import {
   findParentById,
   listLinksForStudent,
+  listLinksForStudentIds,
   listParents,
 } from "../parents/repository.js";
 import { listTeachers } from "../teachers/repository.js";
@@ -362,10 +363,16 @@ export async function listRecipientsForActor(
     userId: string | null | undefined,
     displayName: string,
     role: MessageRecipientDto["role"],
+    extra?: Partial<
+      Pick<
+        MessageRecipientDto,
+        "classLabel" | "sectionLabel" | "studentId" | "linkedParentUserIds"
+      >
+    >,
   ) => {
     if (!userId || userId === actor.userId || seen.has(userId)) return;
     seen.add(userId);
-    result.push({ userId, displayName, role });
+    result.push({ userId, displayName, role, ...extra });
   };
 
   const isParentOrStudent =
@@ -385,12 +392,36 @@ export async function listRecipientsForActor(
       add(t.user_profile_id, t.display_name?.trim() || "Teacher", "teacher");
     }
     const parents = await listParents(admin, { instituteId });
+    const parentUserById = new Map(
+      parents
+        .filter((p) => p.user_profile_id)
+        .map((p) => [p.id, p.user_profile_id as string]),
+    );
     for (const p of parents) {
       add(p.user_profile_id, p.name?.trim() || "Parent", "parent");
     }
     const students = await listStudents(admin, { instituteId, status: "active" });
+    const links = await listLinksForStudentIds(
+      admin,
+      students.map((s) => s.id),
+      instituteId,
+    );
+    const parentsByStudent = new Map<string, string[]>();
+    for (const link of links) {
+      const parentUserId = parentUserById.get(link.parent_id);
+      if (!parentUserId || parentUserId === actor.userId) continue;
+      const list = parentsByStudent.get(link.student_id) ?? [];
+      if (!list.includes(parentUserId)) list.push(parentUserId);
+      parentsByStudent.set(link.student_id, list);
+    }
     for (const s of students) {
-      add(s.user_profile_id, s.display_name?.trim() || "Student", "student");
+      if (!s.user_profile_id) continue;
+      add(s.user_profile_id, s.display_name?.trim() || "Student", "student", {
+        classLabel: s.class_label,
+        sectionLabel: s.section_label,
+        studentId: s.id,
+        linkedParentUserIds: parentsByStudent.get(s.id) ?? [],
+      });
     }
   }
 

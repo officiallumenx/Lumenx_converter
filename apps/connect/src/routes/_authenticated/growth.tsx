@@ -5,12 +5,9 @@ import { useApp } from "@/lib/app-state";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { useStudentPortal } from "@/context/StudentPortalContext";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { achievements, performance, streaks, trend } from "@/lib/mock-data";
 import {
   buildParentGrowthActivities,
   buildStudentGrowthActivities,
-  filterGrowthStreaks,
   parentGrowthGoals,
   streaksFromAttendanceDays,
   studentGrowthGoals,
@@ -74,20 +71,12 @@ function GrowthPage() {
   const streaksView = useMemo(() => {
     if (parentSnap) return streaksFromAttendanceDays(parentSnap.attendanceDays, parentSnap.trend);
     if (studentSnap) return streaksFromAttendanceDays(studentSnap.attendanceDays, studentSnap.trend);
-    if (isApiAuthMode()) return [];
-    return filterGrowthStreaks(streaks);
+    return [];
   }, [parentSnap, studentSnap]);
 
-  const trendView =
-    parentSnap?.trend ?? studentSnap?.trend ?? (isApiAuthMode() ? [] : trend);
-  const performanceView =
-    parentSnap?.performance ??
-    studentSnap?.performance ??
-    (isApiAuthMode() ? [] : performance);
-  const achievementsView =
-    parentSnap?.achievements ??
-    studentSnap?.achievements ??
-    (isApiAuthMode() ? [] : achievements);
+  const trendView = parentSnap?.trend ?? studentSnap?.trend ?? [];
+  const performanceView = parentSnap?.performance ?? studentSnap?.performance ?? [];
+  const achievementsView = parentSnap?.achievements ?? studentSnap?.achievements ?? [];
   const goalsView = useMemo(() => {
     if (parentSnap) return parentGrowthGoals(parentSnap);
     if (studentSnap) return studentGrowthGoals(studentSnap);

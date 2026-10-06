@@ -17,63 +17,92 @@ export function TransportEtaBanner({
   assignment?: StudentTransportAssignment;
   viewer?: "parent" | "student";
 }) {
+  const parentStatus = tracking.parentStatus;
   const awaitingPickup = tracking.learnerStatus === "awaiting_pickup";
   const pickedUp = tracking.learnerStatus === "picked_up";
   const reachedSchool = tracking.learnerStatus === "reached_school";
-  const emergency = Boolean(tracking.emergencyActive);
+  const emergency = Boolean(tracking.emergencyActive) || parentStatus === "emergency";
   const hasGps =
     Number.isFinite(tracking.lat) &&
     Number.isFinite(tracking.lng) &&
     !(tracking.lat === 0 && tracking.lng === 0);
-  const locating = Boolean(tracking.sharedTripActive) && awaitingPickup && !hasGps;
+  const locating =
+    Boolean(tracking.sharedTripActive) &&
+    awaitingPickup &&
+    !hasGps &&
+    parentStatus !== "location_unavailable";
   const urgent =
-    !emergency && !locating && awaitingPickup && hasGps && tracking.etaMinutes <= 5;
+    !emergency &&
+    !locating &&
+    awaitingPickup &&
+    hasGps &&
+    (parentStatus === "approaching" || parentStatus === "arrived" || tracking.etaMinutes <= 5);
   const stopOwner =
     viewer === "student"
       ? "your stop"
       : assignment
         ? `${assignment.studentName.split(" ")[0]}'s stop`
         : "the next stop";
+
   const headline = emergency
     ? tracking.emergencyLabel || "Emergency on bus"
-    : reachedSchool
-      ? "Reached school"
-      : pickedUp
-        ? "Picked up"
-        : tracking.runStatus === "scheduled"
-          ? "Trip not started"
-          : locating
-            ? "Locating bus…"
-            : formatEtaMinutes(tracking.etaMinutes);
+    : parentStatus === "not_riding"
+      ? "Not riding today"
+      : parentStatus === "location_unavailable"
+        ? "Location unavailable"
+        : parentStatus === "delayed"
+          ? "Delayed"
+          : parentStatus === "arrived"
+            ? "Arrived at stop"
+            : reachedSchool || parentStatus === "completed" || parentStatus === "trip_ended"
+              ? "Reached school"
+              : pickedUp || parentStatus === "boarding" || parentStatus === "at_school"
+                ? "Picked up"
+                : tracking.runStatus === "scheduled" ||
+                    parentStatus === "driver_not_started" ||
+                    parentStatus === "scheduled"
+                  ? "Trip not started"
+                  : locating
+                    ? "Locating bus…"
+                    : hasGps
+                      ? formatEtaMinutes(tracking.etaMinutes)
+                      : trackingStatusLabel(tracking);
+
   const detail = emergency
     ? assignment
       ? `${assignment.bus.busNumber} · ${assignment.bus.routeCode} · Admin is handling this SOS.`
       : "An emergency is active on this bus."
-    : reachedSchool
-      ? assignment
-        ? `${assignment.studentName} reached school safely.`
-        : "The bus reached school safely."
-      : pickedUp
-        ? assignment
-          ? `${assignment.studentName} is on the bus and heading to school.`
-          : "The student is on the bus and heading to school."
-        : tracking.runStatus === "scheduled"
+    : parentStatus === "not_riding"
+      ? "Permanent bus assignment is unchanged."
+      : parentStatus === "location_unavailable"
+        ? tracking.lastUpdated || "Waiting for a fresh GPS ping from the driver."
+        : reachedSchool || parentStatus === "completed" || parentStatus === "trip_ended"
           ? assignment
-            ? `Waiting for ${assignment.bus.busNumber} to start · ${assignment.pickupStop.name}`
-            : "Waiting for the driver to start the trip."
-          : locating
+            ? `${assignment.studentName} reached school safely.`
+            : "The bus reached school safely."
+          : pickedUp || parentStatus === "boarding" || parentStatus === "at_school"
             ? assignment
-              ? `Driver trip is active · waiting for live GPS near ${assignment.pickupStop.name}`
-              : "Driver trip is active · waiting for live GPS."
-            : assignment
-              ? `${formatEtaMinutes(tracking.etaMinutes)} to ${stopOwner} · ${assignment.pickupStop.name}${
-                  tracking.distanceM != null
-                    ? tracking.distanceM < 1000
-                      ? ` · ${Math.round(tracking.distanceM)} m`
-                      : ` · ${(tracking.distanceM / 1000).toFixed(1)} km`
-                    : ""
-                }`
-              : `Next: ${tracking.nextStopName}`;
+              ? `${assignment.studentName} is on the bus and heading to school.`
+              : "The student is on the bus and heading to school."
+            : tracking.runStatus === "scheduled" ||
+                parentStatus === "driver_not_started" ||
+                parentStatus === "scheduled"
+              ? assignment
+                ? `Waiting for ${assignment.bus.busNumber} to start · ${assignment.pickupStop.name}`
+                : "Waiting for the driver to start the trip."
+              : locating
+                ? assignment
+                  ? `Driver trip is active · waiting for live GPS near ${assignment.pickupStop.name}`
+                  : "Driver trip is active · waiting for live GPS."
+                : assignment && hasGps
+                  ? `${formatEtaMinutes(tracking.etaMinutes)} to ${stopOwner} · ${assignment.pickupStop.name}${
+                      tracking.distanceM != null
+                        ? tracking.distanceM < 1000
+                          ? ` · ${Math.round(tracking.distanceM)} m`
+                          : ` · ${(tracking.distanceM / 1000).toFixed(1)} km`
+                        : ""
+                    }`
+                  : `Next: ${tracking.nextStopName}`;
 
   return (
     <div
@@ -81,8 +110,19 @@ export function TransportEtaBanner({
         "rounded-2xl border p-4 sm:p-5",
         emergency && "border-destructive/40 bg-destructive/10",
         urgent && "border-warning/40 bg-warning/10",
-        !emergency && (pickedUp || reachedSchool) && "border-success/40 bg-success/10",
-        !emergency && !urgent && !pickedUp && !reachedSchool && "border-primary/30 bg-primary/5",
+        !emergency &&
+          (pickedUp ||
+            reachedSchool ||
+            parentStatus === "boarding" ||
+            parentStatus === "completed") &&
+          "border-success/40 bg-success/10",
+        !emergency &&
+          !urgent &&
+          !pickedUp &&
+          !reachedSchool &&
+          parentStatus !== "boarding" &&
+          parentStatus !== "completed" &&
+          "border-primary/30 bg-primary/5",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -90,11 +130,13 @@ export function TransportEtaBanner({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {emergency
               ? "Emergency status"
-              : reachedSchool
+              : reachedSchool || parentStatus === "completed" || parentStatus === "trip_ended"
                 ? "Journey complete"
-                : pickedUp
+                : pickedUp || parentStatus === "boarding" || parentStatus === "at_school"
                   ? "Current status"
-                  : tracking.runStatus === "scheduled"
+                  : tracking.runStatus === "scheduled" ||
+                      parentStatus === "driver_not_started" ||
+                      parentStatus === "scheduled"
                     ? "Trip status"
                     : `Time to ${stopOwner}`}
           </p>
@@ -107,7 +149,9 @@ export function TransportEtaBanner({
             "rounded-lg",
             emergency && "border-destructive/50 text-destructive",
             urgent && "border-warning/50 text-warning-foreground",
-            !emergency && (pickedUp || reachedSchool) && "border-success/50 text-success",
+            !emergency &&
+              (pickedUp || reachedSchool || parentStatus === "boarding") &&
+              "border-success/50 text-success",
           )}
         >
           {trackingStatusLabel(tracking)}
@@ -196,14 +240,16 @@ export function TransportTrackingPanel({ tracking }: { tracking: TransportTracki
     && !(tracking.lat === 0 && tracking.lng === 0);
   const sourceLabel = tracking.emergencyActive
     ? "Emergency overlay"
-    : tracking.sharedTripActive
-      ? hasGps
-        ? "Live bus GPS"
-        : "Driver trip · locating…"
-      : "Trip not started";
+    : tracking.parentStatus === "location_unavailable"
+      ? "Location unavailable"
+      : tracking.sharedTripActive
+        ? hasGps
+          ? "Live bus GPS"
+          : "Driver trip · locating…"
+        : "Trip not started";
 
   const distanceLabel =
-    tracking.distanceM != null && Number.isFinite(tracking.distanceM)
+    tracking.distanceM != null && Number.isFinite(tracking.distanceM) && hasGps
       ? tracking.distanceM < 1000
         ? `${Math.round(tracking.distanceM)} m away`
         : `${(tracking.distanceM / 1000).toFixed(1)} km away`
@@ -248,9 +294,9 @@ export function TransportTrackingPanel({ tracking }: { tracking: TransportTracki
             </div>
             <p className="mt-2 text-xs text-white/60">
               {hasGps
-                ? `Lat ${tracking.lat.toFixed(4)}, Lng ${tracking.lng.toFixed(4)} · Live GPS`
+                ? `Lat ${tracking.lat.toFixed(4)}, Lng ${tracking.lng.toFixed(4)} · ${tracking.lastUpdated}`
                 : tracking.sharedTripActive
-                  ? "Waiting for driver GPS ping…"
+                  ? tracking.lastUpdated || "Waiting for driver GPS ping…"
                   : "No live trip yet"}
             </p>
           </div>

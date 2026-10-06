@@ -10,7 +10,6 @@ import {
   resubmitRegistrationForActor,
 } from "../../domains/registrations/service.js";
 import { MAX_REGISTRATION_LOGO_DATA_URL_CHARS } from "../../domains/registrations/types.js";
-import { upsertUserAuthCredential } from "../../domains/auth-credentials/repository.js";
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -30,19 +29,35 @@ const registrationPayloadSchema = z.object({
     .min(3)
     .max(32)
     .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/),
-  instituteType: z.string().max(120).optional(),
-  educationBoard: z.string().max(120).optional(),
-  country: z.string().max(80).optional(),
-  state: z.string().max(120).optional(),
-  district: z.string().max(120).optional(),
-  city: z.string().max(120).optional(),
+  instituteType: z.string().min(1).max(120),
+  educationBoard: z.string().min(1).max(120),
+  schoolPhone: z.string().min(8).max(30),
+  schoolEmail: z.string().email().max(320),
+  country: z.string().min(1).max(80),
+  state: z.string().min(1).max(120),
+  district: z.string().min(1).max(120),
+  city: z.string().min(1).max(120),
+  area: z.string().min(1).max(120),
+  street: z.string().min(1).max(200),
+  landmark: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
-  pincode: z.string().max(20).optional(),
+  pincode: z.string().regex(/^\d{6}$/),
   website: z.string().max(300).optional(),
-  principalName: z.string().max(200).optional(),
-  principalEmail: z.string().email().max(320).optional(),
-  principalMobile: z.string().max(30).optional(),
-  principalDesignation: z.string().max(120).optional(),
+  principalName: z.string().min(1).max(200),
+  principalEmail: z.string().email().max(320),
+  principalMobile: z.string().min(8).max(30),
+  principalDesignation: z.enum(["Principal", "Director"]),
+  username: z
+    .string()
+    .min(3)
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/),
+  adminCountry: z.string().min(1).max(80),
+  adminState: z.string().min(1).max(120),
+  adminDistrict: z.string().min(1).max(120),
+  adminCity: z.string().min(1).max(120),
+  adminAddress: z.string().min(8).max(500),
+  adminPincode: z.string().regex(/^\d{6}$/),
   employeeId: z.string().max(80).optional(),
   logoPreview: z.string().max(MAX_REGISTRATION_LOGO_DATA_URL_CHARS).optional(),
 });
@@ -52,7 +67,7 @@ const createRegistrationSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(8).max(128),
   phone: z.string().max(30).nullable().optional(),
-  pin: z.string().min(4).max(8).optional(),
+  pin: z.string().regex(/^\d{6}$/),
   payload: registrationPayloadSchema,
 });
 
@@ -67,6 +82,7 @@ const registrations = new Hono<AppBindings>();
 /**
  * Public — submit institute registration (pending Nexus approval).
  * Password is consumed by Supabase Auth only; never stored or returned.
+ * PIN + username are stored on the applicant user_profile.
  */
 registrations.post("/", async (c) => {
   const admin = requireAdmin(c);
@@ -79,15 +95,6 @@ registrations.post("/", async (c) => {
     pin: body.pin,
     payload: body.payload,
   });
-  if (body.pin) {
-    await upsertUserAuthCredential(admin, {
-      userId: data.applicantUserId,
-      pin: body.pin,
-      // Signup OTP is separate; first Admin login still requires OTP per notebook.
-      markPhoneVerified: false,
-      markEmailVerified: false,
-    });
-  }
   return c.json({ data }, 201);
 });
 

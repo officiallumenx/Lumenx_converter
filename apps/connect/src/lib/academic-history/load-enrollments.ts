@@ -1,13 +1,12 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
+import { listAcademicYears, type AcademicYearDto } from "@/lib/academic-years/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import {
   listClasses,
   listEnrollments,
   listSections,
-  type ClassDto,
   type EnrollmentDto,
-  type SectionDto,
 } from "@/lib/teacher-classes/api";
 
 export type EnrollmentHistoryRow = {
@@ -26,9 +25,14 @@ export type EnrollmentHistoryLoad =
   | { status: "ready"; rows: EnrollmentHistoryRow[] }
   | { status: "forbidden" | "error"; rows: []; message: string };
 
-function yearLabel(academicYearId: string, classes: ClassDto[]): string {
-  const match = classes.find((c) => c.academicYearId === academicYearId);
-  return match?.academicYearId ? academicYearId.slice(0, 8) : academicYearId.slice(0, 8);
+function yearLabelFor(
+  academicYearId: string,
+  yearsById: Map<string, AcademicYearDto>,
+): string {
+  const year = yearsById.get(academicYearId);
+  if (year?.name?.trim()) return year.name.trim();
+  if (year?.code?.trim()) return year.code.trim();
+  return academicYearId.slice(0, 8);
 }
 
 export async function loadStudentEnrollmentHistory(input: {
@@ -48,13 +52,14 @@ export async function loadStudentEnrollmentHistory(input: {
   }
 
   try {
-    const [enrollments, classes, sections] = await Promise.all([
+    const [enrollments, classes, sections, years] = await Promise.all([
       listEnrollments({
         instituteId: input.instituteId,
         studentId: input.studentId,
       }),
-      listClasses(input.instituteId).catch(() => [] as ClassDto[]),
-      listSections(input.instituteId).catch(() => [] as SectionDto[]),
+      listClasses(input.instituteId),
+      listSections(input.instituteId),
+      listAcademicYears(input.instituteId),
     ]);
 
     if (enrollments.length === 0) {
@@ -63,6 +68,7 @@ export async function loadStudentEnrollmentHistory(input: {
 
     const classById = new Map(classes.map((c) => [c.id, c]));
     const sectionById = new Map(sections.map((s) => [s.id, s]));
+    const yearsById = new Map(years.map((y) => [y.id, y]));
 
     const rows: EnrollmentHistoryRow[] = enrollments
       .slice()
@@ -70,11 +76,10 @@ export async function loadStudentEnrollmentHistory(input: {
       .map((row) => {
         const cls = classById.get(row.classId);
         const section = sectionById.get(row.sectionId);
+        const yearLabel = yearLabelFor(row.academicYearId, yearsById);
         return {
           id: row.id,
-          yearLabel: cls?.name
-            ? `${cls.name} · ${yearLabel(row.academicYearId, classes)}`
-            : yearLabel(row.academicYearId, classes),
+          yearLabel,
           classLabel: cls?.name?.trim() || cls?.code?.trim() || "Class",
           sectionLabel: section?.name?.trim() || section?.code?.trim() || "—",
           rollNo: row.rollNo,

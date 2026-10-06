@@ -21,11 +21,13 @@ export function useDiaryApiSession(scope: DiaryScope) {
   const teacherId = portal.isTeacher ? portal.teacherId : null;
   const configuredKeyRef = useRef<string | null>(null);
   const [ready, setReady] = useState(!apiMode);
+  const [error, setError] = useState<string | null>(null);
   const [apiSectionOptions, setApiSectionOptions] = useState<DiarySectionOption[]>([]);
 
   useEffect(() => {
     if (!apiMode || !activeInstituteId) {
       setReady(true);
+      setError(null);
       return;
     }
 
@@ -38,13 +40,15 @@ export function useDiaryApiSession(scope: DiaryScope) {
     }
 
     if (!teacherId) {
-      setReady(true);
+      setReady(false);
+      setError("Teacher identity not loaded for this institute.");
       return;
     }
 
     const configKey = `${activeInstituteId}:${teacherId}:${scope}`;
     if (configuredKeyRef.current === configKey) {
       setReady(true);
+      setError(null);
       return;
     }
 
@@ -52,6 +56,7 @@ export function useDiaryApiSession(scope: DiaryScope) {
     // Only block UI on first configure for this institute/teacher/scope.
     if (configuredKeyRef.current !== configKey) {
       setReady(false);
+      setError(null);
     }
 
     diaryRepository.configureApiContext({
@@ -73,10 +78,17 @@ export function useDiaryApiSession(scope: DiaryScope) {
         }
         if (!cancelled) {
           configuredKeyRef.current = configKey;
+          setError(null);
           setReady(true);
         }
-      } catch {
-        if (!cancelled) setReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          configuredKeyRef.current = null;
+          setReady(false);
+          setError(
+            err instanceof Error ? err.message : "Failed to load diary session",
+          );
+        }
       }
     })();
 
@@ -103,5 +115,5 @@ export function useDiaryApiSession(scope: DiaryScope) {
     return fromPortal;
   }, [scope, apiSectionOptions, portal.classes]);
 
-  return { ready, apiMode, sectionOptions };
+  return { ready, apiMode, sectionOptions, error };
 }

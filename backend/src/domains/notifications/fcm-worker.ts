@@ -42,8 +42,26 @@ function buildFcmData(notification: {
   if (notification.payload?.presentation === "alert") {
     data.presentation = "alert";
     data.variant = "alert";
+  } else if (notification.payload?.presentation === "chime") {
+    data.presentation = "chime";
+    data.variant = "notification";
   } else {
     data.variant = "notification";
+  }
+  if (typeof notification.payload?.severity === "string") {
+    data.severity = notification.payload.severity;
+  }
+  if (typeof notification.payload?.kind === "string") {
+    data.kind = notification.payload.kind;
+  }
+  if (typeof notification.payload?.tripId === "string") {
+    data.tripId = notification.payload.tripId;
+  }
+  if (typeof notification.payload?.studentId === "string") {
+    data.studentId = notification.payload.studentId;
+  }
+  if (typeof notification.payload?.stopId === "string") {
+    data.stopId = notification.payload.stopId;
   }
   if (typeof notification.payload?.schoolAlertId === "string") {
     data.schoolAlertId = notification.payload.schoolAlertId;

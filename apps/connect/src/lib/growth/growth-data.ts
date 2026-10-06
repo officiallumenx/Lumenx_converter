@@ -1,10 +1,5 @@
 import type { Goal, Streak } from "@lumenx/types";
 import { clamp } from "@lumenx/utils";
-import {
-  goals as baseGoals,
-  instituteAssignedGoals,
-  streaks as baseStreaks,
-} from "@/lib/mock-data";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 import type { StudentSnapshot } from "@/lib/student/types";
 
@@ -51,18 +46,28 @@ function presentStreakFromDays(days: { status: string }[]): number {
   return streak;
 }
 
+/** Derive attendance/marks goal cards from portal metrics only — no mock templates. */
 export function goalsFromProfile(attendance: number, avgScore: number): Goal[] {
-  return filterGrowthGoals(
-    baseGoals.map((g) => {
-      if (g.metric === "attendance") {
-        return { ...g, current: attendance, target: Math.max(attendance, 95) };
-      }
-      if (g.metric === "marks") {
-        return { ...g, current: avgScore, target: Math.max(avgScore + 2, 88) };
-      }
-      return g;
-    }),
-  );
+  return [
+    {
+      id: "g-att",
+      title: "Attendance",
+      metric: "attendance",
+      target: Math.max(attendance, 95),
+      current: attendance,
+      unit: "%",
+      due: "This term",
+    },
+    {
+      id: "g-marks",
+      title: "Average marks",
+      metric: "marks",
+      target: Math.max(avgScore + 2, 88),
+      current: avgScore,
+      unit: "%",
+      due: "This term",
+    },
+  ];
 }
 
 export function streaksFromAttendanceDays(
@@ -70,15 +75,13 @@ export function streaksFromAttendanceDays(
   trend: { term: string; score: number }[],
 ): Streak[] {
   const current = presentStreakFromDays(days);
-  const best = Math.max(current, baseStreaks.find((s) => s.id === "s-att")?.best ?? 24);
-  const impBase = baseStreaks.find((s) => s.id === "s-imp");
-  // Count consecutive terms of rising scores from the latest, instead of a synthetic bump.
+  const best = Math.max(current, 1);
   let improving = 0;
   for (let i = trend.length - 1; i > 0; i--) {
     if (trend[i].score > trend[i - 1].score) improving += 1;
     else break;
   }
-  const impCurrent = clamp(improving, 0, impBase?.best ?? 5);
+  const impCurrent = clamp(improving, 0, 12);
 
   return filterGrowthStreaks([
     {
@@ -93,7 +96,7 @@ export function streaksFromAttendanceDays(
       id: "s-imp",
       label: "Improvement streak",
       current: impCurrent,
-      best: impBase?.best ?? 5,
+      best: Math.max(impCurrent, 1),
       unit: "weeks",
       tone: "warning",
     },
@@ -146,7 +149,7 @@ export function buildParentGrowthActivities(snap: ParentPortalSnapshot): GrowthA
       time: "This month",
       tone: "warning",
     });
-  } else {
+  } else if (snap.attendanceDays.length > 0) {
     items.push({
       id: "att-perfect",
       kind: "attendance",
@@ -234,15 +237,31 @@ export function buildStudentGrowthActivities(snap: StudentSnapshot): GrowthActiv
 }
 
 export function parentGrowthGoals(snap: ParentPortalSnapshot): Goal[] {
-  return [...filterGrowthGoals(snap.goals), ...filterGrowthGoals(snap.instituteGoals)];
+  const fromPortal = filterGrowthGoals([...snap.goals, ...snap.instituteGoals]);
+  if (fromPortal.length > 0) return fromPortal;
+
+  const attendanceDays = snap.attendanceDays;
+  const present = attendanceDays.filter((d) => d.status === "present").length;
+  const working = attendanceDays.filter(
+    (d) => d.status === "present" || d.status === "absent" || d.status === "leave",
+  ).length;
+  const attendancePct = working > 0 ? Math.round((present / working) * 100) : 0;
+  const avgScore =
+    snap.trend.length > 0
+      ? snap.trend[snap.trend.length - 1].score
+      : snap.performance.length > 0
+        ? Math.round(
+            snap.performance.reduce((s, p) => s + p.score, 0) / snap.performance.length,
+          )
+        : 0;
+  return goalsFromProfile(attendancePct, avgScore);
 }
 
 export function studentGrowthGoals(snap: StudentSnapshot): Goal[] {
   const avg =
     snap.academicTerms[0]?.avgScore ??
-    Math.round(snap.performance.reduce((s, p) => s + p.score, 0) / Math.max(snap.performance.length, 1));
-  return [
-    ...goalsFromProfile(snap.attendanceSummary.attendancePct, avg),
-    ...filterGrowthGoals(instituteAssignedGoals),
-  ];
+    Math.round(
+      snap.performance.reduce((s, p) => s + p.score, 0) / Math.max(snap.performance.length, 1),
+    );
+  return goalsFromProfile(snap.attendanceSummary.attendancePct, avg);
 }

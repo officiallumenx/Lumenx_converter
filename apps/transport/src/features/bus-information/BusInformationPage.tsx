@@ -59,7 +59,7 @@ export function BusInformationPage() {
             <CardContent className="space-y-3 p-4 sm:p-5">
               <p className="font-display text-base font-semibold text-foreground">Set up your route</p>
               <p className="text-sm text-muted-foreground">
-                Drive to each stop, save GPS, and add students. Admin must approve before trips.
+                Drive to each stop, save GPS, and add students. Stops are usable for trips immediately.
               </p>
               <Button
                 type="button"

@@ -37,11 +37,8 @@ export function linkedChildrenLabel(count: number): string {
 }
 
 export function parentIdentityLabel(dto: ParentDto): string {
-  const legacyCode = dto.legacyCode?.trim();
-  if (legacyCode) return legacyCode;
-  const phone = dto.phone?.trim();
-  if (phone) return phone;
-  return "";
+  // Legacy code only — never phone (phone is shown in the contact field).
+  return dto.legacyCode?.trim() || "";
 }
 
 /**

@@ -625,12 +625,68 @@ export const teacherRepository = {
     }));
   },
 
-  async getInstituteClassNames(): Promise<string[]> {
+  async getInstituteClassNames(opts?: {
+    instituteId?: string | null;
+  }): Promise<string[]> {
+    if (isApiAuthMode()) {
+      const cached = getTeacherClassesFromCache();
+      if (cached.length > 0) {
+        return [...new Set(cached.map((c) => c.className).filter(Boolean))].sort((a, b) =>
+          a.localeCompare(b, undefined, { numeric: true }),
+        );
+      }
+      const instituteId = opts?.instituteId?.trim() ?? "";
+      if (!isInstituteUuid(instituteId)) return [];
+      const { listClasses } = await import("@/lib/teacher-classes/api");
+      const classes = await listClasses(instituteId);
+      return [
+        ...new Set(
+          classes
+            .map((c) => c.name?.trim() || c.code?.trim() || "")
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    }
     await delay(80);
     return getInstituteClassNames();
   },
 
-  async getInstituteSections(className?: string): Promise<string[]> {
+  async getInstituteSections(
+    className?: string,
+    opts?: { instituteId?: string | null },
+  ): Promise<string[]> {
+    if (isApiAuthMode()) {
+      const cached = getTeacherClassesFromCache();
+      if (cached.length > 0) {
+        const pool =
+          className && className !== "all"
+            ? cached.filter((c) => c.className === className)
+            : cached;
+        return [...new Set(pool.map((c) => c.section).filter(Boolean))].sort((a, b) =>
+          a.localeCompare(b, undefined, { numeric: true }),
+        );
+      }
+      const instituteId = opts?.instituteId?.trim() ?? "";
+      if (!isInstituteUuid(instituteId)) return [];
+      const { listClasses, listSections } = await import("@/lib/teacher-classes/api");
+      const [classes, sections] = await Promise.all([
+        listClasses(instituteId),
+        listSections(instituteId),
+      ]);
+      const classById = new Map(classes.map((c) => [c.id, c]));
+      const pool = sections.filter((s) => {
+        if (s.status !== "active") return false;
+        if (!className || className === "all") return true;
+        const cls = classById.get(s.classId);
+        const label = cls?.name?.trim() || cls?.code?.trim() || "";
+        return label === className;
+      });
+      return [
+        ...new Set(
+          pool.map((s) => s.code?.trim() || s.name?.trim() || "").filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    }
     await delay(80);
     return getInstituteSections(className);
   },

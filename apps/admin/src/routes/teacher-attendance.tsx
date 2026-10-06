@@ -8,7 +8,6 @@ import {
   Button,
   Card,
   CardHeader,
-  Kpi,
   Modal,
   Pill,
   SearchInput,
@@ -45,7 +44,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronRight,
-  Clock,
   ClipboardCheck,
   History,
   Lock,
@@ -53,7 +51,6 @@ import {
   Save,
   Send,
   UserCheck,
-  UserX,
   X,
 } from "lucide-react";
 
@@ -67,14 +64,12 @@ type PageTab = "overview" | "mark" | "history";
 function TeacherAttendancePage() {
   if (isApiAuthMode()) {
     return (
-      <AppShell
-        title="Teacher Attendance"
-        subtitle="Mark daily attendance · overview & submitted history"
-      >
+      <AppShell title="Teacher Attendance" subtitle="Mark · overview · history">
         <ModuleHero
+          compact
           eyebrow="Academics"
           title="Teacher Attendance"
-          subtitle="Mark daily attendance · overview & submitted history"
+          subtitle="Mark · overview · history"
         />
         <TeacherAttendanceApiPage />
       </AppShell>
@@ -258,12 +253,7 @@ function TeacherAttendanceDemoPage() {
   const canEditCurrent =
     isSubmitted && canEditSubmittedRegister(meta.submittedAt);
 
-  const subtitle =
-    tab === "overview"
-      ? "Attendance % and exception counts per teacher"
-      : tab === "history"
-        ? `Submitted days — edit within ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours of submit`
-        : "Tap a status for each teacher — one tap to mark";
+  const subtitle = "Mark · overview · history";
 
   return (
     <AppShell
@@ -278,56 +268,79 @@ function TeacherAttendanceDemoPage() {
       }
     >
       <ModuleHero
+        compact
         eyebrow="Academics"
         title="Teacher Attendance"
         subtitle={subtitle}
       />
       <PageStack>
         {tab === "overview" ? (
-          <div className="lx-kpi-grid">
-            <Kpi
-              label="Avg attendance"
-              value={`${overviewKpis.avgPct}%`}
-              delta="Submitted days"
-              tone="up"
-              icon={<CheckCircle2 className="size-3.5" />}
-            />
-            <Kpi
-              label="Late / half"
-              value={String(overviewKpis.lates)}
-              delta="All teachers"
-              icon={<Clock className="size-3.5" />}
-            />
-            <Kpi
-              label="Absents"
-              value={String(overviewKpis.absents)}
-              tone="down"
-              icon={<UserX className="size-3.5" />}
-            />
-            <Kpi label="Leaves" value={String(overviewKpis.leaves)} />
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">
+            <span className="font-medium text-muted-foreground">Overview</span>
+            <span className="text-border" aria-hidden>
+              |
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">Avg</span>
+              <span className="font-semibold tabular-nums">{overviewKpis.avgPct}%</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">H</span>
+              <span className="font-semibold tabular-nums">{overviewKpis.lates}</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">A</span>
+              <span className="font-semibold tabular-nums text-destructive">
+                {overviewKpis.absents}
+              </span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">L</span>
+              <span className="font-semibold tabular-nums text-warning">
+                {overviewKpis.leaves}
+              </span>
+            </span>
           </div>
         ) : tab === "mark" ? (
-          <div className="lx-kpi-grid">
-            <Kpi
-              label="Present"
-              value={String(stats.present)}
-              delta={`of ${stats.total}`}
-              tone="up"
-              icon={<CheckCircle2 className="size-3.5" />}
-            />
-            <Kpi
-              label="Late / half"
-              value={String(stats.late + stats.half)}
-              delta="Today"
-              icon={<Clock className="size-3.5" />}
-            />
-            <Kpi
-              label="Absent"
-              value={String(stats.absent)}
-              tone="down"
-              icon={<UserX className="size-3.5" />}
-            />
-            <Kpi label="On leave" value={String(stats.onLeave)} />
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">
+            <span className="font-medium text-muted-foreground">Summary</span>
+            <span className="text-border" aria-hidden>
+              |
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">P</span>
+              <span className="font-semibold tabular-nums text-success">{stats.present}</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">A</span>
+              <span className="font-semibold tabular-nums text-destructive">{stats.absent}</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">H</span>
+              <span className="font-semibold tabular-nums">{stats.late + stats.half}</span>
+            </span>
+            <span className="text-border" aria-hidden>
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-muted-foreground">L</span>
+              <span className="font-semibold tabular-nums text-warning">{stats.onLeave}</span>
+            </span>
           </div>
         ) : null}
 

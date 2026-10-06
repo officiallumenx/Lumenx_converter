@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import { signInPasswordForUserId } from "../../auth/create-server-session.js";
+import {
+  findCredentialByUsername,
+  upsertUserAuthCredential,
+} from "../auth-credentials/repository.js";
 import { findInstituteByCode, findProfileById } from "../identity/repository.js";
 import {
   findPendingRegistrationByApplicantUserId,
@@ -11,21 +15,21 @@ import {
   isPlatformOperatorUser,
   updateRegistrationFields,
 } from "./repository.js";
+import {
+  normalizeInstituteCode,
+  normalizeRegistrationPayload,
+  normalizeUsername,
+  registrationRowFieldsFromPayload,
+  validateRegistrationApplication,
+} from "./payload.js";
 import type {
   CreateRegistrationInput,
   InstituteRegistrationDto,
-  InstituteRegistrationPayload,
   InstituteRegistrationRow,
   ResubmitRegistrationInput,
 } from "./types.js";
-import { MAX_REGISTRATION_LOGO_DATA_URL_CHARS } from "./types.js";
 
-/** Login-facing institute code: letters, digits, hyphen/underscore; 3–32 chars. */
-const INSTITUTE_CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/;
-
-export function normalizeInstituteCode(value: string | undefined | null): string {
-  return (value ?? "").trim();
-}
+export { normalizeInstituteCode } from "./payload.js";
 
 export function toRegistrationDto(
   row: InstituteRegistrationRow,
@@ -53,71 +57,6 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function normalizePayload(
-  input: InstituteRegistrationPayload,
-  fallbackEmail: string,
-  fallbackName: string,
-): InstituteRegistrationPayload {
-  const instituteCode = normalizeInstituteCode(input.instituteCode);
-  const normalized: InstituteRegistrationPayload = {
-    ...input,
-    instituteName: input.instituteName.trim(),
-    instituteCode: instituteCode || undefined,
-    principalEmail:
-      input.principalEmail?.trim().toLowerCase() || fallbackEmail,
-    principalName: input.principalName?.trim() || fallbackName,
-  };
-  if (input.logoPreview !== undefined) {
-    normalized.logoPreview = input.logoPreview.trim() || undefined;
-  }
-  return normalized;
-}
-
-function validatePayloadInstitute(input: {
-  applicantName?: string;
-  payload: InstituteRegistrationPayload;
-  requireApplicantName?: boolean;
-  requirePassword?: boolean;
-  password?: string;
-}): void {
-  const instituteName = input.payload.instituteName?.trim();
-  if (!instituteName) {
-    throw AppError.validation("payload.instituteName is required", {
-      "payload.instituteName": ["Required"],
-    });
-  }
-  const instituteCode = normalizeInstituteCode(input.payload.instituteCode);
-  if (!instituteCode) {
-    throw AppError.validation("payload.instituteCode is required", {
-      "payload.instituteCode": ["Required"],
-    });
-  }
-  if (!INSTITUTE_CODE_RE.test(instituteCode)) {
-    throw AppError.validation(
-      "Institute code must be 3–32 characters (letters, numbers, - or _)",
-      { "payload.instituteCode": ["Invalid format"] },
-    );
-  }
-  if (input.requireApplicantName && !input.applicantName?.trim()) {
-    throw AppError.validation("applicant_name is required", {
-      applicant_name: ["Required"],
-    });
-  }
-  if (input.requirePassword) {
-    if (!input.password || input.password.length < 8) {
-      throw AppError.validation("password must be at least 8 characters", {
-        password: ["Too short"],
-      });
-    }
-  }
-  const logo = input.payload.logoPreview;
-  if (logo && logo.length > MAX_REGISTRATION_LOGO_DATA_URL_CHARS) {
-    throw AppError.validation("payload.logoPreview is too large", {
-      "payload.logoPreview": ["Too large"],
-    });
-  }
-}
-
 async function assertInstituteCodeAvailable(
   admin: SupabaseClient,
   code: string,
@@ -128,19 +67,17 @@ async function assertInstituteCodeAvailable(
   }
 }
 
-function validatePayload(input: CreateRegistrationInput): void {
-  if (!input.email.trim() || !input.email.includes("@")) {
-    throw AppError.validation("A valid email is required", {
-      email: ["Invalid email"],
-    });
+async function assertUsernameAvailable(
+  admin: SupabaseClient,
+  username: string,
+  exceptUserId?: string,
+): Promise<void> {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return;
+  const taken = await findCredentialByUsername(admin, normalized);
+  if (taken && taken.user_id !== exceptUserId) {
+    throw AppError.conflict("This username is already taken. Choose another.");
   }
-  validatePayloadInstitute({
-    applicantName: input.applicantName,
-    payload: input.payload,
-    requireApplicantName: true,
-    requirePassword: true,
-    password: input.password,
-  });
 }
 
 async function provisionAuthUser(
@@ -186,6 +123,7 @@ async function ensureApplicantProfile(
     applicantName: string;
     email: string;
     phone?: string | null;
+    username?: string | null;
   },
 ): Promise<void> {
   const existing = await findProfileById(admin, input.userId);
@@ -201,6 +139,7 @@ async function ensureApplicantProfile(
     displayName: input.applicantName,
     email: input.email,
     phone: input.phone,
+    username: input.username,
   });
 }
 
@@ -212,15 +151,30 @@ export async function createRegistration(
   admin: SupabaseClient,
   input: CreateRegistrationInput,
 ): Promise<InstituteRegistrationDto> {
-  validatePayload(input);
+  if (!input.email.trim() || !input.email.includes("@")) {
+    throw AppError.validation("A valid email is required", {
+      email: ["Invalid email"],
+    });
+  }
 
   const email = normalizeEmail(input.email);
-  const payload = normalizePayload(
+  const payload = normalizeRegistrationPayload(
     input.payload,
     email,
     input.applicantName.trim(),
   );
+
+  validateRegistrationApplication({
+    applicantName: input.applicantName,
+    payload,
+    requireApplicantName: true,
+    requirePassword: true,
+    password: input.password,
+    requireFullApplication: true,
+  });
+
   await assertInstituteCodeAvailable(admin, payload.instituteCode!);
+  await assertUsernameAvailable(admin, payload.username!);
 
   const userId = await provisionAuthUser(admin, email, input.password);
 
@@ -248,14 +202,24 @@ export async function createRegistration(
     userId,
     applicantName: input.applicantName,
     email,
-    phone: input.phone,
+    phone: input.phone ?? payload.principalMobile,
+    username: payload.username,
+  });
+
+  // Username + PIN belong on the applicant profile (Admin login factors).
+  await upsertUserAuthCredential(admin, {
+    userId,
+    username: payload.username,
+    pin: input.pin?.trim() || null,
+    markPhoneVerified: false,
+    markEmailVerified: false,
   });
 
   const row = await insertRegistration(admin, {
     applicantUserId: userId,
     applicantName: input.applicantName,
     email,
-    phone: input.phone,
+    phone: input.phone ?? payload.principalMobile,
     payload,
   });
 
@@ -271,12 +235,6 @@ export async function resubmitRegistrationForActor(
   actor: Actor,
   input: ResubmitRegistrationInput,
 ): Promise<InstituteRegistrationDto> {
-  validatePayloadInstitute({
-    applicantName: input.applicantName,
-    payload: input.payload,
-    requireApplicantName: false,
-  });
-
   const row = await findRegistrationByApplicantUserId(admin, actor.userId);
   if (!row) {
     throw AppError.notFound("Registration not found");
@@ -290,12 +248,28 @@ export async function resubmitRegistrationForActor(
     throw AppError.conflict("A pending registration already exists for this account");
   }
 
-  const payload = normalizePayload(
+  const payload = normalizeRegistrationPayload(
     input.payload,
     row.email,
     input.applicantName?.trim() || row.applicant_name,
   );
+
+  validateRegistrationApplication({
+    applicantName: input.applicantName,
+    payload,
+    requireApplicantName: false,
+    requireFullApplication: true,
+  });
+
   await assertInstituteCodeAvailable(admin, payload.instituteCode!);
+  await assertUsernameAvailable(admin, payload.username!, actor.userId);
+
+  if (payload.username) {
+    await upsertUserAuthCredential(admin, {
+      userId: actor.userId,
+      username: payload.username,
+    });
+  }
 
   const updated = await updateRegistrationFields(admin, row.id, {
     applicant_name: input.applicantName?.trim() || row.applicant_name,
@@ -309,6 +283,7 @@ export async function resubmitRegistrationForActor(
     reviewed_by: null,
     reviewed_at: null,
     institute_id: null,
+    ...registrationRowFieldsFromPayload(payload),
   });
 
   if (!updated) {

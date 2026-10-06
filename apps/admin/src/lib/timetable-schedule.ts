@@ -181,6 +181,170 @@ export function defaultScheduleInput(): ScheduleInput {
   };
 }
 
+type SlotLikeForSchedule = {
+  dayOfWeek: number;
+  periodIndex: number;
+  startsAt: string;
+  endsAt: string;
+};
+
+/**
+ * Build a week schedule template from existing slot rows so the period×day
+ * table can render even when no local bell schedule was saved.
+ */
+export function inferScheduleInputFromSlots(
+  slots: readonly SlotLikeForSchedule[],
+): ScheduleInput | null {
+  if (!slots.length) return null;
+
+  const periodTimes = new Map<number, { start: string; end: string }>();
+  const dayMaxPeriod = new Map<number, number>();
+
+  for (const slot of slots) {
+    const periodIndex = Math.max(1, Math.floor(slot.periodIndex));
+    const start = slot.startsAt.trim().slice(0, 5) || "08:00";
+    const end = slot.endsAt.trim().slice(0, 5) || formatTime(parseTime(start) + 60);
+    if (!periodTimes.has(periodIndex)) {
+      periodTimes.set(periodIndex, { start, end });
+    }
+    dayMaxPeriod.set(
+      slot.dayOfWeek,
+      Math.max(dayMaxPeriod.get(slot.dayOfWeek) ?? 0, periodIndex),
+    );
+  }
+
+  const maxPeriod = Math.max(...periodTimes.keys(), 1);
+  const periodItems: BellScheduleItem[] = [];
+  for (let i = 1; i <= maxPeriod; i += 1) {
+    const known = periodTimes.get(i);
+    if (known) {
+      periodItems.push({
+        id: `P${i}`,
+        kind: "period",
+        label: `P${i}`,
+        start: known.start,
+        end: known.end,
+      });
+      continue;
+    }
+    const prevEnd = periodItems[periodItems.length - 1]?.end ?? "08:00";
+    const start = prevEnd;
+    const end = formatTime(parseTime(start) + 60);
+    periodItems.push({
+      id: `P${i}`,
+      kind: "period",
+      label: `P${i}`,
+      start,
+      end,
+    });
+  }
+
+  const bellItems = insertInferredBreaks(periodItems);
+  const lunchItem = bellItems.find(
+    (item) => item.kind === "break" && /lunch/i.test(item.label),
+  );
+  const lunchAfterPeriod = lunchItem
+    ? bellItems
+        .slice(0, bellItems.indexOf(lunchItem))
+        .filter((item) => item.kind === "period").length
+    : Math.max(1, Math.min(4, Math.floor(maxPeriod / 2)));
+  const lunchDurationMins = lunchItem
+    ? Math.max(5, parseTime(lunchItem.end) - parseTime(lunchItem.start))
+    : 45;
+
+  const firstStart = periodItems[0]?.start ?? "08:00";
+  const firstEnd = periodItems[0]?.end ?? "09:00";
+  const periodDurationMins = Math.max(15, parseTime(firstEnd) - parseTime(firstStart));
+
+  return {
+    startTime: firstStart,
+    periodDurationMins,
+    defaultPeriodsPerDay: maxPeriod,
+    lunchEnabled: Boolean(lunchItem) || maxPeriod >= 4,
+    lunchAfterPeriod,
+    lunchDurationMins,
+    days: ALL_WEEKDAY_NAMES.slice(0, 6).map((name, index) => {
+      const dayOfWeek = index + 1;
+      const periods = dayMaxPeriod.get(dayOfWeek) ?? 0;
+      return {
+        name,
+        active: periods > 0,
+        periods: periods > 0 ? periods : maxPeriod,
+      };
+    }),
+    bellItems,
+  };
+}
+
+/** Insert Lunch/Break rows between teaching periods from time gaps (or a default lunch). */
+export function insertInferredBreaks(
+  periodItems: readonly BellScheduleItem[],
+): BellScheduleItem[] {
+  const periods = periodItems.filter((item) => item.kind === "period");
+  if (periods.length === 0) return [...periodItems];
+
+  const withGaps: BellScheduleItem[] = [];
+  let largestGap = 0;
+  let largestGapAfter = -1;
+
+  for (let i = 0; i < periods.length; i += 1) {
+    const cur = periods[i]!;
+    withGaps.push(cur);
+    if (i >= periods.length - 1) continue;
+    const next = periods[i + 1]!;
+    const gap = parseTime(next.start) - parseTime(cur.end);
+    if (gap > largestGap) {
+      largestGap = gap;
+      largestGapAfter = i;
+    }
+    if (gap >= 10) {
+      const midday =
+        parseTime(cur.end) >= 11 * 60 && parseTime(cur.end) <= 14 * 60;
+      const label = gap >= 30 || midday ? "Lunch" : "Break";
+      withGaps.push({
+        id: `BRK-${i + 1}`,
+        kind: "break",
+        label,
+        start: cur.end,
+        end: next.start,
+      });
+    }
+  }
+
+  if (withGaps.some((item) => item.kind === "break" && /lunch/i.test(item.label))) {
+    return withGaps;
+  }
+
+  // No lunch gap in slot times — place a default lunch after mid-morning periods.
+  if (periods.length < 4) return withGaps;
+  const afterIdx =
+    largestGapAfter >= 0 && largestGap >= 5
+      ? largestGapAfter
+      : Math.min(3, periods.length - 2); // after P4 when possible
+  const after = periods[afterIdx]!;
+  const next = periods[afterIdx + 1];
+  const lunchStart = after.end;
+  const lunchEnd =
+    next && parseTime(next.start) > parseTime(lunchStart)
+      ? next.start
+      : formatTime(parseTime(lunchStart) + 45);
+
+  const result: BellScheduleItem[] = [];
+  for (let i = 0; i < periods.length; i += 1) {
+    result.push(periods[i]!);
+    if (i === afterIdx) {
+      result.push({
+        id: "LUNCH",
+        kind: "break",
+        label: "Lunch",
+        start: lunchStart,
+        end: lunchEnd,
+      });
+    }
+  }
+  return result;
+}
+
 export type ScheduleValidationIssue = {
   severity: "error" | "warning";
   message: string;

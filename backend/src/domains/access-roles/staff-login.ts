@@ -29,7 +29,7 @@ import {
   assertValidPin,
   assertValidUsername,
   findCredentialByUserId,
-  findCredentialByUsername,
+  normalizeUsername,
   upsertUserAuthCredential,
   workflowFlagsFromCredential,
 } from "../auth-credentials/repository.js";
@@ -195,158 +195,194 @@ type StaffProfile = {
   display_name: string;
   email: string | null;
   phone: string | null;
+  username?: string | null;
   status: string;
   phone_digits?: string | null;
 };
 
-async function isPlatformOperatorUser(
-  admin: SupabaseClient,
-  userId: string,
-): Promise<boolean> {
-  const { data, error } = await admin
-    .from("platform_operator")
-    .select("user_id, status")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  const row = data as { user_id: string; status: string } | null;
-  return Boolean(row && (row.status === "active" || row.status === "invited"));
+const STAFF_PROFILE_COLS =
+  "id, display_name, email, phone, status, phone_digits, username";
+const STAFF_PROFILE_IN_CHUNK = 200;
+const STAFF_LOGIN_NOT_FOUND =
+  "No Admin account matched this ID for the selected institute. Use the email, username, or mobile registered for this institute.";
+
+function pickLiveMembership<T extends { status: string }>(
+  memberships: T[],
+): T | null {
+  return (
+    memberships.find((m) => m.status === "active") ??
+    memberships.find((m) => m.status !== "ended") ??
+    null
+  );
+}
+
+function chunkIds(ids: string[], size = STAFF_PROFILE_IN_CHUNK): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    chunks.push(ids.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function profilePhoneMatches(row: StaffProfile, digits: string): boolean {
+  if (row.phone_digits && /^\d{10}$/.test(row.phone_digits) && row.phone_digits === digits) {
+    return true;
+  }
+  return Boolean(row.phone && normalizePhoneDigits(row.phone) === digits);
 }
 
 /**
- * List institute-wide Admin profiles in the institute (excluding one user id).
+ * Load live members of the selected institute only. Admin login never scans
+ * global usernames, Nexus operators, or other tenants.
  */
-async function listInstituteWideAdminProfiles(
+async function loadLiveInstituteMemberProfiles(
   admin: SupabaseClient,
   instituteId: string,
-  excludeUserId?: string,
 ): Promise<StaffProfile[]> {
-  const instituteMemberships = await listMemberships(admin, { instituteId });
-  const active = instituteMemberships.filter((m) => m.status !== "ended");
-  const candidates: StaffProfile[] = [];
-  for (const membership of active) {
-    const roleRows = await listRolesForMemberships(admin, [membership.id]);
-    const codes = roleRows.map((r) => r.role_code);
-    if (!codes.some((c) => INSTITUTE_WIDE_ROLES.has(c))) continue;
+  const memberships = await listMemberships(admin, { instituteId });
+  const userIds = [
+    ...new Set(
+      memberships
+        .filter((row) => row.status !== "ended")
+        .map((row) => row.user_id),
+    ),
+  ];
+  if (userIds.length === 0) return [];
 
+  const profiles: StaffProfile[] = [];
+  for (const ids of chunkIds(userIds)) {
     const { data, error } = await admin
       .from("user_profile")
-      .select("id, display_name, email, phone, phone_digits, status")
-      .eq("id", membership.user_id)
+      .select(STAFF_PROFILE_COLS)
+      .in("id", ids)
+      .is("deleted_at", null);
+    if (error) throw error;
+    profiles.push(...((data ?? []) as StaffProfile[]));
+  }
+  return profiles;
+}
+
+function matchInstituteStaffIdentifier(
+  members: StaffProfile[],
+  identifier: string,
+): StaffProfile | null {
+  const trimmed = identifier.trim();
+  const isEmail = trimmed.includes("@");
+  const phoneDigits = normalizePhoneDigits(trimmed);
+  const looksLikePhone =
+    !isEmail &&
+    phoneDigits.length === 10 &&
+    /^\d+$/.test(trimmed.replace(/\D/g, ""));
+
+  let matches: StaffProfile[];
+  if (isEmail) {
+    const email = trimmed.toLowerCase();
+    matches = members.filter(
+      (row) => row.email?.trim().toLowerCase() === email,
+    );
+  } else if (looksLikePhone) {
+    matches = members.filter((row) => profilePhoneMatches(row, phoneDigits));
+  } else {
+    const username = normalizeUsername(trimmed);
+    matches = members.filter(
+      (row) => (row.username ?? "").trim().toLowerCase() === username,
+    );
+  }
+
+  if (matches.length > 1) {
+    throw AppError.conflict(
+      "Multiple Admin accounts match this identifier in the selected institute. Use email.",
+    );
+  }
+  return matches[0] ?? null;
+}
+
+/**
+ * When username/mobile is on a non-member profile that shares email with exactly
+ * one live institute Admin, resolve to that Admin. Never reads platform_operator
+ * and never reveals other products — generic not-found if ambiguous/missing.
+ */
+async function tryResolveInstituteAdminBySharedEmail(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    members: StaffProfile[];
+    identifier: string;
+  },
+): Promise<StaffProfile | null> {
+  const trimmed = input.identifier.trim();
+  const isEmail = trimmed.includes("@");
+  if (isEmail) return null;
+
+  const phoneDigits = normalizePhoneDigits(trimmed);
+  const looksLikePhone =
+    phoneDigits.length === 10 && /^\d+$/.test(trimmed.replace(/\D/g, ""));
+
+  let holder: StaffProfile | null = null;
+  if (looksLikePhone) {
+    const { data, error } = await admin
+      .from("user_profile")
+      .select(STAFF_PROFILE_COLS)
+      .eq("phone_digits", phoneDigits)
       .is("deleted_at", null)
       .maybeSingle();
     if (error) throw error;
-    const row = data as StaffProfile | null;
-    if (!row || row.status === "disabled") continue;
-    if (excludeUserId && row.id === excludeUserId) continue;
-    candidates.push(row);
-  }
-  return candidates;
-}
-
-/**
- * Same person may hold Nexus (platform_operator) on one profile and Admin on
- * another. Phone stays on the operator profile; Admin login bridges by email
- * without moving phone_digits.
- */
-async function tryResolveInstituteAdminSharingEmail(
-  admin: SupabaseClient,
-  input: {
-    instituteId: string;
-    phoneHolderProfile: StaffProfile;
-  },
-): Promise<StaffProfile | null> {
-  const email = input.phoneHolderProfile.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  const admins = await listInstituteWideAdminProfiles(
-    admin,
-    input.instituteId,
-    input.phoneHolderProfile.id,
-  );
-  const matches = admins.filter(
-    (row) => row.email?.trim().toLowerCase() === email,
-  );
-  return matches.length === 1 ? matches[0]! : null;
-}
-
-/**
- * When mobile login hits an orphan profile (no institute membership) but the
- * institute has exactly one institute-wide Admin with no other mobile, move
- * the number onto that Admin so email/mobile resolve to the same account.
- * Never steals a phone from a Nexus platform_operator profile.
- */
-async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
-  admin: SupabaseClient,
-  input: {
-    instituteId: string;
-    orphanProfile: StaffProfile;
-    phoneDigits: string;
-  },
-): Promise<StaffProfile | null> {
-  if (await isPlatformOperatorUser(admin, input.orphanProfile.id)) {
-    return null;
-  }
-
-  const admins = await listInstituteWideAdminProfiles(
-    admin,
-    input.instituteId,
-    input.orphanProfile.id,
-  );
-  const candidates = admins.filter((row) => {
-    const existingDigits =
-      (row.phone_digits && /^\d{10}$/.test(row.phone_digits)
-        ? row.phone_digits
-        : null) ??
-      (row.phone ? normalizePhoneDigits(row.phone) : "");
-    if (existingDigits && existingDigits !== input.phoneDigits) return false;
-    return true;
-  });
-
-  if (candidates.length !== 1) return null;
-  const target = candidates[0]!;
-
-  const { error: clearOrphanError } = await admin
-    .from("user_profile")
-    .update({ phone: null, phone_digits: null })
-    .eq("id", input.orphanProfile.id);
-  if (clearOrphanError) throw clearOrphanError;
-
-  const { data: otherHolders, error: holdersError } = await admin
-    .from("user_profile")
-    .select("id")
-    .eq("phone_digits", input.phoneDigits)
-    .neq("id", target.id)
-    .is("deleted_at", null);
-  if (holdersError) throw holdersError;
-  const holderIds = (otherHolders ?? []).map((row) => row.id as string);
-  const safeToClear: string[] = [];
-  for (const holderId of holderIds) {
-    if (await isPlatformOperatorUser(admin, holderId)) continue;
-    safeToClear.push(holderId);
-  }
-  if (safeToClear.length > 0) {
-    const { error: clearOthersError } = await admin
+    holder = (data as StaffProfile | null) ?? null;
+    if (!holder) {
+      const { data: byPhone, error: phoneError } = await admin
+        .from("user_profile")
+        .select(STAFF_PROFILE_COLS)
+        .is("deleted_at", null)
+        .not("phone", "is", null)
+        .limit(500);
+      if (phoneError) throw phoneError;
+      const matches = ((byPhone ?? []) as StaffProfile[]).filter((row) =>
+        profilePhoneMatches(row, phoneDigits),
+      );
+      holder = matches.length === 1 ? matches[0]! : null;
+    }
+  } else {
+    const username = normalizeUsername(trimmed);
+    const { data, error } = await admin
       .from("user_profile")
-      .update({ phone: null, phone_digits: null })
-      .in("id", safeToClear);
-    if (clearOthersError) throw clearOthersError;
+      .select(STAFF_PROFILE_COLS)
+      .eq("username", username)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) throw error;
+    holder = (data as StaffProfile | null) ?? null;
   }
 
-  const { error: setError } = await admin
-    .from("user_profile")
-    .update({
-      phone: input.phoneDigits,
-      phone_digits: input.phoneDigits,
-    })
-    .eq("id", target.id);
-  if (setError) throw setError;
+  const email = holder?.email?.trim().toLowerCase();
+  if (!holder || !email || holder.status === "disabled") return null;
+  if (input.members.some((m) => m.id === holder!.id)) return null;
 
-  return {
-    ...target,
-    phone: input.phoneDigits,
-    phone_digits: input.phoneDigits,
-  };
+  const emailMatches = input.members.filter(
+    (row) =>
+      row.status !== "disabled" && row.email?.trim().toLowerCase() === email,
+  );
+  if (emailMatches.length === 0) return null;
+
+  const memberships = await listMemberships(admin, {
+    instituteId: input.instituteId,
+  });
+  const liveByUser = new Map(
+    memberships
+      .filter((m) => m.status !== "ended")
+      .map((m) => [m.user_id, m] as const),
+  );
+
+  const adminMatches: StaffProfile[] = [];
+  for (const candidate of emailMatches) {
+    const membership = liveByUser.get(candidate.id);
+    if (!membership) continue;
+    const roleRows = await listRolesForMemberships(admin, [membership.id]);
+    if (roleRows.some((r) => INSTITUTE_WIDE_ROLES.has(r.role_code))) {
+      adminMatches.push(candidate);
+    }
+  }
+
+  return adminMatches.length === 1 ? adminMatches[0]! : null;
 }
 
 async function resolveStaffLoginUser(
@@ -376,163 +412,36 @@ async function resolveStaffLoginUser(
   const trimmed = identifier.trim();
   const isEmail = trimmed.includes("@");
   const phoneDigits = normalizePhoneDigits(trimmed);
-  const looksLikePhone = !isEmail && phoneDigits.length === 10 && /^\d+$/.test(trimmed.replace(/\D/g, ""));
-
-  let profile: StaffProfile | null = null;
-  let channel: "email" | "mobile" = isEmail ? "email" : "mobile";
-
-  if (isEmail) {
-    const email = trimmed.toLowerCase();
-    const { data, error } = await admin
-      .from("user_profile")
-      .select("id, display_name, email, phone, status")
-      .ilike("email", email)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (error) throw error;
-    profile = (data as StaffProfile | null) ?? null;
-  } else if (looksLikePhone) {
-    const { data, error } = await admin
-      .from("user_profile")
-      .select("id, display_name, email, phone, status")
-      .eq("phone_digits", phoneDigits)
-      .is("deleted_at", null);
-    if (error) throw error;
-    let candidates = (data ?? []) as StaffProfile[];
-
-    // Canonical-phone backfill deliberately leaves legacy collisions NULL so
-    // the unique index can be enabled safely. Also recover when phone_digits is
-    // missing/out of sync but `phone` still holds +91 / spaced forms.
-    if (candidates.length === 0) {
-      const nullDigits = await admin
-        .from("user_profile")
-        .select("id, display_name, email, phone, status")
-        .is("phone_digits", null)
-        .is("deleted_at", null);
-      if (nullDigits.error) throw nullDigits.error;
-      candidates = ((nullDigits.data ?? []) as StaffProfile[]).filter(
-        (candidate) =>
-          candidate.phone != null &&
-          normalizePhoneDigits(candidate.phone) === phoneDigits,
-      );
-    }
-    if (candidates.length === 0) {
-      const byPhone = await admin
-        .from("user_profile")
-        .select("id, display_name, email, phone, status")
-        .is("deleted_at", null)
-        .not("phone", "is", null);
-      if (byPhone.error) throw byPhone.error;
-      candidates = ((byPhone.data ?? []) as StaffProfile[]).filter(
-        (candidate) =>
-          candidate.phone != null &&
-          normalizePhoneDigits(candidate.phone) === phoneDigits,
-      );
-    }
-
-    // Prefer profiles that already have membership in the selected institute.
-    // Phone can land on an orphan profile while email login uses another row.
-    const instituteMatches: StaffProfile[] = [];
-    for (const candidate of candidates) {
-      const candidateMemberships = await listMemberships(admin, {
-        instituteId,
-        userId: candidate.id,
-      });
-      if (candidateMemberships.some((m) => m.status !== "ended")) {
-        instituteMatches.push(candidate);
-      }
-    }
-    if (instituteMatches.length > 1) {
-      throw AppError.conflict(
-        "Multiple Admin accounts use this mobile number in the selected institute. Use email or username.",
-      );
-    }
-    profile = instituteMatches[0] ?? candidates[0] ?? null;
-  } else {
-    const cred = await findCredentialByUsername(admin, trimmed);
-    if (cred) {
-      const { data, error } = await admin
-        .from("user_profile")
-        .select("id, display_name, email, phone, status")
-        .eq("id", cred.user_id)
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (error) throw error;
-      profile = (data as StaffProfile | null) ?? null;
-      channel = profile?.email ? "email" : "mobile";
-    }
+  const looksLikePhone =
+    !isEmail &&
+    phoneDigits.length === 10 &&
+    /^\d+$/.test(trimmed.replace(/\D/g, ""));
+  const members = await loadLiveInstituteMemberProfiles(admin, instituteId);
+  let profile = matchInstituteStaffIdentifier(members, trimmed);
+  if (!profile) {
+    profile = await tryResolveInstituteAdminBySharedEmail(admin, {
+      instituteId,
+      members,
+      identifier: trimmed,
+    });
   }
+  const channel: "email" | "mobile" = looksLikePhone ? "mobile" : "email";
 
   if (!profile) {
-    throw AppError.notFound(
-      looksLikePhone
-        ? "No Admin user matched this mobile number. Use email, or set user_profile.phone and phone_digits to your 10-digit number."
-        : isEmail
-          ? "No Admin user matched this email for the selected institute."
-          : "No Admin user matched this username. Check the institute and identifier.",
-    );
+    throw AppError.notFound(STAFF_LOGIN_NOT_FOUND);
   }
   if (profile.status === "disabled") {
     throw AppError.forbidden("This Admin account is disabled. Contact support.");
   }
 
-  let memberships = await listMemberships(admin, {
+  const memberships = await listMemberships(admin, {
     instituteId,
     userId: profile.id,
   });
-  let membership =
-    memberships.find((m) => m.status === "active") ??
-    memberships.find((m) => m.status !== "ended") ??
-    null;
-
-  if (!membership && looksLikePhone) {
-    // Nexus operator + separate Admin (same email): bridge without moving phone.
-    const bridged = await tryResolveInstituteAdminSharingEmail(admin, {
-      instituteId,
-      phoneHolderProfile: profile,
-    });
-    if (bridged) {
-      profile = bridged;
-      memberships = await listMemberships(admin, {
-        instituteId,
-        userId: profile.id,
-      });
-      membership =
-        memberships.find((m) => m.status === "active") ??
-        memberships.find((m) => m.status !== "ended") ??
-        null;
-    }
-  }
-
-  if (!membership && looksLikePhone) {
-    const rehomed = await tryRehomeOrphanPhoneToSoleInstituteAdmin(admin, {
-      instituteId,
-      orphanProfile: profile,
-      phoneDigits,
-    });
-    if (rehomed) {
-      profile = rehomed;
-      memberships = await listMemberships(admin, {
-        instituteId,
-        userId: profile.id,
-      });
-      membership =
-        memberships.find((m) => m.status === "active") ??
-        memberships.find((m) => m.status !== "ended") ??
-        null;
-    }
-  }
+  const membership = pickLiveMembership(memberships);
 
   if (!membership) {
-    const phoneOnNexusOperator =
-      looksLikePhone && (await isPlatformOperatorUser(admin, profile.id));
-    throw AppError.notFound(
-      looksLikePhone
-        ? phoneOnNexusOperator
-          ? "This mobile is linked to a Nexus operator account. Sign in to Admin with the institute Admin email, or use an Admin profile that shares the same email as the Nexus operator."
-          : "This mobile is linked to a different user than your Admin email account. Use email login for Admin."
-        : "This user exists but has no active membership in the selected institute.",
-    );
+    throw AppError.notFound(STAFF_LOGIN_NOT_FOUND);
   }
   if (membership.status === "suspended") {
     throw AppError.forbidden("This account is suspended. Contact your administrator.");

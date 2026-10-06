@@ -3,11 +3,8 @@ import { Building2, GraduationCap, Layers, UserRound, Users } from "lucide-react
 import { Badge, Button, cn } from "@lumenx/ui";
 import type { ActivityAudienceSelection, AudienceScopeType } from "@/activity-workspace/hub/audience";
 import { summarizeAudience } from "@/activity-workspace/hub/audience";
-import {
-  PARTICIPANT_CLASS_NAMES,
-  PARTICIPANT_SECTIONS,
-  PARTICIPANT_STUDENT_OPTIONS,
-} from "../lib/participant-mock-data";
+import { useInstituteParticipantRoster } from "../lib/use-institute-participant-roster";
+import type { ParticipantStudentOption } from "../lib/participant-mock-data";
 
 type TeamOption = { id: string; name: string };
 
@@ -72,6 +69,7 @@ export function ParticipantSelector({
   allowedScopes = SPORTS_SCOPES,
 }: Props) {
   const scope = value.type;
+  const roster = useInstituteParticipantRoster();
 
   const summary = useMemo(() => summarizeAudience(value), [value]);
 
@@ -114,6 +112,7 @@ export function ParticipantSelector({
 
       {scope === "classes" ? (
         <ClassPicker
+          classNames={roster.classNames}
           selected={value.type === "classes" ? value.classNames : []}
           onChange={(classNames) => onChange({ type: "classes", classNames })}
         />
@@ -121,6 +120,7 @@ export function ParticipantSelector({
 
       {scope === "sections" ? (
         <SectionPicker
+          sectionOptions={roster.sections}
           selected={value.type === "sections" ? value.sections : []}
           onChange={(sections) => onChange({ type: "sections", sections })}
         />
@@ -128,6 +128,7 @@ export function ParticipantSelector({
 
       {scope === "individual_students" ? (
         <StudentPicker
+          students={roster.students}
           selectedIds={value.type === "individual_students" ? value.studentIds : []}
           onChange={(studentIds) => onChange({ type: "individual_students", studentIds })}
         />
@@ -163,9 +164,9 @@ function defaultAudienceForScope(
         teamLabels: teams[0] ? [teams[0].name] : [],
       };
     case "classes":
-      return { type: "classes", classNames: ["9"] };
+      return { type: "classes", classNames: [] };
     case "sections":
-      return { type: "sections", sections: [{ className: "9", section: "A" }] };
+      return { type: "sections", sections: [] };
     case "individual_students":
       return { type: "individual_students", studentIds: [] };
     default:
@@ -223,9 +224,11 @@ function TeamPicker({
 }
 
 function ClassPicker({
+  classNames,
   selected,
   onChange,
 }: {
+  classNames: string[];
   selected: string[];
   onChange: (classNames: string[]) => void;
 }) {
@@ -237,9 +240,15 @@ function ClassPicker({
     );
   };
 
+  if (classNames.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">No classes available for this institute.</p>
+    );
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
-      {PARTICIPANT_CLASS_NAMES.map((c) => {
+      {classNames.map((c) => {
         const checked = selected.includes(c);
         return (
           <Button
@@ -259,9 +268,11 @@ function ClassPicker({
 }
 
 function SectionPicker({
+  sectionOptions,
   selected,
   onChange,
 }: {
+  sectionOptions: { className: string; section: string }[];
   selected: { className: string; section: string }[];
   onChange: (sections: { className: string; section: string }[]) => void;
 }) {
@@ -277,13 +288,29 @@ function SectionPicker({
     }
   };
 
+  const byClass = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const row of sectionOptions) {
+      const list = map.get(row.className) ?? [];
+      if (!list.includes(row.section)) list.push(row.section);
+      map.set(row.className, list);
+    }
+    return [...map.entries()];
+  }, [sectionOptions]);
+
+  if (byClass.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">No sections available for this institute.</p>
+    );
+  }
+
   return (
     <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-      {PARTICIPANT_CLASS_NAMES.map((className) => (
+      {byClass.map(([className, sections]) => (
         <div key={className}>
           <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">Class {className}</p>
           <div className="flex flex-wrap gap-2">
-            {PARTICIPANT_SECTIONS.map((section) => {
+            {sections.map((section) => {
               const checked = isSelected(className, section);
               return (
                 <Button
@@ -306,9 +333,11 @@ function SectionPicker({
 }
 
 function StudentPicker({
+  students,
   selectedIds,
   onChange,
 }: {
+  students: ParticipantStudentOption[];
   selectedIds: string[];
   onChange: (studentIds: string[]) => void;
 }) {
@@ -318,9 +347,15 @@ function StudentPicker({
     );
   };
 
+  if (students.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">No students available for this institute.</p>
+    );
+  }
+
   return (
     <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
-      {PARTICIPANT_STUDENT_OPTIONS.map((student) => {
+      {students.map((student) => {
         const checked = selectedIds.includes(student.id);
         return (
           <label

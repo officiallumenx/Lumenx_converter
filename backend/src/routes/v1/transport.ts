@@ -25,6 +25,17 @@ import {
   rejectTransportStopForActor,
 } from "../../domains/transport/approval-service.js";
 import {
+  cancelDailyExceptionForActor,
+  createDailyExceptionForActor,
+  getStudentTodayParticipationForActor,
+  listDailyExceptionsForActor,
+} from "../../domains/transport/daily-exception-service.js";
+import { getEffectiveTripParticipantsForActor } from "../../domains/transport/effective-participants.js";
+import {
+  STOP_RADIUS_MAX_M,
+  STOP_RADIUS_MIN_M,
+} from "../../domains/transport/stop-radius.js";
+import {
   acknowledgeEmergencyForActor,
   createEmergencyForActor,
   endTripForActor,
@@ -32,6 +43,7 @@ import {
   getOpenEmergencyForVehicleForActor,
   getTransportAnalyticsForActor,
   getLearnerTransportLiveForActor,
+  listLearnerTransportHistoryForActor,
   getTripForActor,
   listBoardingForTripForActor,
   listBoardingMarksForInstituteForActor,
@@ -89,6 +101,11 @@ function requireAdmin(c: {
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
+const stopNotificationRadiusSchema = z
+  .number()
+  .int()
+  .min(STOP_RADIUS_MIN_M)
+  .max(STOP_RADIUS_MAX_M);
 const dateOnly = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
@@ -402,7 +419,7 @@ transport.post("/stops", async (c) => {
       latitude: z.number().min(-90).max(90),
       longitude: z.number().min(-180).max(180),
       route_order: z.number().int().min(0),
-      notification_radius_m: z.number().int().positive().optional(),
+      notification_radius_m: stopNotificationRadiusSchema.optional(),
       kind: z.enum(["waypoint", "parking"]).optional(),
     }),
     await c.req.json(),
@@ -441,7 +458,7 @@ transport.patch("/stops/:id", async (c) => {
         latitude: z.number().min(-90).max(90).optional(),
         longitude: z.number().min(-180).max(180).optional(),
         route_order: z.number().int().min(0).optional(),
-        notification_radius_m: z.number().int().positive().optional(),
+        notification_radius_m: stopNotificationRadiusSchema.optional(),
       })
       .refine((v) => Object.keys(v).length > 0, {
         message: "At least one field is required",
@@ -573,7 +590,7 @@ transport.put("/settings", async (c) => {
   );
   const body = validateBody(
     z.object({
-      default_notification_radius_m: z.number().int().positive().optional(),
+      default_notification_radius_m: stopNotificationRadiusSchema.optional(),
       default_pickup_buffer_mins: z.number().int().min(0).optional(),
       working_days: z.array(z.number().int().min(0).max(6)).optional(),
       notifications_enabled: z.boolean().optional(),
@@ -586,7 +603,7 @@ transport.put("/settings", async (c) => {
       school_location_label: z.string().max(500).nullable().optional(),
       school_latitude: z.number().min(-90).max(90).nullable().optional(),
       school_longitude: z.number().min(-180).max(180).nullable().optional(),
-      school_notification_radius_m: z.number().int().positive().optional(),
+      school_notification_radius_m: stopNotificationRadiusSchema.optional(),
     }),
     await c.req.json(),
   );
@@ -801,6 +818,110 @@ transport.get("/portal/learner-transport/live", async (c) => {
   return c.json({ data });
 });
 
+transport.get("/portal/learner-transport/history", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid,
+      limit: z.coerce.number().int().min(1).max(60).optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listLearnerTransportHistoryForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId: query.student_id,
+    limit: query.limit,
+  });
+  return c.json({ data });
+});
+
+transport.get("/daily-exceptions", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      date: dateOnly,
+      student_id: uuid.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listDailyExceptionsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    serviceDate: query.date ?? undefined,
+    studentId: query.student_id,
+  });
+  return c.json({ data });
+});
+
+transport.get("/daily-exceptions/participation", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid,
+      date: dateOnly,
+    }),
+    c.req.query(),
+  );
+  const data = await getStudentTodayParticipationForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId: query.student_id,
+    serviceDate: query.date ?? undefined,
+  });
+  return c.json({ data });
+});
+
+transport.post("/daily-exceptions", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid,
+      service_date: dateOnly,
+      exception_type: z.enum(["NOT_RIDING"]).optional(),
+      notes: z.string().max(500).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await createDailyExceptionForActor(admin, actor, {
+    instituteId: body.institute_id,
+    studentId: body.student_id,
+    serviceDate: body.service_date ?? undefined,
+    exceptionType: body.exception_type,
+    notes: body.notes,
+  });
+  return c.json({ data }, 201);
+});
+
+transport.delete("/daily-exceptions/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const params = validateParams(idParamsSchema, c.req.param());
+  const data = await cancelDailyExceptionForActor(admin, actor, params.id);
+  return c.json({ data });
+});
+
+transport.patch("/daily-exceptions/:id/cancel", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const params = validateParams(idParamsSchema, c.req.param());
+  const data = await cancelDailyExceptionForActor(admin, actor, params.id);
+  return c.json({ data });
+});
+
+transport.get("/trips/:id/effective-participants", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const params = validateParams(idParamsSchema, c.req.param());
+  const data = await getEffectiveTripParticipantsForActor(admin, actor, params.id);
+  return c.json({ data });
+});
+
 // ── Trips & operations ───────────────────────────────────────────
 
 const tripPhaseSchema = z.enum([
@@ -879,6 +1000,7 @@ transport.post("/trips", async (c) => {
       driver_id: uuid,
       slot: tripSlotSchema.optional(),
       trip_date: dateOnly,
+      client_event_id: z.string().min(1).max(128).optional(),
     }),
     await c.req.json(),
   );
@@ -889,6 +1011,7 @@ transport.post("/trips", async (c) => {
     driverId: body.driver_id,
     slot: body.slot,
     tripDate: body.trip_date ?? undefined,
+    clientEventId: body.client_event_id,
   });
   return c.json({ data }, 201);
 });
@@ -902,6 +1025,7 @@ transport.patch("/trips/:id/phase", async (c) => {
       phase: tripPhaseSchema,
       current_stop_id: uuid.nullable().optional(),
       current_stop_index: z.number().int().min(0).optional(),
+      client_event_id: z.string().min(1).max(128).optional(),
     }),
     await c.req.json(),
   );
@@ -909,6 +1033,7 @@ transport.patch("/trips/:id/phase", async (c) => {
     phase: body.phase,
     currentStopId: body.current_stop_id,
     currentStopIndex: body.current_stop_index,
+    clientEventId: body.client_event_id,
   });
   return c.json({ data });
 });
@@ -917,7 +1042,13 @@ transport.post("/trips/:id/end", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await endTripForActor(admin, actor, id);
+  const body = validateBody(
+    z.object({
+      client_event_id: z.string().min(1).max(128).optional(),
+    }),
+    await c.req.json().catch(() => ({})),
+  );
+  const data = await endTripForActor(admin, actor, id, body.client_event_id);
   return c.json({ data });
 });
 
@@ -957,6 +1088,7 @@ transport.post("/trips/:id/boarding", async (c) => {
       student_id: uuid,
       stop_id: uuid,
       boarding_status: boardingStatusSchema,
+      client_event_id: z.string().min(1).max(128),
     }),
     await c.req.json(),
   );
@@ -964,6 +1096,7 @@ transport.post("/trips/:id/boarding", async (c) => {
     studentId: body.student_id,
     stopId: body.stop_id,
     boardingStatus: body.boarding_status,
+    clientEventId: body.client_event_id,
   });
   return c.json({ data });
 });
@@ -977,6 +1110,7 @@ transport.post("/trips/:id/dropping", async (c) => {
       student_id: uuid,
       stop_id: uuid,
       dropping_status: droppingStatusSchema,
+      client_event_id: z.string().min(1).max(128),
     }),
     await c.req.json(),
   );
@@ -984,6 +1118,7 @@ transport.post("/trips/:id/dropping", async (c) => {
     studentId: body.student_id,
     stopId: body.stop_id,
     droppingStatus: body.dropping_status,
+    clientEventId: body.client_event_id,
   });
   return c.json({ data });
 });
@@ -1020,6 +1155,7 @@ transport.post("/emergencies", async (c) => {
       latitude: z.number().nullable().optional(),
       longitude: z.number().nullable().optional(),
       note: z.string().max(2000).nullable().optional(),
+      client_event_id: z.string().min(1).max(128).optional(),
     }),
     await c.req.json(),
   );
@@ -1032,6 +1168,7 @@ transport.post("/emergencies", async (c) => {
     latitude: body.latitude,
     longitude: body.longitude,
     note: body.note,
+    clientEventId: body.client_event_id,
   });
   return c.json({ data }, 201);
 });
@@ -1067,10 +1204,13 @@ transport.post("/trips/:id/location", async (c) => {
   const { id } = validateParams(idParamsSchema, c.req.param());
   const body = validateBody(
     z.object({
-      latitude: z.number(),
-      longitude: z.number(),
-      accuracy_m: z.number().nullable().optional(),
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      accuracy_m: z.number().min(0).max(500).nullable().optional(),
       speed_kmh: z.number().nullable().optional(),
+      captured_at: z.string().min(1).max(64).optional(),
+      client_event_id: z.string().min(1).max(128).optional(),
+      sequence_number: z.number().int().min(0).optional(),
     }),
     await c.req.json(),
   );
@@ -1080,6 +1220,9 @@ transport.post("/trips/:id/location", async (c) => {
     longitude: body.longitude,
     accuracyM: body.accuracy_m,
     speedKmh: body.speed_kmh,
+    capturedAt: body.captured_at,
+    clientEventId: body.client_event_id,
+    sequenceNumber: body.sequence_number,
   });
   return c.json({ data }, 201);
 });

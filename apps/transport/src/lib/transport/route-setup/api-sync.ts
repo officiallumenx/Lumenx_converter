@@ -80,6 +80,18 @@ export async function syncParkingStopToApi(
   if (!scope.instituteId || !isUuid(scope.routeId)) {
     throw new Error("Route is not ready for parking location");
   }
+
+  const existing = (await listTransportStops({ routeId: scope.routeId })).find(
+    (s) => s.kind === "parking",
+  );
+  if (existing?.id) {
+    // GPS refresh: update ONLY coordinates — never radius/name/order/kind.
+    return (await updateTransportStop(existing.id, {
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+    })) as StopDto;
+  }
+
   const label =
     gps.accuracyM != null
       ? `Bus park · ±${Math.round(gps.accuracyM)}m`
@@ -122,6 +134,7 @@ export async function syncStopAndEnrollmentsToApi(
       latitude: stop.latitude,
       longitude: stop.longitude,
       routeOrder: Math.max(0, stop.routeOrder - 1),
+      notificationRadiusM: stop.notificationRadiusM,
     })) as StopDto;
     apiStopId = created.id;
   } else if (isUuid(apiStopId)) {
@@ -131,6 +144,7 @@ export async function syncStopAndEnrollmentsToApi(
       latitude: stop.latitude,
       longitude: stop.longitude,
       routeOrder: Math.max(0, stop.routeOrder - 1),
+      notificationRadiusM: stop.notificationRadiusM,
     });
   }
 

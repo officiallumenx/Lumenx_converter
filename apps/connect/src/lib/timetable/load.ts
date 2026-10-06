@@ -98,6 +98,14 @@ export async function loadTeacherTimetable(input: {
       errorMessage: null,
     };
   } catch (err) {
+    // Auth races (token not ready yet) must surface as query errors so React
+    // Query can retry — do not cache a soft "Authentication required" success.
+    if (
+      err instanceof ApiClientError &&
+      (err.status === 401 || err.code === "UNAUTHENTICATED")
+    ) {
+      throw err;
+    }
     const message = err instanceof Error ? err.message : "Failed to load timetable";
     return { status: "error", schedule: {}, weekdays: [], errorMessage: message };
   }

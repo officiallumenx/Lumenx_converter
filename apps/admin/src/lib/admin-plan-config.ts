@@ -3,10 +3,14 @@ import { useSyncExternalStore } from "react";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import {
   applyNexusEntitlementCeiling,
+  NEXUS_OPT_IN_ADMIN_MODULES,
   readNexusModuleEntitlements,
   subscribeNexusLicenseChanges,
 } from "@lumenx/config";
 import { isApiAuthMode } from "@/auth/auth-mode";
+
+const API_MODULE_ENTITLEMENTS_KEY = "lumenx.admin.apiModuleEntitlements.v1";
+const API_MODULES_CHANGED_EVENT = "lumenx-admin-api-modules-changed";
 
 export type PlanTier = "core" | "plus" | "max" | "custom";
 
@@ -19,7 +23,8 @@ export type ModuleGroup =
   | "Intelligence"
   | "Infrastructure"
   | "Services"
-  | "Institute";
+  | "Institute"
+  | "Settings";
 
 export type ModuleDef = {
   id: string;
@@ -101,7 +106,6 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "core",
     group: "Intelligence",
     description: "What should I do today — attention, reviews, and shortcuts",
-    toggleable: false,
   },
   {
     id: "analytics",
@@ -110,7 +114,6 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "plus",
     group: "Intelligence",
     description: "Live dashboard, charts, and insights",
-    toggleable: false,
   },
   {
     id: "students",
@@ -151,7 +154,6 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "core",
     group: "Core",
     description: "Login accounts for portals",
-    toggleable: false,
   },
   {
     id: "classes",
@@ -199,7 +201,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
     route: "/attendance",
     minPlan: "core",
     group: "Operations",
-    description: "Monitor, reports, and analytics for student attendance",
+    description: "Monitor, reports, and analytics · Nexus opt-in",
   },
   {
     id: "teacher-attendance",
@@ -314,7 +316,6 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "max",
     group: "Infrastructure",
     description: "Custom roles, assigned users, and module access",
-    toggleable: false,
   },
   {
     id: "storage",
@@ -322,15 +323,24 @@ export const MODULE_CATALOG: ModuleDef[] = [
     route: "/storage",
     minPlan: "plus",
     group: "Infrastructure",
-    description: "Archive, quotas, cleanup",
+    description: "Archive, quotas, cleanup · Nexus opt-in",
   },
   {
     id: "settings",
-    label: "Settings",
+    label: M.settings,
     route: "/settings",
     minPlan: "core",
-    group: "Infrastructure",
-    description: "Profile, appearance, and support",
+    group: "Settings",
+    description: "Institute profile, platform, and LumenX support",
+    toggleable: false,
+  },
+  {
+    id: "profile-settings",
+    label: M.profileSettings,
+    route: "/profile-settings",
+    minPlan: "core",
+    group: "Settings",
+    description: "Personal profile, appearance, app lock, and text size",
     toggleable: false,
   },
   {
@@ -372,14 +382,6 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "max",
     group: "Services",
     description: "Hiring pipeline",
-  },
-  {
-    id: "institute",
-    label: M.institute,
-    route: "/institute",
-    minPlan: "core",
-    group: "Institute",
-    description: "Public institute identity",
   },
   {
     id: "templates",
@@ -455,7 +457,11 @@ export function isModuleAvailable(_mod: ModuleDef, _plan?: PlanTier): boolean {
 }
 
 const DEFAULT_ENABLED_MODULES: Record<string, boolean> = Object.fromEntries(
-  MODULE_CATALOG.map((m) => [m.id, true]),
+  MODULE_CATALOG.map((m) => [
+    m.id,
+    // Nexus opt-in modules stay off until Nexus grants them.
+    !(NEXUS_OPT_IN_ADMIN_MODULES as readonly string[]).includes(m.id),
+  ]),
 );
 
 /** All catalog modules enabled by default (locked modules stay on). */
@@ -468,6 +474,32 @@ const MODULES_CHANGED_EVENT = "lumenx-admin-modules-changed";
 const moduleListeners = new Set<() => void>();
 
 let enabledModulesCache: Record<string, boolean> | null = null;
+
+function readApiModuleEntitlements(): Record<string, boolean> | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(API_MODULE_ENTITLEMENTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist license admin_module map from API so nav can apply Nexus ceiling. */
+export function writeApiModuleEntitlements(modules: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(API_MODULE_ENTITLEMENTS_KEY, JSON.stringify(modules));
+  } catch {
+    // ignore
+  }
+  enabledModulesCache = null;
+  moduleListeners.forEach((listener) => listener());
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(API_MODULES_CHANGED_EVENT));
+  }
+}
 
 export function loadEnabledModules(): Record<string, boolean> {
   if (enabledModulesCache) {
@@ -496,7 +528,14 @@ export function loadEnabledModules(): Record<string, boolean> {
     } catch {
       // keep defaults
     }
-    enabledModulesCache = base;
+    // Apply license entitlements (opt-in modules off unless Nexus enabled).
+    enabledModulesCache = applyNexusEntitlementCeiling(
+      base,
+      readApiModuleEntitlements(),
+    );
+    for (const mod of MODULE_CATALOG) {
+      if (!isModuleToggleable(mod)) enabledModulesCache[mod.id] = true;
+    }
     return enabledModulesCache;
   }
   try {
@@ -536,8 +575,11 @@ export function saveEnabledModules(enabled: Record<string, boolean>): void {
   } catch {
     // Persist failed — still notify listeners so in-session UI stays consistent.
   }
-  // Re-apply Nexus ceiling so Admin cannot turn on a Nexus-disabled module.
-  enabledModulesCache = applyNexusEntitlementCeiling(next, readNexusModuleEntitlements());
+  // Re-apply Nexus / API entitlement ceiling so Admin cannot turn on opt-in modules.
+  const entitlements = isApiAuthMode()
+    ? readApiModuleEntitlements()
+    : readNexusModuleEntitlements();
+  enabledModulesCache = applyNexusEntitlementCeiling(next, entitlements);
   for (const mod of MODULE_CATALOG) {
     if (!isModuleToggleable(mod)) enabledModulesCache[mod.id] = true;
   }
@@ -557,6 +599,7 @@ function subscribeEnabledModules(listener: () => void): () => void {
   if (typeof window !== "undefined") {
     window.addEventListener("storage", onWindowEvent);
     window.addEventListener("focus", onWindowEvent);
+    window.addEventListener(API_MODULES_CHANGED_EVENT, onWindowEvent);
     // Same-tab saveEnabledModules already notifies moduleListeners.
   }
   return () => {
@@ -565,6 +608,7 @@ function subscribeEnabledModules(listener: () => void): () => void {
     if (typeof window !== "undefined") {
       window.removeEventListener("storage", onWindowEvent);
       window.removeEventListener("focus", onWindowEvent);
+      window.removeEventListener(API_MODULES_CHANGED_EVENT, onWindowEvent);
     }
   };
 }

@@ -7,25 +7,23 @@ import { useStudentPortal } from "@/context/StudentPortalContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
-import { listStudents } from "@/lib/students/api";
-import {
-  children as allChildren,
-  getConnectStudentProfile,
-} from "@/lib/mock-data";
+import { isInstituteUuid } from "@/lib/institute-id";
 
 export const Route = createFileRoute("/_authenticated/activities")({
   head: () => ({ meta: [{ title: "Activities — LumenX Connect" }] }),
-  component: () => (
-    <ActivitiesPage />
-  ),
+  component: () => <ActivitiesPage />,
 });
 
 function ActivitiesPage() {
-  const { role, activeChildId, activeInstituteId } = useApp();
+  const {
+    role,
+    activeChildId,
+    activeInstituteId,
+    linkedChildren,
+  } = useApp();
   const studentPortal = useStudentPortal();
   const apiMode = isApiAuthMode();
   const [me, setMe] = useState<MeResponse | null>(null);
-  const [parentStudentId, setParentStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -36,7 +34,9 @@ function ActivitiesPage() {
   }, [apiMode]);
 
   const parentChild =
-    role === "parent" ? (allChildren.find((c) => c.id === activeChildId) ?? allChildren[0]) : null;
+    role === "parent"
+      ? (linkedChildren.find((c) => c.id === activeChildId) ?? linkedChildren[0] ?? null)
+      : null;
 
   const learner = useMemo(() => {
     if (parentChild) {
@@ -48,53 +48,30 @@ function ActivitiesPage() {
     }
     if (role === "student" && studentPortal.isStudent && studentPortal.snapshot) {
       const p = studentPortal.snapshot.profile;
-      const linked =
-        allChildren.find((c) => c.name === p.name) ??
-        allChildren.find((c) => c.rollNo === p.rollNo) ??
-        allChildren[0];
-      return { name: p.name, rollNo: p.rollNo, childId: linked?.id ?? allChildren[0]?.id ?? "C1" };
+      return {
+        name: p.name,
+        rollNo: p.rollNo,
+        childId: p.id,
+      };
     }
-    const p = getConnectStudentProfile();
-    const linked =
-      allChildren.find((c) => c.name === p.name) ??
-      allChildren.find((c) => c.rollNo === p.rollNo) ??
-      allChildren[0];
-    return { name: p.name, rollNo: p.rollNo, childId: linked?.id ?? "C1" };
+    return { name: "Learner", rollNo: "—", childId: "" };
   }, [parentChild, role, studentPortal.isStudent, studentPortal.snapshot]);
 
-  useEffect(() => {
-    if (!apiMode || role !== "parent" || !activeInstituteId || !learner) {
-      setParentStudentId(null);
-      return;
-    }
-    let cancelled = false;
-    void listStudents({ instituteId: activeInstituteId, status: "active" })
-      .then((rows) => {
-        if (cancelled) return;
-        const match =
-          rows.find((s) => s.rollNo === learner.rollNo) ??
-          rows.find((s) => s.displayName === learner.name) ??
-          null;
-        setParentStudentId(match?.id ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setParentStudentId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiMode, role, activeInstituteId, learner]);
-
   const studentId = useMemo(() => {
-    if (!apiMode || !activeInstituteId) return null;
+    if (!apiMode || !activeInstituteId || !isInstituteUuid(activeInstituteId)) {
+      return null;
+    }
     if (role === "student" && me) {
       return (
-        me.identities.students.find((s) => s.instituteId === activeInstituteId)?.studentId ?? null
+        me.identities.students.find((s) => s.instituteId === activeInstituteId)
+          ?.studentId ?? null
       );
     }
-    if (role === "parent") return parentStudentId;
+    if (role === "parent" && parentChild?.id && isInstituteUuid(parentChild.id)) {
+      return parentChild.id;
+    }
     return null;
-  }, [apiMode, me, activeInstituteId, role, parentStudentId]);
+  }, [apiMode, me, activeInstituteId, role, parentChild]);
 
   if (role === "teacher") {
     return <Navigate to="/" replace />;

@@ -3,6 +3,7 @@ import type { ConnectApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type {
+  LearnerTransportHistoryDayDto,
   LearnerTransportLiveDto,
   LearnerTransportLiveParams,
   LearnerTransportParams,
@@ -14,7 +15,9 @@ import type {
   StopDto,
   TeacherClassTransportParams,
   TeacherClassTransportRow,
+  TransportDailyExceptionDto,
   TransportEnrollmentDto,
+  TransportParticipationDto,
 } from "./api-types";
 
 function assertApiMode(): void {
@@ -96,6 +99,23 @@ export async function getLearnerTransportLive(
   );
 }
 
+export async function getLearnerTransportHistory(
+  params: LearnerTransportLiveParams & { limit?: number },
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<LearnerTransportHistoryDayDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.studentId)) {
+    throw new Error("institute_id and student_id must be valid UUIDs");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  query.set("student_id", params.studentId.trim());
+  if (params.limit != null) query.set("limit", String(params.limit));
+  return client.get<LearnerTransportHistoryDayDto[]>(
+    `/api/v1/transport/portal/learner-transport/history?${query.toString()}`,
+  );
+}
+
 export async function listTeacherClassTransport(
   params: TeacherClassTransportParams,
   client: ConnectApiClient = getConnectApiClient(),
@@ -114,5 +134,57 @@ export async function listTeacherClassTransport(
   }
   return client.get<TeacherClassTransportRow[]>(
     `/api/v1/transport/portal/teacher-class-roster?${query.toString()}`,
+  );
+}
+
+export async function getTransportParticipation(
+  params: { instituteId: string; studentId: string; serviceDate?: string },
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<TransportParticipationDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.studentId)) {
+    throw new Error("institute_id and student_id must be valid UUIDs");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  query.set("student_id", params.studentId.trim());
+  if (params.serviceDate?.trim()) query.set("date", params.serviceDate.trim());
+  return client.get<TransportParticipationDto>(
+    `/api/v1/transport/daily-exceptions/participation?${query.toString()}`,
+  );
+}
+
+export async function createNotRidingToday(
+  params: {
+    instituteId: string;
+    studentId: string;
+    serviceDate?: string;
+    notes?: string | null;
+  },
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<TransportDailyExceptionDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.studentId)) {
+    throw new Error("institute_id and student_id must be valid UUIDs");
+  }
+  return client.post<TransportDailyExceptionDto>(`/api/v1/transport/daily-exceptions`, {
+    institute_id: params.instituteId.trim(),
+    student_id: params.studentId.trim(),
+    exception_type: "NOT_RIDING",
+    ...(params.serviceDate?.trim() ? { service_date: params.serviceDate.trim() } : {}),
+    ...(params.notes !== undefined ? { notes: params.notes } : {}),
+  });
+}
+
+export async function undoNotRidingToday(
+  exceptionId: string,
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<TransportDailyExceptionDto> {
+  assertApiMode();
+  if (!isInstituteUuid(exceptionId)) {
+    throw new Error("exception id must be a valid UUID");
+  }
+  return client.delete<TransportDailyExceptionDto>(
+    `/api/v1/transport/daily-exceptions/${exceptionId.trim()}`,
   );
 }

@@ -2,27 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
-import { Card, CardHeader, Button, PageStack, Pill, Select } from "@lumenx/ui-admin";
-import { useTheme } from "@/components/theme-provider";
-import { useState, useRef, useEffect } from "react";
+import { Card, CardHeader, Button, PageStack, Pill } from "@lumenx/ui-admin";
+import { useState } from "react";
 import {
-  User, Palette, HelpCircle, MessageSquarePlus, Phone, Camera, Check, ChevronDown,
-  ChevronRight, Mail, Globe, MapPin, Clock, Sun, Moon,
-  Monitor, Laptop, Smartphone, Send, ExternalLink, BookOpen, Linkedin, Twitter, Youtube,
-  LifeBuoy, FileText, GraduationCap, Layers, School,
+  User, MessageSquarePlus, Phone, ChevronDown,
+  Mail, Globe, Send, ExternalLink, BookOpen, LifeBuoy, FileText,
+  GraduationCap, Layers, Landmark,
+  Bug, Lightbulb,
 } from "lucide-react";
-import { useAuth } from "@/auth/AuthContext";
-import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { AuditActivityPanel } from "@/components/AuditActivityPanel";
 import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
-import { AttendanceConfigApiPanel } from "@/components/settings/AttendanceConfigApiPanel";
-import { SettingsProfileApiPanel } from "@/components/settings/SettingsProfileApiPanel";
-import { AttendanceConfigurationPanel } from "@/components/academic-management/views/AttendanceConfigurationPanel";
-import { AttendanceNotificationConfigPanel } from "@/components/academic-management/views/AttendanceNotificationConfigPanel";
-import { PlatformReadOnlyBanner, TextSizeControl, LumenXFeedbackForm } from "@lumenx/ui";
+import { PlatformReadOnlyBanner, LumenXFeedbackForm } from "@lumenx/ui";
+import type { LumenXFeedbackKind } from "@lumenx/utils";
 import {
   RECYCLE_BIN_RETENTION_DAYS,
   isPlatformReadOnly,
@@ -30,37 +22,30 @@ import {
   notificationRetentionSummary,
   savePlatformReadOnlyState,
 } from "@lumenx/utils";
-import {
-  loadAlertChimesPreference,
-  saveAlertChimesPreference,
-} from "@lumenx/notifications";
+import { InstituteProfilePanel } from "@/components/institute/InstituteProfilePanel";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Settings — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/settings") }] }),
   component: SettingsPage,
 });
 
 type SettingsTab =
-  | "profile"
-  | "appearance"
-  | "academic"
+  | "institute-profile"
   | "platform"
-  | "audit"
   | "contact"
-  | "feedback"
-  | "help"
-  | "faqs";
+  | "feature-request"
+  | "report-issue"
+  | "lumenx-feedback"
+  | "help-faqs";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof User }[] = [
-  { id: "profile",    label: "My Profile",         icon: User             },
-  { id: "appearance", label: "Appearance",         icon: Palette          },
-  { id: "academic",   label: "Academic Settings",  icon: School           },
-  { id: "platform",   label: "Platform",           icon: Layers           },
-  { id: "audit",      label: "Audit Log",          icon: FileText         },
-  { id: "contact",    label: "Contact & Support",  icon: Phone            },
-  { id: "feedback",   label: "LumenX Feedback",    icon: MessageSquarePlus },
-  { id: "help",       label: "Help Center",        icon: LifeBuoy         },
-  { id: "faqs",       label: "FAQs",               icon: HelpCircle       },
+  { id: "institute-profile", label: "Institute profile", icon: Landmark },
+  { id: "platform", label: "Platform", icon: Layers },
+  { id: "contact", label: "Contact and support", icon: Phone },
+  { id: "feature-request", label: "Feature request", icon: Lightbulb },
+  { id: "report-issue", label: "Report issue", icon: Bug },
+  { id: "lumenx-feedback", label: "LumenX feedback", icon: MessageSquarePlus },
+  { id: "help-faqs", label: "Help center and FAQs", icon: LifeBuoy },
 ];
 
 /* ─── Reusable row ─────────────────────────────────────────────── */
@@ -112,27 +97,6 @@ function Inp({
   );
 }
 
-/* ─── Select helper ────────────────────────────────────────────── */
-function Sel({
-  options,
-  defaultValue,
-  className = "w-44",
-}: {
-  options: string[];
-  defaultValue?: string;
-  className?: string;
-}) {
-  return (
-    <Select fieldSize="md" defaultValue={defaultValue} className={className}>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </Select>
-  );
-}
-
 /* ─── FAQ accordion item ───────────────────────────────────────── */
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -159,331 +123,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
    TAB PANELS
 ═══════════════════════════════════════════════════════════════════ */
 
-function AcademicSettingsTab() {
-  const apiMode = isApiAuthMode();
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title="Academic Settings"
-          hint="Institute academic policies — Attendance Configuration, notifications, promotion, and more"
-          action={
-            <Link
-              to="/academic-management"
-              search={{ view: "settings" }}
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            >
-              Open {M.academics}
-              <ExternalLink className="size-3 opacity-70" />
-            </Link>
-          }
-        />
-      </Card>
-      {apiMode ? (
-        <>
-          <AttendanceConfigApiPanel />
-          <ApiReadUnavailablePanel
-            title="Attendance notifications unavailable"
-            domainLabel="Attendance notification configuration"
-            hint="Attendance notification routing is not available for this institute yet."
-          />
-        </>
-      ) : (
-        <>
-          <AttendanceConfigurationPanel />
-          <AttendanceNotificationConfigPanel />
-        </>
-      )}
-    </div>
-  );
+function InstituteProfileTab() {
+  return <InstituteProfilePanel embedded />;
 }
 
-const SETTINGS_PROFILE_KEY = "lumenx.admin.settings-profile.v1";
-
-function loadSettingsProfile() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_PROFILE_KEY);
-    if (raw) return JSON.parse(raw) as { name?: string; title?: string; email?: string; phone?: string };
-  } catch {
-    /* ignore */
-  }
-  return {};
-}
-
-function ProfileTab() {
-  if (isApiAuthMode()) {
-    return <SettingsProfileApiPanel />;
-  }
-  return <ProfileTabDemo />;
-}
-
-function ProfileTabDemo() {
-  const { user } = useAuth();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [saved, setSaved] = useState(false);
-  const overlay = loadSettingsProfile();
-
-  const [name, setName] = useState(overlay.name ?? user?.name ?? "Admin User");
-  const [title, setTitle] = useState(overlay.title ?? user?.title ?? "Administrator");
-  const [email, setEmail] = useState(overlay.email ?? user?.email ?? "");
-  const [phone, setPhone] = useState(overlay.phone ?? user?.phone ?? "");
-  const initials = user?.initials ?? name.slice(0, 2).toUpperCase();
-  const institute = user?.instituteName ?? "—";
-  const roleLabel = user?.role?.replace(/_/g, " ") ?? "admin";
-
-  const handleSave = () => {
-    try {
-      localStorage.setItem(SETTINGS_PROFILE_KEY, JSON.stringify({ name, title, email, phone }));
-    } catch {
-      /* ignore */
-    }
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader title="Logged-in profile" hint="Your identity for this Admin session" />
-        <div className="px-5 pb-5">
-          <div className="flex items-center gap-5 py-4 border-b border-border mb-1">
-            <div className="relative group">
-              <div className="size-16 rounded-full bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center text-xl font-bold text-primary-foreground select-none">
-                {initials}
-              </div>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
-                aria-label="Upload photo"
-              >
-                <Camera className="size-4 text-white" />
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" className="sr-only" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold">{name}</div>
-              <div className="text-[11px] text-muted-foreground">
-                {title} · {institute}
-              </div>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="mt-1.5 text-[11px] text-primary hover:underline"
-              >
-                Change photo
-              </button>
-            </div>
-          </div>
-
-          <Row label="Full name" hint="Shown across Admin">
-            <Inp value={name} onChange={(e) => setName(e.target.value)} className="w-52" />
-          </Row>
-          <Row label="Title / Designation">
-            <Inp value={title} onChange={(e) => setTitle(e.target.value)} className="w-44" />
-          </Row>
-          <Row label="Email address" hint="Login identity">
-            <Inp type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-56" />
-          </Row>
-          <Row label="Phone number">
-            <Inp type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-44" />
-          </Row>
-          <Row label="Role">
-            <Pill tone="info">{roleLabel.replace(/\b\w/g, (c) => c.toUpperCase())}</Pill>
-          </Row>
-
-          <div className="pt-4 flex gap-2">
-            <Button variant="primary" onClick={handleSave}>
-              {saved ? (
-                <>
-                  <Check className="size-3.5" /> Saved
-                </>
-              ) : (
-                "Save changes"
-              )}
-            </Button>
-            <Button>Cancel</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Account" hint="Session details for the signed-in user" />
-        <div className="px-5 pb-5">
-          <Row label="Institute">
-            <span className="text-xs text-muted-foreground">{institute}</span>
-          </Row>
-          <Row label="Last login">
-            <span className="text-xs text-muted-foreground">
-              {user?.lastLoginAt
-                ? new Date(user.lastLoginAt).toLocaleString("en-IN")
-                : "This session"}
-            </span>
-          </Row>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function AppearanceTab() {
-  const { theme, set } = useTheme();
-  const [density, setDensity] = useState<"compact" | "default" | "comfortable">("default");
-  const [colorScheme, setColorScheme] = useState("indigo");
-  const [alertChimes, setAlertChimes] = useState(() => loadAlertChimesPreference());
-
-  useEffect(() => {
-    saveAlertChimesPreference(alertChimes);
-  }, [alertChimes]);
-
-  const themes = [
-    { id: "light" as const, label: "Light", icon: Sun },
-    { id: "dark" as const, label: "Dark", icon: Moon },
-  ];
-
-  const colors = [
-    { id: "indigo",  hex: "#6366f1", label: "Indigo"  },
-    { id: "blue",    hex: "#3b82f6", label: "Blue"    },
-    { id: "emerald", hex: "#10b981", label: "Emerald" },
-    { id: "violet",  hex: "#8b5cf6", label: "Violet"  },
-    { id: "rose",    hex: "#f43f5e", label: "Rose"    },
-    { id: "amber",   hex: "#f59e0b", label: "Amber"   },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title="Theme"
-          hint="Light or Dark · default Light · does not follow system"
-        />
-        <div className="px-5 pb-5">
-          <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm">
-            {themes.map(({ id, label, icon: Icon }) => {
-              const active = theme === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => set(id)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    active
-                      ? "border-primary bg-primary/8"
-                      : "border-border hover:border-border-strong bg-surface"
-                  }`}
-                >
-                  <IconChip icon={Icon} size="sm" variant="brand" active={active} />
-                  <span className="text-xs font-medium">{label}</span>
-                  {active && <span className="size-1.5 rounded-full bg-primary" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Accent Color" hint="Primary color used across the interface" />
-        <div className="px-5 pb-5 pt-2">
-          <div className="flex flex-wrap gap-3">
-            {colors.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setColorScheme(c.id)}
-                title={c.label}
-                className={`size-8 rounded-full border-2 transition-all ${
-                  colorScheme === c.id ? "border-foreground scale-110" : "border-transparent hover:scale-105"
-                }`}
-                style={{ backgroundColor: c.hex }}
-              >
-                {colorScheme === c.id && (
-                  <Check className="size-3.5 text-white mx-auto" />
-                )}
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3">Color changes apply after page refresh.</p>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Alert sounds"
-          hint="Urgent double-tone for red alerts · soft tone for normal notifications"
-        />
-        <div className="px-5 pb-5">
-          <Row
-            label="Play alert chime"
-            hint="Applies to holidays, emergencies, and other important broadcasts"
-          >
-            <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={alertChimes}
-                onChange={(e) => setAlertChimes(e.target.checked)}
-                className="size-4 rounded border-border"
-              />
-              {alertChimes ? "On" : "Off"}
-            </label>
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Layout & Density" hint="Control spacing and information density" />
-        <div className="px-5 pb-5">
-          <Row label="Interface density" hint="Compact fits more; comfortable gives more breathing room">
-            <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-              {(["compact", "default", "comfortable"] as const).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDensity(d)}
-                  className={`px-3 py-1.5 capitalize transition-colors ${
-                    density === d ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-          </Row>
-          <Row label="Text Size" hint="Small, Default, Large, or Extra Large. Default is Default.">
-            <TextSizeControl size="compact" className="min-w-[16rem]" />
-          </Row>
-          <Row label="Sidebar" hint="Show or collapse the navigation sidebar">
-            <Sel options={["Always visible", "Auto-collapse", "Icon only"]} />
-          </Row>
-          <Row label="Animations" hint="Page transitions and micro-interactions">
-            <Sel options={["Enabled", "Reduced", "Disabled"]} />
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Device Preview" hint="How the interface looks on different screens" />
-        <div className="px-5 pb-5 flex flex-wrap gap-3 pt-2">
-          {[
-            { icon: Monitor,    label: "Desktop",  desc: "1440px+"   },
-            { icon: Laptop,     label: "Laptop",   desc: "1024-1440" },
-            { icon: Smartphone, label: "Mobile",   desc: "375-768"   },
-          ].map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="flex-1 min-w-[120px] p-4 rounded-xl border border-border bg-surface text-center">
-              <Icon className="size-5 mx-auto text-muted-foreground mb-2" />
-              <div className="text-xs font-medium">{label}</div>
-              <div className="text-[10px] text-muted-foreground font-mono">{desc}</div>
-              <Pill tone="success">Responsive</Pill>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-
-function HelpCenterTab({ onOpenFaqs, onOpenContact }: { onOpenFaqs: () => void; onOpenContact: () => void }) {
+function HelpCenterAndFaqsTab({ onOpenContact }: { onOpenContact: () => void }) {
   const guides = [
     { icon: GraduationCap, title: "Students and admissions", body: "Add students, bulk import, and manage profiles from Students in the sidebar." },
     { icon: Layers, title: "Modules and Plan", body: "See your institute plan, pay securely, and turn optional modules on or off." },
@@ -491,38 +135,6 @@ function HelpCenterTab({ onOpenFaqs, onOpenContact }: { onOpenFaqs: () => void; 
     { icon: BookOpen, title: "Getting started", body: `Use Home for KPIs, then configure ${M.institute} for public branding.` },
   ];
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader title="Help Center" hint="Guides and shortcuts for LumenX Admin" />
-        <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          {guides.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-lg border border-border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <IconChip icon={Icon} size="sm" variant="soft" />
-                <div className="text-xs font-semibold">{title}</div>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">{body}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <CardHeader title="Need more help?" />
-        <div className="px-5 pb-5 flex flex-wrap gap-2">
-          <Button variant="primary" onClick={onOpenFaqs}>
-            <HelpCircle className="size-3.5" /> Browse FAQs
-          </Button>
-          <Button onClick={onOpenContact}>
-            <Phone className="size-3.5" /> Contact support
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function FaqsTab() {
   const faqs = [
     {
       q: "How do I add a new student to the system?",
@@ -554,118 +166,164 @@ function FaqsTab() {
     },
     {
       q: "How do I update institute branding?",
-      a: `Open ${M.institute} from the sidebar. Edit name, logo, contact, history, and awards. That content is used on Connect and certificates.`,
+      a: "Open Institute Settings → Institute profile. Edit name, logo, contact, history, and awards. That content is used on Connect and certificates.",
+    },
+    {
+      q: "Where are attendance settings?",
+      a: `Open ${M.attendance} in the sidebar, then choose Attendance settings beside Take attendance.`,
     },
     {
       q: "How do I contact support?",
-      a: "Open Settings → Contact & Support, or write to official.lumenx@gmail.com. For common how-tos, use Help Center or FAQs in Settings.",
+      a: "Open Institute Settings → Contact and support, or write to lumenxtech.official@gmail.com. For common how-tos, use Help center and FAQs.",
     },
   ];
 
   return (
-    <Card>
-      <CardHeader
-        title="Frequently Asked Questions"
-        hint="Common queries about using LumenX Admin"
-      />
-      <div className="px-5 pb-5">
-        {faqs.map((f) => (
-          <FaqItem key={f.q} q={f.q} a={f.a} />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function FeedbackTab() {
-  return (
     <div className="space-y-4">
       <Card>
+        <CardHeader title="Help center" hint="Guides and shortcuts for LumenX Admin" />
+        <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {guides.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <IconChip icon={Icon} size="sm" variant="soft" />
+                <div className="text-xs font-semibold">{title}</div>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">{body}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card>
         <CardHeader
-          title="LumenX Feedback"
-          hint="Goes to LumenX — not your school"
+          title="Frequently asked questions"
+          hint="Common queries about using LumenX Admin"
         />
-        <div className="px-5 pb-5 pt-1">
-          <LumenXFeedbackForm source="admin" />
+        <div className="px-5 pb-5">
+          {faqs.map((f) => (
+            <FaqItem key={f.q} q={f.q} a={f.a} />
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Need more help?" />
+        <div className="px-5 pb-5 flex flex-wrap gap-2">
+          <Button onClick={onOpenContact}>
+            <Phone className="size-3.5" /> Contact support
+          </Button>
         </div>
       </Card>
     </div>
   );
 }
 
-function ContactTab() {
+function FeedbackKindTab({
+  title,
+  hint,
+  fixedKind,
+}: {
+  title: string;
+  hint: string;
+  fixedKind?: LumenXFeedbackKind;
+}) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader title={title} hint={hint} />
+        <div className="px-5 pb-5 pt-1">
+          <LumenXFeedbackForm source="admin" fixedKind={fixedKind} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+const SUPPORT_EMAIL = "lumenxtech.official@gmail.com";
+const SUPPORT_PHONE_DISPLAY = "+91 91826 70362";
+const SUPPORT_PHONE_TEL = "+919182670362";
+
+function ContactTab({ onOpenHelp }: { onOpenHelp: () => void }) {
   const notify = useAdminToast();
-  const [supportName, setSupportName] = useState("Dr. Ananya Verma");
-  const [supportEmail, setSupportEmail] = useState("ananya.verma@lumenx.edu");
+  const [supportName, setSupportName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
   const [supportSubject, setSupportSubject] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
+
+  const channels: {
+    icon: typeof Mail;
+    title: string;
+    value: string;
+    hint: string;
+    action: string;
+    href: string | null;
+    onAction?: () => void;
+  }[] = [
+    {
+      icon: Mail,
+      title: "Email Support",
+      value: SUPPORT_EMAIL,
+      hint: "We reply within 4 business hours",
+      action: "Send email",
+      href: `mailto:${SUPPORT_EMAIL}`,
+    },
+    {
+      icon: Phone,
+      title: "Phone Support",
+      value: SUPPORT_PHONE_DISPLAY,
+      hint: "Mon – Fri, 9 AM – 6 PM IST",
+      action: "Call now",
+      href: `tel:${SUPPORT_PHONE_TEL}`,
+    },
+    {
+      icon: Globe,
+      title: "Help Center",
+      value: "In-app guides & FAQs",
+      hint: "Guides, tutorials, and common questions",
+      action: "Open help center",
+      href: null,
+      onAction: onOpenHelp,
+    },
+  ];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[
-          {
-            icon: Mail,
-            title: "Email Support",
-            value: "official.lumenx@gmail.com",
-            hint: "We reply within 4 business hours",
-            action: "Send email",
-          },
-          {
-            icon: Phone,
-            title: "Phone Support",
-            value: "+91 80 4567 8900",
-            hint: "Mon – Fri, 9 AM – 6 PM IST",
-            action: "Call now",
-          },
-          {
-            icon: Globe,
-            title: "Help Center",
-            value: "help.lumenx.app",
-            hint: "Guides, tutorials, release notes",
-            action: "Visit docs",
-          },
-        ].map(({ icon: Icon, title, value, hint, action }) => (
+        {channels.map(({ icon: Icon, title, value, hint, action, href, onAction }) => (
           <Card key={title} className="p-5">
             <IconChip icon={Icon} size="md" variant="brand" className="mb-3" />
             <div className="text-sm font-semibold mb-0.5">{title}</div>
-            <div className="text-xs font-medium text-primary">{value}</div>
+            {href ? (
+              <a
+                href={href}
+                className="text-xs font-medium text-primary hover:underline break-all"
+              >
+                {value}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onAction}
+                className="text-xs font-medium text-primary hover:underline text-left"
+              >
+                {value}
+              </button>
+            )}
             <div className="text-[11px] text-muted-foreground mt-1">{hint}</div>
-            <Button size="sm" className="mt-3">
-              {action} <ExternalLink className="size-3" />
-            </Button>
+            {href ? (
+              <a
+                href={href}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-surface-hover"
+              >
+                {action} <ExternalLink className="size-3" />
+              </a>
+            ) : (
+              <Button size="sm" className="mt-3" onClick={onAction}>
+                {action}
+              </Button>
+            )}
           </Card>
         ))}
       </div>
-
-      <Card>
-        <CardHeader title="Office Address" hint="Visit or send correspondence" />
-        <div className="px-5 pb-5">
-          <div className="flex gap-4 py-3">
-            <IconChip icon={MapPin} size="sm" variant="soft" />
-            <div>
-              <div className="text-xs font-semibold">LumenX Technologies Pvt. Ltd.</div>
-              <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                4th Floor, Innovation Tower<br />
-                HITEC City, Madhapur<br />
-                Hyderabad, Telangana 500081<br />
-                India
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-4 py-3 border-t border-border">
-            <IconChip icon={Clock} size="sm" variant="soft" />
-            <div>
-              <div className="text-xs font-semibold">Business Hours</div>
-              <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                Monday – Friday: 9:00 AM – 6:00 PM IST<br />
-                Saturday: 10:00 AM – 2:00 PM IST<br />
-                Sunday: Closed
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
 
       <Card>
         <CardHeader title="Send a Message" hint="We'll get back to you within one business day" />
@@ -706,7 +364,14 @@ function ContactTab() {
                 notify("Fill name, email, subject, and a message of at least 10 characters.");
                 return;
               }
-              notify("Support is not connected yet. Your message was validated and not sent.");
+              const body = [
+                `Name: ${supportName.trim()}`,
+                `Email: ${supportEmail.trim()}`,
+                "",
+                supportMessage.trim(),
+              ].join("\n");
+              const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(supportSubject.trim())}&body=${encodeURIComponent(body)}`;
+              window.location.href = mailto;
             }}
           >
             <Send className="size-3.5" /> Send message
@@ -715,28 +380,9 @@ function ContactTab() {
       </Card>
 
       <Card>
-        <CardHeader title="Follow Us" hint="Stay updated with LumenX news and releases" />
-        <div className="px-5 pb-5 flex flex-wrap gap-3 pt-2">
-          {[
-            { icon: Linkedin, label: "LinkedIn", handle: "@lumenxapp", href: "https://www.linkedin.com/company/lumenx" },
-            { icon: Twitter, label: "X (Twitter)", handle: "@lumenxhq", href: "https://x.com/lumenxhq" },
-            { icon: Youtube, label: "YouTube", handle: "Test1School", href: "https://www.youtube.com/@lumenx" },
-            { icon: BookOpen, label: "Blog", handle: "blog.lumenx.app", href: "https://lumenx.app" },
-          ].map(({ icon: Icon, label, handle, href }) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border hover:border-border-strong bg-surface hover:bg-surface-hover transition-all`}
-            >
-              <IconChip icon={Icon} size="sm" variant="soft" />
-              <div>
-                <div className="text-xs font-medium">{label}</div>
-                <div className="text-[10px] text-muted-foreground">{handle}</div>
-              </div>
-            </a>
-          ))}
+        <CardHeader title="Follow Us" hint="Social channels will appear here when available" />
+        <div className="px-5 pb-5 text-xs text-muted-foreground">
+          No channels yet.
         </div>
       </Card>
     </div>
@@ -830,50 +476,78 @@ function PlatformTab() {
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════ */
 
+function SettingsTabRow({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: { id: SettingsTab; label: string; icon: typeof User }[];
+  active: SettingsTab;
+  onChange: (id: SettingsTab) => void;
+}) {
+  return (
+    <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
+      {tabs.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+            active === id
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
+          }`}
+        >
+          <IconChip icon={Icon} size="xs" variant="soft" active={active === id} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SettingsPage() {
-  const [tab, setTab] = useState<SettingsTab>("profile");
+  const [tab, setTab] = useState<SettingsTab>("institute-profile");
 
   return (
-    <AppShell title="Settings" subtitle="Your profile, appearance, platform, and support">
+    <AppShell title={M.settings} subtitle="School-wide profile, platform, and support">
       <ModuleHero
-        eyebrow="Operations"
-        title="Settings"
-        subtitle="Your profile, appearance, platform, and support"
+        eyebrow="Settings"
+        title={M.settings}
+        subtitle="School-wide profile, platform, and support"
       />
       <PageStack>
-        <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-                tab === id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
-              }`}
-            >
-              <IconChip icon={Icon} size="xs" variant="soft" active={tab === id} />
-              {label}
-            </button>
-          ))}
-        </div>
+        <SettingsTabRow tabs={TABS} active={tab} onChange={setTab} />
 
         <div>
-          {tab === "profile" && <ProfileTab />}
-          {tab === "appearance" && <AppearanceTab />}
-          {tab === "academic" && <AcademicSettingsTab />}
+          {tab === "institute-profile" && <InstituteProfileTab />}
           {tab === "platform" && <PlatformTab />}
-          {tab === "audit" && <AuditActivityPanel />}
-          {tab === "contact" && <ContactTab />}
-          {tab === "feedback" && <FeedbackTab />}
-          {tab === "help" && (
-            <HelpCenterTab
-              onOpenFaqs={() => setTab("faqs")}
-              onOpenContact={() => setTab("contact")}
+          {tab === "contact" && (
+            <ContactTab onOpenHelp={() => setTab("help-faqs")} />
+          )}
+          {tab === "feature-request" && (
+            <FeedbackKindTab
+              title="Feature request"
+              hint="Suggest an improvement — goes to LumenX, not your school"
+              fixedKind="feature"
             />
           )}
-          {tab === "faqs" && <FaqsTab />}
+          {tab === "report-issue" && (
+            <FeedbackKindTab
+              title="Report issue"
+              hint="Report a bug or broken flow — goes to LumenX"
+              fixedKind="bug"
+            />
+          )}
+          {tab === "lumenx-feedback" && (
+            <FeedbackKindTab
+              title="LumenX feedback"
+              hint="Rating, bug, feature, or experience — goes to LumenX"
+            />
+          )}
+          {tab === "help-faqs" && (
+            <HelpCenterAndFaqsTab onOpenContact={() => setTab("contact")} />
+          )}
         </div>
       </PageStack>
     </AppShell>

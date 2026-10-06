@@ -5,9 +5,10 @@ import type {
   InstituteRegistrationPayload,
   InstituteRegistrationRow,
 } from "./types.js";
+import { registrationRowFieldsFromPayload } from "./payload.js";
 
 const REGISTRATION_COLS =
-  "id, applicant_user_id, applicant_name, email, phone, payload, status, reviewed_by, reviewed_at, rejection_reason, institute_id, created_at, updated_at";
+  "id, applicant_user_id, applicant_name, email, phone, payload, status, reviewed_by, reviewed_at, rejection_reason, institute_id, created_at, updated_at, institute_code, institute_type, education_board, school_email, school_phone, applicant_username, admin_designation, country, state, district, city, area, street, landmark, pincode, website";
 
 export async function findRegistrationById(
   admin: SupabaseClient,
@@ -204,8 +205,10 @@ export async function insertUserProfile(
     displayName: string;
     email: string;
     phone?: string | null;
+    username?: string | null;
   },
 ): Promise<void> {
+  const username = input.username?.trim().toLowerCase() || null;
   const result = await admin
     .from("user_profile")
     .upsert(
@@ -214,6 +217,7 @@ export async function insertUserProfile(
         display_name: input.displayName.trim(),
         email: input.email.trim().toLowerCase(),
         phone: input.phone?.trim() || null,
+        ...(username ? { username } : {}),
         status: "active",
       },
       { onConflict: "id", ignoreDuplicates: true },
@@ -240,6 +244,7 @@ export async function insertRegistration(
       phone: input.phone?.trim() || null,
       payload: input.payload,
       status: "pending",
+      ...registrationRowFieldsFromPayload(input.payload),
     })
     .select(REGISTRATION_COLS)
     .single();

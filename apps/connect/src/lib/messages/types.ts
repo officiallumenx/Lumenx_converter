@@ -36,6 +36,10 @@ export type MessageRecipientDto = {
   userId: string;
   displayName: string;
   role: "teacher" | "parent" | "student" | "staff";
+  classLabel?: string | null;
+  sectionLabel?: string | null;
+  studentId?: string | null;
+  linkedParentUserIds?: string[];
 };
 
 export type MessageThreadListItem = MessageThreadDto & {
@@ -72,4 +76,4 @@ export type ListRecipientsParams = {
   instituteId: string;
   studentId?: string | null;
 };
-
+

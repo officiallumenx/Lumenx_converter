@@ -525,11 +525,20 @@ function MessagesPage() {
                       onChange={(e) => setRecipientUserId(e.target.value)}
                     >
                       <option value="">Choose recipient</option>
-                      {recipients.map((r) => (
-                        <option key={r.userId} value={r.userId}>
-                          {r.displayName} · {r.role}
-                        </option>
-                      ))}
+                      {recipients.map((r) => {
+                        const cls = r.classLabel?.trim();
+                        const sec = r.sectionLabel?.trim();
+                        const classBit =
+                          r.role === "student" && (cls || sec)
+                            ? ` · ${cls ?? ""}${cls && sec ? "-" : ""}${sec ?? ""}`
+                            : "";
+                        return (
+                          <option key={r.userId} value={r.userId}>
+                            {r.displayName} · {r.role}
+                            {classBit}
+                          </option>
+                        );
+                      })}
                     </Select>
                   )}
                 </Field>

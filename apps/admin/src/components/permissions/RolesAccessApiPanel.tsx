@@ -53,6 +53,10 @@ import {
   adminModulePrefix,
   adminQueryRoots,
 } from "@/lib/admin-queries";
+import {
+  displayableContactEmail,
+  publicLoginIdentityLines,
+} from "@/lib/identity";
 
 const groupedModules = Array.from(new Set(ACCESS_MODULES.map((m) => m.group))).map(
   (group) => ({
@@ -360,27 +364,28 @@ export function RolesAccessApiPanel() {
                   linkedTeacher?.displayName ??
                   linkedStaff?.displayName ??
                   (assignee.linkedPersonType === "staff" ? "Staff directory" : "Not linked");
-                const loginEmail =
-                  assignee.email && !assignee.email.includes("@portal.lumenx.local")
-                    ? assignee.email
-                    : null;
+                const loginLines = publicLoginIdentityLines({
+                  email: assignee.email,
+                  phone: assignee.phone,
+                });
                 return (
                   <tr key={assignee.id} className="hover:bg-surface-hover">
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium">{assignee.displayName}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {assignee.id.slice(0, 8)}…
-                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {assignee.username && (
-                        <div className="font-medium">{assignee.username}</div>
-                      )}
-                      {loginEmail && <div>{loginEmail}</div>}
-                      {assignee.phone && (
-                        <div className="text-muted-foreground">{assignee.phone}</div>
-                      )}
-                      {!assignee.username && !loginEmail && !assignee.phone && (
+                      {loginLines.length > 0 ? (
+                        loginLines.map((line) => (
+                          <div
+                            key={line}
+                            className={
+                              line.includes("@") ? undefined : "text-muted-foreground"
+                            }
+                          >
+                            {line}
+                          </div>
+                        ))
+                      ) : (
                         <div className="text-muted-foreground">No login identity</div>
                       )}
                     </td>
@@ -520,9 +525,11 @@ export function RolesAccessApiPanel() {
         onClose={() => setAssigneeEditorOpen(false)}
         onSave={async (draft) => {
           if (editingAssignee) {
-            // Login identity is global — edits only change role / section scope.
             await updateAccessAssignee(editingAssignee.id, {
               accessRoleId: draft.accessRoleId,
+              displayName: draft.displayName,
+              email: draft.email,
+              phone: draft.phone,
               assignedSectionKeys: draft.assignedSectionKeys,
             });
             notify("Assignment updated");
@@ -616,8 +623,7 @@ function ApiCreatedCredentialsSummary({
   const rows = credentials
     ? [
         { label: "Name", value: credentials.displayName },
-        { label: "Username", value: credentials.username ?? "" },
-        { label: "Email", value: credentials.email ?? "" },
+        { label: "Email", value: displayableContactEmail(credentials.email) ?? "" },
         { label: "Mobile", value: credentials.phone ?? "" },
         {
           label: "Password",
@@ -907,7 +913,7 @@ function ApiAssigneeEditor({
   useEffect(() => {
     if (!open) return;
     setName(assignee?.displayName ?? "");
-    setEmail(assignee?.email ?? "");
+    setEmail(displayableContactEmail(assignee?.email) ?? "");
     setMobile(assignee?.phone ?? "");
     setPassword("");
     setUsername("");
@@ -944,7 +950,7 @@ function ApiAssigneeEditor({
       title={assignee ? "Update assignment" : "Assign teacher to role"}
       subtitle={
         assignee
-          ? "Change role or section access only — login email, phone, and password stay on the user account"
+          ? "Update name, email, mobile, role, or class access. Password stays on the login account."
           : "Set email, mobile, username, password, and PIN — then assign module access"
       }
       size="lg"
@@ -960,8 +966,16 @@ function ApiAssigneeEditor({
               const cleanUsername = username.trim().toLowerCase();
               const cleanPin = pin.trim();
               if (assignee) {
-                if (!roleId) {
-                  setError("Select a role.");
+                if (!name.trim() || !roleId) {
+                  setError("Enter person name and select a role.");
+                  return;
+                }
+                if (!cleanEmail && !cleanMobile) {
+                  setError("Enter a real email and/or 10-digit mobile.");
+                  return;
+                }
+                if (cleanMobile && cleanMobile.length !== 10) {
+                  setError("Mobile must be a 10-digit number.");
                   return;
                 }
                 if (
@@ -1073,7 +1087,7 @@ function ApiAssigneeEditor({
               if (teacher) {
                 setLinkedStaffId("");
                 setName(teacher.displayName);
-                setEmail(teacher.email ?? "");
+                setEmail(displayableContactEmail(teacher.email) ?? "");
                 setMobile(teacher.phone ?? "");
               }
             }}
@@ -1105,7 +1119,7 @@ function ApiAssigneeEditor({
               if (staff) {
                 setLinkedTeacherId("");
                 setName(staff.displayName);
-                setEmail(staff.email ?? "");
+                setEmail(displayableContactEmail(staff.email) ?? "");
                 setMobile(staff.phone ?? "");
               }
             }}
@@ -1135,23 +1149,31 @@ function ApiAssigneeEditor({
             ))}
           </Select>
         </Field>
-        <Field label="Email" hint={assignee ? "Locked on edit" : "Optional if mobile is set"}>
+        <Field
+          label="Email"
+          hint={
+            assignee
+              ? "Real email for login · system placeholders are hidden"
+              : "Optional if mobile is set"
+          }
+        >
           <TextInput
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="teacher@institute.edu"
-            disabled={Boolean(assignee)}
           />
         </Field>
-        <Field label="10-digit mobile" hint={assignee ? "Locked on edit" : "Optional if email is set"}>
+        <Field
+          label="10-digit mobile"
+          hint={assignee ? "Used for Admin login OTP" : "Optional if email is set"}
+        >
           <TextInput
             value={mobile}
             onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
             placeholder="9876543210"
             inputMode="numeric"
             maxLength={10}
-            disabled={Boolean(assignee)}
           />
         </Field>
         {!assignee && (
@@ -1221,7 +1243,7 @@ function ApiAssigneeEditor({
       )}
       <div className="mt-5 rounded-lg border border-border bg-muted/20 p-3 text-[11px] text-muted-foreground">
         {assignee
-          ? "Editing changes role or class access only. Login email, phone, and password cannot be changed from this assignment."
+          ? "You can update name, email, mobile, role, and class access here. Password is unchanged — use forgot password on login if needed."
           : "If both email and mobile exist, the user may enter either one at login. First login: OTP → password → PIN. Returning: password → PIN."}
       </div>
     </Modal>
@@ -1281,9 +1303,10 @@ function ApiRoleTeacherManager({
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold">{assignee.displayName}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  {[assignee.username, assignee.email, assignee.phone]
-                    .filter(Boolean)
-                    .join(" · ") || "No login identity"}
+                  {publicLoginIdentityLines({
+                    email: assignee.email,
+                    phone: assignee.phone,
+                  }).join(" · ") || "No login identity"}
                   {teacher ? ` · ${teacher.displayName}` : staff ? ` · ${staff.department}` : ""}
                 </div>
               </div>

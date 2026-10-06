@@ -78,6 +78,7 @@ export function MyStopsPanel({
                     <p className="text-xs text-muted-foreground">{stop.locationLabel}</p>
                     <p className="font-mono text-[10px] text-muted-foreground">
                       {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+                      {` · ${stop.notificationRadiusM} m`}
                     </p>
 
                     {stop.status === "approved" ? (

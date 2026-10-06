@@ -1,5 +1,7 @@
 /** Transport operations — trips, boarding, emergencies, GPS. */
 
+import type { GpsFreshness } from "./gps-freshness.js";
+
 export type TripSlot = "morning" | "evening";
 export type TripPhase =
   | "ready"
@@ -23,6 +25,16 @@ export type EmergencyType =
 
 export type EmergencyStatus = "active" | "acknowledged" | "resolved";
 
+export type TransportTripTimelineEvent = {
+  id: string;
+  at: string;
+  kind: string;
+  label: string;
+  note?: string;
+  stopId?: string;
+  studentId?: string;
+};
+
 export type TransportTripRow = {
   id: string;
   institute_id: string;
@@ -37,6 +49,9 @@ export type TransportTripRow = {
   current_stop_id: string | null;
   current_stop_index: number;
   finalized: boolean;
+  timeline?: TransportTripTimelineEvent[] | null;
+  school_arrived_at?: string | null;
+  client_event_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -53,6 +68,8 @@ export type TransportBoardingEventRow = {
   boarded_at: string | null;
   dropped_at: string | null;
   finalized: boolean;
+  boarding_client_event_id?: string | null;
+  dropping_client_event_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -74,6 +91,7 @@ export type TransportEmergencyRow = {
   resolved_by_user_id: string | null;
   resolve_note: string | null;
   timeline: Array<{ id: string; at: string; label: string; note?: string }>;
+  client_event_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -88,6 +106,9 @@ export type VehicleLocationRow = {
   longitude: number;
   accuracy_m: number | null;
   captured_at: string;
+  client_event_id?: string | null;
+  driver_id?: string | null;
+  sequence_number?: number | null;
 };
 
 export type TransportTripDto = {
@@ -107,8 +128,35 @@ export type TransportTripDto = {
   routeName?: string | null;
   vehicleNumber?: string | null;
   driverName?: string | null;
+  /** Latest GPS for this trip (Admin live panel). */
+  latestLocation?: VehicleLocationDto | null;
+  /** LIVE | RECENT | STALE | OFFLINE */
+  gpsFreshness?: "live" | "recent" | "stale" | "offline";
+  currentStopName?: string | null;
+  nextStopName?: string | null;
+  distanceToNextStopM?: number | null;
+  etaToNextStopMinutes?: number | null;
+  timeline?: TransportTripTimelineEvent[];
+  schoolArrivedAt?: string | null;
+  /** True when timeline contains a real TRIP_DELAYED event (never invented). */
+  isDelayed?: boolean;
+  pickupStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
+  dropStopPlan?: Array<{ id: string; name: string; routeOrder: number }>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type VehicleLocationDto = {
+  id: string;
+  instituteId: string;
+  tripId: string;
+  vehicleId: string;
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+  capturedAt: string;
+  clientEventId?: string | null;
+  sequenceNumber?: number | null;
 };
 
 export type TransportBoardingEventDto = {
@@ -159,6 +207,8 @@ export type VehicleLocationDto = {
   longitude: number;
   accuracyM: number | null;
   capturedAt: string;
+  clientEventId?: string | null;
+  sequenceNumber?: number | null;
 };
 
 export type LearnerTransportLiveDto = {
@@ -176,6 +226,26 @@ export type LearnerTransportLiveDto = {
     /** Nearest product band (30 / 15 / 5), or null when farther than 30 min. */
     band: 30 | 15 | 5 | null;
   } | null;
+  /** LIVE | RECENT | STALE | OFFLINE from latest GPS. */
+  gpsFreshness: GpsFreshness;
+  /** Date-scoped NOT_RIDING for service date of active trip (or today). */
+  notRidingToday: boolean;
+  /** Institute default pickup clock HH:MM when configured. */
+  expectedPickupTime: string | null;
+};
+
+export type LearnerTransportHistoryDayDto = {
+  tripDate: string;
+  tripId: string | null;
+  routeName: string | null;
+  phase: string | null;
+  boardingStatus: BoardingStatus | null;
+  droppingStatus: DroppingStatus | null;
+  boardedAt: string | null;
+  droppedAt: string | null;
+  notRiding: boolean;
+  pickupStopName: string | null;
+  dropStopName: string | null;
 };
 
 export type StartTripInput = {
@@ -185,24 +255,28 @@ export type StartTripInput = {
   driverId: string;
   slot?: TripSlot;
   tripDate?: string;
+  clientEventId?: string | null;
 };
 
 export type UpdateTripPhaseInput = {
   phase: TripPhase;
   currentStopId?: string | null;
   currentStopIndex?: number;
+  clientEventId?: string | null;
 };
 
 export type UpsertBoardingInput = {
   studentId: string;
   stopId: string;
   boardingStatus: BoardingStatus;
+  clientEventId?: string | null;
 };
 
 export type UpsertDroppingInput = {
   studentId: string;
   stopId: string;
   droppingStatus: DroppingStatus;
+  clientEventId?: string | null;
 };
 
 export type TransportAnalyticsDto = {
@@ -225,6 +299,16 @@ export type TransportAnalyticsDto = {
   boardingMarksToday: number;
   boardedToday: number;
   openEmergencies: number;
+  /** Unique vehicles currently on an active trip. */
+  activeBuses: number;
+  /** Unique drivers currently on an active trip. */
+  activeDrivers: number;
+  /** Students with active transport enrollment (permanent assignment). */
+  studentsUsingTransport: number;
+  /** Active trips marked delayed in timeline. */
+  delayedTrips: number;
+  /** Active trips whose latest GPS is stale or offline. */
+  busesWithStaleGps: number;
 };
 
 export type CreateEmergencyInput = {
@@ -236,4 +320,5 @@ export type CreateEmergencyInput = {
   latitude?: number | null;
   longitude?: number | null;
   note?: string | null;
+  clientEventId?: string | null;
 };

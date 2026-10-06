@@ -68,6 +68,8 @@ function NexusLoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  /** After a password retry mid pin-reset, resume this step instead of the normal PIN step. */
+  const [resumeAfterPassword, setResumeAfterPassword] = useState<Step | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -133,6 +135,14 @@ function NexusLoginPage() {
       setError("Password is required.");
       return;
     }
+    if (resumeAfterPassword) {
+      const next = resumeAfterPassword;
+      setResumeAfterPassword(null);
+      setNewPin("");
+      setConfirmPin("");
+      setStep(next);
+      return;
+    }
     setPin("");
     setStep("pin");
   };
@@ -179,6 +189,7 @@ function NexusLoginPage() {
     clearError();
     setResetMobile("");
     setResetMobileGrant("");
+    setResumeAfterPassword(null);
     setNewPin("");
     setConfirmPin("");
     setStep("forgot_pin_ids");
@@ -235,6 +246,8 @@ function NexusLoginPage() {
         mobileOtpGrant: resetMobileGrant,
         newPassword,
       });
+      setResetMobileGrant("");
+      setResumeAfterPassword(null);
       setPassword(newPassword);
       setPin("");
       setStep("pin");
@@ -291,21 +304,29 @@ function NexusLoginPage() {
     try {
       if (newPin.length < 4) throw new Error("PIN must be 4–8 digits.");
       if (newPin !== confirmPin) throw new Error("PINs do not match.");
+      if (!password.trim()) {
+        throw new Error("Enter your password on the previous step before saving a new PIN.");
+      }
+      // Pin-reset OTP grant + password → set PIN and open session.
+      // Do not reuse the earlier nexus_login grant (often already consumed/expired).
       await completeNexusPinReset({
         identifier: identifier.trim(),
         mobileOtpGrant: resetMobileGrant,
         newPin,
+        password,
       });
       setPin(newPin);
-      await completeNexusLogin({
-        identifier: identifier.trim(),
-        password,
-        pin: newPin,
-        mobileOtpGrant: mobileOtpGrant || undefined,
-      });
       window.location.assign("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to set PIN.");
+      const message = err instanceof Error ? err.message : "Unable to set PIN.";
+      if (/incorrect password/i.test(message)) {
+        setError("Incorrect password. Re-enter it, then Save PIN again.");
+        setPassword("");
+        setResumeAfterPassword("forgot_pin_set");
+        setStep("password");
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }

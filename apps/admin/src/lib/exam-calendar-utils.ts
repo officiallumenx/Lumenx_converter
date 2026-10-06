@@ -52,6 +52,52 @@ const FIXED_HOLIDAYS: Record<string, string> = {
   "10-02": "Gandhi Jayanti",
 };
 
+/** National festival dates used by Admin calendar holiday checklist (mm-dd). */
+export const FESTIVAL_HOLIDAYS: Record<string, string> = {
+  "01-01": "New Year",
+  "01-14": "Sankranti",
+  "01-26": "Republic Day",
+  "08-15": "Independence Day",
+  "10-02": "Gandhi Jayanti",
+  "12-25": "Christmas",
+};
+
+/**
+ * Lunar festivals (Telugu / school calendar) — dated per Gregorian year.
+ * Extend this table as new years are published.
+ */
+export const MOVABLE_FESTIVAL_HOLIDAYS: Record<string, string> = {
+  "2024-04-09": "Ugadi",
+  "2024-09-07": "Vinayaka Chaviti",
+  "2024-10-12": "Dasara",
+  "2024-11-01": "Diwali",
+  "2025-03-30": "Ugadi",
+  "2025-08-27": "Vinayaka Chaviti",
+  "2025-10-02": "Dasara",
+  "2025-10-20": "Diwali",
+  "2026-03-19": "Ugadi",
+  "2026-09-14": "Vinayaka Chaviti",
+  "2026-10-20": "Dasara",
+  "2026-11-08": "Diwali",
+  "2027-04-08": "Ugadi",
+  "2027-09-04": "Vinayaka Chaviti",
+  "2027-10-09": "Dasara",
+  "2027-10-29": "Diwali",
+  "2028-03-26": "Ugadi",
+  "2028-08-23": "Vinayaka Chaviti",
+  "2028-09-27": "Dasara",
+  "2028-10-17": "Diwali",
+};
+
+export function festivalHolidayLabel(iso: string): string | null {
+  return MOVABLE_FESTIVAL_HOLIDAYS[iso] ?? FESTIVAL_HOLIDAYS[iso.slice(5)] ?? null;
+}
+
+export function isGoodFriday(iso: string): boolean {
+  const d = new Date(iso + "T12:00:00");
+  return iso === goodFridayIso(d.getFullYear());
+}
+
 export function isSecondSaturday(iso: string): boolean {
   const d = new Date(iso + "T12:00:00");
   return d.getDay() === 6 && d.getDate() >= 8 && d.getDate() <= 14;

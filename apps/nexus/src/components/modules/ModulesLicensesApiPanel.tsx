@@ -39,6 +39,13 @@ const ADMIN_MODULE_OPTIONS = [
   "storage",
 ] as const;
 
+/** Stay off on new licenses until Nexus explicitly enables them. */
+const NEXUS_OPT_IN_MODULES = new Set(["storage", "attendance"]);
+
+function defaultEnabledModulesForNewLicense(): Set<string> {
+  return new Set(ADMIN_MODULE_OPTIONS.filter((id) => !NEXUS_OPT_IN_MODULES.has(id)));
+}
+
 type InstituteOption = { id: string; name: string };
 
 export function ModulesLicensesApiPanel({
@@ -96,7 +103,7 @@ export function ModulesLicensesApiPanel({
     if (!selected) {
       setPlan("plus");
       setCadence("yearly");
-      setEnabledModules(new Set(ADMIN_MODULE_OPTIONS));
+      setEnabledModules(defaultEnabledModulesForNewLicense());
       return;
     }
     setPlan(selected.plan);
@@ -197,6 +204,9 @@ export function ModulesLicensesApiPanel({
 
           <div>
             <div className="text-xs font-semibold mb-2">Admin modules</div>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Storage and Attendance stay off by default — enable only when this institute needs them.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {ADMIN_MODULE_OPTIONS.map((id) => (
                 <label
@@ -208,7 +218,10 @@ export function ModulesLicensesApiPanel({
                     checked={enabledModules.has(id)}
                     onChange={() => toggle(id)}
                   />
-                  <span className="capitalize">{id.replace(/-/g, " ")}</span>
+                  <span className="capitalize">
+                    {id.replace(/-/g, " ")}
+                    {NEXUS_OPT_IN_MODULES.has(id) ? " (opt-in)" : ""}
+                  </span>
                 </label>
               ))}
             </div>

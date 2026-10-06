@@ -86,6 +86,15 @@ export interface TransportTracking {
   /** Open SOS on this learner's bus */
   emergencyActive?: boolean;
   emergencyLabel?: string | null;
+  /** Parent-facing status derived from API facts only. */
+  parentStatus?: import("./parent-status").ParentTransportStatus;
+  gpsFreshness?: "live" | "recent" | "stale" | "offline";
+  boardingStatus?: "pending" | "boarded" | "not_boarded" | null;
+  droppingStatus?: "pending" | "dropped" | "not_dropped" | null;
+  expectedPickupTime?: string | null;
+  currentStopName?: string | null;
+  notRidingToday?: boolean;
+  tripId?: string | null;
 }
 
 export interface TransportAlert {

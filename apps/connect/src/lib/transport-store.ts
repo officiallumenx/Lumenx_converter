@@ -286,6 +286,8 @@ function fireOnce(key: string, fn: () => void) {
 }
 
 function fireBusApproachMilestones(prevEta: number, nextEta: number) {
+  // Phase 5: backend approach/arrival emits are SoT — never synthesize in API mode.
+  if (isApiAuthMode()) return;
   const tripId = sharedTrip?.tripId ?? `local-${assignment.studentId}`;
   const thresholds = [30, 15, 5] as const;
   for (const minutes of thresholds) {
@@ -835,8 +837,27 @@ export const transportStore = {
   init(learnerKey?: string, role?: "parent" | "student" | "teacher") {
     // Product API mode uses LearnerTransportApiView / teacher API roster — no local ops bridge.
     if (isApiAuthMode()) {
+      stopSimulation();
+      stopOpsListener();
+      stopAttendanceListener();
+      stopBridgeSubscriptions();
       if (role) activeRole = role;
       if (learnerKey) activeLearnerKey = learnerKey;
+      assignment = emptyAssignment();
+      tracking = {
+        ...initialTracking,
+        runStatus: "scheduled",
+        learnerStatus: "awaiting_pickup",
+        progressPercent: 0,
+        etaMinutes: 0,
+      };
+      alerts = [];
+      routeStudents = [];
+      routeOverview = emptyRouteOverview();
+      sharedAttendanceActive = false;
+      sharedTrip = null;
+      openEmergency = null;
+      notify();
       return;
     }
     startOpsListener();

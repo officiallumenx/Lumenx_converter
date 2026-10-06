@@ -282,12 +282,16 @@ function RolesAccessDemoPage() {
                   <tr key={assignee.id} className="hover:bg-surface-hover">
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium">{assignee.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{assignee.id}</div>
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {assignee.email && <div>{assignee.email}</div>}
-                      {assignee.phone && (
+                      {assignee.phone ? (
                         <div className="text-muted-foreground">{assignee.phone}</div>
+                      ) : assignee.email &&
+                        !assignee.email.includes(".invalid") &&
+                        !assignee.email.includes("@portal.lumenx.local") ? (
+                        <div>{assignee.email}</div>
+                      ) : (
+                        <div className="text-muted-foreground">No login identity</div>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -449,7 +453,16 @@ function RoleTeacherManager({
                   {teacher?.name ?? assignee.name}
                 </div>
                 <div className="truncate text-[10px] text-muted-foreground">
-                  {[assignee.email, assignee.phone].filter(Boolean).join(" · ")}
+                  {[
+                    assignee.phone,
+                    assignee.email &&
+                    !assignee.email.includes(".invalid") &&
+                    !assignee.email.includes("@portal.lumenx.local")
+                      ? assignee.email
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "No login identity"}
                 </div>
                 <div className="mt-1">
                   <AdminPasswordReveal password={assignee.password} />

@@ -40,7 +40,7 @@ import {
   generateTransportOpsReportCsv,
   isTransportOpsReportId,
 } from "./generate-transport.js";
-import type { GeneratedReportFile } from "./types.js";
+import type { GeneratedReportFile, ReportDateRange } from "./types.js";
 
 function esc(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -93,13 +93,26 @@ export function isReportGenerationSupported(reportId: string): boolean {
   return SUPPORTED.has(reportId);
 }
 
+function inDateRange(
+  iso: string | null | undefined,
+  range: ReportDateRange | undefined,
+): boolean {
+  if (!range?.fromDate && !range?.toDate) return true;
+  if (!iso) return false;
+  const day = iso.slice(0, 10);
+  if (range.fromDate && day < range.fromDate) return false;
+  if (range.toDate && day > range.toDate) return false;
+  return true;
+}
+
 export async function generateReportCsv(
   admin: SupabaseClient,
   instituteId: string,
   reportId: string,
+  range?: ReportDateRange,
 ): Promise<GeneratedReportFile> {
   if (isAttendanceReportId(reportId)) {
-    return generateAttendanceReportCsv(admin, instituteId, reportId);
+    return generateAttendanceReportCsv(admin, instituteId, reportId, range);
   }
   if (isTransportOpsReportId(reportId)) {
     return generateTransportOpsReportCsv(admin, instituteId, reportId);
@@ -316,7 +329,9 @@ export async function generateReportCsv(
       };
     }
     case "complaints": {
-      const rows = await listComplaints(admin, { instituteId });
+      const rows = (await listComplaints(admin, { instituteId })).filter((r) =>
+        inDateRange(r.created_at, range),
+      );
       return {
         fileName: stamp(reportId),
         contentType: "text/csv; charset=utf-8",
@@ -334,7 +349,9 @@ export async function generateReportCsv(
       };
     }
     case "leave": {
-      const rows = await listLeaveRequests(admin, { instituteId });
+      const rows = (await listLeaveRequests(admin, { instituteId })).filter((r) =>
+        inDateRange(r.start_date, range),
+      );
       return {
         fileName: stamp(reportId),
         contentType: "text/csv; charset=utf-8",
@@ -352,7 +369,9 @@ export async function generateReportCsv(
       };
     }
     case "events": {
-      const rows = await listEvents(admin, { instituteId });
+      const rows = (await listEvents(admin, { instituteId })).filter((r) =>
+        inDateRange(r.starts_on, range),
+      );
       return {
         fileName: stamp(reportId),
         contentType: "text/csv; charset=utf-8",
@@ -370,7 +389,9 @@ export async function generateReportCsv(
       };
     }
     case "admissions": {
-      const rows = await listApplications(admin, instituteId);
+      const rows = (await listApplications(admin, instituteId)).filter((r) =>
+        inDateRange(r.submitted_at ?? r.created_at, range),
+      );
       return {
         fileName: stamp(reportId),
         contentType: "text/csv; charset=utf-8",
@@ -387,11 +408,13 @@ export async function generateReportCsv(
       };
     }
     case "audit": {
-      const rows = await listAuditEvents(admin, {
-        scope: "institute",
-        instituteId,
-        limit: 200,
-      });
+      const rows = (
+        await listAuditEvents(admin, {
+          scope: "institute",
+          instituteId,
+          limit: 5000,
+        })
+      ).filter((r) => inDateRange(r.created_at, range));
       return {
         fileName: stamp(reportId),
         contentType: "text/csv; charset=utf-8",

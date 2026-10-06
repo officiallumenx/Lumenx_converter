@@ -289,7 +289,9 @@ function PhotosPage() {
     const classes = catalogQuery.data?.classes ?? [];
     const sections = catalogQuery.data?.sections ?? [];
     const classesById = new Map(classes.map((cls) => [cls.id, cls]));
-    return buildStudentAttendanceApiSectionOptions(classId, sections, classesById);
+    return buildStudentAttendanceApiSectionOptions(classId, sections, classesById, {
+      includeClassInLabel: false,
+    });
   }, [catalogQuery.data, classId]);
 
   function invalidateAfterUpload() {

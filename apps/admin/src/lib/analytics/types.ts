@@ -48,4 +48,26 @@ export type AnalyticsSeriesDto = {
     avgPct: number;
     scoreCount: number;
   }>;
+  leaveMonthly: Array<{
+    month: string;
+    label: string;
+    requested: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  }>;
+  leaveByStatus: Array<{ status: string; label: string; count: number }>;
+  complaintsByStatus: Array<{ status: string; label: string; count: number }>;
+  homeworkMonthly: Array<{
+    month: string;
+    label: string;
+    created: number;
+    published: number;
+  }>;
+  attendanceBreakdown: Array<{ status: string; label: string; count: number }>;
+  enrollmentByClass: Array<{
+    classId: string;
+    className: string;
+    count: number;
+  }>;
 };

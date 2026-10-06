@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAttendanceRegistersQuery, useCatalogClassesQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
-import { Link } from "@tanstack/react-router";
 import {
   Button,
   Card,
@@ -55,9 +54,30 @@ import {
   type EnrollmentListItem,
   type EnrollmentListStatus,
 } from "@/lib/enrollments";
-import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { attendancePeriodsFromTimetableSlots } from "@/lib/attendance-timetable-periods";
 import { listTeacherAssignments, listTimetableSlots } from "@/lib/timetable";
+
+/** Match name / student id / roll (including leading-zero roll variants like 04 vs 4). */
+function matchesAttendanceSearch(
+  query: string,
+  parts: Array<string | null | undefined>,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = parts
+    .map((part) => (part ?? "").trim().toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  if (haystack.includes(q)) return true;
+
+  const qDigits = q.replace(/\D/g, "").replace(/^0+/, "") || q.replace(/\D/g, "");
+  if (!qDigits) return false;
+  for (const part of parts) {
+    const digits = (part ?? "").replace(/\D/g, "").replace(/^0+/, "") || (part ?? "").replace(/\D/g, "");
+    if (digits && (digits === qDigits || digits.includes(qDigits))) return true;
+  }
+  return false;
+}
 
 function attendanceHint(
   status: AttendanceListStatus | EnrollmentListStatus,
@@ -278,7 +298,9 @@ export function StudentAttendanceApiPage() {
     setClassesById(byClass);
     setSectionsById(bySection);
     setSectionOptions(
-      buildStudentAttendanceApiSectionOptions(state.classId, catalog.sections, byClass),
+      buildStudentAttendanceApiSectionOptions(state.classId, catalog.sections, byClass, {
+        includeClassInLabel: false,
+      }),
     );
     setCatalogReady(true);
     setCatalogError(null);
@@ -296,7 +318,9 @@ export function StudentAttendanceApiPage() {
     if (!catalogReady) return;
     const sections = [...sectionsById.values()];
     setSectionOptions(
-      buildStudentAttendanceApiSectionOptions(state.classId, sections, classesById),
+      buildStudentAttendanceApiSectionOptions(state.classId, sections, classesById, {
+        includeClassInLabel: false,
+      }),
     );
   }, [state.classId, catalogReady, classesById, sectionsById]);
 
@@ -733,15 +757,23 @@ export function StudentAttendanceApiPage() {
   const takenByConnect =
     Boolean(markConfig) && markConfig?.owner !== "attendance_incharge";
 
+  const rollByEnrollmentId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of enrollmentsView.items) {
+      map.set(row.id, row.rollNo ?? "");
+    }
+    return map;
+  }, [enrollmentsView.items]);
+
   const filteredCreateRoster = useMemo(() => {
     let rows = enrollmentsView.items;
     if (state.status !== "all") {
       rows = rows.filter((row) => draftMarks[row.id] === state.status);
     }
-    const q = state.search.trim().toLowerCase();
+    const q = state.search.trim();
     if (q) {
       rows = rows.filter((row) =>
-        `${row.studentName} ${row.studentId} ${row.rollNo}`.toLowerCase().includes(q),
+        matchesAttendanceSearch(q, [row.studentName, row.studentId, row.rollNo]),
       );
     }
     return rows;
@@ -755,14 +787,18 @@ export function StudentAttendanceApiPage() {
         (mark) => (draftMarks[mark.enrollmentId] ?? mark.status) === state.status,
       );
     }
-    const q = state.search.trim().toLowerCase();
+    const q = state.search.trim();
     if (q) {
       rows = rows.filter((mark) =>
-        `${mark.studentName} ${mark.studentId}`.toLowerCase().includes(q),
+        matchesAttendanceSearch(q, [
+          mark.studentName,
+          mark.studentId,
+          rollByEnrollmentId.get(mark.enrollmentId),
+        ]),
       );
     }
     return rows;
-  }, [detail, draftMarks, state.search, state.status]);
+  }, [detail, draftMarks, state.search, state.status, rollByEnrollmentId]);
 
   const blocked =
     !catalogReady ||
@@ -777,14 +813,6 @@ export function StudentAttendanceApiPage() {
 
   const canWrite =
     writesEnabled && !saving && !submitting && (!markConfig || adminMarkingAllowed);
-
-  const rollByEnrollmentId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const row of enrollmentsView.items) {
-      map.set(row.id, row.rollNo);
-    }
-    return map;
-  }, [enrollmentsView.items]);
 
   const toggleEnrollmentMark = (enrollmentId: string) => {
     setDraftMarks((prev) => {
@@ -849,23 +877,6 @@ export function StudentAttendanceApiPage() {
 
   return (
     <PageStack>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Pill tone="neutral">{M.attendance}</Pill>
-        <Pill tone="info">
-          {writesEnabled
-            ? adminMarkingAllowed
-              ? "Attendance Coordinator · Admin mark"
-              : takenByConnect
-                ? "Taken By routes to Connect"
-                : "Create / mark / submit"
-            : "Select institute to write"}
-        </Pill>
-        <span className="text-border">·</span>
-        <Link to="/attendance" className="font-medium text-primary hover:underline">
-          Monitor & analytics
-        </Link>
-      </div>
-
       {takenByConnect ? (
         <Card>
           <div className="px-4 py-3 text-sm text-muted-foreground sm:px-5">

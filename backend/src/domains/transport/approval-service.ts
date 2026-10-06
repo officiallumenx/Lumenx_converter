@@ -8,9 +8,14 @@ import {
   assertCanReview,
   assertPendingForReview,
   isDriverForInstitute,
+  isOperationallyUsable,
   isTransportWriter,
   type TransportApprovalStatus,
 } from "./approval.js";
+import {
+  listActiveDailyExceptionsForStudents,
+} from "./daily-exception-repository.js";
+import { resolveInstituteServiceDate } from "./daily-exception-service.js";
 import {
   findDriverById,
   findDriverByUserProfileId,
@@ -328,6 +333,8 @@ export type DriverRouteRosterStop = {
   approvalStatus: TransportApprovalStatus;
   createdAt: string;
   kind: "waypoint" | "school" | "parking";
+  /** Authoritative stop geofence radius in meters. */
+  notificationRadiusM: number;
 };
 
 export type DriverRouteRosterStudent = {
@@ -339,8 +346,12 @@ export type DriverRouteRosterStudent = {
   pickupStopId: string;
   dropStopId: string;
   pickupStopName: string | null;
+  dropStopName: string | null;
   status: string;
   approvalStatus: TransportApprovalStatus;
+  /** Date-scoped daily exception — does not alter permanent enrollment. */
+  notRidingToday: boolean;
+  rideExceptionId: string | null;
 };
 
 export type DriverRouteRoster = {
@@ -351,6 +362,9 @@ export type DriverRouteRoster = {
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];
+  expectedCount: number;
+  notRidingCount: number;
+  expectedOnboardCount: number;
 };
 
 /** Stops + enrolled students (with names) for the signed-in driver's assigned route. */
@@ -369,7 +383,8 @@ export async function getDriverRouteRosterForActor(
   const routes = await listRoutes(admin, id);
   const route =
     routes.find(
-      (r) => r.driver_id === driver.id && r.approval_status === "approved",
+      (r) =>
+        r.driver_id === driver.id && isOperationallyUsable(r.approval_status),
     ) ??
     routes.find((r) => r.driver_id === driver.id) ??
     null;
@@ -383,6 +398,9 @@ export async function getDriverRouteRosterForActor(
       locked: false,
       stops: [],
       students: [],
+      expectedCount: 0,
+      notRidingCount: 0,
+      expectedOnboardCount: 0,
     };
   }
 
@@ -391,7 +409,7 @@ export async function getDriverRouteRosterForActor(
     ? stopRows
     : stopRows.filter(
         (s) =>
-          s.approval_status === "approved" ||
+          isOperationallyUsable(s.approval_status) ||
           s.submitted_by_user_id === actor.userId,
       );
 
@@ -399,7 +417,7 @@ export async function getDriverRouteRosterForActor(
     (e) =>
       e.route_id === route.id &&
       e.status === "active" &&
-      (e.approval_status === "approved" ||
+      (isOperationallyUsable(e.approval_status) ||
         e.submitted_by_user_id === actor.userId ||
         isTransportWriter(actor, id)),
   );
@@ -407,6 +425,43 @@ export async function getDriverRouteRosterForActor(
   const students = await listStudents(admin, { instituteId: id });
   const studentById = new Map(students.map((s) => [s.id, s]));
   const stopNameById = new Map(visibleStops.map((s) => [s.id, s.name]));
+  const serviceDate = await resolveInstituteServiceDate(admin, id);
+  const exceptions = await listActiveDailyExceptionsForStudents(
+    admin,
+    id,
+    serviceDate,
+    enrollments.map((e) => e.student_id),
+  );
+  const exceptionByStudent = new Map(
+    exceptions.map((ex) => [ex.student_id, ex]),
+  );
+
+  const studentsMapped = enrollments.map((e) => {
+      const student = studentById.get(e.student_id);
+      const exception = exceptionByStudent.get(e.student_id);
+      return {
+        enrollmentId: e.id,
+        studentId: e.student_id,
+        studentName:
+          student?.display_name?.trim() ||
+          `${student?.first_name ?? ""} ${student?.surname ?? ""}`.trim() ||
+          "Student",
+        rollNo: student?.roll_no?.trim() || "—",
+        classLabel: student?.class_label?.trim() || "—",
+        pickupStopId: e.pickup_stop_id ?? "",
+        dropStopId: e.drop_stop_id ?? "",
+        pickupStopName: e.pickup_stop_id
+          ? (stopNameById.get(e.pickup_stop_id) ?? null)
+          : null,
+        dropStopName: e.drop_stop_id
+          ? (stopNameById.get(e.drop_stop_id) ?? null)
+          : null,
+        status: e.status,
+        approvalStatus: e.approval_status,
+        notRidingToday: Boolean(exception),
+        rideExceptionId: exception?.id ?? null,
+      };
+    });
 
   return {
     driverId: driver.id,
@@ -427,27 +482,12 @@ export async function getDriverRouteRosterForActor(
         approvalStatus: s.approval_status,
         createdAt: s.created_at,
         kind: (s.kind ?? "waypoint") as "waypoint" | "school" | "parking",
+        notificationRadiusM: s.notification_radius_m,
       })),
-    students: enrollments.map((e) => {
-      const student = studentById.get(e.student_id);
-      return {
-        enrollmentId: e.id,
-        studentId: e.student_id,
-        studentName:
-          student?.display_name?.trim() ||
-          `${student?.first_name ?? ""} ${student?.surname ?? ""}`.trim() ||
-          "Student",
-        rollNo: student?.roll_no?.trim() || "—",
-        classLabel: student?.class_label?.trim() || "—",
-        pickupStopId: e.pickup_stop_id ?? "",
-        dropStopId: e.drop_stop_id ?? "",
-        pickupStopName: e.pickup_stop_id
-          ? (stopNameById.get(e.pickup_stop_id) ?? null)
-          : null,
-        status: e.status,
-        approvalStatus: e.approval_status,
-      };
-    }),
+    students: studentsMapped,
+    expectedCount: studentsMapped.length,
+    notRidingCount: studentsMapped.filter((s) => s.notRidingToday).length,
+    expectedOnboardCount: studentsMapped.filter((s) => !s.notRidingToday).length,
   };
 }
 
@@ -489,7 +529,7 @@ export async function listTeacherClassTransportForActor(
   const vehicleById = new Map(vehicles.map((v) => [v.id, v.vehicle_number]));
   const enrollmentByStudent = new Map(
     enrollments
-      .filter((e) => e.approval_status === "approved" && e.status === "active")
+      .filter((e) => isOperationallyUsable(e.approval_status) && e.status === "active")
       .map((e) => [e.student_id, e]),
   );
 
@@ -601,7 +641,7 @@ export async function getLearnerTransportForActor(
     };
   }
 
-  if (enrollment.approval_status !== "approved") {
+  if (enrollment.approval_status === "rejected") {
     return {
       studentId: student.id,
       studentName,
@@ -622,7 +662,7 @@ export async function getLearnerTransportForActor(
   }
 
   const route = await findRouteById(admin, enrollment.route_id);
-  if (!route || route.approval_status !== "approved") {
+  if (!route || route.approval_status === "rejected") {
     return {
       studentId: student.id,
       studentName,
@@ -648,12 +688,12 @@ export async function getLearnerTransportForActor(
     route.driver_id ? findDriverById(admin, route.driver_id) : Promise.resolve(null),
   ]);
 
-  const approvedStops = stops
-    .filter((s) => s.approval_status === "approved")
+  const usableStops = stops
+    .filter((s) => isOperationallyUsable(s.approval_status))
     .sort((a, b) => a.route_order - b.route_order);
 
-  const pickup = approvedStops.find((s) => s.id === enrollment.pickup_stop_id) ?? null;
-  const drop = approvedStops.find((s) => s.id === enrollment.drop_stop_id) ?? null;
+  const pickup = usableStops.find((s) => s.id === enrollment.pickup_stop_id) ?? null;
+  const drop = usableStops.find((s) => s.id === enrollment.drop_stop_id) ?? null;
 
   return {
     studentId: student.id,
@@ -670,6 +710,6 @@ export async function getLearnerTransportForActor(
     driverPhone: driver?.phone ?? null,
     pickupStop: pickup ? stopSummary(pickup) : null,
     dropStop: drop ? stopSummary(drop) : null,
-    stops: approvedStops.map(stopSummary),
+    stops: usableStops.map(stopSummary),
   };
 }

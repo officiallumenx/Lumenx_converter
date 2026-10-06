@@ -24,32 +24,32 @@ import type {
 } from "./types.js";
 
 const REPORT_CATALOG: Array<Omit<ReportDefinitionDto, "generationSupported">> = [
-  { id: "students", name: "Student roster & demographics", module: "Students" },
-  { id: "teachers", name: "Faculty directory & assignments", module: "Teachers" },
-  { id: "attendance", name: "Monthly attendance register", module: "Attendance" },
+  { id: "students", name: "Student roster export", module: "Students" },
+  { id: "teachers", name: "Faculty directory export", module: "Teachers" },
+  { id: "attendance", name: "Attendance marks export", module: "Attendance" },
   { id: "attendance-daily", name: "Daily attendance by section", module: "Attendance" },
   { id: "attendance-weekly", name: "Weekly attendance by section", module: "Attendance" },
-  { id: "attendance-student", name: "Student attendance detail", module: "Attendance" },
-  { id: "attendance-teacher", name: "Teacher submission log", module: "Attendance" },
-  { id: "attendance-class", name: "Class attendance rollup", module: "Attendance" },
-  { id: "attendance-section", name: "Section attendance history", module: "Attendance" },
-  { id: "marks", name: "Exam results by class", module: "Marks" },
-  { id: "transport", name: "Route ridership & compliance", module: "Transport" },
-  { id: "transport-trips", name: "Trip log & run status", module: "Transport" },
+  { id: "attendance-student", name: "Student attendance marks", module: "Attendance" },
+  { id: "attendance-teacher", name: "Teacher attendance submissions", module: "Attendance" },
+  { id: "attendance-class", name: "Class attendance totals", module: "Attendance" },
+  { id: "attendance-section", name: "Section attendance totals", module: "Attendance" },
+  { id: "marks", name: "Published exam marks export", module: "Marks" },
+  { id: "transport", name: "Routes, vehicles & enrollments", module: "Transport" },
+  { id: "transport-trips", name: "Trip log export", module: "Transport" },
   {
     id: "transport-attendance",
     name: "Boarding & dropping marks",
     module: "Transport",
   },
   { id: "transport-emergencies", name: "SOS emergency register", module: "Transport" },
-  { id: "admissions", name: "Application funnel", module: "Admissions" },
-  { id: "careers", name: "Hiring pipeline", module: "Careers" },
-  { id: "complaints", name: "SLA & resolution summary", module: "Complaints" },
-  { id: "fees", name: "Collection & defaulters", module: "Fees" },
-  { id: "events", name: "Event participation", module: "Events" },
-  { id: "leave", name: "Leave register & approvals", module: "Leave" },
-  { id: "documents", name: "Document verification summary", module: "Documents" },
-  { id: "audit", name: "Admin activity audit trail", module: "Audit" },
+  { id: "admissions", name: "Admission applications export", module: "Admissions" },
+  { id: "careers", name: "Career jobs & applications", module: "Careers" },
+  { id: "complaints", name: "Complaints register export", module: "Complaints" },
+  { id: "fees", name: "Fee ledger & payments", module: "Fees" },
+  { id: "events", name: "Events list export", module: "Events" },
+  { id: "leave", name: "Leave requests export", module: "Leave" },
+  { id: "documents", name: "Generated documents export", module: "Documents" },
+  { id: "audit", name: "Admin activity audit export", module: "Audit" },
 ];
 
 const WRITE_ROLES = [
@@ -143,7 +143,10 @@ export async function createReportJobForActor(
         `No CSV generator for report_id "${report.id}" (Supabase Storage / async workers not configured)`,
       );
     }
-    const file = await generateReportCsv(admin, instituteId, report.id);
+    const file = await generateReportCsv(admin, instituteId, report.id, {
+      fromDate: input.fromDate ?? null,
+      toDate: input.toDate ?? null,
+    });
     const completedAt = new Date().toISOString();
     const ready = await updateReportJobFields(admin, row.id, {
       status: "ready",

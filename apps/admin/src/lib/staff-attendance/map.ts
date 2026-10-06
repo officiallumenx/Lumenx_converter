@@ -15,6 +15,13 @@ function formatTime(value: string | null): string | null {
   return value.length >= 5 ? value.slice(0, 5) : value;
 }
 
+export function teacherSubjectLabel(teacher?: TeacherListItem | null): string {
+  const subjects = teacher?.subjects?.map((s) => s.trim()).filter(Boolean) ?? [];
+  if (subjects.length > 0) return subjects.join(", ");
+  const dept = teacher?.dept?.trim();
+  return dept && dept !== "—" ? dept : "—";
+}
+
 export function staffAttendanceDtoToMarkItem(
   dto: StaffAttendanceDto,
   teachersById: Map<string, TeacherListItem>,
@@ -24,6 +31,7 @@ export function staffAttendanceDtoToMarkItem(
     id: dto.id,
     teacherId: dto.teacherId,
     teacherName: teacher?.name ?? shortRef(dto.teacherId, "Teacher"),
+    subject: teacherSubjectLabel(teacher),
     status: dto.status,
     checkIn: formatTime(dto.checkIn),
     checkOut: formatTime(dto.checkOut),
@@ -71,11 +79,18 @@ export function mergeTeachersIntoDaySummary(
   const byTeacher = new Map(summary.marks.map((mark) => [mark.teacherId, mark]));
   const marks: StaffAttendanceMarkItem[] = teachers.map((teacher) => {
     const existing = byTeacher.get(teacher.id);
-    if (existing) return existing;
+    if (existing) {
+      return {
+        ...existing,
+        teacherName: teacher.name,
+        subject: teacherSubjectLabel(teacher),
+      };
+    }
     return {
       id: `pending:${teacher.id}`,
       teacherId: teacher.id,
       teacherName: teacher.name,
+      subject: teacherSubjectLabel(teacher),
       status: null,
       checkIn: null,
       checkOut: null,
@@ -85,7 +100,10 @@ export function mergeTeachersIntoDaySummary(
   });
   for (const mark of summary.marks) {
     if (!teachers.some((teacher) => teacher.id === mark.teacherId)) {
-      marks.push(mark);
+      marks.push({
+        ...mark,
+        subject: mark.subject || "—",
+      });
     }
   }
   return {

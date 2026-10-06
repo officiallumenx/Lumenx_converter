@@ -46,7 +46,7 @@ export function HomeRecentActivity({
         {items.slice(0, 5).map((row) => {
           const busy = markingReadId === row.id;
           const isAlert = isNotificationAlertRow(row);
-          const Icon = notificationTypeIcon(row.type);
+          const Icon = notificationTypeIcon(row.type, row.category);
           return (
             <li key={row.id}>
               <button

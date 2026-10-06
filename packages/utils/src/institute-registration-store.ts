@@ -16,10 +16,15 @@ export type InstituteRegistrationPayload = {
   logoPreview?: string;
   instituteType: string;
   educationBoard: string;
+  schoolPhone?: string;
+  schoolEmail?: string;
   country: string;
   state: string;
   district: string;
   city: string;
+  area?: string;
+  street?: string;
+  landmark?: string;
   address: string;
   pincode: string;
   website: string;
@@ -27,6 +32,13 @@ export type InstituteRegistrationPayload = {
   principalEmail: string;
   principalMobile: string;
   principalDesignation: string;
+  username?: string;
+  adminCountry?: string;
+  adminState?: string;
+  adminDistrict?: string;
+  adminCity?: string;
+  adminAddress?: string;
+  adminPincode?: string;
   employeeId: string;
 };
 

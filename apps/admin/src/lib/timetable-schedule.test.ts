@@ -3,6 +3,7 @@ import {
   buildScheduleConfig,
   buildUniformBellItems,
   defaultScheduleInput,
+  inferScheduleInputFromSlots,
   isAfterLunch,
   isBeforeLunch,
   lunchRowIndex,
@@ -73,5 +74,37 @@ describe("timetable-schedule", () => {
     expect(items[0]?.start).toBe("09:00");
     expect(items[1]?.label).toBe("Lunch");
     expect(items[2]?.start).toBe("10:00");
+  });
+
+  it("infers a period×day schedule from existing slots", () => {
+    const input = inferScheduleInputFromSlots([
+      { dayOfWeek: 1, periodIndex: 1, startsAt: "08:00:00", endsAt: "09:00:00" },
+      { dayOfWeek: 1, periodIndex: 2, startsAt: "09:00:00", endsAt: "10:00:00" },
+      { dayOfWeek: 2, periodIndex: 1, startsAt: "08:00:00", endsAt: "09:00:00" },
+    ]);
+    expect(input).not.toBeNull();
+    expect(input?.defaultPeriodsPerDay).toBe(2);
+    expect(input?.days.find((d) => d.name === "Monday")?.periods).toBe(2);
+    expect(input?.days.find((d) => d.name === "Tuesday")?.active).toBe(true);
+    expect(input?.bellItems?.filter((b) => b.kind === "period")).toHaveLength(2);
+    const config = buildScheduleConfig(input!);
+    expect(config.periodRows.filter((r) => !r.isBreak)).toHaveLength(2);
+  });
+
+  it("infers lunch between morning and afternoon periods", () => {
+    const input = inferScheduleInputFromSlots([
+      { dayOfWeek: 1, periodIndex: 1, startsAt: "08:00:00", endsAt: "09:00:00" },
+      { dayOfWeek: 1, periodIndex: 2, startsAt: "09:00:00", endsAt: "10:00:00" },
+      { dayOfWeek: 1, periodIndex: 3, startsAt: "10:00:00", endsAt: "11:00:00" },
+      { dayOfWeek: 1, periodIndex: 4, startsAt: "11:00:00", endsAt: "12:00:00" },
+      { dayOfWeek: 1, periodIndex: 5, startsAt: "12:45:00", endsAt: "13:45:00" },
+      { dayOfWeek: 1, periodIndex: 6, startsAt: "13:45:00", endsAt: "14:45:00" },
+    ]);
+    expect(input?.lunchEnabled).toBe(true);
+    const lunch = input?.bellItems?.find(
+      (b) => b.kind === "break" && /lunch/i.test(b.label),
+    );
+    expect(lunch?.start).toBe("12:00");
+    expect(lunch?.end).toBe("12:45");
   });
 });

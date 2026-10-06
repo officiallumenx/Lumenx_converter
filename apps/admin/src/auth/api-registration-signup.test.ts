@@ -17,14 +17,29 @@ const user: AuthUser = {
 
 const registrationPayload = {
   instituteName: "Alpha International School",
+  instituteCode: "alpha-001",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
+  schoolPhone: "08012345678",
+  schoolEmail: "office@school.edu",
   country: "India",
   state: "Karnataka",
+  district: "Bengaluru Urban",
   city: "Bengaluru",
+  area: "Indiranagar",
+  street: "12 Main Road",
+  pincode: "560038",
   principalName: "Dr. Ananya Verma",
   principalEmail: "principal@school.edu",
   principalMobile: "+919876543210",
+  principalDesignation: "Principal",
+  username: "ananya.admin",
+  adminCountry: "India",
+  adminState: "Karnataka",
+  adminDistrict: "Bengaluru Urban",
+  adminCity: "Bengaluru",
+  adminAddress: "12 Palm Grove, Indiranagar",
+  adminPincode: "560038",
 };
 
 const signUpData = {
@@ -36,6 +51,7 @@ const signUpData = {
   password: "SecurePass123",
   confirmPassword: "SecurePass123",
   acceptTerms: true,
+  securityPin: "123456",
   registrationPayload,
 };
 

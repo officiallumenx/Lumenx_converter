@@ -501,7 +501,7 @@ export function syncDirectoryFromLicense(license: {
 }
 
 export function defaultCreateModules(): Record<string, boolean> {
-  // Core modules on by default for platform onboarding; advanced off.
+  // Core modules on by default for platform onboarding; advanced / Nexus opt-in off.
   return modulesFor({
     timetable: false,
     exams: false,
@@ -509,6 +509,7 @@ export function defaultCreateModules(): Record<string, boolean> {
     analytics: false,
     alerts: false,
     storage: false,
+    attendance: false,
   });
 }
 

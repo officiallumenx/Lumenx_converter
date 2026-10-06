@@ -20,10 +20,16 @@ import { listRegistersForActor } from "../attendance/service.js";
 import { listMarkEntriesForActor } from "../marks/service.js";
 import { listScoresForEntryIds } from "../marks/repository.js";
 import {
+  aggregateAttendanceBreakdown,
   aggregateAttendanceByClass,
   aggregateAttendanceMonthly,
+  aggregateComplaintsByStatus,
+  aggregateEnrollmentByClass,
   aggregateEnrollmentMonthly,
   aggregateFeePaymentsMonthly,
+  aggregateHomeworkMonthly,
+  aggregateLeaveByStatus,
+  aggregateLeaveMonthly,
   aggregateStudentStatus,
   aggregateSubjectAverages,
   firstDayOfMonth,
@@ -135,25 +141,37 @@ export async function getAnalyticsSeriesForActor(
   const toMonth = months[months.length - 1]?.month ?? "";
   const dateFrom = fromMonth ? firstDayOfMonth(fromMonth) : "1970-01-01";
 
-  const [students, enrollments, classes, subjects, registers, publishedEntries] =
-    await Promise.all([
-      safeList(() => listStudentsForActor(admin, actor, { instituteId })),
-      safeList(() => listEnrollmentsForActor(admin, actor, { instituteId })),
-      safeList(() => listClassesForActor(admin, actor, { instituteId })),
-      safeList(() => listSubjectsForActor(admin, actor, { instituteId })),
-      safeList(() =>
-        listRegistersForActor(admin, actor, {
-          instituteId,
-          status: "submitted",
-        }),
-      ),
-      safeList(() =>
-        listMarkEntriesForActor(admin, actor, {
-          instituteId,
-          status: "published",
-        }),
-      ),
-    ]);
+  const [
+    students,
+    enrollments,
+    classes,
+    subjects,
+    registers,
+    publishedEntries,
+    leaveRows,
+    complaintRows,
+    homeworkRows,
+  ] = await Promise.all([
+    safeList(() => listStudentsForActor(admin, actor, { instituteId })),
+    safeList(() => listEnrollmentsForActor(admin, actor, { instituteId })),
+    safeList(() => listClassesForActor(admin, actor, { instituteId })),
+    safeList(() => listSubjectsForActor(admin, actor, { instituteId })),
+    safeList(() =>
+      listRegistersForActor(admin, actor, {
+        instituteId,
+        status: "submitted",
+      }),
+    ),
+    safeList(() =>
+      listMarkEntriesForActor(admin, actor, {
+        instituteId,
+        status: "published",
+      }),
+    ),
+    safeList(() => listLeaveRequestsForActor(admin, actor, { instituteId })),
+    safeList(() => listComplaintsForActor(admin, actor, { instituteId })),
+    safeList(() => listHomeworkForActor(admin, actor, { instituteId })),
+  ]);
 
   const dateTo = toMonth ? lastDayOfMonth(toMonth) : "9999-12-31";
   const registersInRange = registers.filter(
@@ -210,6 +228,29 @@ export async function getAnalyticsSeriesForActor(
   const classNames = new Map(classes.map((c) => [c.id, c.name]));
   const subjectNames = new Map(subjects.map((s) => [s.id, s.name]));
 
+  const instituteLeave = leaveRows
+    .filter((r) => r.instituteId === instituteId)
+    .map((r) => ({ startDate: r.startDate, status: r.status }));
+  const leaveInRange = instituteLeave.filter((r) =>
+    ymdInInclusiveRange(r.startDate, dateFrom, dateTo),
+  );
+  const instituteHomework = homeworkRows
+    .filter((r) => r.instituteId === instituteId)
+    .map((r) => ({ createdAt: r.createdAt, status: r.status }));
+  const homeworkInRange = instituteHomework.filter((r) =>
+    ymdInInclusiveRange(r.createdAt, dateFrom, dateTo),
+  );
+  const instituteComplaints = complaintRows
+    .filter((r) => r.instituteId === instituteId)
+    .map((r) => ({ status: r.status }));
+  const instituteEnrollments = enrollments
+    .filter((e) => e.instituteId === instituteId)
+    .map((e) => ({
+      classId: e.classId,
+      status: e.status,
+      enrolledOn: e.enrolledOn,
+    }));
+
   return {
     instituteId,
     range: opts.range,
@@ -217,9 +258,7 @@ export async function getAnalyticsSeriesForActor(
     toMonth,
     studentStatus: aggregateStudentStatus(students),
     enrollmentMonthly: aggregateEnrollmentMonthly(months, {
-      enrollments: enrollments
-        .filter((e) => e.instituteId === instituteId)
-        .map((e) => ({ enrolledOn: e.enrolledOn })),
+      enrollments: instituteEnrollments.map((e) => ({ enrolledOn: e.enrolledOn })),
       students: students
         .filter((s) => s.instituteId === instituteId)
         .map((s) => ({ createdAt: s.createdAt })),
@@ -239,5 +278,11 @@ export async function getAnalyticsSeriesForActor(
       })),
       subjectNames,
     ),
+    leaveMonthly: aggregateLeaveMonthly(months, leaveInRange),
+    leaveByStatus: aggregateLeaveByStatus(instituteLeave),
+    complaintsByStatus: aggregateComplaintsByStatus(instituteComplaints),
+    homeworkMonthly: aggregateHomeworkMonthly(months, homeworkInRange),
+    attendanceBreakdown: aggregateAttendanceBreakdown(attendanceFacts),
+    enrollmentByClass: aggregateEnrollmentByClass(instituteEnrollments, classNames),
   };
 }

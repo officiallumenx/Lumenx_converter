@@ -45,6 +45,11 @@ function toMetrics(counts: TeacherOperationalCounts): TeacherPerformanceMetrics 
   };
 }
 
+function normalizeSubjects(subjects: string[] | null | undefined): string[] {
+  const cleaned = [...new Set((subjects ?? []).map((s) => s.trim()).filter(Boolean))];
+  return cleaned.length > 0 ? cleaned : ["Unassigned"];
+}
+
 function assignRanks(
   rows: TeacherPerformanceDto[],
 ): TeacherPerformanceDto[] {
@@ -102,7 +107,7 @@ export async function listTeacherPerformanceForActor(
     return {
       teacherId: teacher.id,
       name: teacher.displayName,
-      department: teacher.department?.trim() || "Unassigned",
+      subjects: normalizeSubjects(teacher.subjects),
       rating,
       trend: formatPerformanceTrend(recentRating, priorRating),
       rank: null,

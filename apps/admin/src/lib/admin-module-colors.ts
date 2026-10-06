@@ -58,9 +58,10 @@ const ADMIN_ROUTE_COLORS: Record<string, AdminHue> = {
   "/subscription": "gold",
   "/storage": "cyan",
   "/settings": "slate",
+  "/profile-settings": "indigo",
   "/transport": "orange",
-  "/leave": "amber",
-  "/fees": "deepOrange",
+  "/leave": "sky",
+  "/fees": "teal",
   "/admissions": "green",
   "/careers": "navy",
   "/institute": "blue",
@@ -111,11 +112,13 @@ export function adminMoreTileStyle(color: AdminModuleColor, active: boolean) {
     return {
       borderColor: BRAND_BLUE,
       boxShadow: `0 0 0 1px ${BRAND_BLUE}`,
-      backgroundColor: adminModuleLightSurface(color),
+      backgroundColor: color.iconBackground,
     };
   }
   return {
-    borderColor: "var(--color-border)",
+    borderColor: color.iconBackground,
+    backgroundColor: color.iconBackground,
+    boxShadow: `0 4px 12px ${color.primary}22`,
   };
 }
 

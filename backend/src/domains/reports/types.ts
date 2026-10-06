@@ -43,6 +43,15 @@ export type ReportJobDto = {
 export type CreateReportJobInput = {
   instituteId: string;
   reportId: string;
+  /** Inclusive ISO date (YYYY-MM-DD). Optional period filter for generators that support it. */
+  fromDate?: string | null;
+  /** Inclusive ISO date (YYYY-MM-DD). Optional period filter for generators that support it. */
+  toDate?: string | null;
+};
+
+export type ReportDateRange = {
+  fromDate: string | null;
+  toDate: string | null;
 };
 
 export type GeneratedReportFile = {

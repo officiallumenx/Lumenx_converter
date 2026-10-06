@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Nexus → Admin module entitlement bridge (demo/localStorage).
  * Nexus owns entitlement; Admin applies it as a visibility ceiling.
  * Does not delete routes or data — only hides non-entitled modules in Admin nav.
@@ -141,6 +141,7 @@ export function readNexusAppEntitlements(
  * Apply Nexus entitlement as a ceiling on Admin's enabled-module map.
  * - Nexus `false` → force Admin off (hide from nav)
  * - Nexus `true` / missing key → leave Admin local preference
+ * - Opt-in modules (storage, attendance reports) stay off unless Nexus `true`
  * Locked Admin modules (caller responsibility) should stay on.
  *
  * Maps Nexus catalog ids onto Admin catalog aliases where they differ
@@ -152,12 +153,24 @@ const NEXUS_TO_ADMIN_MODULE_ALIASES: Record<string, string[]> = {
   documents: ["documents"],
 };
 
+/** Must be explicitly enabled in Nexus before Admin can show/use them. */
+export const NEXUS_OPT_IN_ADMIN_MODULES = ["storage", "attendance"] as const;
+
 export function applyNexusEntitlementCeiling(
   adminEnabled: Record<string, boolean>,
   entitlements: Record<string, boolean> | null,
 ): Record<string, boolean> {
-  if (!entitlements) return adminEnabled;
   const next = { ...adminEnabled };
+
+  // Opt-in modules: hidden unless Nexus explicitly grants true.
+  for (const moduleId of NEXUS_OPT_IN_ADMIN_MODULES) {
+    if (entitlements?.[moduleId] !== true) {
+      next[moduleId] = false;
+    }
+  }
+
+  if (!entitlements) return next;
+
   for (const [moduleId, entitled] of Object.entries(entitlements)) {
     if (entitled !== false) continue;
     next[moduleId] = false;

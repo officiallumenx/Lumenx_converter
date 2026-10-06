@@ -52,6 +52,79 @@ export async function listVehicles(
   return ensureDbOk(result) as VehicleRow[];
 }
 
+/** Analytics counts — ids/status only, not full fleet documents. */
+export async function listVehicleAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<Array<{ id: string; status: string }>> {
+  const result = await admin
+    .from("vehicle")
+    .select("id, status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{ id: string; status: string }>;
+}
+
+export async function listDriverAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<Array<{ id: string; status: string }>> {
+  const result = await admin
+    .from("driver")
+    .select("id, status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{ id: string; status: string }>;
+}
+
+export async function listRouteAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<
+  Array<{ id: string; status: string; config_status: string }>
+> {
+  const result = await admin
+    .from("route")
+    .select("id, status, config_status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{
+    id: string;
+    status: string;
+    config_status: string;
+  }>;
+}
+
+export async function listEnrollmentAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<
+  Array<{ id: string; status: string; approval_status: string }>
+> {
+  const result = await admin
+    .from("transport_enrollment")
+    .select("id, status, approval_status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{
+    id: string;
+    status: string;
+    approval_status: string;
+  }>;
+}
+
+export async function listStopAnalyticsRows(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<Array<{ id: string; approval_status: string }>> {
+  const result = await admin
+    .from("stop")
+    .select("id, approval_status")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{ id: string; approval_status: string }>;
+}
+
 export async function findVehicleById(
   admin: SupabaseClient,
   id: string,
@@ -409,7 +482,7 @@ export async function insertStop(
       latitude: input.latitude,
       longitude: input.longitude,
       route_order: input.routeOrder,
-      notification_radius_m: input.notificationRadiusM ?? 150,
+      notification_radius_m: input.notificationRadiusM!,
       kind: input.kind ?? "waypoint",
       approval_status: input.approvalStatus ?? "approved",
       submitted_by_user_id: input.submittedByUserId ?? null,
@@ -508,6 +581,26 @@ export async function listEnrollments(
   if (studentIds) {
     if (studentIds.length === 0) return [];
     query = query.in("student_id", studentIds);
+  }
+  const result = await query;
+  return ensureDbOk(result) as TransportEnrollmentRow[];
+}
+
+/** Route-scoped enrollments — avoids institute-wide scans on GPS ping paths. */
+export async function listEnrollmentsForRoute(
+  admin: SupabaseClient,
+  instituteId: string,
+  routeId: string,
+  opts?: { activeOnly?: boolean },
+): Promise<TransportEnrollmentRow[]> {
+  let query = admin
+    .from("transport_enrollment")
+    .select(ENROLLMENT_COLS)
+    .eq("institute_id", instituteId)
+    .eq("route_id", routeId)
+    .is("deleted_at", null);
+  if (opts?.activeOnly !== false) {
+    query = query.eq("status", "active");
   }
   const result = await query;
   return ensureDbOk(result) as TransportEnrollmentRow[];

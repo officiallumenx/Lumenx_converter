@@ -254,6 +254,135 @@ export function aggregateSubjectAverages(
     .sort((a, b) => b.avgPct - a.avgPct || a.subjectName.localeCompare(b.subjectName));
 }
 
+const LEAVE_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
+};
+
+const COMPLAINT_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  review: "In review",
+  forwarded: "Forwarded",
+  resolved: "Resolved",
+  closed: "Closed",
+  rejected: "Rejected",
+};
+
+const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
+  present: "Present",
+  absent: "Absent",
+  leave: "Leave",
+};
+
+export function aggregateStatusCounts(
+  rows: Array<{ status: string }>,
+  labels: Record<string, string>,
+): Array<{ status: string; label: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.status || "unknown";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([status, count]) => ({
+      status,
+      label: labels[status] ?? status,
+      count,
+    }))
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status));
+}
+
+export function aggregateLeaveByStatus(
+  rows: Array<{ status: string }>,
+): Array<{ status: string; label: string; count: number }> {
+  return aggregateStatusCounts(rows, LEAVE_STATUS_LABELS);
+}
+
+export function aggregateComplaintsByStatus(
+  rows: Array<{ status: string }>,
+): Array<{ status: string; label: string; count: number }> {
+  return aggregateStatusCounts(rows, COMPLAINT_STATUS_LABELS);
+}
+
+export function aggregateAttendanceBreakdown(
+  facts: AttendanceFact[],
+): Array<{ status: string; label: string; count: number }> {
+  return aggregateStatusCounts(
+    facts.map((f) => ({ status: f.status || "unknown" })),
+    ATTENDANCE_STATUS_LABELS,
+  );
+}
+
+export function aggregateLeaveMonthly(
+  months: MonthBucket[],
+  rows: Array<{ startDate: string; status: string }>,
+): Array<{
+  month: string;
+  label: string;
+  requested: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}> {
+  return months.map((bucket) => {
+    const inMonth = rows.filter((r) => monthKeyFromDate(r.startDate) === bucket.month);
+    return {
+      month: bucket.month,
+      label: bucket.label,
+      requested: inMonth.length,
+      pending: inMonth.filter((r) => r.status === "pending").length,
+      approved: inMonth.filter((r) => r.status === "approved").length,
+      rejected: inMonth.filter((r) => r.status === "rejected").length,
+    };
+  });
+}
+
+export function aggregateHomeworkMonthly(
+  months: MonthBucket[],
+  rows: Array<{ createdAt: string; status: string }>,
+): Array<{
+  month: string;
+  label: string;
+  created: number;
+  published: number;
+}> {
+  return months.map((bucket) => {
+    const inMonth = rows.filter((r) => monthKeyFromDate(r.createdAt) === bucket.month);
+    return {
+      month: bucket.month,
+      label: bucket.label,
+      created: inMonth.length,
+      published: inMonth.filter((r) => r.status === "published").length,
+    };
+  });
+}
+
+export function aggregateEnrollmentByClass(
+  enrollments: Array<{ classId: string; status: string }>,
+  classNames: Map<string, string>,
+): Array<{
+  classId: string;
+  className: string;
+  count: number;
+}> {
+  const counts = new Map<string, number>();
+  for (const row of enrollments) {
+    if (row.status !== "active") continue;
+    counts.set(row.classId, (counts.get(row.classId) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([classId, count]) => ({
+      classId,
+      className: classNames.get(classId) ?? classId.slice(0, 8),
+      count,
+    }))
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || a.className.localeCompare(b.className));
+}
+
 /** True when the chart has nothing meaningful to plot. */
 export function seriesHasEnrollmentSignal(
   rows: Array<{ newEnrollments: number; totalStudents: number }>,
@@ -271,4 +400,16 @@ export function seriesHasFeeSignal(
   rows: Array<{ paymentCount: number }>,
 ): boolean {
   return rows.some((r) => r.paymentCount > 0);
+}
+
+export function seriesHasLeaveSignal(
+  rows: Array<{ requested: number }>,
+): boolean {
+  return rows.some((r) => r.requested > 0);
+}
+
+export function seriesHasHomeworkSignal(
+  rows: Array<{ created: number }>,
+): boolean {
+  return rows.some((r) => r.created > 0);
 }

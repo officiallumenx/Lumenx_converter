@@ -470,7 +470,7 @@ export function TransportDriversView({
                 <p className="text-[11px]">
                   {isApiAuthMode()
                     ? "Driver signs in on the Transport app with this mobile (API auth)."
-                    : "Driver signs in with this mobile and the demo OTP. No backend authentication."}
+                    : "Driver signs in with this mobile number."}
                 </p>
               </div>
             ) : draft.id ? (
@@ -491,7 +491,7 @@ export function TransportDriversView({
                 <span>
                   {isApiAuthMode()
                     ? "Create Transport app account for this driver (mobile login)"
-                    : "Create Transport app account for this driver (mobile login + demo OTP)"}
+                    : "Create Transport app account for this driver (mobile login)"}
                 </span>
               </label>
             )}

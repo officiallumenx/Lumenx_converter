@@ -132,10 +132,15 @@ function summarizeAttendanceDays(
       d.status !== "future" &&
       d.status !== "unknown",
   ).length;
-  const present = scoped.filter((d) => d.status === "present").length;
-  const absent = scoped.filter((d) => d.status === "absent").length;
+  let present = scoped.filter((d) => d.status === "present").length;
+  let absent = scoped.filter((d) => d.status === "absent").length;
   const leave = scoped.filter((d) => d.status === "leave").length;
   const holidays = scoped.filter((d) => d.status === "holiday").length;
+  for (const d of scoped) {
+    if (d.status !== "partial") continue;
+    present += d.presentCount ?? 0;
+    absent += d.absentCount ?? 0;
+  }
   const expected = present + absent + leave;
   const attendancePct = computeAttendancePct(present, expected, leave);
 

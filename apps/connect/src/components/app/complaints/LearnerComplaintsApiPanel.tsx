@@ -296,6 +296,7 @@ function LearnerNewComplaint({
                           "Infrastructure",
                           "Communication",
                           "Teacher concerns",
+                          "Transport",
                         ].map((s) => (
                           <SelectItem key={s} value={s}>
                             {s}

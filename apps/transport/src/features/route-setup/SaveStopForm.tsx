@@ -7,6 +7,12 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import type { GpsFix } from "@/lib/transport/route-setup/types";
+import {
+  parseStopRadiusInput,
+  STOP_RADIUS_DEFAULT_M,
+  STOP_RADIUS_MAX_M,
+  STOP_RADIUS_MIN_M,
+} from "@/lib/transport/stop-radius";
 
 import { StudentAssignmentPicker } from "./StudentAssignmentPicker";
 
@@ -16,6 +22,8 @@ type Props = {
   initialLocationLabel?: string;
   initialStudentIds?: string[];
   initialGps?: GpsFix | null;
+  /** Saved radius when editing; default when creating. */
+  initialNotificationRadiusM?: number;
   /** When editing, allow refreshing GPS */
   allowGpsRefresh?: boolean;
   submitLabel?: string;
@@ -34,6 +42,7 @@ type Props = {
     studentIds: string[];
     latitude: number;
     longitude: number;
+    notificationRadiusM: number;
   }) => Promise<void>;
 };
 
@@ -43,6 +52,7 @@ export function SaveStopForm({
   initialLocationLabel = "",
   initialStudentIds = [],
   initialGps,
+  initialNotificationRadiusM = STOP_RADIUS_DEFAULT_M,
   allowGpsRefresh = false,
   submitLabel = "Submit for Approval",
   vehicleId,
@@ -59,6 +69,7 @@ export function SaveStopForm({
   );
   const [studentIds, setStudentIds] = useState<string[]>(initialStudentIds);
   const [gps, setGps] = useState<GpsFix | null>(initialGps ?? null);
+  const [radiusM, setRadiusM] = useState(String(initialNotificationRadiusM));
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -89,10 +100,9 @@ export function SaveStopForm({
       toast.error("GPS location missing. Capture location first.");
       return;
     }
-    if (gps.source === "demo") {
-      toast.error("Real GPS required", {
-        description: "Turn on location and refresh GPS before submitting this stop.",
-      });
+    const radius = parseStopRadiusInput(radiusM);
+    if (!radius.ok) {
+      toast.error(radius.error);
       return;
     }
     setSaving(true);
@@ -103,6 +113,7 @@ export function SaveStopForm({
         studentIds,
         latitude: gps.latitude,
         longitude: gps.longitude,
+        notificationRadiusM: radius.meters,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not save stop.";
@@ -128,7 +139,6 @@ export function SaveStopForm({
               <p className="mt-1 font-mono text-xs text-muted-foreground">
                 {gps.latitude.toFixed(5)}, {gps.longitude.toFixed(5)}
                 {gps.accuracyM != null ? ` · ±${Math.round(gps.accuracyM)}m` : ""}
-                {gps.source === "demo" ? " · demo" : ""}
               </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">No fix yet</p>
@@ -168,6 +178,23 @@ export function SaveStopForm({
         />
       </FormField>
 
+      <FormField
+        id="stop-radius"
+        label="Notification radius (m)"
+        hint={`Approach geofence · ${STOP_RADIUS_MIN_M}–${STOP_RADIUS_MAX_M} m`}
+      >
+        <Input
+          id="stop-radius"
+          type="number"
+          inputMode="numeric"
+          min={STOP_RADIUS_MIN_M}
+          max={STOP_RADIUS_MAX_M}
+          step={1}
+          value={radiusM}
+          onChange={(e) => setRadiusM(e.target.value)}
+        />
+      </FormField>
+
       <div>
         <p className="mb-2 text-sm font-medium text-foreground">Add students</p>
         <StudentAssignmentPicker
@@ -183,6 +210,12 @@ export function SaveStopForm({
         <p className="font-semibold text-foreground">Review before submit</p>
         <p className="text-muted-foreground">
           Stop: <span className="text-foreground">{name.trim() || "—"}</span>
+        </p>
+        <p className="text-muted-foreground">
+          Radius:{" "}
+          <span className="text-foreground">
+            {radiusM.trim() ? `${radiusM.trim()} m` : "—"}
+          </span>
         </p>
         <p className="text-muted-foreground">
           Students:{" "}

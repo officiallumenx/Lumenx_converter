@@ -1,4 +1,5 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { dedupeNotificationsById } from "@lumenx/module-notifications";
 import type { AppNotification } from "@lumenx/types";
@@ -16,7 +17,13 @@ export async function loadConnectPortalInbox(
   instituteId: string | null,
 ): Promise<AppNotification[]> {
   if (!isApiAuthMode()) return [];
-  if (!instituteId || !isInstituteUuid(instituteId)) return [];
+  if (!instituteId || !isInstituteUuid(instituteId)) {
+    throw new ApiClientError({
+      status: 0,
+      code: "VALIDATION_ERROR",
+      message: "Select an institute to load notifications",
+    });
+  }
 
   const inbox = await listInboxNotifications({ instituteId });
   return dedupeNotificationsById(inboxItemDtosToAppNotifications(inbox)).sort(

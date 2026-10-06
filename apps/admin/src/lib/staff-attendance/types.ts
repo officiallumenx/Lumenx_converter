@@ -47,6 +47,8 @@ export type StaffAttendanceMarkItem = {
   id: string;
   teacherId: string;
   teacherName: string;
+  /** Display subject(s) under the teacher name. */
+  subject: string;
   /** null = unmarked (must select before submit) */
   status: StaffAttendanceStatus | null;
   checkIn: string | null;

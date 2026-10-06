@@ -23,14 +23,29 @@ const validPayload = {
   instituteCode: "TEST1SCHOOL",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
+  schoolPhone: "04012345678",
+  schoolEmail: "office@greenfield.edu.in",
   country: "India",
   state: "Karnataka",
+  district: "Bengaluru Urban",
   city: "Bengaluru",
-  address: "45 Residency Road",
+  area: "Residency Road",
+  street: "45 Residency Road",
+  landmark: "Near Cubbon Park",
+  address: "45 Residency Road, Residency Road",
   pincode: "560025",
+  website: "https://greenfield.edu.in",
   principalName: "Anita Rao",
   principalEmail: "registrar@greenfield.edu.in",
   principalMobile: "9876543210",
+  principalDesignation: "Principal",
+  username: "anita.rao",
+  adminCountry: "India",
+  adminState: "Karnataka",
+  adminDistrict: "Bengaluru Urban",
+  adminCity: "Bengaluru",
+  adminAddress: "12 Palm Grove, Indiranagar",
+  adminPincode: "560038",
 };
 
 beforeEach(() => {
@@ -112,6 +127,21 @@ function appFor(
   return createApp(env, silentLogger, supabase);
 }
 
+function createBody(
+  overrides: Record<string, unknown> = {},
+  payload: Record<string, unknown> = validPayload,
+) {
+  return {
+    applicant_name: "Anita Rao",
+    email: "new.registrant@example.com",
+    password: "SecurePass1!",
+    phone: "+91 98765 43210",
+    pin: "123456",
+    payload,
+    ...overrides,
+  };
+}
+
 describe("POST /api/v1/registrations", () => {
   it("creates a pending registration without institute or privileged roles", async () => {
     const db = emptyMockDb();
@@ -121,13 +151,7 @@ describe("POST /api/v1/registrations", () => {
     const res = await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Anita Rao",
-        email: "new.registrant@example.com",
-        password: "SecurePass1!",
-        phone: "+91 98765 43210",
-        payload: validPayload,
-      }),
+      body: JSON.stringify(createBody()),
     });
 
     expect(res.status).toBe(201);
@@ -136,6 +160,7 @@ describe("POST /api/v1/registrations", () => {
     expect(body.data.instituteId).toBeNull();
     expect(body.data.email).toBe("new.registrant@example.com");
     expect(body.data.payload.instituteName).toBe(validPayload.instituteName);
+    expect(body.data.payload.username).toBe("anita.rao");
     expect(body.data).not.toHaveProperty("password");
 
     expect(db.institute).toHaveLength(0);
@@ -144,7 +169,11 @@ describe("POST /api/v1/registrations", () => {
     expect(db.membership_role).toHaveLength(0);
     expect(db.institute_registration).toHaveLength(1);
     expect(db.institute_registration[0]?.status).toBe("pending");
+    expect(db.institute_registration[0]?.institute_code).toBe("TEST1SCHOOL");
+    expect(db.institute_registration[0]?.school_email).toBe("office@greenfield.edu.in");
+    expect(db.institute_registration[0]?.applicant_username).toBe("anita.rao");
     expect(db.user_profile).toHaveLength(1);
+    expect(db.user_profile[0]?.username).toBe("anita.rao");
     expect(authUsersByEmail["new.registrant@example.com"]?.id).toBeTruthy();
 
     const storedPayload = db.institute_registration[0]?.payload as Record<string, unknown>;
@@ -160,12 +189,12 @@ describe("POST /api/v1/registrations", () => {
     const res = await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Logo Applicant",
-        email: "logo.applicant@example.com",
-        password: "SecurePass1!",
-        payload: { ...validPayload, logoPreview },
-      }),
+      body: JSON.stringify(
+        createBody(
+          { applicant_name: "Logo Applicant", email: "logo.applicant@example.com" },
+          { ...validPayload, logoPreview },
+        ),
+      ),
     });
 
     expect(res.status).toBe(201);
@@ -182,12 +211,12 @@ describe("POST /api/v1/registrations", () => {
     const res = await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Someone",
-        email: "taken@example.com",
-        password: "SecurePass1!",
-        payload: { instituteName: "Test School", instituteCode: "TESTSCHOOL" },
-      }),
+      body: JSON.stringify(
+        createBody({
+          applicant_name: "Someone",
+          email: "taken@example.com",
+        }),
+      ),
     });
 
     expect(res.status).toBe(409);
@@ -206,12 +235,12 @@ describe("POST /api/v1/registrations", () => {
     const res = await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Applicant A",
-        email: "applicant-a@example.com",
-        password: "SecurePass1!",
-        payload: validPayload,
-      }),
+      body: JSON.stringify(
+        createBody({
+          applicant_name: "Applicant A",
+          email: "applicant-a@example.com",
+        }),
+      ),
     });
 
     expect(res.status).toBe(201);
@@ -232,13 +261,13 @@ describe("POST /api/v1/registrations", () => {
     const res = await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Recovered Applicant",
-        email: "orphan@example.com",
-        password: "SecurePass1!",
-        phone: "9876543210",
-        payload: validPayload,
-      }),
+      body: JSON.stringify(
+        createBody({
+          applicant_name: "Recovered Applicant",
+          email: "orphan@example.com",
+          phone: "9876543210",
+        }),
+      ),
     });
 
     expect(res.status).toBe(201);
@@ -265,12 +294,12 @@ describe("POST /api/v1/registrations", () => {
       const res = await app.request("/api/v1/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicant_name: "Applicant A",
-          email: "applicant-a@example.com",
-          password: "SecurePass1!",
-          payload: validPayload,
-        }),
+        body: JSON.stringify(
+          createBody({
+            applicant_name: "Applicant A",
+            email: "applicant-a@example.com",
+          }),
+        ),
       });
 
       expect(res.status).toBe(409);
@@ -388,12 +417,12 @@ describe("registration security invariants", () => {
     await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Owner",
-        email: "owner@example.com",
-        password: "SecurePass1!",
-        payload: { instituteName: "Owner Institute", instituteCode: "OWNERINST" },
-      }),
+      body: JSON.stringify(
+        createBody({
+          applicant_name: "Owner",
+          email: "owner@example.com",
+        }),
+      ),
     });
 
     expect(db.institute).toHaveLength(0);
@@ -407,12 +436,15 @@ describe("registration security invariants", () => {
     await app.request("/api/v1/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        applicant_name: "Owner",
-        email: "owner2@example.com",
-        password: "SecurePass1!",
-        payload: { instituteName: "Owner Institute 2", instituteCode: "OWNERINST2" },
-      }),
+      body: JSON.stringify(
+        createBody(
+          {
+            applicant_name: "Owner",
+            email: "owner2@example.com",
+          },
+          { ...validPayload, instituteCode: "OWNERINST2", username: "owner2.admin" },
+        ),
+      ),
     });
 
     expect(db.platform_operator).toHaveLength(0);

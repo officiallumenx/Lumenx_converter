@@ -122,6 +122,7 @@ export function readAdminDataScopeKey(): string {
   const tenant = readRegisteredAdminTenant();
   if (tenant) return `reg.${tenant.instituteId}`;
   // Lazy import avoided — callers that need demo id still import types separately.
+  if (typeof localStorage === "undefined") return "multi_institute";
   try {
     const raw = localStorage.getItem("lumenx_demo_profile");
     if (raw === "multi_institute" || raw === "single_institute" || raw === "inter_college") {

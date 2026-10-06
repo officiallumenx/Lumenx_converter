@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight, BookMarked, Bus, CalendarOff, ClipboardList, FileCheck2 } from "lucide-react";
 import { Button, Pill } from "@lumenx/ui-admin";
 import type {
@@ -9,6 +9,7 @@ import type {
   MarksPendingRow,
 } from "@/lib/dashboard";
 import type { TransportEmergencyDto } from "@/lib/transport/types";
+import { TransportPendingStopsActionCard } from "@/components/transport/TransportPendingStopsActionCard";
 
 function formatSubmittedAt(iso: string | null): string {
   if (!iso) return "—";
@@ -32,6 +33,9 @@ export function HomeOperationalLists({
   attendanceDrafts,
   marksPending,
   transportEmergencies,
+  transportInstituteId,
+  transportWritesEnabled = true,
+  onTransportNotify,
 }: {
   diaryRows: DiaryWidgetRow[];
   diaryMissingYesterday: number;
@@ -40,16 +44,46 @@ export function HomeOperationalLists({
   attendanceDrafts: AttendanceDraftRow[];
   marksPending: MarksPendingRow[];
   transportEmergencies: TransportEmergencyDto[];
+  /** When set, show driver-stop accept actions on Home. */
+  transportInstituteId?: string | null;
+  transportWritesEnabled?: boolean;
+  onTransportNotify?: (message: string) => void;
 }) {
+  const navigate = useNavigate();
   const showAttendance = attendanceDrafts.length > 0;
   const showMarks = marksPending.length > 0;
   const showTransport = transportEmergencies.length > 0;
 
   return (
     <div className="lx-home-ops-grid">
-      <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7 } as CSSProperties}>
+      {transportInstituteId ? (
+        <div
+          className="lx-home-section col-span-full"
+          style={{ "--lx-home-i": 6.5 } as CSSProperties}
+        >
+          <TransportPendingStopsActionCard
+            instituteId={transportInstituteId}
+            writesEnabled={transportWritesEnabled}
+            onNotify={onTransportNotify}
+            hideWhenEmpty
+            maxItems={4}
+            onOpenReviews={() =>
+              void navigate({ to: "/transport", search: { view: "reviews" } })
+            }
+          />
+        </div>
+      ) : null}
+      <section
+        className="lx-home-section lx-home-panel lx-home-panel--diary"
+        style={{ "--lx-home-i": 7 } as CSSProperties}
+      >
         <div className="lx-home-panel__head">
-          <h2 className="lx-home-panel__title">Diary submissions</h2>
+          <div className="lx-home-ops__title-row">
+            <span className="lx-home-ops__icon lx-home-ops__icon--diary" aria-hidden>
+              <BookMarked className="size-3.5" />
+            </span>
+            <h2 className="lx-home-panel__title">Diary submissions</h2>
+          </div>
           <div className="flex items-center gap-1.5">
             {diaryMissingYesterday > 0 ? (
               <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
@@ -84,9 +118,17 @@ export function HomeOperationalLists({
         )}
       </section>
 
-      <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7.5 } as CSSProperties}>
+      <section
+        className="lx-home-section lx-home-panel lx-home-panel--leave"
+        style={{ "--lx-home-i": 7.5 } as CSSProperties}
+      >
         <div className="lx-home-panel__head">
-          <h2 className="lx-home-panel__title">Pending leave</h2>
+          <div className="lx-home-ops__title-row">
+            <span className="lx-home-ops__icon lx-home-ops__icon--leave" aria-hidden>
+              <CalendarOff className="size-3.5" />
+            </span>
+            <h2 className="lx-home-panel__title">Pending leave</h2>
+          </div>
           <div className="flex items-center gap-1.5">
             <Pill tone={leavePendingCount > 0 ? "warning" : "neutral"}>
               {leavePendingCount} pending
@@ -123,12 +165,20 @@ export function HomeOperationalLists({
       </section>
 
       {showAttendance ? (
-        <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 8 } as CSSProperties}>
+        <section
+          className="lx-home-section lx-home-panel lx-home-panel--attendance"
+          style={{ "--lx-home-i": 8 } as CSSProperties}
+        >
           <div className="lx-home-panel__head">
-            <h2 className="lx-home-panel__title">Attendance drafts</h2>
+            <div className="lx-home-ops__title-row">
+              <span className="lx-home-ops__icon lx-home-ops__icon--attendance" aria-hidden>
+                <ClipboardList className="size-3.5" />
+              </span>
+              <h2 className="lx-home-panel__title">Attendance drafts</h2>
+            </div>
             <div className="flex items-center gap-1.5">
               <Pill tone="warning">{attendanceDrafts.length}</Pill>
-              <Link to="/attendance">
+              <Link to="/student-attendance">
                 <Button size="sm" variant="outline" className="gap-1">
                   Open <ArrowUpRight className="size-3.5" />
                 </Button>
@@ -152,9 +202,17 @@ export function HomeOperationalLists({
       ) : null}
 
       {showMarks ? (
-        <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 9 } as CSSProperties}>
+        <section
+          className="lx-home-section lx-home-panel lx-home-panel--marks"
+          style={{ "--lx-home-i": 9 } as CSSProperties}
+        >
           <div className="lx-home-panel__head">
-            <h2 className="lx-home-panel__title">Pending mark reviews</h2>
+            <div className="lx-home-ops__title-row">
+              <span className="lx-home-ops__icon lx-home-ops__icon--marks" aria-hidden>
+                <FileCheck2 className="size-3.5" />
+              </span>
+              <h2 className="lx-home-panel__title">Pending mark reviews</h2>
+            </div>
             <div className="flex items-center gap-1.5">
               <Pill tone="warning">{marksPending.length}</Pill>
               <Link to="/marks">
@@ -181,9 +239,17 @@ export function HomeOperationalLists({
       ) : null}
 
       {showTransport ? (
-        <section className="lx-home-section lx-home-panel lx-home-panel--critical" style={{ "--lx-home-i": 10 } as CSSProperties}>
+        <section
+          className="lx-home-section lx-home-panel lx-home-panel--critical lx-home-panel--transport"
+          style={{ "--lx-home-i": 10 } as CSSProperties}
+        >
           <div className="lx-home-panel__head">
-            <h2 className="lx-home-panel__title">Transport emergencies</h2>
+            <div className="lx-home-ops__title-row">
+              <span className="lx-home-ops__icon lx-home-ops__icon--transport" aria-hidden>
+                <Bus className="size-3.5" />
+              </span>
+              <h2 className="lx-home-panel__title">Transport emergencies</h2>
+            </div>
             <Pill tone="danger">{transportEmergencies.length} active</Pill>
           </div>
           <ul className="lx-home-ops-list">

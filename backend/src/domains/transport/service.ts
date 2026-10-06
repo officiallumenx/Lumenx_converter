@@ -49,11 +49,22 @@ import {
   upsertTransportSettings,
 } from "./repository.js";
 import {
+  parseStopNotificationRadiusM,
+  STOP_RADIUS_DEFAULT_M,
+} from "./stop-radius.js";
+import {
   approvalStatusForCreate,
   assertCanDeleteRejected,
   isDriverForInstitute,
   isTransportWriter,
 } from "./approval.js";
+import {
+  assertDriverCanAccessRoute,
+  isDriverOnlyActor,
+  isElevatedTransportReader,
+  listDriverOwnedRouteIds,
+  resolveAuthenticatedDriver,
+} from "./access.js";
 import {
   assertValidPin,
   hashPin,
@@ -279,13 +290,15 @@ function filterApprovalRows<T extends {
 ): T[] {
   if (isTransportWriter(actor, instituteId)) return rows;
   if (isDriverForInstitute(actor, instituteId)) {
+    // Drivers see their own submissions (including rejected for fix) plus all usable rows.
     return rows.filter(
       (r) =>
-        r.approval_status === "approved" ||
-        (r.approval_status !== "approved" && r.submitted_by_user_id === actor.userId),
+        r.approval_status !== "rejected" ||
+        r.submitted_by_user_id === actor.userId,
     );
   }
-  return rows.filter((r) => r.approval_status === "approved");
+  // Parents/teachers: pending is visible/usable; rejected stays hidden.
+  return rows.filter((r) => r.approval_status !== "rejected");
 }
 
 function assertTransportStaffReader(actor: Actor, instituteId: string): void {
@@ -317,6 +330,19 @@ async function assertCanAccessEnrollment(
   row: TransportEnrollmentRow,
 ): Promise<void> {
   assertInstituteAccess(actor, row.institute_id);
+  if (isElevatedTransportReader(actor, row.institute_id)) return;
+
+  if (isDriverOnlyActor(actor, row.institute_id)) {
+    const self = await resolveAuthenticatedDriver(
+      admin,
+      actor,
+      row.institute_id,
+    );
+    const owned = await listDriverOwnedRouteIds(admin, self);
+    if (owned.has(row.route_id)) return;
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
   if (isStaffReader(actor, row.institute_id)) return;
 
   const linked = await resolveLinkedStudentIds(admin, actor, row.institute_id);
@@ -446,7 +472,14 @@ export async function listVehiclesForActor(
       driverByVehicle.set(driver.assigned_vehicle_id, driver.id);
     }
   }
-  return rows.map((row) =>
+  let visible = rows;
+  if (isDriverOnlyActor(actor, id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, id);
+    visible = self.assigned_vehicle_id
+      ? rows.filter((row) => row.id === self.assigned_vehicle_id)
+      : [];
+  }
+  return visible.map((row) =>
     toVehicleDto(row, driverByVehicle.get(row.id) ?? null),
   );
 }
@@ -459,6 +492,12 @@ export async function getVehicleForActor(
   const row = await findVehicleById(admin, vehicleId);
   if (!row) throw AppError.notFound("Vehicle not found");
   assertTransportStaffReader(actor, row.institute_id);
+  if (isDriverOnlyActor(actor, row.institute_id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, row.institute_id);
+    if (self.assigned_vehicle_id !== row.id) {
+      throw AppError.forbidden("Insufficient permissions");
+    }
+  }
   const drivers = await listDrivers(admin, row.institute_id);
   const assigned =
     drivers.find((d) => d.assigned_vehicle_id === row.id)?.id ?? null;
@@ -601,7 +640,11 @@ export async function listDriversForActor(
 ): Promise<DriverDto[]> {
   const id = requireInstituteId(actor, instituteId);
   assertTransportStaffReader(actor, id);
-  const rows = await listDrivers(admin, id);
+  let rows = await listDrivers(admin, id);
+  if (isDriverOnlyActor(actor, id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, id);
+    rows = rows.filter((row) => row.id === self.id);
+  }
   return rows.map(toDriverDto);
 }
 
@@ -613,6 +656,12 @@ export async function getDriverForActor(
   const row = await findDriverById(admin, driverId);
   if (!row) throw AppError.notFound("Driver not found");
   assertTransportStaffReader(actor, row.institute_id);
+  if (isDriverOnlyActor(actor, row.institute_id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, row.institute_id);
+    if (self.id !== row.id) {
+      throw AppError.forbidden("Insufficient permissions");
+    }
+  }
   return toDriverDto(row);
 }
 
@@ -756,7 +805,12 @@ export async function listRoutesForActor(
 ): Promise<RouteDto[]> {
   const id = requireInstituteId(actor, instituteId);
   assertTransportStaffReader(actor, id);
-  const rows = filterApprovalRows(actor, id, await listRoutes(admin, id));
+  let rows = filterApprovalRows(actor, id, await listRoutes(admin, id));
+  if (isDriverOnlyActor(actor, id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, id);
+    const owned = await listDriverOwnedRouteIds(admin, self);
+    rows = rows.filter((row) => owned.has(row.id));
+  }
   return rows.map(toRouteDto);
 }
 
@@ -770,11 +824,12 @@ export async function getRouteForActor(
   assertTransportStaffReader(actor, row.institute_id);
   if (
     !isTransportWriter(actor, row.institute_id) &&
-    row.approval_status !== "approved" &&
+    row.approval_status === "rejected" &&
     row.submitted_by_user_id !== actor.userId
   ) {
     throw AppError.notFound("Route not found");
   }
+  await assertDriverCanAccessRoute(admin, actor, row);
   return toRouteDto(row);
 }
 
@@ -801,17 +856,32 @@ export async function createRouteForActor(
   const name = input.name.trim();
   if (!name) throw AppError.validation("name is required");
 
-  if (input.vehicleId) {
-    await assertVehicleInInstitute(admin, input.vehicleId, instituteId);
-  }
-  if (input.driverId) {
-    await assertDriverInInstitute(admin, input.driverId, instituteId);
+  let vehicleId = input.vehicleId ?? null;
+  let driverId = input.driverId ?? null;
+
+  if (!writer && isDriverForInstitute(actor, instituteId)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, instituteId);
+    if (!self.assigned_vehicle_id) {
+      throw AppError.forbidden("Driver has no assigned vehicle");
+    }
+    // Never trust client driver_id / vehicle_id for drivers.
+    driverId = self.id;
+    vehicleId = self.assigned_vehicle_id;
+  } else {
+    if (vehicleId) {
+      await assertVehicleInInstitute(admin, vehicleId, instituteId);
+    }
+    if (driverId) {
+      await assertDriverInInstitute(admin, driverId, instituteId);
+    }
   }
 
   const row = await insertRoute(admin, {
     ...input,
     instituteId,
     name,
+    vehicleId,
+    driverId,
     approvalStatus,
     submittedByUserId: writer ? null : actor.userId,
   });
@@ -882,6 +952,7 @@ export async function listStopsForActor(
   const route = await findRouteById(admin, routeId);
   if (!route) throw AppError.notFound("Route not found");
   assertTransportStaffReader(actor, route.institute_id);
+  await assertDriverCanAccessRoute(admin, actor, route);
   const rows = filterApprovalRows(
     actor,
     route.institute_id,
@@ -900,11 +971,14 @@ export async function getStopForActor(
   assertTransportStaffReader(actor, row.institute_id);
   if (
     !isTransportWriter(actor, row.institute_id) &&
-    row.approval_status !== "approved" &&
+    row.approval_status === "rejected" &&
     row.submitted_by_user_id !== actor.userId
   ) {
     throw AppError.notFound("Stop not found");
   }
+  const route = await findRouteById(admin, row.route_id);
+  if (!route) throw AppError.notFound("Stop not found");
+  await assertDriverCanAccessRoute(admin, actor, route);
   return toStopDto(row);
 }
 
@@ -929,6 +1003,11 @@ export async function createStopForActor(
   const approvalStatus = approvalStatusForCreate(actor, instituteId);
 
   await assertRouteInInstitute(admin, input.routeId, instituteId);
+  if (!writer) {
+    const route = await findRouteById(admin, input.routeId);
+    if (!route) throw AppError.notFound("Route not found");
+    await assertDriverCanAccessRoute(admin, actor, route);
+  }
 
   const kind = input.kind ?? "waypoint";
   if (kind === "school") {
@@ -952,10 +1031,16 @@ export async function createStopForActor(
     throw AppError.validation("longitude must be between -180 and 180");
   }
 
-  let notificationRadiusM = input.notificationRadiusM;
-  if (notificationRadiusM === undefined) {
+  // Default radius ONLY when creating a new stop and client omitted it.
+  let notificationRadiusM: number;
+  if (input.notificationRadiusM !== undefined) {
+    notificationRadiusM = parseStopNotificationRadiusM(input.notificationRadiusM, {
+      required: true,
+    })!;
+  } else {
     const settings = await findTransportSettings(admin, instituteId);
-    notificationRadiusM = settings?.default_notification_radius_m ?? 150;
+    notificationRadiusM =
+      settings?.default_notification_radius_m ?? STOP_RADIUS_DEFAULT_M;
   }
 
   if (kind === "parking") {
@@ -977,15 +1062,10 @@ export async function createStopForActor(
           throw AppError.forbidden("Insufficient permissions");
         }
       }
+      // GPS refresh updates ONLY coordinates — never radius, name, order, or kind.
       const updated = await updateStopFields(admin, existingParking.id, {
-        name,
-        location_label: locationLabel,
         latitude: input.latitude,
         longitude: input.longitude,
-        notification_radius_m: notificationRadiusM,
-        route_order: 0,
-        approval_status: approvalStatus,
-        submitted_by_user_id: writer ? null : actor.userId,
       });
       if (!updated) throw AppError.notFound("Stop not found");
       return toStopDto(updated);
@@ -1032,6 +1112,9 @@ export async function updateStopForActor(
   if (!existing) throw AppError.notFound("Stop not found");
   assertCanEditTransportSubmission(actor, existing);
 
+  if (patch.notificationRadiusM !== undefined) {
+    parseStopNotificationRadiusM(patch.notificationRadiusM, { required: true });
+  }
   const fieldPatch = toStopUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") {
     fieldPatch.name = fieldPatch.name.trim();
@@ -1046,6 +1129,7 @@ export async function updateStopForActor(
   ) {
     throw AppError.validation("route_order must be an integer >= 0");
   }
+  // Omitted notification_radius_m must preserve the stored value (toStopUpdatePatch).
   if (Object.keys(fieldPatch).length === 0) return toStopDto(existing);
 
   const updated = await updateStopFields(admin, stopId, fieldPatch);
@@ -1088,6 +1172,22 @@ export async function listEnrollmentsForActor(
   instituteId: string,
 ): Promise<TransportEnrollmentDto[]> {
   const id = requireInstituteId(actor, instituteId);
+
+  if (isElevatedTransportReader(actor, id)) {
+    const rows = filterApprovalRows(actor, id, await listEnrollments(admin, id));
+    return rows.map(toEnrollmentDto);
+  }
+
+  if (isDriverOnlyActor(actor, id)) {
+    const self = await resolveAuthenticatedDriver(admin, actor, id);
+    const owned = await listDriverOwnedRouteIds(admin, self);
+    const rows = filterApprovalRows(
+      actor,
+      id,
+      (await listEnrollments(admin, id)).filter((e) => owned.has(e.route_id)),
+    );
+    return rows.map(toEnrollmentDto);
+  }
 
   if (isStaffReader(actor, id)) {
     const rows = filterApprovalRows(actor, id, await listEnrollments(admin, id));
@@ -1132,7 +1232,10 @@ export async function createEnrollmentForActor(
     throw AppError.notFound("Student not found");
   }
 
-  await assertRouteInInstitute(admin, input.routeId, instituteId);
+  const route = await assertRouteInInstitute(admin, input.routeId, instituteId);
+  if (!writer) {
+    await assertDriverCanAccessRoute(admin, actor, route);
+  }
   if (input.pickupStopId) {
     await assertStopOnRoute(admin, input.pickupStopId, input.routeId, instituteId);
   }
@@ -1347,23 +1450,17 @@ export async function upsertTransportSettingsForActor(
   const instituteId = requireInstituteId(actor, input.instituteId);
   assertTransportWriter(actor, instituteId);
 
-  if (
-    input.defaultNotificationRadiusM !== undefined &&
-    (!Number.isInteger(input.defaultNotificationRadiusM) ||
-      input.defaultNotificationRadiusM <= 0)
-  ) {
-    throw AppError.validation(
-      "default_notification_radius_m must be a positive integer",
-    );
+  if (input.defaultNotificationRadiusM !== undefined) {
+    parseStopNotificationRadiusM(input.defaultNotificationRadiusM, {
+      required: true,
+      field: "default_notification_radius_m",
+    });
   }
-  if (
-    input.schoolNotificationRadiusM !== undefined &&
-    (!Number.isInteger(input.schoolNotificationRadiusM) ||
-      input.schoolNotificationRadiusM <= 0)
-  ) {
-    throw AppError.validation(
-      "school_notification_radius_m must be a positive integer",
-    );
+  if (input.schoolNotificationRadiusM !== undefined) {
+    parseStopNotificationRadiusM(input.schoolNotificationRadiusM, {
+      required: true,
+      field: "school_notification_radius_m",
+    });
   }
   if (
     input.defaultPickupBufferMins !== undefined &&
