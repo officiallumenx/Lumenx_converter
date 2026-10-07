@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node ./scripts/prepare-cf-deploy.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit"

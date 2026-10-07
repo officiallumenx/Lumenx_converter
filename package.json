@@ -21,6 +21,7 @@
     "build:nexus": "npm run build --workspace=@lumenx/app-nexus",
     "build:transport": "npm run build --workspace=@lumenx/app-transport",
     "build:website": "npm run build --workspace=@lumenx/app-website",
+    "deploy:website": "npm run deploy --workspace=@lumenx/app-website",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:connect": "npm run typecheck --workspace=@lumenx/app-connect",
