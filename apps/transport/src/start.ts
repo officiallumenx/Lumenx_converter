@@ -1,4 +1,3 @@
-import "@/lib/transport/clear-stale-client-state";
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "@lumenx/utils";
