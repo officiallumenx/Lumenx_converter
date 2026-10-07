@@ -14,6 +14,7 @@ import {
 } from "@lumenx/auth";
 
 import { resetTransportStores } from "@/lib/transport";
+import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   apiSignInWithPassword,
@@ -121,10 +122,7 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
       submit: async (input) => {
         const token = await getSupabaseAccessToken();
         if (!token) throw new Error("Authentication required");
-        const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
-          /\/+$/,
-          "",
-        );
+        const base = getTransportApiBaseUrl();
         const res = await fetch(`${base}/api/v1/product-feedback`, {
           method: "POST",
           headers: {

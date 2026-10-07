@@ -1,4 +1,5 @@
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
+import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 const UUID_RE =
@@ -11,7 +12,7 @@ function assertUuidPathParam(label: string, value: string): void {
 }
 
 function apiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  return getTransportApiBaseUrl();
 }
 
 async function transportFetch<T>(

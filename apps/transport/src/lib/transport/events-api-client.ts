@@ -1,8 +1,9 @@
+import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 
 function apiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  return getTransportApiBaseUrl();
 }
 
 export async function transportFetch<T>(path: string, init?: RequestInit): Promise<T> {

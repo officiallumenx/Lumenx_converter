@@ -25,6 +25,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.production
 *.local
 
 # Firebase Android client configs (drop in locally / CI secrets — do not commit)

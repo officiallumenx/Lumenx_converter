@@ -1,5 +1,6 @@
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
+import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import {
   getSupabaseAccessToken,
   getSupabaseBrowserClient,
@@ -38,7 +39,7 @@ export class TransportInstituteRequiredError extends Error {
 }
 
 function apiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  return getTransportApiBaseUrl();
 }
 
 async function readJson(response: Response): Promise<{

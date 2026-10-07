@@ -1,4 +1,5 @@
 import { normalizeIndianMobile } from "@/lib/auth/demo-drivers";
+import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import { getDriverMe, getDriverRouteRoster } from "@/lib/transport-api";
 import type { DriverAssignment } from "./driver-assignment";
 import type { BusAssignment, DriverProfile, RouteAssignment, TripAssignment } from "./types";
@@ -24,7 +25,7 @@ type VehicleDto = {
 };
 
 async function transportGet<T>(path: string): Promise<T> {
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const base = getTransportApiBaseUrl();
   const { getSupabaseAccessToken } = await import("@/lib/supabase-browser");
   const token = await getSupabaseAccessToken();
   if (!token) throw new Error("Authentication required");
