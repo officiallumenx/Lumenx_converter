@@ -93,7 +93,7 @@ function sessionCacheKey(): string {
 // Clear legacy trip chrome key once (restore via active-trip API only).
 if (typeof window !== "undefined") {
   try {
-    localStorage.removeItem("lumenx.transport.trip.v1");
+    globalThis.localStorage?.removeItem("lumenx.transport.trip.v1");
   } catch {
     /* ignore */
   }
@@ -462,7 +462,7 @@ export function resetTripSession() {
   cachedSession = null;
   if (typeof window !== "undefined") {
     try {
-      localStorage.removeItem("lumenx.transport.trip.v1");
+      globalThis.localStorage?.removeItem("lumenx.transport.trip.v1");
     } catch {
       // ignore
     }

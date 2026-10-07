@@ -23,13 +23,21 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for API auth mode.",
     );
   }
+  let storage: Storage | undefined;
+  if (typeof window !== "undefined") {
+    try {
+      storage = globalThis.localStorage ?? undefined;
+    } catch {
+      storage = undefined;
+    }
+  }
   client = createClient(cfg.url, cfg.anonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey: "lumenx.transport.supabase.auth.v1",
-      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storage,
     },
   });
   return client;

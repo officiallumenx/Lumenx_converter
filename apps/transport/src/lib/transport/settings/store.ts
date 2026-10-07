@@ -1,5 +1,6 @@
 import { DARK_MODE_CLASS, darkModeConfig } from "@/theme";
 
+import { getTransportLocalStorage } from "../clear-stale-client-state";
 import type { NotificationPrefs, ThemeMode } from "../types";
 
 export type SettingsState = {
@@ -18,7 +19,7 @@ const listeners = new Set<() => void>();
 
 function readStoredTheme(): ThemeMode {
   try {
-    const stored = localStorage.getItem(darkModeConfig.storageKey);
+    const stored = getTransportLocalStorage()?.getItem(darkModeConfig.storageKey);
     if (stored === "light" || stored === "dark") return stored;
     if (stored === "system") return darkModeConfig.defaultMode;
   } catch {
@@ -46,7 +47,7 @@ export function applyThemeMode(mode: ThemeMode) {
   if (resolveDark(mode)) root.classList.add(DARK_MODE_CLASS);
   else root.classList.remove(DARK_MODE_CLASS);
   try {
-    localStorage.setItem(darkModeConfig.storageKey, mode);
+    getTransportLocalStorage()?.setItem(darkModeConfig.storageKey, mode);
   } catch {
     /* ignore */
   }

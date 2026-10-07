@@ -14,7 +14,9 @@ import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 
 import { APP_NAME } from "@/constants";
-import "@/lib/transport/clear-stale-client-state";
+import {
+  clearTransportClientData,
+} from "@/lib/transport/clear-stale-client-state";
 import { TransportAuthProvider, getTransportAuthMode } from "@/lib/auth";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
@@ -53,7 +55,10 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const isDev = import.meta.env.DEV;
+  const message =
+    error instanceof Error && error.message.trim()
+      ? error.message
+      : "Unknown client error";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -62,15 +67,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This page didn&apos;t load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          Something went wrong on our end. You can try refreshing, clear local data, or head back
+          home.
         </p>
-        {isDev ? (
-          <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-[11px] text-destructive whitespace-pre-wrap">
-            {error.message}
-          </pre>
-        ) : null}
+        <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-[11px] text-destructive whitespace-pre-wrap">
+          {message}
+        </pre>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
+            type="button"
             onClick={() => {
               router.invalidate();
               reset();
@@ -78,6 +83,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              clearTransportClientData();
+              window.location.assign("/login");
+            }}
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Clear data &amp; reload
           </button>
           <a
             href="/"

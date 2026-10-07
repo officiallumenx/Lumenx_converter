@@ -68,7 +68,7 @@ export function getAttendanceVehicleScope(): string | null {
 // Clear legacy shared attendance key (API boarding events are SoT).
 if (typeof window !== "undefined") {
   try {
-    localStorage.removeItem("lumenx.transport.trip-attendance.v1");
+    globalThis.localStorage?.removeItem("lumenx.transport.trip-attendance.v1");
   } catch {
     /* ignore */
   }

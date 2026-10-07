@@ -299,7 +299,7 @@ export function getRouteSetupDriverScope(): RouteSetupDriverScope | null {
 // Clear legacy route-setup draft key once (migration off localStorage SoT).
 if (typeof window !== "undefined") {
   try {
-    localStorage.removeItem("lumenx.transport.route-setup.v1");
+    globalThis.localStorage?.removeItem("lumenx.transport.route-setup.v1");
   } catch {
     /* ignore */
   }

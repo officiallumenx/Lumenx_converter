@@ -13,7 +13,10 @@ import {
   startTransportTrip,
   updateTransportTripPhase,
 } from "@/lib/transport-api";
-import { clearStaleTransportClientState } from "./clear-stale-client-state";
+import {
+  clearStaleTransportClientState,
+  getTransportLocalStorage,
+} from "./clear-stale-client-state";
 
 // Before any outbox hydrate/flush — wipe poisoned queues from older builds.
 clearStaleTransportClientState();
@@ -216,21 +219,22 @@ function emit() {
 }
 
 function persist() {
-  if (typeof localStorage === "undefined") return;
+  const storage = getTransportLocalStorage();
+  if (!storage) return;
   const payload = {
     events: coalesceOpsEventsForPersist(events),
     globalSequence,
     lastGpsUploadedAt,
   };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    storage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
     // Quota: drop GPS first, never critical events.
     try {
       const criticalOnly = payload.events.filter((e) =>
         isCriticalOpsEvent(e.eventType),
       );
-      localStorage.setItem(
+      storage.setItem(
         STORAGE_KEY,
         JSON.stringify({ ...payload, events: criticalOnly }),
       );
@@ -241,19 +245,21 @@ function persist() {
 }
 
 function hydrate() {
-  if (hydrated || typeof localStorage === "undefined") return;
+  if (hydrated) return;
+  const storage = getTransportLocalStorage();
+  if (!storage) return;
   hydrated = true;
   try {
     // Drop legacy outbox keys that commonly held non-UUID trip ids.
     for (const key of LEGACY_STORAGE_KEYS) {
       try {
-        localStorage.removeItem(key);
+        storage.removeItem(key);
       } catch {
         /* ignore */
       }
     }
 
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as {
         events?: OpsOutboxEvent[];
@@ -270,7 +276,6 @@ function hydrate() {
         persist();
       }
     }
-
   } catch {
     events = [];
   }
