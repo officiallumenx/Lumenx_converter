@@ -20,6 +20,11 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
   if (track.status === "unknown" && outbox.pendingCount === 0) return null;
 
   if (outbox.connection === "offline" || outbox.connection === "degraded") {
+    const offline = outbox.connection === "offline";
+    const pendingLabel =
+      outbox.pendingCount > 0
+        ? `${outbox.pendingCount} GPS point${outbox.pendingCount === 1 ? "" : "s"}`
+        : null;
     return (
       <div
         className={cn(
@@ -31,12 +36,18 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
         <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            {outbox.connection === "offline" ? "Connection lost" : "Uploading GPS…"}
+            {offline ? "Connection lost" : "Uploading GPS…"}
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {outbox.pendingCount > 0
-              ? `${outbox.pendingCount} GPS point${outbox.pendingCount === 1 ? "" : "s"} queued — will retry when online.`
-              : outbox.lastError ?? "Waiting to sync location."}
+            {offline
+              ? pendingLabel
+                ? `${pendingLabel} queued — will retry when online.`
+                : "Waiting for network to sync location."
+              : pendingLabel
+                ? outbox.lastError
+                  ? `${pendingLabel} queued — ${outbox.lastError}`
+                  : `${pendingLabel} syncing to server…`
+                : (outbox.lastError ?? "Waiting to sync location.")}
           </p>
         </div>
       </div>

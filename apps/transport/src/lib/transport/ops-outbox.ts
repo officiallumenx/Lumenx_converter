@@ -348,6 +348,14 @@ export function enqueueOpsEvent(input: OpsOutboxEnqueueInput): OpsOutboxEvent {
     return { ...event, status: "sent", lastError: "Dropped invalid trip id" };
   }
   events.push(event);
+  // Keep in-memory GPS backlog bounded (persist already coalesces for disk).
+  if (event.eventType === "gps") {
+    const nonGps = events.filter((e) => e.eventType !== "gps");
+    const gpsOnly = events.filter((e) => e.eventType === "gps");
+    events = [...nonGps, ...coalesceOpsEventsForPersist(gpsOnly)].sort(
+      (a, b) => a.sequence - b.sequence,
+    );
+  }
   persist();
   emit();
   scheduleFlush(online ? 0 : 250);
@@ -588,7 +596,12 @@ export async function flushOpsOutbox(): Promise<void> {
             }),
           );
         }
-        // Preserve ordering — stop on first hard failure wave.
+        // GPS is best-effort — don't block boarding/drop/trip behind a failed ping.
+        if (event.eventType === "gps") {
+          if (!giveUp) scheduleFlush(nextBackoffMs(retryCount));
+          continue;
+        }
+        // Critical ops: preserve ordering — stop on first hard failure wave.
         if (!giveUp) scheduleFlush(nextBackoffMs(retryCount));
         break;
       }
@@ -597,6 +610,16 @@ export async function flushOpsOutbox(): Promise<void> {
     events = events.filter((e) => e.status !== "sent");
     persist();
     emit();
+
+    // Events enqueued during this pass (or skipped by backoff) need another wave.
+    const stillDue =
+      online &&
+      events.some(
+        (e) =>
+          (e.status === "pending" || e.status === "failed") &&
+          (!e.nextRetryAt || Date.parse(e.nextRetryAt) <= Date.now()),
+      );
+    if (stillDue) scheduleFlush(0);
   } finally {
     flushing = false;
   }
