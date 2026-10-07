@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { build as esbuild } from "esbuild";
 
 const transportRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const serverDir = path.join(transportRoot, "dist", "server");
@@ -13,18 +14,39 @@ if (!fs.existsSync(indexPath)) {
   process.exit(1);
 }
 
-// Cloudflare Workers Builds historically deploys dist/server/server.js.
-fs.copyFileSync(indexPath, serverJsPath);
+/**
+ * Cloudflare Workers Builds historically runs:
+ *   wrangler deploy apps/transport/dist/server/server.js --assets ...
+ * Nitro emits a multi-file graph (index.mjs + _libs + _ssr). Copying index.mjs
+ * to server.js leaves relative imports unresolved in that deploy mode and the
+ * Worker returns ErrorComponent HTML / 500s. Bundle to a single ESM entry.
+ */
+await esbuild({
+  entryPoints: [indexPath],
+  outfile: serverJsPath,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  logLevel: "warning",
+  // CF nodejs_compat provides node:*; ASSETS comes from the Worker runtime.
+  external: ["cloudflare:*", "node:*"],
+  banner: {
+    js: "globalThis.__nitro_main__ = import.meta.url;",
+  },
+});
 
-// Nitro on Windows emits `..\\client`; CF Linux + wrangler need `../client`.
 if (fs.existsSync(wranglerPath)) {
-  const raw = fs.readFileSync(wranglerPath, "utf8");
-  const config = JSON.parse(raw);
+  const config = JSON.parse(fs.readFileSync(wranglerPath, "utf8"));
   if (config?.assets?.directory) {
     config.assets.directory = "../client";
   }
-  // Prefer the real Nitro entry; server.js is only a compatibility copy.
-  config.main = "index.mjs";
+  // Prefer the bundled single-file entry for both CLI and Workers Builds.
+  config.main = "server.js";
+  config.no_bundle = true;
+  config.compatibility_flags = Array.from(
+    new Set([...(config.compatibility_flags ?? []), "nodejs_compat"]),
+  );
   fs.writeFileSync(wranglerPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
@@ -32,6 +54,7 @@ if (fs.existsSync(wranglerPath)) {
 // monorepo root with a path into dist/server.
 fs.rmSync(path.join(transportRoot, ".wrangler", "deploy"), { recursive: true, force: true });
 
+const sizeKb = Math.round(fs.statSync(serverJsPath).size / 1024);
 console.log(
-  "[prepare-cf-deploy] Wrote dist/server/server.js, normalized wrangler.json, cleared .wrangler/deploy",
+  `[prepare-cf-deploy] Bundled dist/server/server.js (${sizeKb} KiB), normalized wrangler.json, cleared .wrangler/deploy`,
 );

@@ -52,6 +52,8 @@ function NotFoundComponent() {
   );
 }
 
+const AUTO_RECOVER_FLAG = "lumenx.transport.error-auto-recover.v1";
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
@@ -60,6 +62,18 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       ? error.message
       : "Unknown client error";
 
+  // One automatic recover for poisoned local state / stale chunk loads.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(AUTO_RECOVER_FLAG) === "1") return;
+      sessionStorage.setItem(AUTO_RECOVER_FLAG, "1");
+      clearTransportClientData();
+      window.location.replace("/login");
+    } catch {
+      /* ignore — fall through to manual buttons */
+    }
+  }, []);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-[var(--width-auth)] text-center">
@@ -67,8 +81,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This page didn&apos;t load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing, clear local data, or head back
-          home.
+          Recovering… if this stays, clear local data or head home.
         </p>
         <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-[11px] text-destructive whitespace-pre-wrap">
           {message}
@@ -87,6 +100,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           <button
             type="button"
             onClick={() => {
+              try {
+                sessionStorage.removeItem(AUTO_RECOVER_FLAG);
+              } catch {
+                /* ignore */
+              }
               clearTransportClientData();
               window.location.assign("/login");
             }}
@@ -95,7 +113,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Clear data &amp; reload
           </button>
           <a
-            href="/"
+            href="/login"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Go home
