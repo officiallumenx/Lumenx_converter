@@ -13,6 +13,10 @@ import {
   startTransportTrip,
   updateTransportTripPhase,
 } from "@/lib/transport-api";
+import { clearStaleTransportClientState } from "./clear-stale-client-state";
+
+// Before any outbox hydrate/flush — wipe poisoned queues from older builds.
+clearStaleTransportClientState();
 
 export type OpsEventType =
   | "gps"

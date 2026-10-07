@@ -14,6 +14,7 @@ import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 
 import { APP_NAME } from "@/constants";
+import "@/lib/transport/clear-stale-client-state";
 import { TransportAuthProvider, getTransportAuthMode } from "@/lib/auth";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
