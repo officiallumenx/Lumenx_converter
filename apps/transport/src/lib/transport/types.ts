@@ -25,7 +25,8 @@ export type BusAssignment = {
   /** Legacy field; same as busNumber in demo (do not show as plate) */
   vehicleNumber: string;
   label: string;
-  capacity: number;
+  /** Real vehicle capacity; null when unknown. */
+  capacity: number | null;
 };
 
 export type RouteStop = {

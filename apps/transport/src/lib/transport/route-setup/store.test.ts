@@ -106,6 +106,79 @@ describe("route setup API memory store", () => {
     expect(snap.assignments.some((a) => a.studentId === "STU-API")).toBe(true);
   });
 
+  it("keeps enrolled students with null pickup visible as Stop not assigned", async () => {
+    const { applyApiApprovedHydration, getRouteSetupSnapshot, studentIdsAssignedElsewhere } =
+      await scopedStore();
+
+    applyApiApprovedHydration({
+      lockedByAdmin: false,
+      stops: [
+        {
+          id: "api-stop-1",
+          name: "Tanuku",
+          locationLabel: "Tanuku",
+          latitude: 16.9,
+          longitude: 81.7,
+          routeOrder: 1,
+          approvalStatus: "approved",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          kind: "waypoint",
+          notificationRadiusM: 50,
+        },
+      ],
+      students: [
+        {
+          enrollmentId: "enr-assigned",
+          studentId: "STU-ASSIGNED",
+          studentName: "Assigned Kid",
+          classLabel: "8A",
+          pickupStopId: "api-stop-1",
+          dropStopId: "api-stop-1",
+          approvalStatus: "approved",
+        },
+        {
+          enrollmentId: "enr-null",
+          studentId: "STU-NULL",
+          studentName: "Loki",
+          classLabel: "8A",
+          pickupStopId: "",
+          dropStopId: "",
+          approvalStatus: "approved",
+        },
+        {
+          enrollmentId: "enr-orphan",
+          studentId: "STU-ORPHAN",
+          studentName: "Orphan Kid",
+          classLabel: "8A",
+          pickupStopId: "deleted-stop-id",
+          dropStopId: "deleted-stop-id",
+          approvalStatus: "approved",
+        },
+      ],
+    });
+
+    const snap = getRouteSetupSnapshot();
+    const assigned = snap.assignments.find((a) => a.studentId === "STU-ASSIGNED");
+    const unassigned = snap.assignments.find((a) => a.studentId === "STU-NULL");
+    const orphan = snap.assignments.find((a) => a.studentId === "STU-ORPHAN");
+
+    expect(assigned?.stopId).toBe("api-stop-1");
+    expect(assigned?.stopName).toBe("Tanuku");
+
+    expect(unassigned).toBeTruthy();
+    expect(unassigned?.stopId).toBeNull();
+    expect(unassigned?.stopName).toBe("Stop not assigned");
+    expect(unassigned?.dropStopName).toBe("Drop stop not assigned");
+
+    expect(orphan).toBeTruthy();
+    expect(orphan?.stopId).toBeNull();
+    expect(orphan?.stopName).toBe("Stop not assigned");
+
+    // Unassigned students stay selectable in the stop picker.
+    expect(studentIdsAssignedElsewhere().has("STU-NULL")).toBe(false);
+    expect(studentIdsAssignedElsewhere().has("STU-ASSIGNED")).toBe(true);
+  });
+
   it("surfaces sync failures to the caller", async () => {
     const sync = vi.fn(async () => {
       throw new Error("sync failed");

@@ -14,7 +14,11 @@ import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
-import { syncParkingStopToApi } from "@/lib/transport/route-setup/api-sync";
+import {
+  assignEnrollmentDropStop,
+  assignEnrollmentPickupStop,
+  syncParkingStopToApi,
+} from "@/lib/transport/route-setup/api-sync";
 import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import {
@@ -68,6 +72,7 @@ export function RouteSetupPage() {
   const [hubTab, setHubTab] = useState<HubTab>("setup");
   const [stopsTab, setStopsTab] = useState<StatusTab>("pending");
   const [assignmentsTab, setAssignmentsTab] = useState<StatusTab>("pending");
+  const [assigningEnrollmentId, setAssigningEnrollmentId] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [pendingGps, setPendingGps] = useState<GpsFix | null>(null);
   const [editing, setEditing] = useState<RouteSetupStop | null>(null);
@@ -77,15 +82,13 @@ export function RouteSetupPage() {
   const configured = record.status === "configured" && !record.setupInProgress;
   const nextStopNumber =
     record.stops.filter((s) => !isRouteEndpointStop(s)).length + 1;
-  const progressOf = Math.max(
-    record.targetStopCount,
-    record.stops.filter((s) => !isRouteEndpointStop(s)).length,
-    1,
-  );
   const pendingStops = record.stops.filter((s) => canEditStop(s));
   const waypointStops = record.stops.filter((s) => !isRouteEndpointStop(s));
   const schoolStop = record.stops.find((s) => isSchoolStop(s)) ?? null;
   const parkingStop = record.stops.find((s) => isParkingStop(s)) ?? null;
+  const dropAssignableStops = record.stops.filter(
+    (s) => isSchoolStop(s) || (!isRouteEndpointStop(s) && s.status !== "rejected"),
+  );
 
   const openStopForm = (stop: RouteSetupStop | null, changeRequest: boolean) => {
     if (locked) return;
@@ -245,7 +248,7 @@ export function RouteSetupPage() {
         ? editing.status === "rejected"
           ? `Edit & resubmit · ${editing.name}`
           : `Edit stop ${editing.routeOrder} · ${SUBMISSION_STATUS_LABEL[editing.status]}`
-        : `Add stop · ${nextStopNumber} of ${progressOf}`;
+        : `Add pickup stop · #${nextStopNumber}`;
 
     return (
       <DriverAssignmentGate assignment={assignment}>
@@ -370,21 +373,13 @@ export function RouteSetupPage() {
 
           <section className="space-y-3">
             <SectionHeader
-              title="Progress"
+              title="Route setup"
               subtitle={
                 waypointStops.length === 0
-                  ? `Aim for about ${record.targetStopCount} stops`
-                  : `${waypointStops.length} pickup stop(s) · ${record.assignments.filter((a) => a.status === "pending").length} in Admin review`
+                  ? "No pickup stops yet · add stops for this route"
+                  : `${waypointStops.length} pickup stop(s) configured · ${record.assignments.filter((a) => !a.stopId).length} need pickup · ${record.assignments.filter((a) => a.status === "pending").length} in Admin review`
               }
             />
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-transport transition-all"
-                style={{
-                  width: `${Math.min(100, (waypointStops.length / progressOf) * 100)}%`,
-                }}
-              />
-            </div>
           </section>
 
           <section className="space-y-3">
@@ -522,7 +517,11 @@ export function RouteSetupPage() {
           <MyAssignmentsPanel
             assignments={record.assignments}
             pendingStops={pendingStops}
+            assignableStops={waypointStops}
+            dropAssignableStops={dropAssignableStops}
             filter={assignmentsTab}
+            locked={locked}
+            assigningEnrollmentId={assigningEnrollmentId}
             onRemove={(id) => {
               void routeSetupRepository
                 .removeAssignment(id)
@@ -532,6 +531,50 @@ export function RouteSetupPage() {
               void routeSetupRepository
                 .moveAssignment(id, stopId)
                 .then(() => toast.message("Pending stop assignment updated"));
+            }}
+            onAssignPickupStop={(enrollmentId, pickupStopId) => {
+              const scope = getRouteSetupDriverScope();
+              if (!scope?.instituteId) {
+                toast.error("Sign in again to assign a pickup stop.");
+                return;
+              }
+              setAssigningEnrollmentId(enrollmentId);
+              void assignEnrollmentPickupStop(scope, enrollmentId, pickupStopId)
+                .then(async () => {
+                  await queryClient.invalidateQueries({
+                    queryKey: transportQueryKeys.roster(scope.instituteId!),
+                  });
+                  toast.success("Pickup stop assigned");
+                  setAssignmentsTab("approved");
+                })
+                .catch((err) => {
+                  const message =
+                    err instanceof Error ? err.message : "Could not assign pickup stop.";
+                  toast.error("Assignment failed", { description: message });
+                })
+                .finally(() => setAssigningEnrollmentId(null));
+            }}
+            onAssignDropStop={(enrollmentId, dropStopId) => {
+              const scope = getRouteSetupDriverScope();
+              if (!scope?.instituteId) {
+                toast.error("Sign in again to assign a drop stop.");
+                return;
+              }
+              setAssigningEnrollmentId(enrollmentId);
+              void assignEnrollmentDropStop(scope, enrollmentId, dropStopId)
+                .then(async () => {
+                  await queryClient.invalidateQueries({
+                    queryKey: transportQueryKeys.roster(scope.instituteId!),
+                  });
+                  toast.success("Drop stop assigned");
+                  setAssignmentsTab("approved");
+                })
+                .catch((err) => {
+                  const message =
+                    err instanceof Error ? err.message : "Could not assign drop stop.";
+                  toast.error("Assignment failed", { description: message });
+                })
+                .finally(() => setAssigningEnrollmentId(null));
             }}
           />
         </>
@@ -558,10 +601,18 @@ function EndpointCard({
         </p>
         {stop ? (
           <>
-            <p className="text-sm font-semibold text-foreground">{stop.name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">{stop.name}</p>
+              <span className="rounded-full bg-transport/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+                Saved
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground">{stop.locationLabel}</p>
             <p className="font-mono text-[10px] text-muted-foreground">
               {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              Radius ±{Math.round(stop.notificationRadiusM)}m · from API
             </p>
           </>
         ) : (

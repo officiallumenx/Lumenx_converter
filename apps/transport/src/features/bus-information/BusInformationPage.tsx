@@ -21,13 +21,21 @@ export function BusInformationPage() {
   const session = useTripSession();
   const setup = useRouteSetup();
   const trip = session.assignment;
+  const assignedCapacity =
+    assignment.status === "ready" ? assignment.bus?.capacity ?? null : null;
+  const capacity =
+    typeof assignedCapacity === "number" && assignedCapacity > 0
+      ? assignedCapacity
+      : typeof trip.bus.capacity === "number" && trip.bus.capacity > 0
+        ? trip.bus.capacity
+        : null;
   const bus = {
     busNumber: trip.bus.busNumber,
     vehicleNumber: trip.bus.vehicleNumber,
     driverName: trip.driver.name,
     assignedRoute: trip.route,
     stops: trip.route.stops,
-    capacity: trip.bus.capacity,
+    capacity,
   };
 
   const notConfigured = setup.status === "not_configured";
@@ -83,7 +91,7 @@ export function BusInformationPage() {
             <div className="shrink-0 rounded-xl bg-card/90 px-2.5 py-1.5 text-center shadow-soft">
               <p className="transport-stat-label">Capacity</p>
               <p className="font-display text-lg font-semibold tabular-nums text-foreground">
-                {bus.capacity}
+                {bus.capacity ?? "—"}
               </p>
             </div>
           }
@@ -112,8 +120,12 @@ export function BusInformationPage() {
           <InfoField
             icon={Users}
             label="Capacity"
-            value={`${bus.capacity} seats`}
-            hint="Maximum passenger capacity"
+            value={
+              typeof bus.capacity === "number" && bus.capacity > 0
+                ? `${bus.capacity} seats`
+                : "Capacity not configured"
+            }
+            hint="From vehicle record"
             color={MODULE_COLORS.warning}
           />
           <InfoField

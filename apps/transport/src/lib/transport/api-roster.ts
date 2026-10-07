@@ -131,7 +131,7 @@ export function listApprovedAttendanceRosterStudents(): Array<{
       id: s.studentId,
       name: s.studentName,
       grade: s.studentClass,
-      stopName: s.stopName ?? "Stop assignment pending",
+      stopName: s.stopName ?? "Stop not assigned",
       stopId: s.stopId,
       dropStopId: s.dropStopId,
       dropStopName: s.dropStopName,

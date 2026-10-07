@@ -366,11 +366,17 @@ export function LearnerTransportApiView({
         summaryBus={summary.busNumber ?? "—"}
         summaryDriver={summary.driverName ?? "—"}
         summaryRoute={summary.routeName ?? "—"}
-        pickupStop={summary.pickupStop?.name ?? "—"}
-        expectedPickup={tracking.expectedPickupTime ?? "—"}
+        pickupStop={summary.pickupStop?.name ?? "Stop not assigned"}
+        expectedPickup={
+          summary.pickupStop
+            ? (tracking.expectedPickupTime ?? "Not scheduled")
+            : "Stop not assigned"
+        }
         status={parentStatus}
         currentOrNextStop={
-          tracking.currentStopName || tracking.nextStopName || "—"
+          summary.pickupStop
+            ? tracking.currentStopName || tracking.nextStopName || "—"
+            : "Pickup pending"
         }
         etaLabel={etaLabel}
         locationLabel={locationLabel}
@@ -412,8 +418,11 @@ export function LearnerTransportApiView({
         <StatCard
           icon={MapPin}
           label="Pickup stop"
-          value={summary.pickupStop?.name ?? "—"}
-          hint={summary.pickupStop?.locationLabel ?? "—"}
+          value={summary.pickupStop?.name ?? "Stop not assigned"}
+          hint={
+            summary.pickupStop?.locationLabel ??
+            "Ask the driver or Admin to assign a pickup stop"
+          }
         />
       </div>
 

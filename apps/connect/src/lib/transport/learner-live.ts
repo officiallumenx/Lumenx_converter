@@ -13,12 +13,20 @@ import { getLearnerTransportLive } from "./api";
 import { deriveParentTransportStatus } from "./parent-status";
 import { isApiAuthMode } from "@/auth/auth-mode";
 
-const PENDING_SCHOOL_STOP: TransportStop = {
-  id: "school-pending",
-  name: "School",
-  address: "Drop stop pending",
-  scheduledTime: "—",
-  order: 99,
+const PICKUP_NOT_ASSIGNED: TransportStop = {
+  id: "pickup-unassigned",
+  name: "Stop not assigned",
+  address: "Pickup stop has not been assigned yet",
+  scheduledTime: "Not scheduled",
+  order: 1,
+};
+
+const DROP_NOT_ASSIGNED: TransportStop = {
+  id: "drop-unassigned",
+  name: "Drop stop not assigned",
+  address: "Drop stop has not been assigned yet",
+  scheduledTime: "Not scheduled",
+  order: 2,
 };
 
 const EMPTY_TRACKING: TransportTracking = {
@@ -82,26 +90,27 @@ export function mapLearnerSummaryToAssignment(
         id: summary.pickupStop.id,
         name: summary.pickupStop.name,
         address: summary.pickupStop.locationLabel,
-        scheduledTime: "—",
-        order: summary.pickupStop.routeOrder + 1,
-      }
-    : {
-        id: "pending",
-        name: "Pickup pending",
-        address: "Awaiting route setup",
-        scheduledTime: "—",
+        scheduledTime: "Not scheduled",
         order: 1,
-      };
+      }
+    : { ...PICKUP_NOT_ASSIGNED };
 
   const drop: TransportStop = summary.dropStop
     ? {
         id: summary.dropStop.id,
         name: summary.dropStop.name,
         address: summary.dropStop.locationLabel,
-        scheduledTime: "—",
-        order: summary.dropStop.routeOrder + 1,
+        scheduledTime: "Not scheduled",
+        order: 2,
       }
-    : { ...PENDING_SCHOOL_STOP };
+    : { ...DROP_NOT_ASSIGNED };
+
+  const capacity =
+    typeof summary.vehicleCapacity === "number" &&
+    Number.isFinite(summary.vehicleCapacity) &&
+    summary.vehicleCapacity > 0
+      ? summary.vehicleCapacity
+      : null;
 
   return {
     studentId: summary.studentId,
@@ -109,7 +118,7 @@ export function mapLearnerSummaryToAssignment(
     bus: {
       busNumber: summary.busNumber ?? "—",
       vehicleReg: summary.vehicleRegistration ?? summary.busNumber ?? "—",
-      capacity: 40,
+      capacity,
       driverName: summary.driverName ?? "—",
       driverPhone: formatDriverPhone(summary.driverPhone),
       routeId: summary.routeId ?? "—",
@@ -119,8 +128,9 @@ export function mapLearnerSummaryToAssignment(
     },
     pickupStop: pickup,
     dropStop: drop,
-    morningPickupTime: "—",
-    afternoonDropTime: "—",
+    // No schedule SoT on enrollment yet — do not invent times.
+    morningPickupTime: "Not scheduled",
+    afternoonDropTime: "Not scheduled",
     stopApprovalStatus:
       summary.approvalStatus === "pending"
         ? "pending"
@@ -301,16 +311,61 @@ export function subscribeLearnerLiveTrip(_listener: () => void): () => void {
   return () => undefined;
 }
 
+/**
+ * Child journey timeline (morning-oriented):
+ * Bus Park (if present) → Pickup → School/Drop
+ * Does not dump unrelated waypoints. Does not invent stops.
+ */
 export function summaryStopsToTimeline(
   summary: LearnerTransportSummary,
 ): TransportStop[] {
-  const routeStops = summary.stops.map((stop) => ({
-    id: stop.id,
-    name: stop.name,
-    address: stop.locationLabel,
-    scheduledTime: "—",
-    order: stop.routeOrder + 1,
-  }));
-  if (summary.dropStop) return routeStops;
-  return [...routeStops, { ...PENDING_SCHOOL_STOP }];
+  const parking = summary.stops.find((s) => s.kind === "parking");
+  const schoolFromRoute = summary.stops.find((s) => s.kind === "school");
+
+  const out: TransportStop[] = [];
+  let order = 1;
+
+  if (parking) {
+    out.push({
+      id: parking.id,
+      name: parking.name || "Bus park",
+      address: parking.locationLabel,
+      scheduledTime: "Not scheduled",
+      order: order++,
+    });
+  }
+
+  out.push(
+    summary.pickupStop
+      ? {
+          id: summary.pickupStop.id,
+          name: summary.pickupStop.name,
+          address: summary.pickupStop.locationLabel,
+          scheduledTime: "Not scheduled",
+          order: order++,
+        }
+      : { ...PICKUP_NOT_ASSIGNED, order: order++, scheduledTime: "Not scheduled" },
+  );
+
+  if (summary.dropStop) {
+    out.push({
+      id: summary.dropStop.id,
+      name: summary.dropStop.name,
+      address: summary.dropStop.locationLabel,
+      scheduledTime: "Not scheduled",
+      order: order++,
+    });
+  } else if (schoolFromRoute) {
+    out.push({
+      id: schoolFromRoute.id,
+      name: schoolFromRoute.name || "School",
+      address: schoolFromRoute.locationLabel,
+      scheduledTime: "Not scheduled",
+      order: order++,
+    });
+  } else {
+    out.push({ ...DROP_NOT_ASSIGNED, order: order++, scheduledTime: "Not scheduled" });
+  }
+
+  return out;
 }

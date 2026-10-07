@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   driverDtoToTransportDriver,
+  enrollmentDtoToListItem,
   routeDtoToTransportRoute,
   transportSettingsDtoToTransportSettings,
   vehicleDtoToTransportVehicle,
 } from "./map";
-import type { DriverDto, RouteDto, StopDto, TransportSettingsDto, VehicleDto } from "./types";
+import type {
+  DriverDto,
+  RouteDto,
+  StopDto,
+  TransportEnrollmentDto,
+  TransportSettingsDto,
+  VehicleDto,
+} from "./types";
 
 const dto: VehicleDto = {
   id: "vv111111-1111-4111-8111-111111111111",
@@ -148,6 +156,53 @@ describe("routeDtoToTransportRoute", () => {
       "ss222222-2222-4222-8222-222222222222",
     ]);
     expect(mapped.lockedBy).toBe(route.lockedByUserId);
+  });
+
+  it("labels null and orphan pickup/drop stops without hiding the enrollment", () => {
+    const routes = [routeDtoToTransportRoute(route, stops, [])];
+    const base: TransportEnrollmentDto = {
+      id: "enr-1",
+      instituteId: route.instituteId,
+      studentId: "stu-1",
+      routeId: route.id,
+      pickupStopId: null,
+      dropStopId: null,
+      status: "active",
+      approvalStatus: "approved",
+      submittedByUserId: null,
+      reviewedByUserId: null,
+      reviewedAt: null,
+      rejectionReason: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+    const studentsById = new Map([
+      [
+        "stu-1",
+        {
+          id: "stu-1",
+          name: "Loki",
+          grade: "8A",
+          classLabel: "Class 8",
+          sectionLabel: "A",
+        },
+      ],
+    ]);
+    const nullStops = enrollmentDtoToListItem(base, studentsById as never, new Map([[route.id, routes[0]!]]));
+    expect(nullStops.pickupStopName).toBe("Stop not assigned");
+    expect(nullStops.dropStopName).toBe("Drop stop not assigned");
+
+    const orphan = enrollmentDtoToListItem(
+      {
+        ...base,
+        pickupStopId: "missing-stop-id",
+        dropStopId: "missing-stop-id",
+      },
+      studentsById as never,
+      new Map([[route.id, routes[0]!]]),
+    );
+    expect(orphan.pickupStopName).toBe("Assigned stop missing");
+    expect(orphan.dropStopName).toBe("Assigned stop missing");
   });
 
   it("joins active enrollment studentIds onto pickup stops", () => {

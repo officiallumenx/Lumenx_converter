@@ -54,6 +54,7 @@ export type LearnerTransportStop = {
   name: string;
   locationLabel: string;
   routeOrder: number;
+  kind?: "waypoint" | "school" | "parking";
 };
 
 export type LearnerTransportSummary = {
@@ -67,6 +68,8 @@ export type LearnerTransportSummary = {
   busNumber: string | null;
   vehicleId: string | null;
   vehicleRegistration: string | null;
+  /** Real vehicle.capacity from Supabase; null when unknown. */
+  vehicleCapacity: number | null;
   driverName: string | null;
   driverPhone: string | null;
   pickupStop: LearnerTransportStop | null;
@@ -588,12 +591,18 @@ function stopSummary(row: {
   name: string;
   location_label: string;
   route_order: number;
+  kind?: string | null;
 }): LearnerTransportStop {
+  const kind =
+    row.kind === "school" || row.kind === "parking" || row.kind === "waypoint"
+      ? row.kind
+      : undefined;
   return {
     id: row.id,
     name: row.name,
     locationLabel: row.location_label,
     routeOrder: row.route_order,
+    kind,
   };
 }
 
@@ -633,6 +642,7 @@ export async function getLearnerTransportForActor(
       busNumber: null,
       vehicleId: null,
       vehicleRegistration: null,
+      vehicleCapacity: null,
       driverName: null,
       driverPhone: null,
       pickupStop: null,
@@ -653,6 +663,7 @@ export async function getLearnerTransportForActor(
       busNumber: null,
       vehicleId: null,
       vehicleRegistration: null,
+      vehicleCapacity: null,
       driverName: null,
       driverPhone: null,
       pickupStop: null,
@@ -674,6 +685,7 @@ export async function getLearnerTransportForActor(
       busNumber: null,
       vehicleId: route?.vehicle_id ?? null,
       vehicleRegistration: null,
+      vehicleCapacity: null,
       driverName: null,
       driverPhone: null,
       pickupStop: null,
@@ -706,6 +718,12 @@ export async function getLearnerTransportForActor(
     busNumber: vehicle?.vehicle_number ?? null,
     vehicleId: route.vehicle_id,
     vehicleRegistration: vehicle?.registration_number ?? null,
+    vehicleCapacity:
+      typeof vehicle?.capacity === "number" &&
+      Number.isFinite(vehicle.capacity) &&
+      vehicle.capacity > 0
+        ? vehicle.capacity
+        : null,
     driverName: driver?.display_name ?? null,
     driverPhone: driver?.phone ?? null,
     pickupStop: pickup ? stopSummary(pickup) : null,

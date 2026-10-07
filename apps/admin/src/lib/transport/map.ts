@@ -177,13 +177,15 @@ function shortRef(id: string | null, prefix: string): string {
 function stopNameById(
   routes: TransportRoute[],
   stopId: string | null,
+  emptyLabel = "Stop not assigned",
 ): string {
-  if (!stopId) return "—";
+  if (!stopId) return emptyLabel;
   for (const route of routes) {
     const stop = route.setupStops.find((item) => item.id === stopId);
     if (stop) return stop.name;
   }
-  return shortRef(stopId, "Stop");
+  // FK present but stop not on live route (soft-deleted / wrong route).
+  return "Assigned stop missing";
 }
 
 export function enrollmentDtoToListItem(
@@ -201,8 +203,16 @@ export function enrollmentDtoToListItem(
     classLabel: student?.classLabel ?? null,
     sectionLabel: student?.sectionLabel ?? null,
     routeName: route?.name ?? shortRef(dto.routeId, "Route"),
-    pickupStopName: route ? stopNameById([route], dto.pickupStopId) : shortRef(dto.pickupStopId, "Stop"),
-    dropStopName: route ? stopNameById([route], dto.dropStopId) : shortRef(dto.dropStopId, "Stop"),
+    pickupStopName: route
+      ? stopNameById([route], dto.pickupStopId, "Stop not assigned")
+      : dto.pickupStopId
+        ? "Assigned stop missing"
+        : "Stop not assigned",
+    dropStopName: route
+      ? stopNameById([route], dto.dropStopId, "Drop stop not assigned")
+      : dto.dropStopId
+        ? "Assigned stop missing"
+        : "Drop stop not assigned",
     status: dto.status,
   };
 }

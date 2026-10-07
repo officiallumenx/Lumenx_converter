@@ -23,14 +23,23 @@ export type { SubmissionStatus, StudentStopAssignment, RouteSetupStop } from "./
 export {
   SUBMISSION_STATUS_LABEL,
   SUBMISSION_STATUS_HINT,
+  STOP_NOT_ASSIGNED_LABEL,
+  DROP_STOP_NOT_ASSIGNED_LABEL,
   canEditStop,
   canEditAssignment,
   canRequestChangeStop,
+  needsPickupStopAssignment,
+  needsDropStopAssignment,
   isRouteEndpointStop,
   isSchoolStop,
   isParkingStop,
 } from "./types";
 export { findDuplicateRouteStop, TRANSPORT_APPROVAL_CHANGED_EVENT } from "./store";
+export {
+  assignEnrollmentPickupStop,
+  assignEnrollmentDropStop,
+  hydrateRouteSetupFromApi,
+} from "./api-sync";
 
 export const routeSetupRepository = {
   subscribe: subscribeRouteSetup,

@@ -33,7 +33,8 @@ export interface TransportStop {
 export interface BusDetails {
   busNumber: string;
   vehicleReg: string;
-  capacity: number;
+  /** Real vehicle capacity; null when not configured. */
+  capacity: number | null;
   driverName: string;
   driverPhone: string;
   conductorName?: string;

@@ -42,8 +42,17 @@ export type StudentStopAssignment = {
   studentId: string;
   studentName: string;
   studentClass: string;
-  stopId: string;
+  /**
+   * Live pickup stop id. Null when enrollment has no pickup, or pickup points
+   * at a missing/soft-deleted stop (orphan) — student stays visible as unassigned.
+   */
+  stopId: string | null;
+  /** Display label — "Stop not assigned" when unassigned/orphan. */
   stopName: string;
+  /** Live drop stop id when known; null when unassigned/orphan. */
+  dropStopId?: string | null;
+  /** Display label — "Drop stop not assigned" when missing. */
+  dropStopName?: string;
   status: SubmissionStatus;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +63,23 @@ export type StudentStopAssignment = {
   /** API enrollment id after driver submission in API auth mode */
   apiEnrollmentId?: string;
 };
+
+export const STOP_NOT_ASSIGNED_LABEL = "Stop not assigned";
+export const DROP_STOP_NOT_ASSIGNED_LABEL = "Drop stop not assigned";
+
+/** True when the enrollment needs an explicit pickup stop choice (no inventing). */
+export function needsPickupStopAssignment(
+  assignment: Pick<StudentStopAssignment, "stopId">,
+): boolean {
+  return !assignment.stopId;
+}
+
+/** True when drop is missing (null/orphan). */
+export function needsDropStopAssignment(
+  assignment: Pick<StudentStopAssignment, "dropStopId">,
+): boolean {
+  return !assignment.dropStopId;
+}
 
 export type RouteSetupRecord = {
   routeId: string;

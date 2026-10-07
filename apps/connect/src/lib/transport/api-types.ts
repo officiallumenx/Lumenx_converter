@@ -60,6 +60,7 @@ export type LearnerTransportStop = {
   name: string;
   locationLabel: string;
   routeOrder: number;
+  kind?: "waypoint" | "school" | "parking";
 };
 
 export type LearnerTransportSummary = {
@@ -73,6 +74,8 @@ export type LearnerTransportSummary = {
   busNumber: string | null;
   vehicleId: string | null;
   vehicleRegistration: string | null;
+  /** Real vehicle capacity; null when not configured. */
+  vehicleCapacity?: number | null;
   driverName: string | null;
   driverPhone: string | null;
   pickupStop: LearnerTransportStop | null;

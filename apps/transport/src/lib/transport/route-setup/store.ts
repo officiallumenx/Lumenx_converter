@@ -7,7 +7,12 @@ import type {
   SubmissionStatus,
   UpsertStopInput,
 } from "./types";
-import { canEditAssignment, canEditStop } from "./types";
+import {
+  canEditAssignment,
+  canEditStop,
+  DROP_STOP_NOT_ASSIGNED_LABEL,
+  STOP_NOT_ASSIGNED_LABEL,
+} from "./types";
 import { syncStopAndEnrollmentsToApi } from "./api-sync";
 
 /** Fired after in-memory route-setup changes (legacy name kept for subscribers). */
@@ -49,7 +54,7 @@ function emptyRecord(routeId: string, routeCode: string, routeName: string): Rou
     routeName,
     status: "not_configured",
     lockedByAdmin: false,
-    targetStopCount: 8,
+    targetStopCount: 0,
     stops: [],
     assignments: [],
     setupStartedAt: null,
@@ -158,6 +163,7 @@ export function applyApiApprovedHydration(input: {
     studentName: string;
     classLabel: string;
     pickupStopId: string;
+    dropStopId?: string;
     approvalStatus: string;
   }>;
 }): void {
@@ -232,25 +238,37 @@ export function applyApiApprovedHydration(input: {
     }),
   );
 
-  const apiAssignments: StudentStopAssignment[] = input.students
-    .filter((s) => Boolean(s.pickupStopId))
-    .map((s) => ({
+  // Keep every roster student — including null / orphan pickup — so enrolled
+  // riders stay visible in My Assignments (Connect already shows them).
+  const apiAssignments: StudentStopAssignment[] = input.students.map((s) => {
+    const rawPickup = s.pickupStopId?.trim() ? s.pickupStopId.trim() : null;
+    const rawDrop = s.dropStopId?.trim() ? s.dropStopId.trim() : null;
+    const livePickupName = rawPickup ? stopNameById.get(rawPickup) : undefined;
+    const liveDropName = rawDrop ? stopNameById.get(rawDrop) : undefined;
+    // Orphan = FK set but stop not in live route stops (soft-deleted / wrong route).
+    const stopId = rawPickup && livePickupName ? rawPickup : null;
+    const dropStopId = rawDrop && liveDropName ? rawDrop : null;
+    return {
       id: s.enrollmentId,
       studentId: s.studentId,
       studentName: s.studentName,
       studentClass: s.classLabel,
-      stopId: s.pickupStopId,
-      stopName: stopNameById.get(s.pickupStopId) ?? "Stop",
+      stopId,
+      stopName: stopId ? livePickupName! : STOP_NOT_ASSIGNED_LABEL,
+      dropStopId,
+      dropStopName: dropStopId ? liveDropName! : DROP_STOP_NOT_ASSIGNED_LABEL,
       status: mapStatus(s.approvalStatus),
       createdAt: now,
       updatedAt: now,
       apiEnrollmentId: s.enrollmentId,
-    }));
+    };
+  });
 
   const unsyncedAssignments = record.assignments.filter((a) => {
     if (a.apiEnrollmentId && input.students.some((s) => s.enrollmentId === a.apiEnrollmentId)) {
       return false;
     }
+    if (!a.stopId) return false;
     return unsyncedLocal.some((s) => s.id === a.stopId);
   });
 
@@ -730,6 +748,8 @@ export function studentIdsAssignedElsewhere(excludeStopId?: string): Set<string>
     for (const studentId of stop.studentIds) ids.add(studentId);
   }
   for (const a of record.assignments) {
+    // Unassigned enrollments must remain selectable in the stop picker.
+    if (!a.stopId) continue;
     if (excludeStopId && a.stopId === excludeStopId) continue;
     if (a.status === "rejected") continue;
     if (a.status === "pending" || a.status === "approved") ids.add(a.studentId);

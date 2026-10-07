@@ -88,4 +88,11 @@ describe("api-roster", () => {
     setApiDriverRoster(sampleRoster(), { vehicleNumber: "TN-01" });
     expect(getApiApprovedStudentCount("other-vehicle")).toBe(0);
   });
+
+  it("keeps null-pickup enrollments in the new/unassigned list", () => {
+    setApiDriverRoster(sampleRoster(), { vehicleNumber: "TN-01" });
+    const unassigned = listApiNewEnrollmentsForVehicle(VEHICLE);
+    expect(unassigned.map((s) => s.studentId)).toContain("s1");
+    expect(unassigned.every((s) => s.stopId == null)).toBe(true);
+  });
 });

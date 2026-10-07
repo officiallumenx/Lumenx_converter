@@ -20,6 +20,7 @@ type VehicleDto = {
   id: string;
   vehicleNumber: string;
   registrationNumber: string;
+  capacity?: number | null;
 };
 
 async function transportGet<T>(path: string): Promise<T> {
@@ -122,12 +123,19 @@ export async function loadApiDriverAssignment(input: {
   account.adminRouteId = route.id;
   driver.busNumber = busNumber;
 
+  const capacity =
+    typeof vehicle?.capacity === "number" &&
+    Number.isFinite(vehicle.capacity) &&
+    vehicle.capacity > 0
+      ? vehicle.capacity
+      : null;
+
   const bus: BusAssignment = {
     vehicleId,
     busNumber,
     vehicleNumber: busNumber,
     label: `${busNumber} · ${driverMe.displayName}`,
-    capacity: 40,
+    capacity,
   };
 
   const usableStops = (roster?.stops ?? [])

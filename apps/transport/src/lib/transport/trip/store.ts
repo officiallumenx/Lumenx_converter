@@ -137,7 +137,8 @@ export function getTripAssignmentSnapshot(): TripAssignment {
       busNumber: scope.vehicleNumber,
       vehicleNumber: scope.vehicleNumber,
       label: `${scope.vehicleNumber} · ${scope.driverName}`,
-      capacity: 40,
+      // Capacity comes from driver assignment / vehicle API — not invented here.
+      capacity: null,
     },
     route: {
       code: setup.routeCode || scope.routeCode,

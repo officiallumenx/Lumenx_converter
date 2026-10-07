@@ -48,7 +48,14 @@ export function TransportBusCard({
           value={`${assignment.dropStop.name} · ${assignment.afternoonDropTime}`}
         />
         <Detail label="Driver" value={bus.driverName} icon={User} />
-        <Detail label="Capacity" value={`${bus.capacity} seats`} />
+        <Detail
+          label="Capacity"
+          value={
+            typeof bus.capacity === "number" && bus.capacity > 0
+              ? `${bus.capacity} seats`
+              : "Capacity not configured"
+          }
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

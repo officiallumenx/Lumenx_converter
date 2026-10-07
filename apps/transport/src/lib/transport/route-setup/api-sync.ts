@@ -72,6 +72,52 @@ export async function hydrateRouteSetupFromApi(
   });
 }
 
+/**
+ * Assign an existing route pickup stop to an enrolled student who has no (or orphan) pickup.
+ * Does not invent stops — caller must pass an explicit waypoint stop id.
+ * If drop is still null, also sets drop to school (or last stop) when available —
+ * only as the existing resolveDropStopId helper, never inventing a new stop.
+ */
+export async function assignEnrollmentPickupStop(
+  scope: RouteSetupDriverScope,
+  enrollmentId: string,
+  pickupStopId: string,
+): Promise<void> {
+  if (!scope.instituteId || !isUuid(scope.routeId)) {
+    throw new Error("Route is not ready for stop assignment");
+  }
+  if (!isUuid(enrollmentId) || !isUuid(pickupStopId)) {
+    throw new Error("Select a valid pickup stop");
+  }
+  const fromRoster = listApiEnrollmentsForVehicle(scope.vehicleId).find(
+    (row) => row.id === enrollmentId,
+  );
+  const dropStopId = fromRoster?.dropStopId
+    ? fromRoster.dropStopId
+    : await resolveDropStopId(scope.routeId, pickupStopId);
+  await updateTransportEnrollment(enrollmentId, {
+    pickupStopId,
+    dropStopId,
+  });
+  await hydrateRouteSetupFromApi(scope);
+}
+
+/** Assign drop only — explicit school/waypoint choice; never invents a stop. */
+export async function assignEnrollmentDropStop(
+  scope: RouteSetupDriverScope,
+  enrollmentId: string,
+  dropStopId: string,
+): Promise<void> {
+  if (!scope.instituteId || !isUuid(scope.routeId)) {
+    throw new Error("Route is not ready for stop assignment");
+  }
+  if (!isUuid(enrollmentId) || !isUuid(dropStopId)) {
+    throw new Error("Select a valid drop stop");
+  }
+  await updateTransportEnrollment(enrollmentId, { dropStopId });
+  await hydrateRouteSetupFromApi(scope);
+}
+
 /** Push or refresh the driver parking / start endpoint for this route. */
 export async function syncParkingStopToApi(
   scope: RouteSetupDriverScope,
