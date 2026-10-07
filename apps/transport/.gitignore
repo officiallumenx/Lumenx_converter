@@ -43,6 +43,8 @@ ios/DerivedData/
 .env
 .env.*
 !.env.example
+!.env.production
+!.env.capacitor
 *.suo
 *.ntvs*
 *.njsproj
