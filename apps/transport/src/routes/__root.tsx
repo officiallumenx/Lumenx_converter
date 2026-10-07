@@ -63,7 +63,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       : "Unknown client error";
 
   // One automatic recover for poisoned local state / stale chunk loads.
+  // Skip for update-depth loops (#185) — clearing storage cannot fix those and
+  // reloading would just flash this screen forever.
   useEffect(() => {
+    const isUpdateDepth =
+      /#185|Maximum update depth/i.test(message);
+    if (isUpdateDepth) return;
     try {
       if (sessionStorage.getItem(AUTO_RECOVER_FLAG) === "1") return;
       sessionStorage.setItem(AUTO_RECOVER_FLAG, "1");
@@ -72,7 +77,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     } catch {
       /* ignore — fall through to manual buttons */
     }
-  }, []);
+  }, [message]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

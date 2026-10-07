@@ -206,6 +206,8 @@ let online = typeof navigator === "undefined" ? true : navigator.onLine;
 let flushing = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let hydrated = false;
+/** Stable snapshot for useSyncExternalStore — must be referentially equal until emit. */
+let cachedSnapshot: OpsOutboxSnapshot | null = null;
 
 function uid(prefix = "ops"): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -215,6 +217,7 @@ function uid(prefix = "ops"): string {
 }
 
 function emit() {
+  cachedSnapshot = null;
   listeners.forEach((l) => l());
 }
 
@@ -298,8 +301,9 @@ export function subscribeOpsOutbox(listener: Listener): () => void {
 
 export function getOpsOutboxSnapshot(): OpsOutboxSnapshot {
   hydrate();
+  if (cachedSnapshot) return cachedSnapshot;
   const pending = events.filter((e) => e.status !== "sent");
-  return {
+  cachedSnapshot = {
     events: pending,
     pendingCount: pending.length,
     online,
@@ -307,6 +311,7 @@ export function getOpsOutboxSnapshot(): OpsOutboxSnapshot {
     lastGpsUploadedAt,
     lastConflictMessage,
   };
+  return cachedSnapshot;
 }
 
 export function isOpsOutboxOnline(): boolean {

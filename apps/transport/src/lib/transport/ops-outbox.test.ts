@@ -51,6 +51,20 @@ describe("ops-outbox Phase 8", () => {
     markTripBoarding.mockResolvedValue({ id: "be-1" });
   });
 
+  it("returns a stable snapshot reference for useSyncExternalStore", () => {
+    const a = getOpsOutboxSnapshot();
+    const b = getOpsOutboxSnapshot();
+    expect(a).toBe(b);
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      payload: { lat: 1, lng: 2 },
+    });
+    const c = getOpsOutboxSnapshot();
+    expect(c).not.toBe(a);
+    expect(getOpsOutboxSnapshot()).toBe(c);
+  });
+
   it("queues offline and replays when online", async () => {
     __resetOpsOutboxForTests({ online: false, events: [] });
     enqueueOpsEvent({
