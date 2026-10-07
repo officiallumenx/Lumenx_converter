@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node ./scripts/prepare-cf-deploy.mjs",
     "deploy": "wrangler deploy --config dist/server/wrangler.json",
     "build:capacitor": "node scripts/sync-app-version.mjs && vite build --config vite.config.capacitor.ts --mode capacitor && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "version:sync": "node scripts/sync-app-version.mjs",
