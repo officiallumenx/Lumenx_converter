@@ -231,6 +231,76 @@ describe("ops-outbox Phase 8", () => {
     expect(getOpsOutboxSnapshot().lastGpsUploadedAt).toBeTruthy();
   });
 
+  it("recovers stuck sending GPS events and drains them on flush", async () => {
+    __resetOpsOutboxForTests({
+      online: true,
+      events: Array.from({ length: 8 }, (_, i) => ({
+        clientEventId: `gps-sending-${i}`,
+        eventType: "gps" as const,
+        tripId: TRIP_ID,
+        studentId: null,
+        stopId: null,
+        capturedAt: new Date(Date.now() - (8 - i) * 3_000).toISOString(),
+        sequence: i + 1,
+        payload: { latitude: 12.9 + i * 0.0001, longitude: 77.5 },
+        retryCount: 0,
+        status: "sending" as const,
+        lastError: null,
+        createdAt: new Date().toISOString(),
+      })),
+    });
+    expect(getOpsOutboxSnapshot().pendingCount).toBe(8);
+    await flushOpsOutbox();
+    expect(pingTripLocation).toHaveBeenCalledTimes(8);
+    expect(getOpsOutboxSnapshot().pendingCount).toBe(0);
+  });
+
+  it("persists sending mid-flush then recovers after simulated restart", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    pingTripLocation.mockImplementation(async () => {
+      await gate;
+    });
+
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-orphan-1",
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    const flushPromise = flushOpsOutbox();
+    await vi.waitFor(() => expect(pingTripLocation).toHaveBeenCalled());
+
+    // New GPS enqueue persists while first ping is in-flight → localStorage has sending.
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-orphan-2",
+      capturedAt: new Date(Date.now() + 3_000).toISOString(),
+      payload: { latitude: 12.91, longitude: 77.51 },
+    });
+    const raw = localStorage.getItem("lumenx.transport.ops-outbox.v2");
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw!) as {
+      events: Array<{ clientEventId: string; status: string }>;
+    };
+    expect(parsed.events.some((e) => e.status === "sending")).toBe(true);
+
+    // Abandon in-flight flush (WebView kill) — do not await / release.
+    __resetOpsOutboxForTests({
+      online: true,
+      events: parsed.events as never[],
+    });
+    pingTripLocation.mockResolvedValue(undefined);
+    await flushOpsOutbox();
+    expect(pingTripLocation).toHaveBeenCalled();
+    expect(getOpsOutboxSnapshot().pendingCount).toBe(0);
+    release();
+    await flushPromise.catch(() => undefined);
+  });
+
   it("drops poison non-UUID trip path events instead of Sync failed", async () => {
     __resetOpsOutboxForTests({
       online: true,

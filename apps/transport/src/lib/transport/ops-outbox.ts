@@ -121,6 +121,26 @@ function dropPoisonTripPathEvents(): boolean {
   return events.length !== before;
 }
 
+/**
+ * `sending` is in-flight only. If a flush is interrupted (WebView kill, mid-flush
+ * persist from a new GPS enqueue, then reload), those rows stay `sending` forever
+ * because the due filter only picks `pending` | `failed` — queue never drains and
+ * the banner shows "N GPS points syncing" with no lastError.
+ */
+function recoverStuckSendingEvents(): boolean {
+  let changed = false;
+  events = events.map((e) => {
+    if (e.status !== "sending") return e;
+    changed = true;
+    return {
+      ...e,
+      status: "pending" as const,
+      nextRetryAt: null,
+    };
+  });
+  return changed;
+}
+
 const CRITICAL_EVENT_TYPES = new Set<OpsEventType>([
   "boarding",
   "not_boarded",
@@ -272,7 +292,8 @@ function hydrate() {
       events = Array.isArray(parsed.events) ? parsed.events : [];
       globalSequence = Number(parsed.globalSequence) || 0;
       lastGpsUploadedAt = parsed.lastGpsUploadedAt ?? null;
-      if (dropPoisonTripPathEvents()) {
+      const recoveredSending = recoverStuckSendingEvents();
+      if (dropPoisonTripPathEvents() || recoveredSending) {
         if (lastError?.toLowerCase().includes("path parameter")) {
           lastError = null;
         }
@@ -503,7 +524,10 @@ export async function flushOpsOutbox(): Promise<void> {
   if (flushing) return;
   flushing = true;
   try {
-    if (dropPoisonTripPathEvents()) {
+    // Recover orphans before selecting work — a prior hung flush may have left
+    // rows as `sending` in memory (and localStorage via mid-flush persist).
+    const recoveredSending = recoverStuckSendingEvents();
+    if (dropPoisonTripPathEvents() || recoveredSending) {
       if (lastError?.toLowerCase().includes("path parameter")) {
         lastError = null;
       }
@@ -669,6 +693,11 @@ export function __resetOpsOutboxForTests(seed?: {
   lastGpsUploadedAt = seed?.lastGpsUploadedAt ?? null;
   globalSequence = events.reduce((max, e) => Math.max(max, e.sequence), 0);
   hydrated = true;
+  flushing = false;
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
   persist();
   emit();
 }

@@ -15,6 +15,9 @@ function apiBaseUrl(): string {
   return getTransportApiBaseUrl();
 }
 
+/** Prevents ops-outbox `flushing` from hanging forever on a stalled TCP/TLS request. */
+const TRANSPORT_FETCH_TIMEOUT_MS = 20_000;
+
 async function transportFetch<T>(
   path: string,
   init?: RequestInit & { body?: unknown },
@@ -33,12 +36,26 @@ async function transportFetch<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${apiBaseUrl()}${path}`, {
-    ...init,
-    method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
-    headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
-    body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
-  });
+  const timeoutSignal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(TRANSPORT_FETCH_TIMEOUT_MS)
+      : undefined;
+
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      ...init,
+      method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
+      headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      signal: init?.signal ?? timeoutSignal,
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new Error(`Request timed out after ${TRANSPORT_FETCH_TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
+  }
 
   const text = await response.text();
   const json = text ? (JSON.parse(text) as { data?: T; error?: { message?: string } }) : {};

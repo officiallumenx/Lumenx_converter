@@ -43,11 +43,13 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
               ? pendingLabel
                 ? `${pendingLabel} queued — will retry when online.`
                 : "Waiting for network to sync location."
-              : pendingLabel
-                ? outbox.lastError
-                  ? `${pendingLabel} queued — ${outbox.lastError}`
-                  : `${pendingLabel} syncing to server…`
-                : (outbox.lastError ?? "Waiting to sync location.")}
+              : outbox.lastError
+                ? pendingLabel
+                  ? `${pendingLabel} — ${outbox.lastError}`
+                  : outbox.lastError
+                : pendingLabel
+                  ? `${pendingLabel} syncing to server…`
+                  : "Waiting to sync location."}
           </p>
         </div>
       </div>
