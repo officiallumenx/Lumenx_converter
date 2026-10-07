@@ -87,19 +87,27 @@ export interface AuthStorage {
   key?(index: number): string | null;
 }
 
+function browserLocalStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function createBrowserAuthStorage(): AuthStorage {
   return {
-    getItem: (key) => (typeof localStorage !== "undefined" ? localStorage.getItem(key) : null),
+    getItem: (key) => browserLocalStorage()?.getItem(key) ?? null,
     setItem: (key, value) => {
-      if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+      browserLocalStorage()?.setItem(key, value);
     },
     removeItem: (key) => {
-      if (typeof localStorage !== "undefined") localStorage.removeItem(key);
+      browserLocalStorage()?.removeItem(key);
     },
     get length() {
-      return typeof localStorage !== "undefined" ? localStorage.length : 0;
+      return browserLocalStorage()?.length ?? 0;
     },
-    key: (index) => (typeof localStorage !== "undefined" ? localStorage.key(index) : null),
+    key: (index) => browserLocalStorage()?.key(index) ?? null,
   };
 }
 
