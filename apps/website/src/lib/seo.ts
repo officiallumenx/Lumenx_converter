@@ -322,12 +322,33 @@ export function faqJsonLd(items: readonly { q: string; a: string }[]) {
   };
 }
 
-export function robotsTxt(origin: string): string {
-  if (isNoIndex()) {
+export function robotsTxt(origin: string, request?: Request): string {
+  if (isNoIndex(request)) {
     return "User-agent: *\nDisallow: /\n";
   }
   const sitemap = origin ? `Sitemap: ${origin}/sitemap.xml\n` : "";
-  return `User-agent: *\nAllow: /\nDisallow: /download\nDisallow: /demos\nDisallow: /products\nDisallow: /features\nDisallow: /how-it-works\nDisallow: /demo\nDisallow: /downloads\n\n${sitemap}`;
+  // Keep legacy/demo paths out of the index; never Disallow: / on production.
+  return [
+    "User-agent: *",
+    "Allow: /",
+    "Allow: /sitemap.xml",
+    "Disallow: /download$",
+    "Disallow: /download/",
+    "Disallow: /downloads$",
+    "Disallow: /downloads/",
+    "Disallow: /demo$",
+    "Disallow: /demo/",
+    "Disallow: /demos$",
+    "Disallow: /demos/",
+    "Disallow: /products$",
+    "Disallow: /products/",
+    "Disallow: /features$",
+    "Disallow: /features/",
+    "Disallow: /how-it-works$",
+    "Disallow: /how-it-works/",
+    "",
+    sitemap,
+  ].join("\n");
 }
 
 export function sitemapXml(origin: string, paths: readonly string[] = ["/"]): string {

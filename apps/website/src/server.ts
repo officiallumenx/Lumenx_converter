@@ -4,7 +4,12 @@ import { consumeLastCapturedError } from "@lumenx/utils/error-capture";
 import { renderErrorPage } from "@lumenx/utils/error-page";
 import { robotsTxt, sitemapXml } from "./lib/seo";
 import { requestOriginStore } from "./lib/request-origin";
-import { SITE_PATHS, getSiteOrigin, registerRequestOriginReader } from "./lib/site";
+import {
+  SITE_PATHS,
+  getSiteOrigin,
+  isProductionMarketingHost,
+  registerRequestOriginReader,
+} from "./lib/site";
 import { handleLeadApiRequest } from "./lib/lead-api";
 
 registerRequestOriginReader(() => requestOriginStore.getStore());
@@ -21,7 +26,7 @@ const CSP = [
   "form-action 'self'",
 ].join("; ");
 
-function withSecurityHeaders(response: Response): Response {
+function withSecurityHeaders(response: Response, opts?: { skipCsp?: boolean }): Response {
   const headers = new Headers(response.headers);
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("X-Content-Type-Options", "nosniff");
@@ -30,7 +35,7 @@ function withSecurityHeaders(response: Response): Response {
   if (response.status === 404) {
     headers.set("X-Robots-Tag", "noindex");
   }
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && !opts?.skipCsp) {
     headers.set("Content-Security-Policy", CSP);
   }
   return new Response(response.body, {
@@ -40,20 +45,41 @@ function withSecurityHeaders(response: Response): Response {
   });
 }
 
+function publicOriginForSeo(request: Request, url: URL): string {
+  // Prefer the live marketing origin for canonical sitemap locs.
+  const configured = getSiteOrigin(request);
+  if (configured) {
+    try {
+      if (isProductionMarketingHost(new URL(configured).hostname)) return configured;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (isProductionMarketingHost(url.hostname)) return url.origin;
+  return configured || url.origin;
+}
+
 function handleWellKnown(request: Request): Response | null {
   const url = new URL(request.url);
   if (request.method !== "GET" && request.method !== "HEAD") return null;
-  // Prefer configured public origin; fall back to this request so sitemap/robots never break.
-  const origin = getSiteOrigin(request) || url.origin;
+  const origin = publicOriginForSeo(request, url);
+  // Short cache so Search Console / Googlebot pick up robots fixes quickly.
+  const cache = "public, max-age=300, must-revalidate";
 
   if (url.pathname === "/robots.txt") {
-    return new Response(robotsTxt(origin), {
-      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" },
+    return new Response(robotsTxt(origin, request), {
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": cache,
+      },
     });
   }
   if (url.pathname === "/sitemap.xml") {
     return new Response(sitemapXml(origin, SITE_PATHS), {
-      headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" },
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+        "cache-control": cache,
+      },
     });
   }
   return null;
@@ -147,7 +173,8 @@ async function handleFetch(request: Request, env: unknown, ctx: unknown): Promis
     if (leadApi) return withSecurityHeaders(leadApi);
 
     const wellKnown = handleWellKnown(request);
-    if (wellKnown) return withSecurityHeaders(wellKnown);
+    // robots/sitemap are plain text/XML for crawlers — skip CSP noise on those responses.
+    if (wellKnown) return withSecurityHeaders(wellKnown, { skipCsp: true });
 
     const handler = await getServerEntry();
     const response = await handler.fetch(request, env, ctx);

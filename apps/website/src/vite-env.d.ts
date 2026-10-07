@@ -27,7 +27,10 @@ interface ImportMetaEnv {
   readonly VITE_WEB3FORMS_ACCESS_KEY?: string;
   /** Absolute public origin (no trailing slash), e.g. https://www.example.com. Prefer this in production so canonical/OG URLs stay stable. */
   readonly VITE_SITE_ORIGIN?: string;
-  /** Set to 1/true/yes on preview hosts so robots disallow indexing. */
+  /**
+   * Set to 1/true/yes on preview/staging hosts so robots disallow indexing.
+   * Ignored for lumenxtech.in / www.lumenxtech.in (production always stays crawlable).
+   */
   readonly VITE_NOINDEX?: string;
 }
 

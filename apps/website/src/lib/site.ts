@@ -19,9 +19,13 @@ function peekStartRequest(): Request | undefined {
   }
 }
 
+const PRODUCTION_SITE_ORIGIN = "https://lumenxtech.in";
+
 export function getSiteOrigin(request?: Request): string {
   const fromEnv = import.meta.env.VITE_SITE_ORIGIN?.trim().replace(/\/$/, "") ?? "";
   if (fromEnv) return fromEnv;
+  // Stable canonical host for production builds even when CF build vars omit VITE_SITE_ORIGIN.
+  if (import.meta.env.PROD) return PRODUCTION_SITE_ORIGIN;
   const incoming = request ?? peekStartRequest();
   if (incoming) {
     try {
@@ -46,7 +50,41 @@ export function canonicalUrl(path: string, request?: Request): string | undefine
   return `${origin}${normalized.replace(/\/$/, "")}`;
 }
 
-export function isNoIndex(): boolean {
+/** Public marketing hosts that must stay crawlable even if VITE_NOINDEX is set in CI. */
+export function isProductionMarketingHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
+  return host === "lumenxtech.in" || host === "www.lumenxtech.in";
+}
+
+export function isNoIndex(request?: Request): boolean {
+  // Production marketing builds must stay crawlable even if CF sets VITE_NOINDEX=true.
+  if (import.meta.env.PROD) {
+    const configured = import.meta.env.VITE_SITE_ORIGIN?.trim() ?? "";
+    if (!configured) return false; // defaults to lumenxtech.in via getSiteOrigin()
+    try {
+      if (isProductionMarketingHost(new URL(configured).hostname)) return false;
+    } catch {
+      /* fall through and honor the flag for non-URL values */
+    }
+  }
+
+  const incoming = request ?? peekStartRequest();
+  if (incoming) {
+    try {
+      if (isProductionMarketingHost(new URL(incoming.url).hostname)) return false;
+    } catch {
+      /* ignore */
+    }
+  }
+  const fromRequest = requestOriginReader?.() ?? "";
+  if (fromRequest) {
+    try {
+      if (isProductionMarketingHost(new URL(fromRequest).hostname)) return false;
+    } catch {
+      /* ignore */
+    }
+  }
+
   const flag = import.meta.env.VITE_NOINDEX?.trim().toLowerCase();
   return flag === "1" || flag === "true" || flag === "yes";
 }
