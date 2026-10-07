@@ -28,15 +28,26 @@ describe("validateGpsPingInput", () => {
     ).toThrow(AppError);
   });
 
-  it("rejects stale and far-future timestamps", () => {
+  it("rejects stale and far-future timestamps with stable codes", () => {
     const old = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
-    expect(() =>
-      validateGpsPingInput({ latitude: 1, longitude: 1, capturedAt: old }),
-    ).toThrow(AppError);
+    try {
+      validateGpsPingInput({ latitude: 1, longitude: 1, capturedAt: old });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(AppError);
+      expect((err as AppError).code).toBe("GPS_POINT_TOO_OLD");
+      expect((err as AppError).status).toBe(400);
+      expect((err as AppError).message).toBe("captured_at is too old to accept");
+    }
     const future = new Date(Date.now() + 10 * 60_000).toISOString();
-    expect(() =>
-      validateGpsPingInput({ latitude: 1, longitude: 1, capturedAt: future }),
-    ).toThrow(AppError);
+    try {
+      validateGpsPingInput({ latitude: 1, longitude: 1, capturedAt: future });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(AppError);
+      expect((err as AppError).code).toBe("GPS_POINT_TOO_FUTURE");
+      expect((err as AppError).status).toBe(400);
+    }
   });
 });
 

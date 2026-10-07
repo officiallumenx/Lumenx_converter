@@ -9,6 +9,8 @@ const getOpsOutboxSnapshot = vi.fn(() => ({
   lastError: null,
   lastGpsUploadedAt: null,
   lastConflictMessage: null,
+  gpsStaleRejectedCount: 0,
+  lastGpsStaleRejectMessage: null,
 }));
 const subscribeOpsOutbox = vi.fn(() => () => undefined);
 const captureCurrentGps = vi.fn();

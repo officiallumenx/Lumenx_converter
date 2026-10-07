@@ -5,6 +5,8 @@
 
 export type ErrorCode =
   | "VALIDATION_ERROR"
+  | "GPS_POINT_TOO_OLD"
+  | "GPS_POINT_TOO_FUTURE"
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "NOT_FOUND"
@@ -27,6 +29,16 @@ export class AppError extends Error {
 
   static validation(message: string, details?: unknown) {
     return new AppError(400, "VALIDATION_ERROR", message, details);
+  }
+
+  /** GPS ping captured_at older than the server accept window. */
+  static gpsPointTooOld(message = "captured_at is too old to accept") {
+    return new AppError(400, "GPS_POINT_TOO_OLD", message);
+  }
+
+  /** GPS ping captured_at too far ahead of server clock. */
+  static gpsPointTooFuture(message = "captured_at is too far in the future") {
+    return new AppError(400, "GPS_POINT_TOO_FUTURE", message);
   }
 
   static unauthenticated(message = "Authentication required") {

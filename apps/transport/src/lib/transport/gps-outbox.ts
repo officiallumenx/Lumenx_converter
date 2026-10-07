@@ -17,7 +17,8 @@ export type GpsOutboxConnectionState =
   | "online"
   | "degraded"
   | "offline"
-  | "gps_error";
+  | "gps_error"
+  | "stale_rejected";
 
 export type GpsOutboxSnapshot = {
   events: OpsOutboxSnapshot["events"];
@@ -26,6 +27,8 @@ export type GpsOutboxSnapshot = {
   lastError: string | null;
   lastSentAt: string | null;
   lastGpsError: string | null;
+  staleRejectedCount: number;
+  lastStaleRejectMessage: string | null;
 };
 
 /** Target ~2–3s live updates for Connect/Admin map. */
@@ -106,8 +109,12 @@ function deriveConnection(): GpsOutboxConnectionState {
   if (lastGpsError && connection === "gps_error") return "gps_error";
   const ops = getOpsOutboxSnapshot();
   if (!ops.online) return "offline";
-  if (ops.pendingCount > 0 && ops.lastError) return "degraded";
+  const activeGps = ops.events.filter((e) => e.eventType === "gps").length;
+  if (activeGps > 0) return "degraded";
   if (ops.pendingCount > 0) return "degraded";
+  if (ops.gpsStaleRejectedCount > 0 && !ops.lastGpsUploadedAt) {
+    return "stale_rejected";
+  }
   return "online";
 }
 
@@ -137,6 +144,8 @@ export function getGpsOutboxSnapshot(): GpsOutboxSnapshot {
     lastError: ops.lastError,
     lastSentAt: ops.lastGpsUploadedAt,
     lastGpsError,
+    staleRejectedCount: ops.gpsStaleRejectedCount,
+    lastStaleRejectMessage: ops.lastGpsStaleRejectMessage,
   };
   return cachedSnapshot;
 }

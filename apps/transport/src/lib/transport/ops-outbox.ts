@@ -11,12 +11,16 @@ import {
   markTripDropping,
   pingTripLocation,
   startTransportTrip,
+  TransportApiError,
   updateTransportTripPhase,
 } from "@/lib/transport-api";
 import {
   clearStaleTransportClientState,
   getTransportLocalStorage,
 } from "./clear-stale-client-state";
+
+/** Must match backend `GPS_CAPTURED_MAX_AGE_MS` (30 minutes). */
+export const GPS_CAPTURED_MAX_AGE_MS = 30 * 60_000;
 
 // Before any outbox hydrate/flush — wipe poisoned queues from older builds.
 clearStaleTransportClientState();
@@ -37,6 +41,7 @@ export type OpsOutboxStatus =
   | "sending"
   | "sent"
   | "failed"
+  | "rejected"
   | "conflict";
 
 export type OpsOutboxEvent = {
@@ -62,7 +67,14 @@ export type OpsOutboxSnapshot = {
   lastError: string | null;
   lastGpsUploadedAt: string | null;
   lastConflictMessage: string | null;
+  /** Terminally rejected stale GPS points removed from the active upload queue. */
+  gpsStaleRejectedCount: number;
+  lastGpsStaleRejectMessage: string | null;
 };
+
+function isActiveQueueStatus(status: OpsOutboxStatus): boolean {
+  return status !== "sent" && status !== "rejected";
+}
 
 export type OpsOutboxEnqueueInput = {
   eventType: OpsEventType;
@@ -161,10 +173,38 @@ export function isCriticalOpsEvent(eventType: OpsEventType): boolean {
  * Always keep latest per trip, first sample, and ~2–3s movement history.
  * Critical events are never dropped.
  */
+export function isGpsCapturedAtTooOld(
+  capturedAt: string,
+  nowMs = Date.now(),
+): boolean {
+  const parsed = Date.parse(capturedAt);
+  return Number.isFinite(parsed) && nowMs - parsed > GPS_CAPTURED_MAX_AGE_MS;
+}
+
+/** Permanent GPS validation failures — never retry the same point. */
+export function isTerminalGpsValidationError(err: unknown): boolean {
+  if (err instanceof TransportApiError) {
+    if (
+      err.code === "GPS_POINT_TOO_OLD" ||
+      err.code === "GPS_POINT_TOO_FUTURE"
+    ) {
+      return true;
+    }
+  }
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("captured_at is too old to accept") ||
+    lower.includes("captured_at is too far in the future") ||
+    lower.includes("gps_point_too_old") ||
+    lower.includes("gps_point_too_future")
+  );
+}
+
 export function coalesceOpsEventsForPersist(
   all: OpsOutboxEvent[],
 ): OpsOutboxEvent[] {
-  const unsent = all.filter((e) => e.status !== "sent");
+  const unsent = all.filter((e) => isActiveQueueStatus(e.status));
   const critical = unsent.filter((e) => isCriticalOpsEvent(e.eventType));
   const gps = unsent.filter((e) => e.eventType === "gps");
   const other = unsent.filter(
@@ -222,12 +262,49 @@ let globalSequence = 0;
 let lastError: string | null = null;
 let lastGpsUploadedAt: string | null = null;
 let lastConflictMessage: string | null = null;
+/** Count of GPS points terminally rejected as too old/future (this session + hydrate). */
+let gpsStaleRejectedCount = 0;
+let lastGpsStaleRejectMessage: string | null = null;
 let online = typeof navigator === "undefined" ? true : navigator.onLine;
 let flushing = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let hydrated = false;
 /** Stable snapshot for useSyncExternalStore — must be referentially equal until emit. */
 let cachedSnapshot: OpsOutboxSnapshot | null = null;
+
+function recordGpsTerminalReject(message: string): void {
+  gpsStaleRejectedCount += 1;
+  lastGpsStaleRejectMessage = message;
+}
+
+/**
+ * Drop GPS points that can never be accepted (already too old, or previously
+ * rejected as too old). Safe migration for devices stuck retrying stale points.
+ */
+function dropTerminalStaleGpsEvents(): boolean {
+  const now = Date.now();
+  const before = events.length;
+  const kept: OpsOutboxEvent[] = [];
+  for (const e of events) {
+    if (e.eventType !== "gps" || !isActiveQueueStatus(e.status)) {
+      if (e.status === "rejected") continue;
+      kept.push(e);
+      continue;
+    }
+    const priorReject =
+      e.lastError != null && isTerminalGpsValidationError(e.lastError);
+    if (priorReject || isGpsCapturedAtTooOld(e.capturedAt, now)) {
+      recordGpsTerminalReject(
+        e.lastError?.trim() ||
+          "Older GPS point could not be uploaded — captured_at is too old.",
+      );
+      continue;
+    }
+    kept.push(e);
+  }
+  events = kept;
+  return events.length !== before;
+}
 
 function uid(prefix = "ops"): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -293,8 +370,16 @@ function hydrate() {
       globalSequence = Number(parsed.globalSequence) || 0;
       lastGpsUploadedAt = parsed.lastGpsUploadedAt ?? null;
       const recoveredSending = recoverStuckSendingEvents();
-      if (dropPoisonTripPathEvents() || recoveredSending) {
+      const droppedStale = dropTerminalStaleGpsEvents();
+      if (dropPoisonTripPathEvents() || recoveredSending || droppedStale) {
         if (lastError?.toLowerCase().includes("path parameter")) {
+          lastError = null;
+        }
+        if (
+          droppedStale &&
+          lastError &&
+          isTerminalGpsValidationError(lastError)
+        ) {
           lastError = null;
         }
         persist();
@@ -323,7 +408,7 @@ export function subscribeOpsOutbox(listener: Listener): () => void {
 export function getOpsOutboxSnapshot(): OpsOutboxSnapshot {
   hydrate();
   if (cachedSnapshot) return cachedSnapshot;
-  const pending = events.filter((e) => e.status !== "sent");
+  const pending = events.filter((e) => isActiveQueueStatus(e.status));
   cachedSnapshot = {
     events: pending,
     pendingCount: pending.length,
@@ -331,6 +416,8 @@ export function getOpsOutboxSnapshot(): OpsOutboxSnapshot {
     lastError,
     lastGpsUploadedAt,
     lastConflictMessage,
+    gpsStaleRejectedCount,
+    lastGpsStaleRejectMessage,
   };
   return cachedSnapshot;
 }
@@ -527,8 +614,16 @@ export async function flushOpsOutbox(): Promise<void> {
     // Recover orphans before selecting work — a prior hung flush may have left
     // rows as `sending` in memory (and localStorage via mid-flush persist).
     const recoveredSending = recoverStuckSendingEvents();
-    if (dropPoisonTripPathEvents() || recoveredSending) {
+    const droppedStale = dropTerminalStaleGpsEvents();
+    if (dropPoisonTripPathEvents() || recoveredSending || droppedStale) {
       if (lastError?.toLowerCase().includes("path parameter")) {
+        lastError = null;
+      }
+      if (
+        droppedStale &&
+        lastError &&
+        isTerminalGpsValidationError(lastError)
+      ) {
         lastError = null;
       }
       persist();
@@ -548,6 +643,26 @@ export async function flushOpsOutbox(): Promise<void> {
       .sort((a, b) => a.sequence - b.sequence);
 
     for (const event of due) {
+      // Local pre-check: never upload GPS the server will permanently reject.
+      if (
+        event.eventType === "gps" &&
+        isGpsCapturedAtTooOld(event.capturedAt, Date.now())
+      ) {
+        const msg =
+          "Older GPS point could not be uploaded — captured_at is too old.";
+        recordGpsTerminalReject(msg);
+        markEvent(event.clientEventId, {
+          status: "rejected",
+          lastError: msg,
+          nextRetryAt: null,
+        });
+        if (lastError && isTerminalGpsValidationError(lastError)) {
+          lastError = null;
+        }
+        emit();
+        continue;
+      }
+
       markEvent(event.clientEventId, { status: "sending" });
       emit();
       try {
@@ -595,6 +710,37 @@ export async function flushOpsOutbox(): Promise<void> {
           continue;
         }
 
+        // Permanent GPS validation (stale/future) — dead-letter, do not retry.
+        if (event.eventType === "gps" && isTerminalGpsValidationError(err)) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Older GPS point could not be uploaded.";
+          recordGpsTerminalReject(msg);
+          markEvent(event.clientEventId, {
+            status: "rejected",
+            lastError: msg,
+            nextRetryAt: null,
+          });
+          if (lastError && isTerminalGpsValidationError(lastError)) {
+            lastError = null;
+          }
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("lumenx-transport-ops-rejected", {
+                detail: {
+                  clientEventId: event.clientEventId,
+                  eventType: event.eventType,
+                  message: msg,
+                  code:
+                    err instanceof TransportApiError ? err.code : "GPS_POINT_TOO_OLD",
+                },
+              }),
+            );
+          }
+          continue;
+        }
+
         const message = actionableConflictMessage(err, event.eventType);
         const retryCount = event.retryCount + 1;
         const giveUp = retryCount >= MAX_RETRIES;
@@ -631,7 +777,7 @@ export async function flushOpsOutbox(): Promise<void> {
       }
     }
 
-    events = events.filter((e) => e.status !== "sent");
+    events = events.filter((e) => isActiveQueueStatus(e.status));
     persist();
     emit();
 
@@ -691,6 +837,8 @@ export function __resetOpsOutboxForTests(seed?: {
   lastError = null;
   lastConflictMessage = null;
   lastGpsUploadedAt = seed?.lastGpsUploadedAt ?? null;
+  gpsStaleRejectedCount = 0;
+  lastGpsStaleRejectMessage = null;
   globalSequence = events.reduce((max, e) => Math.max(max, e.sequence), 0);
   hydrated = true;
   flushing = false;

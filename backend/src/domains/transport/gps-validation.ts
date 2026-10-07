@@ -64,10 +64,10 @@ export function validateGpsPingInput(input: {
       throw AppError.validation("captured_at must be a valid ISO timestamp");
     }
     if (parsed - now > GPS_CAPTURED_FUTURE_SKEW_MS) {
-      throw AppError.validation("captured_at is too far in the future");
+      throw AppError.gpsPointTooFuture();
     }
     if (now - parsed > GPS_CAPTURED_MAX_AGE_MS) {
-      throw AppError.validation("captured_at is too old to accept");
+      throw AppError.gpsPointTooOld();
     }
     capturedAt = new Date(parsed).toISOString();
   }

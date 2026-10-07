@@ -18,6 +18,18 @@ function apiBaseUrl(): string {
 /** Prevents ops-outbox `flushing` from hanging forever on a stalled TCP/TLS request. */
 const TRANSPORT_FETCH_TIMEOUT_MS = 20_000;
 
+/** API error with status + machine-readable code (never includes tokens). */
+export class TransportApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string | null = null,
+  ) {
+    super(message);
+    this.name = "TransportApiError";
+  }
+}
+
 async function transportFetch<T>(
   path: string,
   init?: RequestInit & { body?: unknown },
@@ -52,15 +64,28 @@ async function transportFetch<T>(
     });
   } catch (err) {
     if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
-      throw new Error(`Request timed out after ${TRANSPORT_FETCH_TIMEOUT_MS / 1000}s`);
+      throw new TransportApiError(
+        `Request timed out after ${TRANSPORT_FETCH_TIMEOUT_MS / 1000}s`,
+        408,
+        "TIMEOUT",
+      );
     }
     throw err;
   }
 
   const text = await response.text();
-  const json = text ? (JSON.parse(text) as { data?: T; error?: { message?: string } }) : {};
+  const json = text
+    ? (JSON.parse(text) as {
+        data?: T;
+        error?: { message?: string; code?: string };
+      })
+    : {};
   if (!response.ok) {
-    throw new Error(json.error?.message ?? `Request failed (${response.status})`);
+    throw new TransportApiError(
+      json.error?.message ?? `Request failed (${response.status})`,
+      response.status,
+      json.error?.code ?? null,
+    );
   }
   return json.data as T;
 }

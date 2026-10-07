@@ -8,16 +8,30 @@ const updateTransportTripPhase = vi.fn();
 const endTransportTrip = vi.fn();
 const createTransportEmergency = vi.fn();
 
-vi.mock("@/lib/transport-api", () => ({
-  pingTripLocation: (...args: unknown[]) => pingTripLocation(...args),
-  markTripBoarding: (...args: unknown[]) => markTripBoarding(...args),
-  markTripDropping: (...args: unknown[]) => markTripDropping(...args),
-  startTransportTrip: (...args: unknown[]) => startTransportTrip(...args),
-  updateTransportTripPhase: (...args: unknown[]) => updateTransportTripPhase(...args),
-  endTransportTrip: (...args: unknown[]) => endTransportTrip(...args),
-  createTransportEmergency: (...args: unknown[]) => createTransportEmergency(...args),
-}));
+vi.mock("@/lib/transport-api", () => {
+  class TransportApiError extends Error {
+    status: number;
+    code: string | null;
+    constructor(message: string, status: number, code: string | null = null) {
+      super(message);
+      this.name = "TransportApiError";
+      this.status = status;
+      this.code = code;
+    }
+  }
+  return {
+    TransportApiError,
+    pingTripLocation: (...args: unknown[]) => pingTripLocation(...args),
+    markTripBoarding: (...args: unknown[]) => markTripBoarding(...args),
+    markTripDropping: (...args: unknown[]) => markTripDropping(...args),
+    startTransportTrip: (...args: unknown[]) => startTransportTrip(...args),
+    updateTransportTripPhase: (...args: unknown[]) => updateTransportTripPhase(...args),
+    endTransportTrip: (...args: unknown[]) => endTransportTrip(...args),
+    createTransportEmergency: (...args: unknown[]) => createTransportEmergency(...args),
+  };
+});
 
+import { TransportApiError } from "@/lib/transport-api";
 import {
   __resetOpsOutboxForTests,
   coalesceOpsEventsForPersist,
@@ -229,6 +243,133 @@ describe("ops-outbox Phase 8", () => {
     });
     await flushOpsOutbox();
     expect(getOpsOutboxSnapshot().lastGpsUploadedAt).toBeTruthy();
+  });
+
+  it("terminally rejects stale GPS and still uploads fresh points", async () => {
+    const staleAt = new Date(Date.now() - 45 * 60_000).toISOString();
+    const freshAt = new Date().toISOString();
+    pingTripLocation.mockImplementation(async (_tripId: string, input: { capturedAt?: string }) => {
+      if (input.capturedAt === staleAt) {
+        throw new TransportApiError(
+          "captured_at is too old to accept",
+          400,
+          "GPS_POINT_TOO_OLD",
+        );
+      }
+    });
+    __resetOpsOutboxForTests({
+      online: true,
+      events: [
+        {
+          clientEventId: "gps-stale-1",
+          eventType: "gps",
+          tripId: TRIP_ID,
+          studentId: null,
+          stopId: null,
+          capturedAt: staleAt,
+          sequence: 1,
+          payload: { latitude: 12.9, longitude: 77.5 },
+          retryCount: 3,
+          status: "failed",
+          lastError: "captured_at is too old to accept",
+          createdAt: staleAt,
+        },
+        {
+          clientEventId: "gps-fresh-1",
+          eventType: "gps",
+          tripId: TRIP_ID,
+          studentId: null,
+          stopId: null,
+          capturedAt: freshAt,
+          sequence: 2,
+          payload: { latitude: 12.91, longitude: 77.51 },
+          retryCount: 0,
+          status: "pending",
+          lastError: null,
+          createdAt: freshAt,
+        },
+      ],
+    });
+    await flushOpsOutbox();
+    const snap = getOpsOutboxSnapshot();
+    expect(snap.pendingCount).toBe(0);
+    expect(snap.gpsStaleRejectedCount).toBeGreaterThanOrEqual(1);
+    expect(pingTripLocation).toHaveBeenCalledWith(
+      TRIP_ID,
+      expect.objectContaining({ clientEventId: "gps-fresh-1" }),
+    );
+    // Stale must not be retried after terminal reject / local drop.
+    const staleCalls = pingTripLocation.mock.calls.filter(
+      (c) => (c[1] as { clientEventId?: string })?.clientEventId === "gps-stale-1",
+    );
+    expect(staleCalls.length).toBe(0);
+  });
+
+  it("drops six already-stale GPS points without endless syncing", async () => {
+    const staleBase = Date.now() - 40 * 60_000;
+    __resetOpsOutboxForTests({
+      online: true,
+      events: Array.from({ length: 6 }, (_, i) => ({
+        clientEventId: `gps-stale-${i}`,
+        eventType: "gps" as const,
+        tripId: TRIP_ID,
+        studentId: null,
+        stopId: null,
+        capturedAt: new Date(staleBase + i * 1_000).toISOString(),
+        sequence: i + 1,
+        payload: { latitude: 12.9, longitude: 77.5 },
+        retryCount: 5,
+        status: "failed" as const,
+        lastError: "captured_at is too old to accept",
+        createdAt: new Date(staleBase).toISOString(),
+      })),
+    });
+    await flushOpsOutbox();
+    const snap = getOpsOutboxSnapshot();
+    expect(snap.pendingCount).toBe(0);
+    expect(snap.gpsStaleRejectedCount).toBe(6);
+    expect(pingTripLocation).not.toHaveBeenCalled();
+  });
+
+  it("marks server GPS_POINT_TOO_OLD as terminal without retry", async () => {
+    const recent = new Date(Date.now() - 5 * 60_000).toISOString();
+    pingTripLocation.mockRejectedValue(
+      new TransportApiError(
+        "captured_at is too old to accept",
+        400,
+        "GPS_POINT_TOO_OLD",
+      ),
+    );
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-server-stale",
+      capturedAt: recent,
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    await flushOpsOutbox();
+    expect(pingTripLocation).toHaveBeenCalledTimes(1);
+    const snap = getOpsOutboxSnapshot();
+    expect(snap.pendingCount).toBe(0);
+    expect(snap.gpsStaleRejectedCount).toBe(1);
+    await flushOpsOutbox();
+    expect(pingTripLocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps network failures retryable for GPS", async () => {
+    pingTripLocation.mockRejectedValue(new Error("Request timed out after 20s"));
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-net-1",
+      capturedAt: new Date().toISOString(),
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    await flushOpsOutbox();
+    const snap = getOpsOutboxSnapshot();
+    expect(snap.pendingCount).toBe(1);
+    expect(snap.events[0]?.status).toBe("failed");
+    expect(snap.gpsStaleRejectedCount).toBe(0);
   });
 
   it("recovers stuck sending GPS events and drains them on flush", async () => {

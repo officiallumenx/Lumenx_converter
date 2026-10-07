@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { MapPin, MapPinOff, WifiOff } from "lucide-react";
+import { MapPin, MapPinOff, TriangleAlert, WifiOff } from "lucide-react";
 
 import { useLocationTrack } from "@/hooks/use-trip-location-guard";
 import {
@@ -17,10 +17,15 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
     getGpsOutboxSnapshot,
   );
 
-  if (track.status === "unknown" && outbox.pendingCount === 0) return null;
+  if (
+    track.status === "unknown" &&
+    outbox.pendingCount === 0 &&
+    outbox.staleRejectedCount === 0
+  ) {
+    return null;
+  }
 
-  if (outbox.connection === "offline" || outbox.connection === "degraded") {
-    const offline = outbox.connection === "offline";
+  if (outbox.connection === "offline") {
     const pendingLabel =
       outbox.pendingCount > 0
         ? `${outbox.pendingCount} GPS point${outbox.pendingCount === 1 ? "" : "s"}`
@@ -35,21 +40,64 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
       >
         <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">Connection lost</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {pendingLabel
+              ? `${pendingLabel} queued — will retry when online.`
+              : "Waiting for network to sync location."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (outbox.connection === "degraded" && outbox.pendingCount > 0) {
+    const pendingLabel = `${outbox.pendingCount} GPS point${outbox.pendingCount === 1 ? "" : "s"}`;
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-2.5 rounded-2xl border border-warning/40 bg-warning/10 px-3.5 py-3",
+          className,
+        )}
+        role="status"
+      >
+        <WifiOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">Uploading GPS…</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {outbox.lastError
+              ? `${pendingLabel} — ${outbox.lastError}`
+              : `${pendingLabel} syncing to server…`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    outbox.connection === "stale_rejected" ||
+    (outbox.staleRejectedCount > 0 &&
+      outbox.pendingCount === 0 &&
+      !outbox.lastSentAt)
+  ) {
+    const n = outbox.staleRejectedCount;
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-2.5 rounded-2xl border border-warning/40 bg-warning/10 px-3.5 py-3",
+          className,
+        )}
+        role="status"
+      >
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+        <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            {offline ? "Connection lost" : "Uploading GPS…"}
+            GPS sync needs attention
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {offline
-              ? pendingLabel
-                ? `${pendingLabel} queued — will retry when online.`
-                : "Waiting for network to sync location."
-              : outbox.lastError
-                ? pendingLabel
-                  ? `${pendingLabel} — ${outbox.lastError}`
-                  : outbox.lastError
-                : pendingLabel
-                  ? `${pendingLabel} syncing to server…`
-                  : "Waiting to sync location."}
+            {n} older GPS point{n === 1 ? "" : "s"} could not be uploaded because{" "}
+            {n === 1 ? "it was" : "they were"} too old. Fresh location will keep
+            syncing.
           </p>
         </div>
       </div>
@@ -112,6 +160,10 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
             }
           })()
         : null;
+    const staleNote =
+      outbox.staleRejectedCount > 0
+        ? ` · ${outbox.staleRejectedCount} older point${outbox.staleRejectedCount === 1 ? "" : "s"} could not be synced`
+        : "";
     return (
       <div
         className={cn(
@@ -124,7 +176,8 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
           <p className="text-sm font-semibold text-success">GPS tracking on</p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
             Live location is sent about every 2–3 seconds
-            {lastUpload ? ` · last uploaded ${lastUpload}` : ""}.
+            {lastUpload ? ` · last uploaded ${lastUpload}` : ""}
+            {staleNote}.
           </p>
         </div>
       </div>
