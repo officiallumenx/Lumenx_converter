@@ -243,18 +243,37 @@ function beginStartValidation(): TripActionResult | null {
   return null;
 }
 
-/** Mark STARTING (confirmation accepted). Does not leave an active trip until confirmStartTripSession. */
+/** Mark STARTING (confirmation accepted). Does not leave an active trip until API confirm. */
 export function beginStartTripSession(): TripActionResult {
   const blocked = beginStartValidation();
   if (blocked) return blocked;
 
   const assignment = getTripAssignmentSnapshot();
   phase = "starting";
-  tripId = `trip-${Date.now()}`;
+  // Never invent client trip ids — API paths require UUIDs (`/trips/:id/...`).
+  tripId = null;
   startedAt = null;
   completedAt = null;
   vehicleId = assignment.bus.vehicleId;
   routeId = assignment.route.adminRouteId || null;
+  currentStopIndex = 0;
+  lastSummary = null;
+  cachedSession = null;
+  emit();
+  return { ok: true, session: getTripSessionSnapshot() };
+}
+
+/** Roll back STARTING when confirm/API fails so GPS/outbox never see a fake trip id. */
+export function abortStartTripSession(): TripActionResult {
+  if (phase !== "starting") {
+    return { ok: true, session: getTripSessionSnapshot() };
+  }
+  phase = "ready";
+  tripId = null;
+  startedAt = null;
+  completedAt = null;
+  vehicleId = null;
+  routeId = null;
   currentStopIndex = 0;
   lastSummary = null;
   cachedSession = null;
@@ -271,9 +290,16 @@ export function confirmStartTripSession(): TripActionResult {
     if (!begin.ok) return begin;
   }
 
+  if (!tripId) {
+    return {
+      ok: false,
+      reason: "Trip is not confirmed yet. Start again while online.",
+      session: getTripSessionSnapshot(),
+    };
+  }
+
   const assignment = getTripAssignmentSnapshot();
   phase = "running";
-  if (!tripId) tripId = `trip-${Date.now()}`;
   startedAt = new Date().toISOString();
   completedAt = null;
   vehicleId = assignment.bus.vehicleId;

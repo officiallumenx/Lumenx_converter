@@ -184,10 +184,13 @@ export function applyApiApprovedHydration(input: {
     }
     const name = s.name.trim().toLowerCase();
     if (name === "school" || s.routeOrder >= 10_000) return "school";
-    if (name === "bus park" || s.routeOrder === 0) return "parking";
+    // Only treat explicit bus-park names as parking — do not infer from routeOrder 0
+    // (first waypoint must stay a normal pickup stop).
+    if (name === "bus park") return "parking";
     return "waypoint";
   };
 
+  // Bus park / parking is retired from product UX — never hydrate into Route Setup.
   const apiStops: RouteSetupStop[] = input.stops
     .slice()
     .sort((a, b) => a.routeOrder - b.routeOrder)
@@ -213,13 +216,14 @@ export function applyApiApprovedHydration(input: {
         studentIds: input.students
           .filter((st) => st.pickupStopId === s.id)
           .map((st) => st.studentId),
-        // Keep API orders for endpoints; waypoints are renumbered below.
-        routeOrder: kind === "school" ? 10_000 : kind === "parking" ? 0 : s.routeOrder + 1,
+        // School stays at the end; waypoints are renumbered below.
+        routeOrder: kind === "school" ? 10_000 : s.routeOrder + 1,
         status: mapStatus(s.approvalStatus),
         submittedAt: s.createdAt,
         kind,
       };
-    });
+    })
+    .filter((s) => s.kind !== "parking" && s.name.trim().toLowerCase() !== "bus park");
 
   // Session-only: keep pending stops that have not been pushed to the API yet.
   const apiIds = new Set(input.stops.map((s) => s.id));
@@ -308,23 +312,23 @@ function emitApprovalChanged() {
 }
 
 function renumber(stops: RouteSetupStop[]): RouteSetupStop[] {
-  const parking = stops.filter((s) => s.kind === "parking" || s.name.trim().toLowerCase() === "bus park");
-  const school = stops.filter(
+  // Drop parking / bus park — product no longer uses a depot endpoint.
+  const withoutParking = stops.filter(
+    (s) => s.kind !== "parking" && s.name.trim().toLowerCase() !== "bus park",
+  );
+  const school = withoutParking.filter(
     (s) =>
       s.kind === "school" ||
       s.name.trim().toLowerCase() === "school" ||
       s.routeOrder >= 10_000,
   );
-  const waypoints = stops.filter(
-    (s) => !parking.includes(s) && !school.includes(s),
-  );
+  const waypoints = withoutParking.filter((s) => !school.includes(s));
   const numbered = waypoints.map((s, i) => ({
     ...s,
     kind: s.kind ?? ("waypoint" as const),
     routeOrder: i + 1,
   }));
   return [
-    ...parking.map((s) => ({ ...s, kind: "parking" as const, routeOrder: 0 })),
     ...numbered,
     ...school.map((s) => ({ ...s, kind: "school" as const, routeOrder: 10_000 })),
   ];

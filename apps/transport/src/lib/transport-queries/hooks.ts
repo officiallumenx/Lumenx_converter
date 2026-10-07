@@ -119,7 +119,6 @@ export function useDriverAssignmentQuery(): DriverAssignment {
     if (
       status === "ready" &&
       accountId &&
-      vehicleId &&
       routeId &&
       routeCode &&
       routeName &&
@@ -128,11 +127,12 @@ export function useDriverAssignmentQuery(): DriverAssignment {
       employeeId &&
       licenseNumber
     ) {
+      const scopeVehicleId = vehicleId ?? "";
       const scope = {
         routeId,
         routeCode,
         routeName,
-        vehicleId,
+        vehicleId: scopeVehicleId,
         vehicleNumber: busNumber,
         driverId: accountId,
         driverName,
@@ -142,7 +142,7 @@ export function useDriverAssignmentQuery(): DriverAssignment {
         instituteId: instituteId ?? undefined,
       };
       setRouteSetupDriverScope(scope);
-      setAttendanceVehicleScope(vehicleId);
+      setAttendanceVehicleScope(scopeVehicleId || null);
       if (instituteId) {
         void loadDriverRosterForHydrate(instituteId).then((roster) =>
           hydrateRouteSetupFromApi(scope, roster),

@@ -70,7 +70,10 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
   const [editName, setEditName] = useState("");
   const [editLocation, setEditLocation] = useState<LocationPasteValue | null>(null);
 
-  const stops = [...route.setupStops].sort((a, b) => a.routeOrder - b.routeOrder);
+  // Hide retired bus-park endpoints from Admin route detail.
+  const stops = [...route.setupStops]
+    .filter((s) => s.name.trim().toLowerCase() !== "bus park")
+    .sort((a, b) => a.routeOrder - b.routeOrder);
 
   const openEdit = (s: AdminRouteStop) => {
     setEditStop(s);

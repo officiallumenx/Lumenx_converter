@@ -28,12 +28,20 @@ export type GpsOutboxSnapshot = {
   lastGpsError: string | null;
 };
 
-const PING_INTERVAL_MS = 15_000;
+/** Target ~2–3s live updates for Connect/Admin map. */
+const PING_INTERVAL_MS = 2_500;
 const MAX_ACCURACY_M = 500;
 const WARN_ACCURACY_M = 100;
 /** Client-side thin: skip enqueue when barely moved unless heartbeat elapsed. */
-const CLIENT_MIN_MOVE_M = 20;
-const CLIENT_HEARTBEAT_MS = 60_000;
+const CLIENT_MIN_MOVE_M = 8;
+const CLIENT_HEARTBEAT_MS = 2_500;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isServerTripId(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_RE.test(value));
+}
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -175,9 +183,16 @@ function enqueueFix(
 async function captureAndEnqueue(): Promise<void> {
   const trip = getTripSessionSnapshot();
   if (!trip.tripId || trip.phase === "completed" || trip.phase === "ready") return;
+  // Local placeholder ids (e.g. trip-…) fail UUID path validation on the API.
+  if (!isServerTripId(trip.tripId)) {
+    lastGpsError = "Waiting for server trip id before GPS sync";
+    connection = "degraded";
+    emit();
+    return;
+  }
   const driverId = trip.assignment.driver.id;
   const vehicleId = trip.vehicleId ?? trip.assignment.bus.vehicleId;
-  if (!driverId || !vehicleId) {
+  if (!driverId || !vehicleId || !isServerTripId(vehicleId)) {
     lastGpsError = "Trip driver/vehicle missing — cannot queue GPS";
     connection = "gps_error";
     emit();
@@ -238,7 +253,12 @@ if (typeof window !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       const trip = getTripSessionSnapshot();
-      if (trip.tripId && trip.phase !== "completed" && trip.phase !== "ready") {
+      if (
+        isServerTripId(trip.tripId) &&
+        trip.phase !== "completed" &&
+        trip.phase !== "ready" &&
+        trip.phase !== "starting"
+      ) {
         void captureAndEnqueue();
         void flushOpsOutbox();
       }
@@ -247,7 +267,12 @@ if (typeof window !== "undefined") {
 
   subscribeTripSession(() => {
     const trip = getTripSessionSnapshot();
-    if (trip.tripId && trip.phase !== "completed" && trip.phase !== "ready") {
+    if (
+      isServerTripId(trip.tripId) &&
+      trip.phase !== "completed" &&
+      trip.phase !== "ready" &&
+      trip.phase !== "starting"
+    ) {
       if (!pingTimer) startTripGpsPing();
     } else {
       stopTripGpsPing();

@@ -74,8 +74,40 @@ const STORAGE_KEY = "lumenx.transport.ops-outbox.v1";
 const MAX_RETRIES = 12;
 const BACKOFF_MS = [2_000, 5_000, 10_000, 20_000, 30_000, 60_000] as const;
 /** GPS coalescing only — never applied to boarding/drop/SOS/lifecycle. */
-const GPS_KEEP_MIN_INTERVAL_MS = 60_000;
-const GPS_MAX_PER_TRIP = 180;
+const GPS_KEEP_MIN_INTERVAL_MS = 2_500;
+const GPS_MAX_PER_TRIP = 480;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_RE.test(value));
+}
+
+/** Events that put tripId in the URL path — non-UUIDs always 400 Path validation. */
+function eventNeedsUuidTripId(eventType: OpsEventType): boolean {
+  return (
+    eventType === "gps" ||
+    eventType === "boarding" ||
+    eventType === "not_boarded" ||
+    eventType === "drop" ||
+    eventType === "not_dropped" ||
+    eventType === "trip_phase" ||
+    eventType === "trip_end"
+  );
+}
+
+function isPoisonTripPathEvent(event: OpsOutboxEvent): boolean {
+  if (!eventNeedsUuidTripId(event.eventType)) return false;
+  if (!event.tripId) return true;
+  return !isUuid(event.tripId);
+}
+
+function dropPoisonTripPathEvents(): boolean {
+  const before = events.length;
+  events = events.filter((e) => !isPoisonTripPathEvent(e));
+  return events.length !== before;
+}
 
 const CRITICAL_EVENT_TYPES = new Set<OpsEventType>([
   "boarding",
@@ -94,7 +126,7 @@ export function isCriticalOpsEvent(eventType: OpsEventType): boolean {
 
 /**
  * GPS may be coalesced for long offline periods.
- * Always keep latest per trip, first sample, and ~1/min movement history.
+ * Always keep latest per trip, first sample, and ~2–3s movement history.
  * Critical events are never dropped.
  */
 export function coalesceOpsEventsForPersist(
@@ -213,6 +245,12 @@ function hydrate() {
       events = Array.isArray(parsed.events) ? parsed.events : [];
       globalSequence = Number(parsed.globalSequence) || 0;
       lastGpsUploadedAt = parsed.lastGpsUploadedAt ?? null;
+      if (dropPoisonTripPathEvents()) {
+        if (lastError?.toLowerCase().includes("path parameter")) {
+          lastError = null;
+        }
+        persist();
+      }
     }
 
     // One-time migrate legacy GPS-only outbox so in-flight points are not lost.
@@ -331,6 +369,10 @@ export function enqueueOpsEvent(input: OpsOutboxEnqueueInput): OpsOutboxEvent {
     nextRetryAt: null,
     createdAt: new Date().toISOString(),
   };
+  // Never queue events that will 400 on `/trips/:id/...` path params.
+  if (isPoisonTripPathEvent(event)) {
+    return { ...event, status: "sent", lastError: "Dropped invalid trip id" };
+  }
   events.push(event);
   persist();
   emit();
@@ -479,6 +521,14 @@ export async function flushOpsOutbox(): Promise<void> {
   if (flushing) return;
   flushing = true;
   try {
+    if (dropPoisonTripPathEvents()) {
+      if (lastError?.toLowerCase().includes("path parameter")) {
+        lastError = null;
+      }
+      persist();
+      emit();
+    }
+
     if (!online) {
       lastError = "Offline — changes will sync when connection returns.";
       emit();

@@ -100,6 +100,11 @@ export function stopDtosToAdminRouteStops(
     studentIdsByStop.set(enrollment.pickupStopId, list);
   }
   return rows
+    .filter(
+      (dto) =>
+        dto.kind !== "parking" &&
+        dto.name.trim().toLowerCase() !== "bus park",
+    )
     .map((dto) =>
       stopDtoToAdminRouteStop(dto, studentIdsByStop.get(dto.id) ?? []),
     )

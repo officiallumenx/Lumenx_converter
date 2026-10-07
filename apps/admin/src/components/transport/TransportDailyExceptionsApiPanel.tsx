@@ -37,8 +37,9 @@ export function TransportDailyExceptionsApiPanel({
 
   const nameByStudent = useMemo(() => {
     const map = new Map<string, string>();
-    for (const e of enrollmentsQuery.data ?? []) {
-      map.set(e.studentId, e.studentId.slice(0, 8));
+    for (const e of enrollmentsQuery.data?.items ?? []) {
+      const label = e.studentName?.trim() || e.studentId.slice(0, 8);
+      map.set(e.studentId, label);
     }
     return map;
   }, [enrollmentsQuery.data]);

@@ -1,5 +1,5 @@
 /**
- * GPS write thinning — keep live tracking fresh without storing every 15s ping.
+ * GPS write thinning — keep live tracking fresh (~2–3s) without unbounded rows.
  *
  * Persist when the bus moved enough OR the heartbeat interval elapsed.
  * Approach evaluation still runs on skipped writes (caller responsibility).
@@ -8,9 +8,9 @@
 import { haversineMeters } from "./geo.js";
 
 /** Minimum movement (m) to force a new vehicle_location row. */
-export const GPS_PERSIST_MIN_MOVE_M = 25;
+export const GPS_PERSIST_MIN_MOVE_M = 8;
 /** Always persist at least once per this interval (stale GPS / heartbeat). */
-export const GPS_PERSIST_MAX_INTERVAL_MS = 60_000;
+export const GPS_PERSIST_MAX_INTERVAL_MS = 2_500;
 
 export type GpsPersistDecision = {
   shouldPersist: boolean;

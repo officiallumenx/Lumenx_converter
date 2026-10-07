@@ -384,7 +384,20 @@ export async function getDriverRouteRosterForActor(
   if (!driver) throw AppError.notFound("Driver profile not linked");
 
   const routes = await listRoutes(admin, id);
+  const assignedVehicleId = driver.assigned_vehicle_id ?? null;
   const route =
+    (assignedVehicleId
+      ? (routes.find(
+          (r) =>
+            r.driver_id === driver.id &&
+            r.vehicle_id === assignedVehicleId &&
+            isOperationallyUsable(r.approval_status),
+        ) ??
+        routes.find(
+          (r) =>
+            r.driver_id === driver.id && r.vehicle_id === assignedVehicleId,
+        ))
+      : null) ??
     routes.find(
       (r) =>
         r.driver_id === driver.id && isOperationallyUsable(r.approval_status),

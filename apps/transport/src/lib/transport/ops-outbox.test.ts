@@ -27,6 +27,10 @@ import {
   retryFailedOpsEvent,
 } from "./ops-outbox";
 
+const TRIP_ID = "11111111-1111-4111-8111-111111111111";
+const STUDENT_ID = "22222222-2222-4222-8222-222222222222";
+const STOP_ID = "33333333-3333-4333-8333-333333333333";
+
 describe("ops-outbox Phase 8", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,9 +55,9 @@ describe("ops-outbox Phase 8", () => {
     __resetOpsOutboxForTests({ online: false, events: [] });
     enqueueOpsEvent({
       eventType: "boarding",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "board-stable-1",
       payload: { boardingStatus: "boarded" },
     });
@@ -70,9 +74,9 @@ describe("ops-outbox Phase 8", () => {
 
     enqueueOpsEvent({
       eventType: "boarding",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "board-stable-1",
       payload: { boardingStatus: "boarded" },
     });
@@ -83,9 +87,9 @@ describe("ops-outbox Phase 8", () => {
         {
           clientEventId: "board-stable-1",
           eventType: "boarding",
-          tripId: "trip-1",
-          studentId: "stu-1",
-          stopId: "stop-1",
+          tripId: TRIP_ID,
+          studentId: STUDENT_ID,
+          stopId: STOP_ID,
           capturedAt: new Date().toISOString(),
           sequence: 1,
           payload: { boardingStatus: "boarded" },
@@ -97,7 +101,7 @@ describe("ops-outbox Phase 8", () => {
     });
     await flushOpsOutbox();
     expect(markTripBoarding).toHaveBeenCalledWith(
-      "trip-1",
+      TRIP_ID,
       expect.objectContaining({ clientEventId: "board-stable-1" }),
     );
     expect(getOpsOutboxSnapshot().pendingCount).toBe(0);
@@ -110,9 +114,9 @@ describe("ops-outbox Phase 8", () => {
 
     enqueueOpsEvent({
       eventType: "boarding",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "board-dup-1",
       payload: {},
     });
@@ -135,9 +139,9 @@ describe("ops-outbox Phase 8", () => {
     );
     enqueueOpsEvent({
       eventType: "boarding",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "board-conflict-1",
       payload: {},
     });
@@ -158,15 +162,15 @@ describe("ops-outbox Phase 8", () => {
 
     enqueueOpsEvent({
       eventType: "gps",
-      tripId: "trip-1",
+      tripId: TRIP_ID,
       clientEventId: "gps-1",
       payload: { latitude: 1, longitude: 2, accuracyM: 10 },
     });
     enqueueOpsEvent({
       eventType: "boarding",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "board-1",
       payload: {},
     });
@@ -177,9 +181,9 @@ describe("ops-outbox Phase 8", () => {
   it("survives app restart via localStorage hydrate", async () => {
     enqueueOpsEvent({
       eventType: "drop",
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       clientEventId: "drop-persist-1",
       payload: {},
     });
@@ -196,7 +200,7 @@ describe("ops-outbox Phase 8", () => {
     markTripDropping.mockResolvedValue({ id: "de-1" });
     await flushOpsOutbox();
     expect(markTripDropping).toHaveBeenCalledWith(
-      "trip-1",
+      TRIP_ID,
       expect.objectContaining({ clientEventId: "drop-persist-1" }),
     );
   });
@@ -204,13 +208,38 @@ describe("ops-outbox Phase 8", () => {
   it("records last GPS upload time on successful flush", async () => {
     enqueueOpsEvent({
       eventType: "gps",
-      tripId: "trip-1",
+      tripId: TRIP_ID,
       clientEventId: "gps-up-1",
       capturedAt: new Date().toISOString(),
       payload: { latitude: 12.9, longitude: 77.5, accuracyM: 12 },
     });
     await flushOpsOutbox();
     expect(getOpsOutboxSnapshot().lastGpsUploadedAt).toBeTruthy();
+  });
+
+  it("drops poison non-UUID trip path events instead of Sync failed", async () => {
+    __resetOpsOutboxForTests({
+      online: true,
+      events: [
+        {
+          clientEventId: "gps-poison",
+          eventType: "gps",
+          tripId: "trip-1770400000000",
+          studentId: null,
+          stopId: null,
+          capturedAt: new Date().toISOString(),
+          sequence: 1,
+          payload: { latitude: 1, longitude: 2 },
+          retryCount: 3,
+          status: "failed",
+          lastError: "Path parameter validation failed",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    await flushOpsOutbox();
+    expect(pingTripLocation).not.toHaveBeenCalled();
+    expect(getOpsOutboxSnapshot().pendingCount).toBe(0);
   });
 
   it("never drops boarding/drop/SOS when GPS volume exceeds 400", () => {
@@ -220,7 +249,7 @@ describe("ops-outbox Phase 8", () => {
       events.push({
         clientEventId: `gps-${i}`,
         eventType: "gps" as const,
-        tripId: "trip-1",
+        tripId: TRIP_ID,
         studentId: null,
         stopId: null,
         capturedAt: new Date(now + i * 1000).toISOString(),
@@ -234,9 +263,9 @@ describe("ops-outbox Phase 8", () => {
     events.push({
       clientEventId: "board-keep",
       eventType: "boarding" as const,
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       capturedAt: new Date().toISOString(),
       sequence: 600,
       payload: {},
@@ -247,7 +276,7 @@ describe("ops-outbox Phase 8", () => {
     events.push({
       clientEventId: "sos-keep",
       eventType: "emergency" as const,
-      tripId: "trip-1",
+      tripId: TRIP_ID,
       studentId: null,
       stopId: null,
       capturedAt: new Date().toISOString(),
@@ -260,9 +289,9 @@ describe("ops-outbox Phase 8", () => {
     events.push({
       clientEventId: "drop-keep",
       eventType: "drop" as const,
-      tripId: "trip-1",
-      studentId: "stu-1",
-      stopId: "stop-1",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
       capturedAt: new Date().toISOString(),
       sequence: 602,
       payload: {},

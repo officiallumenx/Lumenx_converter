@@ -54,10 +54,13 @@ describe("gps-outbox", () => {
       dispatchEvent: vi.fn(),
     });
     getTripSessionSnapshot.mockReturnValue({
-      tripId: "trip-1",
+      tripId: "11111111-1111-4111-8111-111111111111",
       phase: "running",
-      vehicleId: "veh-1",
-      assignment: { driver: { id: "drv-1" }, bus: { vehicleId: "veh-1" } },
+      vehicleId: "22222222-2222-4222-8222-222222222222",
+      assignment: {
+        driver: { id: "33333333-3333-4333-8333-333333333333" },
+        bus: { vehicleId: "22222222-2222-4222-8222-222222222222" },
+      },
     });
     captureCurrentGps.mockResolvedValue({
       latitude: 12.9,
@@ -75,7 +78,7 @@ describe("gps-outbox", () => {
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "gps",
-        tripId: "trip-1",
+        tripId: "11111111-1111-4111-8111-111111111111",
         payload: expect.objectContaining({
           latitude: 12.9,
           longitude: 77.5,

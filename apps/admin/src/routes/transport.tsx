@@ -8,8 +8,11 @@ import {
   useTransportSettingsQuery,
   useCatalogClassesQuery,
   useCatalogYearsQuery,
-  adminModulePrefix, adminQueryRoots,
+  adminModulePrefix,
+  adminQueryKeys,
+  adminQueryRoots,
 } from "@/lib/admin-queries";
+import type { TransportEnrollmentsListState } from "@/lib/transport/load";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
@@ -1177,6 +1180,22 @@ function TransportPage() {
               onEndEnrollment={async (id) => {
                 try {
                   await updateEnrollment(id, { status: "ended" });
+                  setApiEnrollments((prev) => prev.filter((e) => e.id !== id));
+                  const instituteIdForCache = instituteCtx.activeInstituteId;
+                  if (instituteIdForCache) {
+                    queryClient.setQueryData(
+                      adminQueryKeys.transport(instituteIdForCache, "enrollments"),
+                      (old: TransportEnrollmentsListState | undefined) => {
+                        if (!old) return old;
+                        const items = old.items.filter((e) => e.id !== id);
+                        return {
+                          ...old,
+                          items,
+                          status: items.length === 0 ? "empty" : old.status,
+                        };
+                      },
+                    );
+                  }
                   bumpTransportReload();
                   notify("Enrollment ended");
                 } catch (err) {
@@ -1186,6 +1205,22 @@ function TransportPage() {
               onRemoveEnrollment={async (id) => {
                 try {
                   await deleteEnrollment(id);
+                  setApiEnrollments((prev) => prev.filter((e) => e.id !== id));
+                  const instituteIdForCache = instituteCtx.activeInstituteId;
+                  if (instituteIdForCache) {
+                    queryClient.setQueryData(
+                      adminQueryKeys.transport(instituteIdForCache, "enrollments"),
+                      (old: TransportEnrollmentsListState | undefined) => {
+                        if (!old) return old;
+                        const items = old.items.filter((e) => e.id !== id);
+                        return {
+                          ...old,
+                          items,
+                          status: items.length === 0 ? "empty" : old.status,
+                        };
+                      },
+                    );
+                  }
                   bumpTransportReload();
                   notify("Enrollment deleted");
                 } catch (err) {

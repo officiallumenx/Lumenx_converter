@@ -79,7 +79,7 @@ describe("gps persist thinning (phase10)", () => {
       next: {
         latitude: 12.97001,
         longitude: 77.59,
-        capturedAt: "2026-10-06T10:00:15.000Z",
+        capturedAt: "2026-10-06T10:00:01.000Z",
       },
     });
     expect(thinned.shouldPersist).toBe(false);
@@ -94,7 +94,7 @@ describe("gps persist thinning (phase10)", () => {
       next: {
         latitude: 12.97001,
         longitude: 77.59,
-        capturedAt: "2026-10-06T10:01:05.000Z",
+        capturedAt: "2026-10-06T10:00:03.000Z",
       },
     });
     expect(heartbeat.shouldPersist).toBe(true);

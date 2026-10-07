@@ -87,7 +87,12 @@ export async function loadApiDriverAssignment(input: {
     getDriverRouteRoster(input.instituteId).catch(() => null),
   ]);
 
+  // Prefer the roster's route (backend SoT) so enrollments and assignment stay aligned.
+  const routeFromRoster = roster?.routeId
+    ? (routes.find((r) => r.id === roster.routeId) ?? null)
+    : null;
   const route =
+    routeFromRoster ??
     routes.find(
       (r) =>
         r.driverId === driverMe.driverId &&
@@ -96,7 +101,7 @@ export async function loadApiDriverAssignment(input: {
     routes.find((r) => r.driverId === driverMe.driverId) ??
     null;
 
-  if (!route) {
+  if (!route && !roster?.routeId) {
     setApiAttendanceRoster([]);
     clearApiDriverRoster();
     return {
@@ -112,15 +117,17 @@ export async function loadApiDriverAssignment(input: {
     };
   }
 
-  const vehicle = route.vehicleId
-    ? vehicles.find((v) => v.id === route.vehicleId)
-    : undefined;
+  const resolvedRouteId = route?.id ?? roster?.routeId ?? null;
+  const resolvedRouteName = route?.name ?? roster?.routeName ?? "Route";
+  // Never invent vehicleId from route.id — that breaks New-student roster matching.
+  const vehicleId = route?.vehicleId ?? roster?.vehicleId ?? null;
+  const vehicle = vehicleId ? vehicles.find((v) => v.id === vehicleId) : undefined;
   const busNumber = vehicle?.vehicleNumber ?? "—";
-  const vehicleId = route.vehicleId ?? route.id;
+  const busVehicleId = vehicleId ?? "";
 
-  account.vehicleId = vehicleId;
+  account.vehicleId = busVehicleId || null;
   account.vehicleNumber = busNumber;
-  account.adminRouteId = route.id;
+  account.adminRouteId = resolvedRouteId;
   driver.busNumber = busNumber;
 
   const capacity =
@@ -131,7 +138,7 @@ export async function loadApiDriverAssignment(input: {
       : null;
 
   const bus: BusAssignment = {
-    vehicleId,
+    vehicleId: busVehicleId,
     busNumber,
     vehicleNumber: busNumber,
     label: `${busNumber} · ${driverMe.displayName}`,
@@ -144,9 +151,9 @@ export async function loadApiDriverAssignment(input: {
     .sort((a, b) => a.routeOrder - b.routeOrder);
 
   const routeAssignment: RouteAssignment = {
-    adminRouteId: route.id,
-    code: route.name.slice(0, 3).toUpperCase(),
-    name: route.name,
+    adminRouteId: resolvedRouteId ?? "",
+    code: resolvedRouteName.slice(0, 3).toUpperCase(),
+    name: resolvedRouteName,
     stops: usableStops.map((s) => ({
       id: s.id,
       name: s.name,
@@ -161,7 +168,10 @@ export async function loadApiDriverAssignment(input: {
   const studentCount = usableStudents.length;
 
   if (roster) {
-    setApiDriverRoster(roster, { vehicleNumber: busNumber });
+    setApiDriverRoster(roster, {
+      vehicleNumber: busNumber,
+      vehicleId: busVehicleId || roster.vehicleId,
+    });
   } else {
     clearApiDriverRoster();
   }
@@ -191,7 +201,7 @@ export async function loadApiDriverAssignment(input: {
     bus,
     route: routeAssignment,
     studentCount,
-    lockedByAdmin: roster?.locked ?? route.configStatus === "locked",
+    lockedByAdmin: roster?.locked ?? route?.configStatus === "locked",
     tripAssignment,
     message: null,
   };

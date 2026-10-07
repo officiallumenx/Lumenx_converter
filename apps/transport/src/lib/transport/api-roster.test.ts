@@ -84,9 +84,14 @@ describe("api-roster", () => {
     ]);
   });
 
-  it("returns empty for a different vehicle id", () => {
+  it("keeps driver-scoped roster visible when caller vehicle id drifts", () => {
     setApiDriverRoster(sampleRoster(), { vehicleNumber: "TN-01" });
-    expect(getApiApprovedStudentCount("other-vehicle")).toBe(0);
+    // Route SoT is loaded — Route Setup must still list New students.
+    expect(getApiApprovedStudentCount("other-vehicle")).toBe(3);
+    expect(listApiNewEnrollmentsForVehicle("other-vehicle").map((s) => s.studentId)).toEqual([
+      "s1",
+      "s3",
+    ]);
   });
 
   it("keeps null-pickup enrollments in the new/unassigned list", () => {

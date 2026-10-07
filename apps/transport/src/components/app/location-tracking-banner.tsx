@@ -110,7 +110,7 @@ export function LocationTrackingBanner({ className }: { className?: string }) {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-success">GPS tracking on</p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            Live location is sent about every 15 seconds
+            Live location is sent about every 2–3 seconds
             {lastUpload ? ` · last uploaded ${lastUpload}` : ""}.
           </p>
         </div>

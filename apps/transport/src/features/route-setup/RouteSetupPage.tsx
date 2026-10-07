@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
+import { CheckCircle2, Lock, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { DriverAssignmentGate } from "@/components/app/driver-assignment-state";
@@ -17,14 +17,11 @@ import { routeSetupRepository } from "@/lib/transport/route-setup";
 import {
   assignEnrollmentDropStop,
   assignEnrollmentPickupStop,
-  syncParkingStopToApi,
 } from "@/lib/transport/route-setup/api-sync";
-import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import {
   canEditStop,
   canRequestChangeStop,
-  isParkingStop,
   isRouteEndpointStop,
   isSchoolStop,
   SUBMISSION_STATUS_LABEL,
@@ -85,7 +82,6 @@ export function RouteSetupPage() {
   const pendingStops = record.stops.filter((s) => canEditStop(s));
   const waypointStops = record.stops.filter((s) => !isRouteEndpointStop(s));
   const schoolStop = record.stops.find((s) => isSchoolStop(s)) ?? null;
-  const parkingStop = record.stops.find((s) => isParkingStop(s)) ?? null;
   const dropAssignableStops = record.stops.filter(
     (s) => isSchoolStop(s) || (!isRouteEndpointStop(s) && s.status !== "rejected"),
   );
@@ -139,41 +135,6 @@ export function RouteSetupPage() {
           ? err.message
           : "Could not get GPS. Turn on location and try again.";
       toast.error("Location needed", { description: message });
-    } finally {
-      setCapturing(false);
-    }
-  };
-
-  const saveBusParkLocation = async () => {
-    if (locked) {
-      toast.message("Route is locked", {
-        description: "Admin locked this route. You cannot edit the bus park end.",
-      });
-      return;
-    }
-    const scope = getRouteSetupDriverScope();
-    if (!scope?.instituteId) {
-      toast.error("Open Route Setup after signing in to set bus park.");
-      return;
-    }
-    setCapturing(true);
-    try {
-      const fix = await captureCurrentGps({ allowDemo: false });
-      await syncParkingStopToApi(scope, fix);
-      toast.success("Bus park saved", {
-        description: "This is your start / evening end. School end is set by Admin.",
-      });
-      if (user?.instituteId) {
-        void queryClient.invalidateQueries({
-          queryKey: transportQueryKeys.roster(user.instituteId),
-        });
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Could not save bus park location.";
-      toast.error("Bus park not saved", { description: message });
     } finally {
       setCapturing(false);
     }
@@ -384,21 +345,14 @@ export function RouteSetupPage() {
 
           <section className="space-y-3">
             <SectionHeader
-              title="Route ends"
-              subtitle="School is set by Admin. Bus park is your start / evening end."
+              title="School endpoint"
+              subtitle="School is set by Admin in Transport Settings. Trip ends after the last student drop."
             />
-            <div className="grid gap-2 sm:grid-cols-2">
-              <EndpointCard
-                title="School (boarding end)"
-                stop={schoolStop}
-                emptyHint="Ask Admin to set School location in Transport Settings."
-              />
-              <EndpointCard
-                title="Bus park (start end)"
-                stop={parkingStop}
-                emptyHint="Tap Set bus park below to save your depot GPS."
-              />
-            </div>
+            <EndpointCard
+              title="School (boarding end)"
+              stop={schoolStop}
+              emptyHint="Ask Admin to set School location in Transport Settings."
+            />
           </section>
 
           {!locked ? (
@@ -413,17 +367,6 @@ export function RouteSetupPage() {
               >
                 <Plus className="size-5" aria-hidden />
                 Add Stop
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                expanded
-                loading={capturing}
-                onClick={() => void saveBusParkLocation()}
-              >
-                <MapPinned className="size-5" aria-hidden />
-                Set bus park (start end)
               </Button>
               {waypointStops.length > 0 ? (
                 <Button

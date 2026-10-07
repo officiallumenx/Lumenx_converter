@@ -4,6 +4,7 @@ export {
   getTripSessionSnapshot,
   startTripSession,
   beginStartTripSession,
+  abortStartTripSession,
   confirmStartTripSession,
   endTripSession,
   dismissCompletedTripSession,

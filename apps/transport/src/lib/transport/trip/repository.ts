@@ -10,6 +10,7 @@ import {
 import { getAssignmentReadiness } from "./assignment-readiness";
 import type { TripEndSummary } from "./lifecycle";
 import {
+  abortStartTripSession,
   dismissCompletedTripSession,
   getTripAssignmentSnapshot,
   getTripSessionSnapshot,
@@ -47,9 +48,16 @@ export const tripRepository = {
 
   async confirmStartTrip(): Promise<TripActionResult> {
     await repositoryDelay(40);
-    const result = await confirmStartTripViaApi();
-    if (result.ok) resetAttendanceStore();
-    return result;
+    try {
+      const result = await confirmStartTripViaApi();
+      if (result.ok) resetAttendanceStore();
+      return result;
+    } catch (err) {
+      abortStartTripSession();
+      const reason =
+        err instanceof Error ? err.message : "Could not start trip. Try again.";
+      return { ok: false, reason, session: getTripSessionSnapshot() };
+    }
   },
 
   async setLifecyclePhase(

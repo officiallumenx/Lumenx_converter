@@ -15,6 +15,7 @@ import {
 } from "../api-roster";
 import {
   applyApiApprovedHydration,
+  setRouteSetupDriverScope,
   type RouteSetupDriverScope,
 } from "./store";
 import type { RouteSetupStop, StudentStopAssignment } from "./types";
@@ -58,11 +59,30 @@ export async function hydrateRouteSetupFromApi(
 ): Promise<void> {
   if (!scope.instituteId || !isUuid(scope.routeId)) return;
   const data =
-    roster && roster.routeId === scope.routeId
-      ? roster
+    roster && roster.routeId
+      ? roster.routeId === scope.routeId
+        ? roster
+        : await getDriverRouteRoster(scope.instituteId)
       : await getDriverRouteRoster(scope.instituteId);
-  if (!data.routeId || data.routeId !== scope.routeId) return;
-  setApiDriverRoster(data, { vehicleNumber: scope.vehicleNumber });
+  if (!data.routeId) return;
+
+  let activeScope = scope;
+  if (data.routeId !== scope.routeId) {
+    // Realign to roster route instead of silently skipping hydration.
+    activeScope = {
+      ...scope,
+      routeId: data.routeId,
+      routeName: data.routeName?.trim() || scope.routeName,
+      routeCode: (data.routeName?.trim() || scope.routeName).slice(0, 3).toUpperCase(),
+      vehicleId: data.vehicleId?.trim() || scope.vehicleId,
+    };
+    setRouteSetupDriverScope(activeScope);
+  }
+
+  setApiDriverRoster(data, {
+    vehicleNumber: activeScope.vehicleNumber,
+    vehicleId: activeScope.vehicleId || data.vehicleId,
+  });
   const { setApiAttendanceRoster } = await import("../attendance/store");
   setApiAttendanceRoster(listApprovedAttendanceRosterStudents());
   applyApiApprovedHydration({

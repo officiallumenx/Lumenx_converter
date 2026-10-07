@@ -77,7 +77,7 @@ function isOperationalApproval(status: string): boolean {
 /** Replace the in-memory driver roster SoT (API mode). */
 export function setApiDriverRoster(
   roster: DriverRouteRoster | null,
-  extras?: { vehicleNumber?: string | null },
+  extras?: { vehicleNumber?: string | null; vehicleId?: string | null },
 ): void {
   if (!roster) {
     state = {
@@ -93,7 +93,8 @@ export function setApiDriverRoster(
     emit();
     return;
   }
-  const vehicleId = roster.vehicleId ?? "";
+  const vehicleId =
+    (extras?.vehicleId?.trim() || roster.vehicleId?.trim() || "") || "";
   const vehicleNumber = extras?.vehicleNumber ?? "—";
   const students = roster.students.map((s) => mapStudent(s, vehicleId, vehicleNumber));
   const expectedCount = roster.expectedCount ?? students.length;
@@ -102,7 +103,7 @@ export function setApiDriverRoster(
   const expectedOnboardCount =
     roster.expectedOnboardCount ?? expectedCount - notRidingCount;
   state = {
-    vehicleId: roster.vehicleId,
+    vehicleId: vehicleId || roster.vehicleId,
     vehicleNumber,
     routeId: roster.routeId,
     locked: roster.locked,
@@ -158,7 +159,13 @@ export function getApiRosterParticipationCounts(vehicleId?: string | null): {
   notRidingCount: number;
   expectedOnboardCount: number;
 } {
-  if (vehicleId && state.vehicleId && state.vehicleId !== vehicleId) {
+  // Driver roster is already route-scoped — do not zero counts on vehicle-id drift.
+  if (
+    vehicleId &&
+    state.vehicleId &&
+    state.vehicleId !== vehicleId &&
+    !state.routeId
+  ) {
     return { expectedCount: 0, notRidingCount: 0, expectedOnboardCount: 0 };
   }
   return {
@@ -178,14 +185,19 @@ export function getApiPendingStopCount(vehicleId?: string | null): number {
 }
 
 export function listApiEnrollmentsForVehicle(vehicleId?: string | null): ApiRosterEnrollment[] {
+  if (!state.students.length) return [];
+  // Driver roster is already scoped to one route. Prefer returning students when
+  // a route SoT is loaded, even if caller vehicleId drifted (e.g. route.id fallback).
+  if (state.routeId) {
+    return state.students;
+  }
   if (!vehicleId) {
     return state.vehicleId ? state.students : [];
   }
   if (state.vehicleId && state.vehicleId !== vehicleId) {
-    // Scope mismatch — still return empty rather than cross-bus data.
     return [];
   }
-  return state.students.filter((s) => !vehicleId || s.vehicleId === vehicleId || !s.vehicleId);
+  return state.students.filter((s) => !s.vehicleId || s.vehicleId === vehicleId);
 }
 
 /** New = on this bus, no stop/location yet */
