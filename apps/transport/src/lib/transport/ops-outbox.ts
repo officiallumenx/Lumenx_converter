@@ -70,7 +70,12 @@ export type OpsOutboxEnqueueInput = {
 
 type Listener = () => void;
 
-const STORAGE_KEY = "lumenx.transport.ops-outbox.v1";
+/** Bumped to clear poison `trip-*` / path-validation failures from older clients. */
+const STORAGE_KEY = "lumenx.transport.ops-outbox.v2";
+const LEGACY_STORAGE_KEYS = [
+  "lumenx.transport.ops-outbox.v1",
+  "lumenx.transport.gps-outbox.v1",
+] as const;
 const MAX_RETRIES = 12;
 const BACKOFF_MS = [2_000, 5_000, 10_000, 20_000, 30_000, 60_000] as const;
 /** GPS coalescing only — never applied to boarding/drop/SOS/lifecycle. */
@@ -235,6 +240,15 @@ function hydrate() {
   if (hydrated || typeof localStorage === "undefined") return;
   hydrated = true;
   try {
+    // Drop legacy outbox keys that commonly held non-UUID trip ids.
+    for (const key of LEGACY_STORAGE_KEYS) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as {
@@ -253,60 +267,6 @@ function hydrate() {
       }
     }
 
-    // One-time migrate legacy GPS-only outbox so in-flight points are not lost.
-    const legacyRaw = localStorage.getItem("lumenx.transport.gps-outbox.v1");
-    if (legacyRaw) {
-      try {
-        const legacy = JSON.parse(legacyRaw) as {
-          events?: Array<{
-            clientEventId: string;
-            tripId: string;
-            capturedAt: string;
-            latitude: number;
-            longitude: number;
-            accuracyM: number | null;
-            sequenceNumber: number;
-            status: string;
-            retryCount: number;
-            createdAt: string;
-            lastError?: string | null;
-            nextRetryAt?: string | null;
-          }>;
-          lastSentAt?: string | null;
-        };
-        if (!lastGpsUploadedAt && legacy.lastSentAt) {
-          lastGpsUploadedAt = legacy.lastSentAt;
-        }
-        for (const e of legacy.events ?? []) {
-          if (e.status === "sent") continue;
-          if (events.some((x) => x.clientEventId === e.clientEventId)) continue;
-          events.push({
-            clientEventId: e.clientEventId,
-            eventType: "gps",
-            tripId: e.tripId,
-            studentId: null,
-            stopId: null,
-            capturedAt: e.capturedAt,
-            sequence: e.sequenceNumber || globalSequence + 1,
-            payload: {
-              latitude: e.latitude,
-              longitude: e.longitude,
-              accuracyM: e.accuracyM,
-            },
-            retryCount: e.retryCount ?? 0,
-            status: e.status === "failed" ? "failed" : "pending",
-            lastError: e.lastError ?? null,
-            nextRetryAt: e.nextRetryAt ?? null,
-            createdAt: e.createdAt || new Date().toISOString(),
-          });
-          globalSequence = Math.max(globalSequence, e.sequenceNumber || 0);
-        }
-        localStorage.removeItem("lumenx.transport.gps-outbox.v1");
-        persist();
-      } catch {
-        /* ignore legacy parse */
-      }
-    }
   } catch {
     events = [];
   }

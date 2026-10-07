@@ -197,8 +197,8 @@ export async function endTripViaApi(): Promise<TripActionResult> {
 
 export async function hydrateActiveTripFromApi(): Promise<void> {
   const scope = getRouteSetupDriverScope();
-  if (!scope?.vehicleId) return;
-  const active = await getActiveTripForVehicle(scope.vehicleId);
+  if (!scope?.vehicleId || !isUuid(scope.vehicleId)) return;
+  const active = await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
   if (active) syncTripFromApiDto(active);
   void flushOpsOutbox();
 }

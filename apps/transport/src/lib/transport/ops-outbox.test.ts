@@ -69,7 +69,7 @@ describe("ops-outbox Phase 8", () => {
       events: getOpsOutboxSnapshot().events,
     });
     // Re-seed after reset wiped — simulate restart with persisted events
-    const storeRaw = localStorage.getItem("lumenx.transport.ops-outbox.v1");
+    const storeRaw = localStorage.getItem("lumenx.transport.ops-outbox.v2");
     expect(storeRaw).toBeTruthy();
 
     enqueueOpsEvent({
@@ -187,7 +187,7 @@ describe("ops-outbox Phase 8", () => {
       clientEventId: "drop-persist-1",
       payload: {},
     });
-    const raw = localStorage.getItem("lumenx.transport.ops-outbox.v1");
+    const raw = localStorage.getItem("lumenx.transport.ops-outbox.v2");
     expect(raw).toContain("drop-persist-1");
 
     // Simulate restart

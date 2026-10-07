@@ -67,8 +67,16 @@ function ensureAttendanceOutboxBridge() {
   window.addEventListener("lumenx-transport-ops-failed", ((ev: CustomEvent) => {
     const studentId = ev.detail?.studentId as string | undefined;
     const message = ev.detail?.message as string | undefined;
+    const eventType = ev.detail?.eventType as string | undefined;
     if (studentId) setStudentSyncStatus(studentId, "error");
-    if (message) {
+    // Attendance-only toast — GPS / lifecycle failures use banners, not this Sync chip.
+    const attendanceFail =
+      eventType === "boarding" ||
+      eventType === "not_boarded" ||
+      eventType === "drop" ||
+      eventType === "not_dropped" ||
+      Boolean(studentId);
+    if (attendanceFail && message) {
       void import("sonner").then(({ toast }) => {
         toast.error("Sync failed — retry", { description: message });
       });

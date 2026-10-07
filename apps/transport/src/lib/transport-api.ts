@@ -1,6 +1,15 @@
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assertUuidPathParam(label: string, value: string): void {
+  if (!UUID_RE.test(value?.trim() ?? "")) {
+    throw new Error(`${label} is missing or invalid — refresh assignment and try again.`);
+  }
+}
+
 function apiBaseUrl(): string {
   return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
 }
@@ -346,6 +355,7 @@ export async function updateTransportTripPhase(
     clientEventId?: string;
   },
 ): Promise<TransportTripDto> {
+  assertUuidPathParam("Trip id", tripId);
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/phase`, {
     method: "PATCH",
     body: {
@@ -361,6 +371,7 @@ export async function endTransportTrip(
   tripId: string,
   clientEventId?: string,
 ): Promise<TransportTripDto> {
+  assertUuidPathParam("Trip id", tripId);
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/end`, {
     method: "POST",
     body: {
@@ -372,6 +383,7 @@ export async function endTransportTrip(
 export async function getActiveTripForVehicle(
   vehicleId: string,
 ): Promise<TransportTripDto | null> {
+  assertUuidPathParam("Vehicle id", vehicleId);
   return transportFetch<TransportTripDto | null>(
     `/api/v1/transport/vehicles/${vehicleId}/active-trip`,
   );
@@ -380,6 +392,7 @@ export async function getActiveTripForVehicle(
 export async function listTripBoardingEvents(
   tripId: string,
 ): Promise<TransportBoardingEventDto[]> {
+  assertUuidPathParam("Trip id", tripId);
   return transportFetch<TransportBoardingEventDto[]>(
     `/api/v1/transport/trips/${tripId}/boarding`,
   );
@@ -394,6 +407,7 @@ export async function markTripBoarding(
     clientEventId: string;
   },
 ): Promise<TransportBoardingEventDto> {
+  assertUuidPathParam("Trip id", tripId);
   return transportFetch<TransportBoardingEventDto>(
     `/api/v1/transport/trips/${tripId}/boarding`,
     {
@@ -417,6 +431,7 @@ export async function markTripDropping(
     clientEventId: string;
   },
 ): Promise<TransportBoardingEventDto> {
+  assertUuidPathParam("Trip id", tripId);
   return transportFetch<TransportBoardingEventDto>(
     `/api/v1/transport/trips/${tripId}/dropping`,
     {
@@ -470,6 +485,7 @@ export async function createTransportEmergency(input: {
 export async function getOpenEmergencyForVehicle(
   vehicleId: string,
 ): Promise<TransportEmergencyDto | null> {
+  assertUuidPathParam("Vehicle id", vehicleId);
   return transportFetch<TransportEmergencyDto | null>(
     `/api/v1/transport/vehicles/${vehicleId}/open-emergency`,
   );
@@ -486,6 +502,7 @@ export async function pingTripLocation(
     sequenceNumber?: number;
   },
 ): Promise<void> {
+  assertUuidPathParam("Trip id", tripId);
   await transportFetch(`/api/v1/transport/trips/${tripId}/location`, {
     method: "POST",
     body: {
