@@ -17,8 +17,10 @@ import {
   insertNotification,
   insertRecipients,
   listActiveMemberUserIdsForAudience,
+  listDeliveryAttemptsForNotification,
   listDeviceTokensForUser,
   listNotificationsByIds,
+  listRecipientsForNotification,
   listRecipientsForUser,
   listRecipientsForUserAll,
   listTemplates,
@@ -30,8 +32,11 @@ import {
   upsertDeviceToken,
   userHasNotificationRecipientAtInstitute,
 } from "./repository.js";
+import { createHash } from "node:crypto";
 import { enqueueFcmDeliveryAttempts } from "./fcm-enqueue.js";
 import { escalatePriorityFromDueAt } from "./deadline-priority.js";
+import { resolveTargetApps } from "./resolve-target-apps.js";
+import { assertActorMayRegisterDeviceApp } from "./device-app-access.js";
 import type {
   DeviceTokenDto,
   DeviceTokenRow,
@@ -405,11 +410,18 @@ async function emitNotificationInternal(
     }
   }
 
+  const targetApps = resolveTargetApps(input.category, input.targetApps);
+  const payload: Record<string, unknown> = {
+    ...(input.payload ?? {}),
+    targetApps,
+  };
+
   const notification = await insertNotification(admin, {
     ...input,
     instituteId,
     title,
     body,
+    payload,
     priority: escalatePriorityFromDueAt(input.priority ?? "normal", input.dueAt),
     createdByUserProfileId,
   });
@@ -430,6 +442,9 @@ async function emitNotificationInternal(
     instituteId,
     notificationId: notification.id,
     recipients,
+    targetApps,
+    category: input.category,
+    payload,
   });
 
   return recipients.map((r) => toInboxItemDto(r, notification));
@@ -507,6 +522,7 @@ export async function registerDeviceTokenForActor(
       token: ["Required"],
     });
   }
+  await assertActorMayRegisterDeviceApp(admin, actor, input.app);
   const row = await upsertDeviceToken(admin, actor.userId, {
     ...input,
     token,
@@ -542,4 +558,98 @@ export async function invalidateDeviceTokensForActor(
     opts?.app,
   );
   return { invalidated };
+}
+
+function fingerprintToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
+
+/** Staff diagnostic: notification → recipients → masked tokens → delivery attempts. */
+export async function getNotificationDeliveryDiagnosticForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  notificationId: string,
+  instituteId: string,
+) {
+  requireInstituteId(actor, instituteId);
+  if (!isStaffReader(actor, instituteId) && !actor.isPlatformOperator) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const notification = await findNotificationById(admin, notificationId);
+  if (!notification || notification.institute_id !== instituteId) {
+    throw AppError.notFound("Notification not found");
+  }
+
+  const recipients = await listRecipientsForNotification(admin, notificationId);
+  const attempts = await listDeliveryAttemptsForNotification(
+    admin,
+    notificationId,
+  );
+
+  const tokenIds = [
+    ...new Set(
+      attempts
+        .map((a) => a.device_token_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const tokens = await Promise.all(
+    tokenIds.map((id) => findDeviceTokenById(admin, id)),
+  );
+  const tokenMeta = tokens
+    .filter((t): t is NonNullable<typeof t> => t != null)
+    .map((t) => ({
+      id: t.id,
+      userProfileId: t.user_profile_id,
+      app: t.app,
+      platform: t.platform,
+      valid: t.valid,
+      lastSeenAt: t.last_seen_at,
+      fingerprint: fingerprintToken(t.token),
+    }));
+
+  const fcmAttempts = attempts.filter((a) => a.channel === "fcm");
+  const attemptSummary = {
+    pending: fcmAttempts.filter((a) => a.status === "pending").length,
+    failed: fcmAttempts.filter((a) => a.status === "failed").length,
+    sent: fcmAttempts.filter((a) => a.status === "sent").length,
+    skipped: fcmAttempts.filter((a) => a.status === "skipped").length,
+  };
+
+  return {
+    notification: {
+      id: notification.id,
+      instituteId: notification.institute_id,
+      category: notification.category,
+      priority: notification.priority,
+      title: notification.title,
+      dedupeKey: notification.dedupe_key,
+      deepLink: notification.deep_link,
+      targetApps: Array.isArray(notification.payload?.targetApps)
+        ? notification.payload.targetApps
+        : null,
+      createdAt: notification.created_at,
+    },
+    recipients: recipients.map((r) => ({
+      id: r.id,
+      userProfileId: r.user_profile_id,
+      readAt: r.read_at,
+    })),
+    deviceTokens: tokenMeta,
+    attempts: attempts.map((a) => ({
+      id: a.id,
+      channel: a.channel,
+      status: a.status,
+      error: a.error,
+      deviceTokenId: a.device_token_id,
+      notificationRecipientId: a.notification_recipient_id,
+      attemptCount: a.attempt_count,
+      nextAttemptAt: a.next_attempt_at,
+      maxAttempts: a.max_attempts,
+      attemptedAt: a.attempted_at,
+      createdAt: a.created_at,
+    })),
+    fcmAttemptSummary: attemptSummary,
+  };
 }

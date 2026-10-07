@@ -27,6 +27,14 @@ export interface LumenXCapacitorConfig {
       style?: "DARK" | "LIGHT" | "DEFAULT";
       backgroundColor?: string;
     };
+    /**
+     * Intentionally omit presentationOptions "alert" so foreground pushes
+     * use in-app UI + chime only (no duplicate system tray).
+     * Background/killed still use FCM notification payload → system tray.
+     */
+    PushNotifications?: {
+      presentationOptions?: Array<"badge" | "sound" | "alert">;
+    };
   };
 }
 

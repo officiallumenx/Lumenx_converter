@@ -29,6 +29,11 @@ export function createCapacitorConfig(options: LumenXCapacitorAppOptions): Lumen
         style: "LIGHT",
         backgroundColor: "#00000000",
       },
+      // Foreground: in-app alert + chime only (no "alert" → avoids duplicate trays).
+      // Background/killed: FCM notification payload displays via system channels.
+      PushNotifications: {
+        presentationOptions: ["badge", "sound"],
+      },
     },
   };
 }

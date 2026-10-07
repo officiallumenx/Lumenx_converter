@@ -8,7 +8,11 @@ import { assertProductionEnv } from "./config/production.js";
 import { createLogger } from "./logger/logger.js";
 import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
-import { startFcmWorkerLoop } from "./workers/fcm-worker-runner.js";
+import {
+  FCM_WORKER_DEFAULT_BATCH,
+  FCM_WORKER_DEFAULT_INTERVAL_MS,
+  startFcmWorkerLoop,
+} from "./workers/fcm-worker-runner.js";
 import { startSubscriptionLifecycleLoop } from "./workers/subscription-lifecycle-runner.js";
 import { startBackgroundJobsLoop } from "./workers/background-jobs-runner.js";
 
@@ -17,15 +21,46 @@ assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);
 const supabase = createSupabaseClients(env, logger);
 const firebaseApp = initFirebaseAdmin(env, logger);
-const messaging =
-  env.FCM_WORKER_ENABLED === false ? null : getFirebaseMessaging(firebaseApp);
+const workerEnabled = env.FCM_WORKER_ENABLED !== false;
+const messaging = workerEnabled ? getFirebaseMessaging(firebaseApp) : null;
+
+if (env.NODE_ENV === "production" && workerEnabled) {
+  if (!firebaseApp || !messaging || !supabase?.admin) {
+    logger.error({
+      msg: "fcm_worker_startup_failed",
+      workerEnabled: true,
+      firebaseConfigured: Boolean(firebaseApp),
+      messagingConfigured: Boolean(messaging),
+      supabaseConfigured: Boolean(supabase?.admin),
+      projectId: env.FIREBASE_PROJECT_ID ?? null,
+      hint: "Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY and Supabase, or set FCM_WORKER_ENABLED=false to disable push intentionally.",
+    });
+    process.exit(1);
+  }
+}
+
 const app = createApp(env, logger, supabase, firebaseApp);
 if (supabase?.admin && messaging) {
-  startFcmWorkerLoop({ admin: supabase.admin, messaging, logger });
-  logger.info({ msg: "fcm_worker_started" });
+  startFcmWorkerLoop({
+    admin: supabase.admin,
+    messaging,
+    logger,
+    intervalMs: FCM_WORKER_DEFAULT_INTERVAL_MS,
+    batchSize: FCM_WORKER_DEFAULT_BATCH,
+  });
+  logger.info({
+    msg: "fcm_worker_started",
+    workerEnabled: true,
+    projectId: env.FIREBASE_PROJECT_ID ?? null,
+    intervalMs: FCM_WORKER_DEFAULT_INTERVAL_MS,
+    batchSize: FCM_WORKER_DEFAULT_BATCH,
+  });
 } else {
   logger.warn({
     msg: "fcm_worker_disabled",
+    workerEnabled,
+    firebaseConfigured: Boolean(firebaseApp),
+    projectId: env.FIREBASE_PROJECT_ID ?? null,
     hint: "Configure Firebase credentials and Supabase to enable FCM delivery (or set FCM_WORKER_ENABLED=true).",
   });
 }

@@ -96,6 +96,15 @@ export {
   type PushBootstrapDiagnostic,
 } from "./push-device-token";
 export {
+  getPushPermissionRecoveryStatus,
+  setPushPermissionRecoveryStatus,
+  subscribePushPermissionRecovery,
+  openAppNotificationSettings,
+  recheckAndRegisterPushAfterSettings,
+  resetPushPermissionRecoveryForTests,
+  type PushPermissionRecoveryStatus,
+} from "./push-permission-recovery";
+export {
   isSafeAppDeepLink,
   normalizeSafeAppDeepLink,
   openSafeAppDeepLink,

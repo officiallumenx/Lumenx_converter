@@ -54,6 +54,23 @@ School-fees stay office/reception only by product policy (not a Steps 1–10 gap
 
 Identity and OTP no longer use Firebase Auth. Keep `FIREBASE_PROJECT_ID` / `CLIENT_EMAIL` / `PRIVATE_KEY` and `FCM_WORKER_ENABLED` for push.
 
+### Production FCM (Render / host)
+
+Required when push is enabled (do not put secret **values** in git):
+
+| Variable | Purpose |
+|----------|---------|
+| `FCM_WORKER_ENABLED` | Must be `true` (default) for push; set `false` only to intentionally disable |
+| `FIREBASE_PROJECT_ID` | Firebase project id for Admin SDK / FCM |
+| `FIREBASE_CLIENT_EMAIL` | Service account email |
+| `FIREBASE_PRIVATE_KEY` | Service account private key (PEM; `\n` escaped OK) |
+
+Startup logs (safe): `firebase_initialized`, `fcm_worker_started` with `projectId`, `intervalMs`, `batchSize`.  
+Readiness: `GET /api/v1/health/ready` → `checks.fcm` (`workerEnabled`, `firebaseConfigured`, `workerRunning`, `projectId`).  
+Delivery trace (staff): `GET /api/v1/notifications/:id/delivery?institute_id=…` (token fingerprints only).
+
+Production refuses to boot when `FCM_WORKER_ENABLED=true` but Firebase Admin / messaging / Supabase admin is unavailable.
+
 ## 1. OTP login
 
 Notebook auth workflows (Nexus / Admin / Connect / signup) use the same delivery layer.

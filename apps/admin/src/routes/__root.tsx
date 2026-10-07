@@ -40,6 +40,7 @@ import { Toaster } from "@lumenx/ui/sonner";
 import { AdminOfflineFlushHost } from "@/components/AdminOfflineFlushHost";
 import { InAppAlertListener } from "@/components/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
+import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
 import { FirebaseClientServices } from "@/components/FirebaseClientServices";
 import { subscribeInstituteRegistrations } from "@lumenx/utils";
 import { useState } from "react";
@@ -353,6 +354,9 @@ function RootComponent() {
                     <InAppAlertListener />
                     <FirebaseClientServices enabled />
                     <PushDeviceTokenRegistration enabled />
+                    <div className="px-3 pt-2">
+                      <PushPermissionRecoveryBanner />
+                    </div>
                     <AuthGate />
                   </TypographyProvider>
                 </OfflineSyncHost>

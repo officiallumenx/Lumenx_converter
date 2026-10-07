@@ -13,6 +13,7 @@ import {
   deleteInboxItemForActor,
   emitNotificationForActor,
   getInboxItemForActor,
+  getNotificationDeliveryDiagnosticForActor,
   invalidateDeviceTokensForActor,
   listDeviceTokensForActor,
   listInboxForActor,
@@ -224,6 +225,23 @@ notifications.post("/mark-all-read", async (c) => {
     await c.req.json(),
   );
   const data = await markAllInboxReadForActor(admin, actor, body.institute_id);
+  return c.json({ data });
+});
+
+notifications.get("/:id/delivery", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getNotificationDeliveryDiagnosticForActor(
+    admin,
+    actor,
+    id,
+    query.institute_id,
+  );
   return c.json({ data });
 });
 

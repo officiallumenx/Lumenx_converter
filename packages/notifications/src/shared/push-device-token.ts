@@ -1,4 +1,8 @@
 import { normalizeSafeAppDeepLink } from "./safe-deep-link.js";
+import {
+  setPushPermissionRecoveryStatus,
+  recheckAndRegisterPushAfterSettings,
+} from "./push-permission-recovery.js";
 
 export type DeviceApp =
   | "connect"
@@ -166,9 +170,79 @@ async function bootstrapNativePush(input: {
         : (await PushNotifications.requestPermissions()).receive === "granted";
     input.onPermission?.(granted);
     if (!granted) {
+      setPushPermissionRecoveryStatus("denied");
       input.onDiagnostic?.("permission_denied");
-      return () => undefined;
+      // Listen for app resume so user can recover from Settings without re-prompt spam.
+      const disposersDenied: Array<() => void> = [];
+      try {
+        const appMod = await import(/* @vite-ignore */ "@capacitor/app").catch(
+          () => null,
+        );
+        const CapApp = (
+          appMod as {
+            App?: {
+              addListener: (
+                e: string,
+                cb: (s: { isActive: boolean }) => void,
+              ) => Promise<{ remove: () => Promise<void> }>;
+            };
+          } | null
+        )?.App;
+        if (CapApp?.addListener) {
+          const sub = await CapApp.addListener("appStateChange", (state) => {
+            if (!state.isActive) return;
+            void recheckAndRegisterPushAfterSettings({
+              onGrantedRegister: async () => {
+                // Token arrives via registration listener after register();
+                // bootstrap will re-run on next mount; here we only re-register FCM.
+              },
+            }).then(async (st) => {
+              if (st !== "granted") return;
+              const tokenMod = await import(
+                /* @vite-ignore */ "@capacitor/push-notifications"
+              ).catch(() => null);
+              const PN = (
+                tokenMod as {
+                  PushNotifications?: {
+                    addListener: (
+                      e: string,
+                      cb: (event: unknown) => void,
+                    ) => Promise<{ remove: () => Promise<void> }>;
+                    register: () => Promise<void>;
+                  };
+                } | null
+              )?.PushNotifications;
+              if (!PN) return;
+              const once = await PN.addListener("registration", (event: unknown) => {
+                const token = (event as { value?: string }).value?.trim();
+                if (!token) return;
+                void input
+                  .register({
+                    app: input.app,
+                    platform: detectPlatform(),
+                    token,
+                  })
+                  .then(() => {
+                    input.onTokenRegistered?.(detectPlatform());
+                    void once.remove();
+                  })
+                  .catch(() => undefined);
+              });
+              await PN.register();
+            });
+          });
+          disposersDenied.push(() => {
+            void sub.remove();
+          });
+        }
+      } catch {
+        // ignore
+      }
+      return () => {
+        for (const d of disposersDenied) d();
+      };
     }
+    setPushPermissionRecoveryStatus("granted");
 
     const channelsOk = await ensureAndroidPushChannels(PushNotifications);
     if (!channelsOk) {

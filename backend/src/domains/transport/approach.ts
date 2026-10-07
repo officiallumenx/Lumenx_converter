@@ -210,10 +210,8 @@ export async function evaluateApproachAlertsOnPing(
           severity: "attention",
           title,
           body: `The bus is about ${geom.etaMinutes} min away from ${geom.stop.name}.`,
-          deepLink: deepLinkForTransportEvent(
-            TRANSPORT_EVENT.STOP_APPROACHING,
-            "parent",
-          ),
+          deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_APPROACHING, "parent"),
+      targetAudience: "parent",
           dedupeKey: transportDedupe.approach(trip.id, studentId, threshold),
           recipientUserIds: recipients,
           payload: {
@@ -248,6 +246,7 @@ export async function evaluateApproachAlertsOnPing(
       title: "Bus has arrived at your stop",
       body: "Bus has arrived at your stop.",
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "parent"),
+      targetAudience: "parent",
       dedupeKey: transportDedupe.arrived(trip.id, geom.stop.id),
       recipientUserIds: uniqueParents,
       payload: {
@@ -259,7 +258,7 @@ export async function evaluateApproachAlertsOnPing(
       },
     });
 
-    if (!arrivalCreated) continue;
+    if (!arrivalCreated.ok) continue;
 
     const driver = await findDriverById(admin, trip.driver_id);
     if (driver?.user_profile_id) {
@@ -271,10 +270,8 @@ export async function evaluateApproachAlertsOnPing(
         softChime: true,
         title: `Bus has arrived at ${geom.stop.name}`,
         body: `Bus has arrived at ${geom.stop.name}`,
-        deepLink: deepLinkForTransportEvent(
-          TRANSPORT_EVENT.STOP_ARRIVED,
-          "driver",
-        ),
+        deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "driver"),
+      targetAudience: "driver",
         dedupeKey: `transport:${trip.id}:stop:${geom.stop.id}:arrived:driver`,
         recipientUserIds: [driver.user_profile_id],
         payload: { tripId: trip.id, stopId: geom.stop.id },
@@ -289,6 +286,7 @@ export async function evaluateApproachAlertsOnPing(
       title: `Bus arrived at ${geom.stop.name}`,
       body: `Live timeline: bus entered ${geom.stop.name} geofence.`,
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "admin"),
+      targetAudience: "admin",
       dedupeKey: `transport:${trip.id}:stop:${geom.stop.id}:arrived:admin`,
       recipientUserIds: await staffUserIdsForInstitute(admin, trip.institute_id),
       payload: { tripId: trip.id, stopId: geom.stop.id },

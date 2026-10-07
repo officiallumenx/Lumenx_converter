@@ -35,11 +35,18 @@
     "@lumenx/types": "*",
     "@lumenx/utils": "*"
   },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },
   "optionalDependencies": {
-    "@capacitor/push-notifications": "^7.0.7"
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/push-notifications": "^7.0.7",
+    "capacitor-native-settings": "^7.0.1"
   }
 }

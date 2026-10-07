@@ -248,6 +248,14 @@ export async function broadcastSchoolAlertForActor(
 
   const recipientUserIds = [...new Set(targets.map((target) => target.userProfileId))];
   if (recipientUserIds.length > 0) {
+    // Parents/students/teachers use Connect; staff may also have Admin.
+    const audience = input.audience;
+    const targetApps =
+      audience === "staff"
+        ? (["admin"] as const)
+        : audience === "teachers"
+          ? (["connect"] as const)
+          : (["connect"] as const);
     await emitNotificationForActor(admin, actor, {
       instituteId,
       category: "system",
@@ -255,6 +263,7 @@ export async function broadcastSchoolAlertForActor(
       title,
       body: summary,
       deepLink: "/alerts",
+      targetApps: [...targetApps],
       payload: {
         presentation: "alert",
         alertSeverity: severity,

@@ -4,9 +4,26 @@ import {
   resolveConnectivityProbe,
 } from "../../integrations/supabase.js";
 import { loadEnv } from "../../config/env.js";
+import { getLumenXFirebaseAdminApp } from "../../integrations/firebase.js";
+import { getFcmWorkerRuntimeStatus } from "../../workers/fcm-worker-runner.js";
 import type { AppBindings } from "../../types/app.js";
 
 const health = new Hono<AppBindings>();
+
+function fcmHealthSnapshot() {
+  const env = loadEnv();
+  const workerEnabled = env.FCM_WORKER_ENABLED !== false;
+  const firebaseConfigured = getLumenXFirebaseAdminApp() != null;
+  const runtime = getFcmWorkerRuntimeStatus();
+  return {
+    workerEnabled,
+    firebaseConfigured,
+    workerRunning: runtime.workerRunning,
+    projectId: env.FIREBASE_PROJECT_ID ?? null,
+    intervalMs: runtime.intervalMs,
+    batchSize: runtime.batchSize,
+  };
+}
 
 /**
  * Liveness — never depends on Supabase or other integrations.
@@ -30,27 +47,33 @@ health.get("/ready", async (c) => {
   const clients = c.get("supabase");
   const env = loadEnv();
   const probe = resolveConnectivityProbe(env);
+  const fcm = fcmHealthSnapshot();
 
   if (!clients || !probe) {
     return c.json({
       status: "degraded",
-      checks: { supabase: "not_configured" },
+      checks: { supabase: "not_configured", fcm },
     });
   }
 
   const result = await checkSupabaseConnectivity(probe);
 
   if (result.status === "ok") {
+    const fcmOk =
+      !fcm.workerEnabled || (fcm.firebaseConfigured && fcm.workerRunning);
     return c.json({
-      status: "ready",
-      checks: { supabase: "ok" },
+      status: fcmOk ? "ready" : "degraded",
+      checks: {
+        supabase: "ok",
+        fcm,
+      },
     });
   }
 
   return c.json(
     {
       status: "degraded",
-      checks: { supabase: "unavailable" },
+      checks: { supabase: "unavailable", fcm },
     },
     503,
   );

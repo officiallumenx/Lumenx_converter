@@ -4,8 +4,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
+import { createLogger } from "../../logger/logger.js";
 import { emitNotificationForInstituteSystem } from "../notifications/service.js";
+import { targetAppsForTransportAudience } from "../notifications/resolve-target-apps.js";
 import type {
+  DeviceApp,
   EmitNotificationInput,
   NotificationPriority,
 } from "../notifications/types.js";
@@ -18,6 +21,10 @@ import {
   type TransportSeverity,
 } from "./transport-notification-severity.js";
 
+const log = createLogger("info");
+
+export type TransportNotifyAudience = "parent" | "driver" | "admin";
+
 export type EmitTransportNotificationInput = {
   instituteId: string;
   createdByUserId: string;
@@ -27,6 +34,10 @@ export type EmitTransportNotificationInput = {
   recipientUserIds: string[];
   dedupeKey: string;
   deepLink: string;
+  /** Who this emit is for — drives FCM target app filtering. */
+  targetAudience: TransportNotifyAudience;
+  /** Override audience→apps mapping (rare multi-app fanout). */
+  targetApps?: DeviceApp[];
   payload?: Record<string, unknown>;
   /** Override auto severity from kind. */
   severity?: TransportSeverity;
@@ -34,6 +45,10 @@ export type EmitTransportNotificationInput = {
   positiveOutcome?: boolean;
   approachThresholdMin?: number;
 };
+
+export type TransportEmitResult =
+  | { ok: true }
+  | { ok: false; reason: "empty" | "disabled" | "dedupe" | "error"; error?: string };
 
 let settingsCache: Map<string, { enabled: boolean; at: number }> | null = null;
 
@@ -55,15 +70,28 @@ export function clearTransportNotificationSettingsCache(): void {
   settingsCache = null;
 }
 
+function safeIdsFromPayload(payload: Record<string, unknown> | undefined): {
+  tripId?: string;
+  studentId?: string;
+} {
+  const tripId =
+    typeof payload?.tripId === "string" ? payload.tripId : undefined;
+  const studentId =
+    typeof payload?.studentId === "string" ? payload.studentId : undefined;
+  return { tripId, studentId };
+}
+
 /**
  * Emit one transport business notification.
- * Returns true if a new notification was created, false if suppressed (dedupe/settings/empty).
+ * Never throws into trip writers — failures are structured results + logs.
  */
 export async function emitTransportNotification(
   admin: SupabaseClient,
   input: EmitTransportNotificationInput,
-): Promise<boolean> {
-  if (input.recipientUserIds.length === 0) return false;
+): Promise<TransportEmitResult> {
+  if (input.recipientUserIds.length === 0) {
+    return { ok: false, reason: "empty" };
+  }
 
   const severity =
     input.severity ??
@@ -76,7 +104,7 @@ export async function emitTransportNotification(
       admin,
       input.instituteId,
     );
-    if (!enabled) return false;
+    if (!enabled) return { ok: false, reason: "disabled" };
   }
 
   const priority: NotificationPriority = priorityForSeverity(severity, {
@@ -85,6 +113,10 @@ export async function emitTransportNotification(
   const presentation = presentationForSeverity(severity, {
     softChime: input.softChime,
   });
+
+  const targetApps =
+    input.targetApps ?? targetAppsForTransportAudience(input.targetAudience);
+  const { tripId, studentId } = safeIdsFromPayload(input.payload);
 
   const emitInput: EmitNotificationInput = {
     instituteId: input.instituteId,
@@ -95,11 +127,13 @@ export async function emitTransportNotification(
     deepLink: input.deepLink,
     dedupeKey: input.dedupeKey,
     recipientUserIds: [...new Set(input.recipientUserIds)],
+    targetApps,
     payload: {
       ...(input.payload ?? {}),
       kind: input.kind,
       severity,
       presentation,
+      targetAudience: input.targetAudience,
     },
   };
 
@@ -109,14 +143,25 @@ export async function emitTransportNotification(
       input.createdByUserId,
       emitInput,
     );
-    return true;
+    return { ok: true };
   } catch (err) {
-    // Dedupe unique violation → idempotent success (no duplicate push).
+    // Dedupe unique violation → idempotent (no duplicate push).
     if (err instanceof AppError && (err.status === 409 || err.status === 400)) {
-      return false;
+      return { ok: false, reason: "dedupe" };
     }
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({
+      msg: "transport_notification_emit_failed",
+      kind: input.kind,
+      instituteId: input.instituteId,
+      tripId: tripId ?? null,
+      studentId: studentId ?? null,
+      targetAudience: input.targetAudience,
+      targetApps,
+      error: message,
+    });
     // Never fail the transport write path.
-    return false;
+    return { ok: false, reason: "error", error: message };
   }
 }
 
@@ -125,5 +170,9 @@ export function emitTransportNotificationSafe(
   admin: SupabaseClient,
   input: EmitTransportNotificationInput,
 ): void {
-  void emitTransportNotification(admin, input);
+  void emitTransportNotification(admin, input).then((result) => {
+    if (result.ok === false && result.reason === "error") {
+      // Already logged in emitTransportNotification.
+    }
+  });
 }

@@ -170,6 +170,11 @@ export type EmitNotificationInput = {
   /** Explicit recipients XOR audience (server resolves memberships). */
   recipientUserIds?: string[];
   audience?: NotificationAudience;
+  /**
+   * FCM device apps to target. Persisted on payload.targetApps.
+   * When omitted, category defaults apply (see resolveTargetApps).
+   */
+  targetApps?: DeviceApp[];
 };
 
 export type UpdateRecipientInput = {

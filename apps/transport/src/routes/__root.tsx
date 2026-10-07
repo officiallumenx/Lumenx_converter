@@ -17,6 +17,7 @@ import { APP_NAME } from "@/constants";
 import { TransportAuthProvider, getTransportAuthMode } from "@/lib/auth";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
 import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { TransportAlertsSync } from "@/components/app/TransportAlertsSync";
 import { useSettings } from "@/hooks/use-settings";
@@ -146,6 +147,9 @@ function RootComponent() {
             <InAppAlertListener />
             <FirebaseClientServices enabled />
             <PushDeviceTokenRegistration enabled />
+            <div className="px-3 pt-2">
+              <PushPermissionRecoveryBanner />
+            </div>
             <TransportAlertsSync />
             <Outlet />
           </TypographyProvider>

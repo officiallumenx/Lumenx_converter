@@ -174,6 +174,12 @@ export {
   bootstrapPushDeviceToken,
   invalidatePushDeviceTokens,
   invalidatePushDeviceTokensBeforeSignOut,
+  getPushPermissionRecoveryStatus,
+  setPushPermissionRecoveryStatus,
+  subscribePushPermissionRecovery,
+  openAppNotificationSettings,
+  recheckAndRegisterPushAfterSettings,
+  resetPushPermissionRecoveryForTests,
   isSafeAppDeepLink,
   normalizeSafeAppDeepLink,
   openSafeAppDeepLink,
@@ -182,8 +188,10 @@ export {
   type RegisterDeviceTokenFn,
   type InvalidateDeviceTokensFn,
   type PushBootstrapDiagnostic,
+  type PushPermissionRecoveryStatus,
   type InAppAlertEventDetail,
 } from "./shared/consumption";
+export { PushPermissionRecoveryBanner } from "./shared/PushPermissionRecoveryBanner";
 export { NOTIFICATION_CATEGORY as SYSTEM_NOTIFICATION_CATEGORY } from "./system";
 export {
   SYSTEM_TEMPLATES,

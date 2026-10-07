@@ -117,6 +117,7 @@ export function initFirebaseAdmin(env: Env, logger: Logger): App | null {
     msg: "firebase_initialized",
     projectId: config.projectId,
     messaging: true,
+    workerEnabledHint: env.FCM_WORKER_ENABLED !== false,
   });
 
   return app;

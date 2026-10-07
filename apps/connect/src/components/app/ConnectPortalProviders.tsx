@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
 import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { ConnectSchoolAlertsSync } from "@/components/app/ConnectSchoolAlertsSync";
 import { AppProvider } from "@/lib/app-state";
@@ -31,6 +32,9 @@ export function ConnectPortalProviders({
               <InAppAlertListener />
               <FirebaseClientServices enabled />
               <PushDeviceTokenRegistration enabled />
+              <div className="px-3 pt-2">
+                <PushPermissionRecoveryBanner />
+              </div>
               <ConnectSchoolAlertsSync />
               {children}
             </ActivityWorkspaceRegistry>

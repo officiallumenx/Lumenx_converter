@@ -3,25 +3,53 @@ import type { Messaging } from "firebase-admin/messaging";
 import type { Logger } from "../logger/logger.js";
 import { processPendingFcmDeliveries } from "../domains/notifications/fcm-worker.js";
 
-const DEFAULT_INTERVAL_MS = 4_000;
+export const FCM_WORKER_DEFAULT_INTERVAL_MS = 4_000;
+export const FCM_WORKER_DEFAULT_BATCH = 50;
 
 let timer: ReturnType<typeof setInterval> | null = null;
-let running = false;
+let tickBusy = false;
+let startedAt: string | null = null;
+let lastIntervalMs: number = FCM_WORKER_DEFAULT_INTERVAL_MS;
+let lastBatchSize: number = FCM_WORKER_DEFAULT_BATCH;
+
+export type FcmWorkerRuntimeStatus = {
+  workerRunning: boolean;
+  startedAt: string | null;
+  intervalMs: number;
+  batchSize: number;
+  tickBusy: boolean;
+};
+
+export function getFcmWorkerRuntimeStatus(): FcmWorkerRuntimeStatus {
+  return {
+    workerRunning: timer != null,
+    startedAt,
+    intervalMs: lastIntervalMs,
+    batchSize: lastBatchSize,
+    tickBusy,
+  };
+}
 
 export function startFcmWorkerLoop(input: {
   admin: SupabaseClient;
   messaging: Messaging;
   logger: Logger;
   intervalMs?: number;
+  batchSize?: number;
 }): void {
   if (timer) return;
 
-  const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS;
+  const intervalMs = input.intervalMs ?? FCM_WORKER_DEFAULT_INTERVAL_MS;
+  const batchSize = input.batchSize ?? FCM_WORKER_DEFAULT_BATCH;
+  lastIntervalMs = intervalMs;
+  lastBatchSize = batchSize;
+  startedAt = new Date().toISOString();
+
   const tick = () => {
-    if (running) return;
-    running = true;
+    if (tickBusy) return;
+    tickBusy = true;
     void processPendingFcmDeliveries(input.admin, input.messaging, input.logger, {
-      limit: 50,
+      limit: batchSize,
     })
       .then((result) => {
         if (result.sent > 0 || result.failed > 0) {
@@ -35,7 +63,7 @@ export function startFcmWorkerLoop(input: {
         });
       })
       .finally(() => {
-        running = false;
+        tickBusy = false;
       });
   };
 
@@ -48,6 +76,7 @@ export function stopFcmWorkerLoop(): void {
     clearInterval(timer);
     timer = null;
   }
+  startedAt = null;
 }
 
 /** One-shot flush — useful in tests and manual ops. */
@@ -61,6 +90,6 @@ export async function flushPendingFcmDeliveries(input: {
     input.admin,
     input.messaging,
     input.logger,
-    { limit: input.limit ?? 50 },
+    { limit: input.limit ?? FCM_WORKER_DEFAULT_BATCH },
   );
 }

@@ -179,6 +179,7 @@ export async function notifyTripStarted(
       title: "Trip started",
       body: "The school bus trip has started. You can follow live status in Connect.",
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_STARTED, "parent"),
+      targetAudience: "parent",
       dedupeKey: transportDedupe.tripStarted(trip.id, "parent"),
       recipientUserIds: guardians,
       payload: { tripId: trip.id, routeId: trip.route_id },
@@ -192,6 +193,7 @@ export async function notifyTripStarted(
       title: "Driver started a trip",
       body: "A transport trip is now active.",
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_STARTED, "admin"),
+      targetAudience: "admin",
       dedupeKey: transportDedupe.tripStarted(trip.id, "admin"),
       recipientUserIds: staff,
       payload: { tripId: trip.id, routeId: trip.route_id },
@@ -205,6 +207,7 @@ export async function notifyTripStarted(
       title: "Trip started",
       body: "Your trip is running. GPS tracking is active.",
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_STARTED, "driver"),
+      targetAudience: "driver",
       dedupeKey: transportDedupe.tripStarted(trip.id, "driver"),
       recipientUserIds: [driverUserId],
       payload: { tripId: trip.id, routeId: trip.route_id },
@@ -226,10 +229,8 @@ export async function notifyTripPhaseChanged(
     kind: TRANSPORT_EVENT.TRIP_PHASE_CHANGED,
     title: "Trip phase updated",
     body: `Trip moved from ${previousPhase} to ${trip.phase}.`,
-    deepLink: deepLinkForTransportEvent(
-      TRANSPORT_EVENT.TRIP_PHASE_CHANGED,
-      "admin",
-    ),
+    deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_PHASE_CHANGED, "admin"),
+      targetAudience: "admin",
     dedupeKey: `transport:${trip.id}:phase:${trip.phase}`,
     recipientUserIds: staff,
     payload: {
@@ -259,10 +260,8 @@ export async function notifyTripEnded(
       kind: TRANSPORT_EVENT.TRIP_COMPLETED,
       title: "Trip completed",
       body: "The school bus trip has ended.",
-      deepLink: deepLinkForTransportEvent(
-        TRANSPORT_EVENT.TRIP_COMPLETED,
-        "parent",
-      ),
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_COMPLETED, "parent"),
+      targetAudience: "parent",
       dedupeKey: transportDedupe.tripCompleted(trip.id),
       recipientUserIds: guardians,
       payload: { tripId: trip.id, routeId: trip.route_id },
@@ -275,10 +274,8 @@ export async function notifyTripEnded(
       kind: TRANSPORT_EVENT.TRIP_COMPLETED,
       title: "Trip completed",
       body: "A transport trip was marked completed.",
-      deepLink: deepLinkForTransportEvent(
-        TRANSPORT_EVENT.TRIP_COMPLETED,
-        "admin",
-      ),
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_COMPLETED, "admin"),
+      targetAudience: "admin",
       dedupeKey: `transport:${trip.id}:completed:admin`,
       recipientUserIds: staff,
       payload: { tripId: trip.id, routeId: trip.route_id },
@@ -330,6 +327,7 @@ export async function notifyBoardingMarked(
         : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
       "parent",
     ),
+    targetAudience: "parent",
     dedupeKey: boarded
       ? transportDedupe.boarded(input.trip.id, input.studentId)
       : transportDedupe.notBoarded(input.trip.id, input.studentId),
@@ -377,10 +375,8 @@ export async function notifyDroppingMarked(
     kind: TRANSPORT_EVENT.STUDENT_DROPPED,
     title: `${name} dropped off`,
     body: `${name} has been dropped at ${stopName}.`,
-    deepLink: deepLinkForTransportEvent(
-      TRANSPORT_EVENT.STUDENT_DROPPED,
-      "parent",
-    ),
+    deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "parent"),
+      targetAudience: "parent",
     dedupeKey: transportDedupe.dropped(input.trip.id, input.studentId),
     recipientUserIds: recipients,
     positiveOutcome: true,
@@ -413,10 +409,8 @@ export async function notifyEmergencyOpened(
       severity: "critical",
       title: "Transport SOS",
       body: input.note?.trim() || "A driver raised an emergency alert.",
-      deepLink: deepLinkForTransportEvent(
-        TRANSPORT_EVENT.EMERGENCY_CREATED,
-        "admin",
-      ),
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.EMERGENCY_CREATED, "admin"),
+      targetAudience: "admin",
       dedupeKey: transportDedupe.emergency(input.emergencyId, "admin"),
       recipientUserIds: staff,
       payload: {
@@ -461,10 +455,8 @@ export async function notifyEmergencyOpened(
     body:
       input.note?.trim() ||
       "Your child's bus driver raised an emergency alert. Open live transport for status.",
-    deepLink: deepLinkForTransportEvent(
-      TRANSPORT_EVENT.EMERGENCY_CREATED,
-      "parent",
-    ),
+    deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.EMERGENCY_CREATED, "parent"),
+      targetAudience: "parent",
     dedupeKey: transportDedupe.emergency(input.emergencyId, "parent"),
     recipientUserIds: guardians,
     payload: {
@@ -495,10 +487,8 @@ export async function notifyEmergencyResolved(
       kind: TRANSPORT_EVENT.EMERGENCY_RESOLVED,
       title: "Transport SOS resolved",
       body: "An emergency alert was marked resolved.",
-      deepLink: deepLinkForTransportEvent(
-        TRANSPORT_EVENT.EMERGENCY_RESOLVED,
-        "admin",
-      ),
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.EMERGENCY_RESOLVED, "admin"),
+      targetAudience: "admin",
       dedupeKey: transportDedupe.emergencyResolved(input.emergencyId, "admin"),
       recipientUserIds: staff,
       payload: {
@@ -537,10 +527,8 @@ export async function notifyEmergencyResolved(
     kind: TRANSPORT_EVENT.EMERGENCY_RESOLVED,
     title: "Transport SOS resolved",
     body: "The emergency alert on your child's bus was marked resolved.",
-    deepLink: deepLinkForTransportEvent(
-      TRANSPORT_EVENT.EMERGENCY_RESOLVED,
-      "parent",
-    ),
+    deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.EMERGENCY_RESOLVED, "parent"),
+      targetAudience: "parent",
     dedupeKey: transportDedupe.emergencyResolved(input.emergencyId, "parent"),
     recipientUserIds: guardians,
     payload: {
@@ -580,6 +568,8 @@ export async function notifyNotRidingCreated(
     title: "Not Riding Today",
     body: `${name} is marked not riding on ${input.serviceDate}.`,
     deepLink: "/transport",
+    targetAudience: "parent",
+    targetApps: ["connect", "admin"],
     dedupeKey: transportDedupe.notRiding(input.studentId, input.serviceDate),
     recipientUserIds: recipients,
     payload: {
@@ -618,6 +608,8 @@ export async function notifyNotRidingCancelled(
     title: "Not Riding cancelled",
     body: `${name} will ride again on ${input.serviceDate}.`,
     deepLink: "/transport",
+    targetAudience: "parent",
+    targetApps: ["connect", "admin"],
     dedupeKey: transportDedupe.notRidingCancelled(
       input.studentId,
       input.serviceDate,

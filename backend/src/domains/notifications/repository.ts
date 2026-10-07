@@ -199,14 +199,20 @@ export async function insertInAppDeliveryAttempts(
 export async function listValidDeviceTokensForUsers(
   admin: SupabaseClient,
   userProfileIds: string[],
+  apps?: string[],
 ): Promise<DeviceTokenRow[]> {
   if (userProfileIds.length === 0) return [];
-  const result = await admin
+  if (apps && apps.length === 0) return [];
+  let query = admin
     .from("device_token")
     .select(DEVICE_COLS)
     .in("user_profile_id", userProfileIds)
     .eq("valid", true)
     .is("deleted_at", null);
+  if (apps && apps.length > 0) {
+    query = query.in("app", apps);
+  }
+  const result = await query;
   return ensureDbOk(result) as DeviceTokenRow[];
 }
 
@@ -607,3 +613,30 @@ export async function listActiveMemberUserIdsForAudience(
     ),
   ];
 }
+
+export async function listRecipientsForNotification(
+  admin: SupabaseClient,
+  notificationId: string,
+): Promise<RecipientRow[]> {
+  const result = await admin
+    .from("notification_recipient")
+    .select(RECIPIENT_COLS)
+    .eq("notification_id", notificationId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as RecipientRow[];
+}
+
+export async function listDeliveryAttemptsForNotification(
+  admin: SupabaseClient,
+  notificationId: string,
+): Promise<DeliveryAttemptRow[]> {
+  const result = await admin
+    .from("notification_delivery_attempt")
+    .select(
+      "id, institute_id, notification_id, notification_recipient_id, device_token_id, channel, status, error, attempted_at, created_at, attempt_count, next_attempt_at, max_attempts",
+    )
+    .eq("notification_id", notificationId)
+    .order("created_at", { ascending: true });
+  return ensureDbOk(result) as DeliveryAttemptRow[];
+}
+

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
 import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { CareersAuthProvider } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersThemeProvider } from "@/careers-portal/core/CareersThemeProvider";
@@ -16,6 +17,9 @@ function CareersLayout() {
       <CareersAuthProvider>
         <FirebaseClientServices enabled />
         <PushDeviceTokenRegistration enabled />
+        <div className="px-3 pt-2">
+          <PushPermissionRecoveryBanner />
+        </div>
         <InAppAlertListener />
         <CareersShell>
           <Outlet />

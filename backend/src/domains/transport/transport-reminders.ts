@@ -12,6 +12,7 @@ import {
   resolveInstituteServiceDate,
 } from "./daily-exception-service.js";
 import {
+  appendTripTimeline,
   findActiveTripForVehicle,
   findLatestLocationForTrip,
   listTrips,
@@ -27,7 +28,10 @@ import {
   staffUserIdsForInstitute,
 } from "./ops-notifications.js";
 import { emitTransportNotification } from "./transport-notification-emit.js";
-import { transportDedupe } from "./transport-notification-severity.js";
+import {
+  deepLinkForTransportEvent,
+  transportDedupe,
+} from "./transport-notification-severity.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
 
 export type TransportRemindersResult = {
@@ -131,6 +135,7 @@ async function processInstituteReminders(
             title: "Bus service today",
             body: "Your child's bus service is scheduled today.",
             deepLink: "/transport",
+            targetAudience: "parent",
             dedupeKey: transportDedupe.reminder(
               enrollment.route_id,
               enrollment.student_id,
@@ -144,7 +149,7 @@ async function processInstituteReminders(
               reminderType: "morning_service",
             },
           });
-          if (ok) emitted += 1;
+          if (ok.ok) emitted += 1;
         }
 
         if (inPrePickup) {
@@ -156,6 +161,7 @@ async function processInstituteReminders(
             title: "Pickup expected soon",
             body: `Your child's bus is expected around ${formatPickupClock(pickupRaw)}.`,
             deepLink: "/transport/live",
+            targetAudience: "parent",
             dedupeKey: transportDedupe.reminder(
               enrollment.route_id,
               enrollment.student_id,
@@ -170,7 +176,7 @@ async function processInstituteReminders(
               expectedPickup: pickupRaw,
             },
           });
-          if (ok) emitted += 1;
+          if (ok.ok) emitted += 1;
         }
       }
     }
@@ -217,6 +223,8 @@ async function processInstituteReminders(
         title: "Transport has not started yet",
         body: `${route.name} has not started near the expected pickup time.`,
         deepLink: "/transport",
+        targetAudience: "parent",
+        targetApps: ["connect", "admin"],
         dedupeKey: transportDedupe.tripNotStarted(route.id, serviceDate),
         recipientUserIds: recipients,
         payload: {
@@ -225,7 +233,7 @@ async function processInstituteReminders(
           reminderType: "trip_not_started",
         },
       });
-      if (ok) emitted += 1;
+      if (ok.ok) emitted += 1;
     }
   }
 
@@ -265,16 +273,88 @@ async function processInstituteReminders(
           ? "Live location has not updated for over 20 minutes."
           : `Live location last updated ${ageMin} minutes ago.`,
       deepLink: "/transport",
+      targetAudience: "parent",
+      targetApps: ["connect", "admin"],
       dedupeKey: `${transportDedupe.gpsStale(trip.id)}:${Math.floor(ageMin / 10)}`,
       recipientUserIds: all,
       payload: {
         tripId: trip.id,
         ageMin,
-        kind: TRANSPORT_EVENT.TRIP_DELAYED,
+        kind: TRANSPORT_EVENT.GPS_STALE,
         reminderType: "gps_stale",
       },
     });
-    if (ok) emitted += 1;
+    if (ok.ok) emitted += 1;
+  }
+
+  // TRIP_DELAYED: active trip, fresh GPS, past pickup+buffer+15m, not already marked delayed.
+  if (pickupUtc) {
+    const delayThreshold = new Date(
+      pickupUtc.getTime() + (bufferMins + 15) * 60_000,
+    );
+    if (now >= delayThreshold) {
+      for (const trip of activeTrips) {
+        if ((trip.timeline ?? []).some((e) => e.kind === TRANSPORT_EVENT.TRIP_DELAYED)) {
+          continue;
+        }
+        const loc = await findLatestLocationForTrip(admin, trip.id);
+        if (!loc?.captured_at) continue;
+        const ageMin = minutesBetween(now, new Date(loc.captured_at));
+        if (ageMin >= 5) continue; // stale GPS handled above — delay requires fresh fix
+
+        await appendTripTimeline(admin, trip.id, {
+          id: `evt-delayed-${trip.id}`,
+          at: now.toISOString(),
+          kind: TRANSPORT_EVENT.TRIP_DELAYED,
+          label: "Trip delayed",
+          note: `Past expected pickup window (+${bufferMins + 15} min)`,
+        });
+
+        const guardians = await guardianUserIdsForRoute(
+          admin,
+          instituteId,
+          trip.route_id,
+        );
+        if (guardians.length > 0) {
+          const parentOk = await emitTransportNotification(admin, {
+            instituteId,
+            createdByUserId: systemUserId,
+            kind: TRANSPORT_EVENT.TRIP_DELAYED,
+            severity: "attention",
+            title: "Trip delayed",
+            body: "Your child's bus trip is running behind the expected schedule.",
+            deepLink: deepLinkForTransportEvent(
+              TRANSPORT_EVENT.TRIP_DELAYED,
+              "parent",
+            ),
+            targetAudience: "parent",
+            dedupeKey: transportDedupe.tripDelayed(trip.id),
+            recipientUserIds: guardians,
+            payload: { tripId: trip.id, routeId: trip.route_id },
+          });
+          if (parentOk.ok) emitted += 1;
+        }
+        if (staff.length > 0) {
+          const staffOk = await emitTransportNotification(admin, {
+            instituteId,
+            createdByUserId: systemUserId,
+            kind: TRANSPORT_EVENT.TRIP_DELAYED,
+            severity: "attention",
+            title: "Trip delayed",
+            body: "An active transport trip is running behind the expected schedule.",
+            deepLink: deepLinkForTransportEvent(
+              TRANSPORT_EVENT.TRIP_DELAYED,
+              "admin",
+            ),
+            targetAudience: "admin",
+            dedupeKey: `${transportDedupe.tripDelayed(trip.id)}:admin`,
+            recipientUserIds: staff,
+            payload: { tripId: trip.id, routeId: trip.route_id },
+          });
+          if (staffOk.ok) emitted += 1;
+        }
+      }
+    }
   }
 
   return emitted;

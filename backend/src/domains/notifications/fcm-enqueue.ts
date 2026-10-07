@@ -3,21 +3,38 @@ import {
   insertFcmDeliveryAttempts,
   listValidDeviceTokensForUsers,
 } from "./repository.js";
-import type { NotificationRow, RecipientRow } from "./types.js";
+import { resolveTargetApps } from "./resolve-target-apps.js";
+import type { DeviceApp, NotificationRow, RecipientRow } from "./types.js";
 
-/** Enqueue pending FCM delivery rows for each recipient device token. */
+/** Enqueue pending FCM delivery rows for each recipient device token (filtered by target apps). */
 export async function enqueueFcmDeliveryAttempts(
   admin: SupabaseClient,
   input: {
     instituteId: string;
     notificationId: string;
     recipients: RecipientRow[];
+    /** When omitted, read from notification payload / category defaults. */
+    targetApps?: DeviceApp[];
+    category?: NotificationRow["category"];
+    payload?: Record<string, unknown>;
   },
 ): Promise<number> {
   if (input.recipients.length === 0) return 0;
 
+  const fromPayload = Array.isArray(input.payload?.targetApps)
+    ? (input.payload.targetApps as string[])
+    : undefined;
+  const targetApps = resolveTargetApps(
+    input.category ?? "system",
+    input.targetApps ??
+      (fromPayload
+        ? (fromPayload.filter((a) => typeof a === "string") as DeviceApp[])
+        : undefined),
+  );
+  if (targetApps.length === 0) return 0;
+
   const userIds = [...new Set(input.recipients.map((r) => r.user_profile_id))];
-  const tokens = await listValidDeviceTokensForUsers(admin, userIds);
+  const tokens = await listValidDeviceTokensForUsers(admin, userIds, targetApps);
   if (tokens.length === 0) return 0;
 
   const recipientByUser = new Map(

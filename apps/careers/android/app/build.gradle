@@ -44,11 +44,22 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+// FCM: google-services.json is gitignored. Release builds fail closed if missing.
+def googleServicesFile = file('google-services.json')
+def googleServicesPresent = googleServicesFile.exists() && googleServicesFile.isFile() && googleServicesFile.length() > 0
+def isReleaseTask = gradle.startParameter.taskNames.any { name ->
+    def n = name.toLowerCase()
+    n.contains("releas") || n.contains("bundle") || n.contains("publish")
+}
+if (googleServicesPresent) {
+    apply plugin: 'com.google.gms.google-services'
+} else if (isReleaseTask) {
+    throw new GradleException(
+        "FCM release build requires apps/careers/android/app/google-services.json. " +
+        "Place the Firebase Android client file locally (gitignored) or inject via " +
+        "scripts/inject-google-services.mjs using GOOGLE_SERVICES_JSON_CAREERS. " +
+        "See docs/PUSH_NOTIFICATIONS_SETUP.md."
+    )
+} else {
+    logger.warn("google-services.json missing — Google Services plugin not applied. Debug builds may run without FCM.")
 }
