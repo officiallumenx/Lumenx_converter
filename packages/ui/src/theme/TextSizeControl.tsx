@@ -1,4 +1,4 @@
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import {
   DEFAULT_TEXT_SCALE,
@@ -12,15 +12,15 @@ import {
 
 /** Ensures the shared text scale is applied while this tree is mounted. */
 export function TypographyProvider({ children }: { children: ReactNode }) {
-  useSyncExternalStore(
+  const scale = useSyncExternalStore(
     subscribeTextScale,
-    () => {
-      const scale = loadTextScale();
-      applyTextScale(scale);
-      return scale;
-    },
+    loadTextScale,
     () => DEFAULT_TEXT_SCALE,
   );
+  // Apply in effect — never in getSnapshot (side effects there break SSR/hydration).
+  useEffect(() => {
+    applyTextScale(scale);
+  }, [scale]);
   return children;
 }
 

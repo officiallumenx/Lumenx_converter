@@ -71,6 +71,14 @@ describe("gps-outbox", () => {
     });
   });
 
+  it("returns a stable snapshot reference for useSyncExternalStore", async () => {
+    const mod = await import("./gps-outbox");
+    const a = mod.getGpsOutboxSnapshot();
+    const b = mod.getGpsOutboxSnapshot();
+    expect(a).toBe(b);
+    expect(a.pendingCount).toBe(0);
+  });
+
   it("queues GPS into ops-outbox with trip context", async () => {
     const mod = await import("./gps-outbox");
     mod.startTripGpsPing();

@@ -14,9 +14,7 @@ import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 
 import { APP_NAME } from "@/constants";
-import {
-  clearTransportClientData,
-} from "@/lib/transport/clear-stale-client-state";
+import { clearTransportClientData } from "@/lib/transport/clear-stale-client-state";
 import { TransportAuthProvider, getTransportAuthMode } from "@/lib/auth";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
@@ -52,32 +50,16 @@ function NotFoundComponent() {
   );
 }
 
-const AUTO_RECOVER_FLAG = "lumenx.transport.error-auto-recover.v1";
-
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const isDev = import.meta.env.DEV;
   const message =
     error instanceof Error && error.message.trim()
       ? error.message
       : "Unknown client error";
-
-  // One automatic recover for poisoned local state / stale chunk loads.
-  // Skip for update-depth loops (#185) — clearing storage cannot fix those and
-  // reloading would just flash this screen forever.
-  useEffect(() => {
-    const isUpdateDepth =
-      /#185|Maximum update depth/i.test(message);
-    if (isUpdateDepth) return;
-    try {
-      if (sessionStorage.getItem(AUTO_RECOVER_FLAG) === "1") return;
-      sessionStorage.setItem(AUTO_RECOVER_FLAG, "1");
-      clearTransportClientData();
-      window.location.replace("/login");
-    } catch {
-      /* ignore — fall through to manual buttons */
-    }
-  }, [message]);
+  const stack =
+    isDev && error instanceof Error && error.stack ? error.stack : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -86,15 +68,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This page didn&apos;t load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Recovering… if this stays, clear local data or head home.
+          Something went wrong on our end. You can try again or head back home.
         </p>
         <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-[11px] text-destructive whitespace-pre-wrap">
           {message}
+          {stack ? `\n\n${stack}` : ""}
         </pre>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             type="button"
             onClick={() => {
+              // Explicit single user-initiated retry — never automatic.
               router.invalidate();
               reset();
             }}
@@ -105,11 +89,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           <button
             type="button"
             onClick={() => {
-              try {
-                sessionStorage.removeItem(AUTO_RECOVER_FLAG);
-              } catch {
-                /* ignore */
-              }
               clearTransportClientData();
               window.location.assign("/login");
             }}

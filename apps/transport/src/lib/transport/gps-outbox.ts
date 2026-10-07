@@ -54,6 +54,19 @@ let lastEnqueuedFix: {
   longitude: number;
   capturedAt: string;
 } | null = null;
+/** Stable for useSyncExternalStore — must be referentially equal until emit(). */
+let cachedSnapshot: GpsOutboxSnapshot | null = null;
+let opsBridgeAttached = false;
+
+function ensureOpsBridge(): void {
+  if (opsBridgeAttached) return;
+  opsBridgeAttached = true;
+  // One shared bridge for the module lifetime (GPS banner subscribers come and go).
+  subscribeOpsOutbox(() => {
+    connection = deriveConnection();
+    emit();
+  });
+}
 
 function haversineMetersClient(
   a: { latitude: number; longitude: number },
@@ -85,6 +98,7 @@ function shouldEnqueueClientFix(fix: {
 }
 
 function emit() {
+  cachedSnapshot = null;
   listeners.forEach((l) => l());
 }
 
@@ -98,29 +112,33 @@ function deriveConnection(): GpsOutboxConnectionState {
 }
 
 export function subscribeGpsOutbox(listener: Listener): () => void {
+  ensureOpsBridge();
   listeners.add(listener);
-  const unsubOps = subscribeOpsOutbox(() => {
-    connection = deriveConnection();
-    emit();
-  });
   return () => {
     listeners.delete(listener);
-    unsubOps();
   };
 }
 
+/**
+ * Snapshot for LocationTrackingBanner via useSyncExternalStore.
+ * MUST return a cached object until emit() — a fresh object each call causes
+ * React error #185 (maximum update depth exceeded).
+ */
 export function getGpsOutboxSnapshot(): GpsOutboxSnapshot {
+  if (cachedSnapshot) return cachedSnapshot;
   const ops = getOpsOutboxSnapshot();
   const gpsEvents = ops.events.filter((e) => e.eventType === "gps");
-  connection = deriveConnection();
-  return {
+  const nextConnection = deriveConnection();
+  connection = nextConnection;
+  cachedSnapshot = {
     events: gpsEvents,
     pendingCount: gpsEvents.length,
-    connection,
+    connection: nextConnection,
     lastError: ops.lastError,
     lastSentAt: ops.lastGpsUploadedAt,
     lastGpsError,
   };
+  return cachedSnapshot;
 }
 
 function enqueueFix(
