@@ -1,12 +1,13 @@
 {
   "name": "@lumenx/app-transport",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "sideEffects": false,
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
     "build:capacitor": "node scripts/sync-app-version.mjs && vite build --config vite.config.capacitor.ts --mode capacitor && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "version:sync": "node scripts/sync-app-version.mjs",
     "version:bump": "node scripts/bump-app-version.mjs",
