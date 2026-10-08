@@ -211,9 +211,14 @@ export function coalesceOpsEventsForPersist(
     (e) => e.eventType !== "gps" && !isCriticalOpsEvent(e.eventType),
   );
 
-  const gpsKept: OpsOutboxEvent[] = [];
+  // Never coalesce away in-flight GPS — mid-flush replace orphans ack
+  // (server may 201 while clientEventId disappears from the queue).
+  const gpsInFlight = gps.filter((e) => e.status === "sending");
+  const gpsCoalesce = gps.filter((e) => e.status !== "sending");
+
+  const gpsKept: OpsOutboxEvent[] = [...gpsInFlight];
   const byTrip = new Map<string, OpsOutboxEvent[]>();
-  for (const e of gps) {
+  for (const e of gpsCoalesce) {
     const key = e.tripId ?? "_";
     const list = byTrip.get(key) ?? [];
     list.push(e);
@@ -254,6 +259,33 @@ export function coalesceOpsEventsForPersist(
   return [...critical, ...other, ...gpsKept].sort(
     (a, b) => a.sequence - b.sequence,
   );
+}
+
+/** Hard ceiling around auth+HTTP so `flushing` cannot stick forever. */
+const DISPATCH_TIMEOUT_MS = 25_000;
+
+function withDispatchTimeout<T>(work: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new TransportApiError(
+          `${label} timed out after ${DISPATCH_TIMEOUT_MS / 1000}s`,
+          408,
+          "TIMEOUT",
+        ),
+      );
+    }, DISPATCH_TIMEOUT_MS);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 const listeners = new Set<Listener>();
@@ -666,7 +698,10 @@ export async function flushOpsOutbox(): Promise<void> {
       markEvent(event.clientEventId, { status: "sending" });
       emit();
       try {
-        await dispatchEvent(event);
+        await withDispatchTimeout(
+          dispatchEvent(event),
+          event.eventType === "gps" ? "GPS upload" : "Ops upload",
+        );
         markEvent(event.clientEventId, {
           status: "sent",
           lastError: null,

@@ -245,6 +245,75 @@ describe("ops-outbox Phase 8", () => {
     expect(getOpsOutboxSnapshot().lastGpsUploadedAt).toBeTruthy();
   });
 
+  it("keeps in-flight sending GPS through coalesce so ack can clear it", async () => {
+    const t0 = Date.now();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    pingTripLocation.mockImplementation(async () => {
+      await gate;
+    });
+
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-inflight-A",
+      capturedAt: new Date(t0).toISOString(),
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    const flushPromise = flushOpsOutbox();
+    await vi.waitFor(() => expect(pingTripLocation).toHaveBeenCalledTimes(1));
+
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-replace-B",
+      capturedAt: new Date(t0 + 500).toISOString(),
+      payload: { latitude: 12.91, longitude: 77.51 },
+    });
+
+    const mid = getOpsOutboxSnapshot();
+    expect(mid.events.some((e) => e.clientEventId === "gps-inflight-A")).toBe(
+      true,
+    );
+    expect(mid.events.some((e) => e.status === "sending")).toBe(true);
+
+    release();
+    await flushPromise;
+
+    const after = getOpsOutboxSnapshot();
+    expect(after.events.some((e) => e.clientEventId === "gps-inflight-A")).toBe(
+      false,
+    );
+  });
+
+  it("dispatch timeout clears sending lock so GPS is not syncing forever", async () => {
+    vi.useFakeTimers();
+    try {
+      const t0 = Date.now();
+      pingTripLocation.mockImplementation(() => new Promise(() => {}));
+
+      enqueueOpsEvent({
+        eventType: "gps",
+        tripId: TRIP_ID,
+        clientEventId: "gps-hang-first",
+        capturedAt: new Date(t0).toISOString(),
+        payload: { latitude: 12.9, longitude: 77.5 },
+      });
+      const flushPromise = flushOpsOutbox();
+      await vi.advanceTimersByTimeAsync(25_000);
+      await flushPromise;
+
+      const snap = getOpsOutboxSnapshot();
+      expect(snap.events.some((e) => e.status === "sending")).toBe(false);
+      expect(snap.lastError).toMatch(/timed out/i);
+      expect(snap.events[0]?.status).toBe("failed");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("terminally rejects stale GPS and still uploads fresh points", async () => {
     const staleAt = new Date(Date.now() - 45 * 60_000).toISOString();
     const freshAt = new Date().toISOString();
