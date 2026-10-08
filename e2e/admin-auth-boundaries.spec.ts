@@ -66,7 +66,8 @@ test("Admin login uses the mocked institute directory without writes", async ({
   });
 
   await page.goto("/login");
-  await expect(page.getByText("Institute", { exact: true })).toBeVisible();
+  // Prefer the login form label — "Institute" also appears in nav/chips (strict mode).
+  await expect(page.locator("#institute-picker-label")).toBeVisible();
   await expect(page.getByRole("button", { name: "Institute" })).toBeVisible();
   const directory = await page.evaluate(async () => {
     const response = await fetch("/api/v1/auth/staff/institutes");
