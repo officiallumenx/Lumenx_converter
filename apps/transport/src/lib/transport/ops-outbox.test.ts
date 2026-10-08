@@ -35,6 +35,7 @@ import { TransportApiError } from "@/lib/transport-api";
 import {
   __resetOpsOutboxForTests,
   coalesceOpsEventsForPersist,
+  discardPendingGpsEvents,
   enqueueOpsEvent,
   flushOpsOutbox,
   getOpsOutboxSnapshot,
@@ -159,6 +160,59 @@ describe("ops-outbox Phase 8", () => {
       (c) => (c[1] as { clientEventId: string }).clientEventId,
     );
     expect(ids.every((id) => id === "board-dup-1")).toBe(true);
+  });
+
+  it("discards pending GPS when trip completes without uploading", () => {
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-after-end-1",
+      capturedAt: new Date().toISOString(),
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    enqueueOpsEvent({
+      eventType: "boarding",
+      tripId: TRIP_ID,
+      studentId: STUDENT_ID,
+      stopId: STOP_ID,
+      clientEventId: "board-keep-1",
+      payload: {},
+    });
+    expect(discardPendingGpsEvents(TRIP_ID)).toBe(1);
+    expect(getOpsOutboxSnapshot().events.every((e) => e.eventType !== "gps")).toBe(
+      true,
+    );
+    expect(
+      getOpsOutboxSnapshot().events.some((e) => e.clientEventId === "board-keep-1"),
+    ).toBe(true);
+    expect(pingTripLocation).not.toHaveBeenCalled();
+  });
+
+  it("does not emit ops-conflict toast event for GPS on completed trip", async () => {
+    const dispatchSpy = vi.fn();
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: dispatchSpy,
+    });
+    pingTripLocation.mockRejectedValue(
+      new TransportApiError("Trip is already completed", 409, "CONFLICT"),
+    );
+    enqueueOpsEvent({
+      eventType: "gps",
+      tripId: TRIP_ID,
+      clientEventId: "gps-completed-conflict",
+      capturedAt: new Date().toISOString(),
+      payload: { latitude: 12.9, longitude: 77.5 },
+    });
+    await flushOpsOutbox();
+    expect(getOpsOutboxSnapshot().pendingCount).toBe(0);
+    const conflictEvents = dispatchSpy.mock.calls.filter(
+      (c) =>
+        c[0] instanceof CustomEvent &&
+        c[0].type === "lumenx-transport-ops-conflict",
+    );
+    expect(conflictEvents).toHaveLength(0);
   });
 
   it("treats server conflict as reconciled (server wins)", async () => {

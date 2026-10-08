@@ -546,6 +546,32 @@ function isConflictError(err: unknown): boolean {
   );
 }
 
+function isTripAlreadyCompletedConflict(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /trip is already completed/i.test(message);
+}
+
+/**
+ * Drop queued GPS when a trip is terminal. Live pings against a completed trip
+ * only produce 409 conflicts and "Server updated" toasts — they must not upload.
+ */
+export function discardPendingGpsEvents(tripId?: string | null): number {
+  hydrate();
+  const before = events.length;
+  events = events.filter((e) => {
+    if (e.eventType !== "gps") return true;
+    if (!isActiveQueueStatus(e.status)) return false;
+    if (tripId && e.tripId && e.tripId !== tripId) return true;
+    return false;
+  });
+  const removed = before - events.length;
+  if (removed > 0) {
+    persist();
+    emit();
+  }
+  return removed;
+}
+
 async function dispatchEvent(event: OpsOutboxEvent): Promise<void> {
   const p = event.payload;
   switch (event.eventType) {
@@ -730,7 +756,14 @@ export async function flushOpsOutbox(): Promise<void> {
             lastError: msg,
             nextRetryAt: null,
           });
-          if (typeof window !== "undefined") {
+          // After End Trip, leftover GPS/phase/end hits "Trip is already completed".
+          // Reconcile quietly — do not spam Home with "Server updated" toasts.
+          const quietCompletedConflict =
+            isTripAlreadyCompletedConflict(err) &&
+            (event.eventType === "gps" ||
+              event.eventType === "trip_phase" ||
+              event.eventType === "trip_end");
+          if (typeof window !== "undefined" && !quietCompletedConflict) {
             window.dispatchEvent(
               new CustomEvent("lumenx-transport-ops-conflict", {
                 detail: {

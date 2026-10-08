@@ -6,6 +6,7 @@
 import { captureCurrentGps, GpsCaptureError } from "./capture-gps";
 import { getTripSessionSnapshot, subscribeTripSession } from "./trip/store";
 import {
+  discardPendingGpsEvents,
   enqueueOpsEvent,
   flushOpsOutbox,
   getOpsOutboxSnapshot,
@@ -303,6 +304,10 @@ if (typeof window !== "undefined") {
       if (!pingTimer) startTripGpsPing();
     } else {
       stopTripGpsPing();
+      // Do not flush GPS against a completed trip — server returns 409 and the
+      // attendance bridge used to toast "Server state differs: Trip is already completed"
+      // once per queued point.
+      discardPendingGpsEvents(trip.tripId);
       void flushGpsOutboxNow();
     }
   });

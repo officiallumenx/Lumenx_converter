@@ -53,11 +53,19 @@ function ensureAttendanceOutboxBridge() {
   window.addEventListener("lumenx-transport-ops-conflict", ((ev: CustomEvent) => {
     const studentId = ev.detail?.studentId as string | undefined;
     const message = ev.detail?.message as string | undefined;
+    const eventType = ev.detail?.eventType as string | undefined;
     if (studentId) {
       setStudentSyncStatus(studentId, "confirmed");
       void hydrateAttendanceFromApi();
     }
-    if (message) {
+    // Attendance-only UX. GPS / trip lifecycle conflicts must not spam Home.
+    const attendanceConflict =
+      eventType === "boarding" ||
+      eventType === "not_boarded" ||
+      eventType === "drop" ||
+      eventType === "not_dropped" ||
+      Boolean(studentId);
+    if (attendanceConflict && message) {
       void import("sonner").then(({ toast }) => {
         toast.message("Server updated", { description: message });
       });
