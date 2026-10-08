@@ -152,7 +152,7 @@ function TodayFacts({
     { label: "Expected pickup", value: expectedPickup },
     { label: "Current status", value: PARENT_TRANSPORT_STATUS_LABEL[status] },
     { label: "Current / next stop", value: currentOrNextStop },
-    { label: "ETA", value: etaLabel },
+    { label: "Arrival", value: etaLabel },
     { label: "Live location", value: locationLabel },
     { label: "Boarding status", value: boarding },
     { label: "Drop status", value: dropping },
@@ -326,23 +326,32 @@ export function LearnerTransportApiView({
     Number.isFinite(tracking.lat) &&
     Number.isFinite(tracking.lng) &&
     !(tracking.lat === 0 && tracking.lng === 0);
+  const showArrivalMinutes =
+    tracking.sharedTripActive &&
+    tracking.etaMinutes > 0 &&
+    (parentStatus === "trip_started" ||
+      parentStatus === "approaching" ||
+      parentStatus === "arrived" ||
+      parentStatus === "dropping" ||
+      tracking.learnerStatus === "awaiting_pickup" ||
+      tracking.learnerStatus === "picked_up");
   const etaLabel =
     parentStatus === "not_riding"
       ? "—"
-      : tracking.learnerStatus === "awaiting_pickup" && tracking.sharedTripActive && hasGps
+      : showArrivalMinutes
         ? formatEtaMinutes(tracking.etaMinutes)
-        : tracking.sharedTripActive && !hasGps
-          ? "Location unavailable"
-          : "—";
+        : tracking.sharedTripActive && hasGps && tracking.etaMinutes <= 0
+          ? formatEtaMinutes(0)
+          : tracking.sharedTripActive && !hasGps
+            ? tracking.lastUpdated || "Location unavailable"
+            : "—";
   const gpsAge =
-    hasGps && live?.latestLocation?.capturedAt
+    live?.latestLocation?.capturedAt
       ? formatGpsAgeLabel(live.latestLocation.capturedAt)
-      : tracking.gpsFreshness
-        ? tracking.gpsFreshness.toUpperCase()
-        : "UNKNOWN";
+      : tracking.lastUpdated || null;
   const locationLabel = hasGps
-    ? `${tracking.lat.toFixed(4)}, ${tracking.lng.toFixed(4)} · ${gpsAge}`
-    : tracking.lastUpdated || "Location unavailable";
+    ? `${tracking.lat.toFixed(4)}, ${tracking.lng.toFixed(4)}${gpsAge ? ` · ${gpsAge}` : ""}`
+    : gpsAge || "Location unavailable";
   const syncingHint = summaryFetching || liveFetching ? "Updating…" : null;
 
   return (

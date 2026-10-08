@@ -216,15 +216,25 @@ export type LearnerTransportLiveDto = {
   boarding: TransportBoardingEventDto | null;
   openEmergency: TransportEmergencyDto | null;
   latestLocation: VehicleLocationDto | null;
-  /** Distance / ETA to the learner's pickup stop when live GPS exists. */
+  /** Distance / arrival minutes to the learner's assigned stop (pickup or drop by trip). */
   approach: {
     stopId: string;
     stopName: string;
     distanceM: number;
     withinRadius: boolean;
-    etaMinutes: number;
+    /** Smoothed ETA; null when GPS stale / not publishable. */
+    etaMinutes: number | null;
     /** Nearest product band (30 / 15 / 5), or null when farther than 30 min. */
     band: 30 | 15 | 5 | null;
+    movementState?:
+      | "moving"
+      | "slow"
+      | "stopped"
+      | "gps_stale"
+      | "gps_uncertain";
+    confidence?: "high" | "medium" | "low";
+    displayMode?: "eta" | "stopped" | "stale" | "uncertain";
+    effectiveSpeedKmh?: number;
   } | null;
   /** LIVE | RECENT | STALE | OFFLINE from latest GPS. */
   gpsFreshness: GpsFreshness;

@@ -72,7 +72,10 @@ export function StudentAttendanceCard({
   onLongPress: () => void;
   disabled?: boolean;
 }) {
-  const meta = mode === "boarding" ? boardingMeta[student.boarding] : droppingMeta[student.dropping];
+  const meta =
+    (mode === "boarding"
+      ? boardingMeta[student.boarding]
+      : droppingMeta[student.dropping]) ?? boardingMeta.pending;
   const stamp =
     mode === "boarding" ? formatStamp(student.boardedAt) : formatStamp(student.droppedAt);
   const press = useTapLongPress(

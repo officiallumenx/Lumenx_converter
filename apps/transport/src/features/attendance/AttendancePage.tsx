@@ -81,8 +81,12 @@ function matchesCurrentStop(
   // Unassigned students appear at every stop so the driver can still mark them.
   if (!stopId) return true;
   if (stopId === stop.id) return true;
-  const studentStop = student.stopName.trim().toLowerCase();
-  const current = stop.name.trim().toLowerCase();
+  const studentStop = String(student.stopName ?? "")
+    .trim()
+    .toLowerCase();
+  const current = String(stop.name ?? "")
+    .trim()
+    .toLowerCase();
   if (!studentStop || studentStop === "stop assignment pending") return true;
   return studentStop === current;
 }
@@ -195,10 +199,10 @@ export function AttendancePage() {
   const [confirming, setConfirming] = useState(false);
   const locationBlocked = locationTrack.status === "off";
 
-  const currentStop =
-    session.assignment.route.stops[session.currentStopIndex] ?? null;
+  const routeStops = session.assignment?.route?.stops ?? [];
+  const currentStop = routeStops[session.currentStopIndex] ?? null;
   const destinationStop =
-    session.assignment.route.stops[session.assignment.route.stops.length - 1] ?? currentStop;
+    routeStops[routeStops.length - 1] ?? currentStop;
 
   const atCurrentStop = useMemo(
     () => students.filter((s) => matchesCurrentStop(s, currentStop)),
@@ -215,13 +219,18 @@ export function AttendancePage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return tabStudents;
-    return tabStudents.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.grade.toLowerCase().includes(q) ||
-        s.stopName.toLowerCase().includes(q) ||
-        s.rollNo.toLowerCase().includes(q),
-    );
+    return tabStudents.filter((s) => {
+      const name = String(s.name ?? "").toLowerCase();
+      const grade = String(s.grade ?? "").toLowerCase();
+      const stopName = String(s.stopName ?? "").toLowerCase();
+      const rollNo = String(s.rollNo ?? "").toLowerCase();
+      return (
+        name.includes(q) ||
+        grade.includes(q) ||
+        stopName.includes(q) ||
+        rollNo.includes(q)
+      );
+    });
   }, [tabStudents, query]);
 
   const boardingStats = useMemo(
@@ -245,10 +254,10 @@ export function AttendancePage() {
   );
 
   const endSummary = useMemo(() => {
-    const stopsTotal = session.assignment.route.stops.length;
+    const stopsTotal = routeStops.length;
     const stopsCompleted = Math.min(session.currentStopIndex + 1, stopsTotal);
     return buildTripEndSummary(students, stopsCompleted, stopsTotal);
-  }, [students, session.assignment.route.stops.length, session.currentStopIndex]);
+  }, [students, routeStops.length, session.currentStopIndex]);
 
   if (!isTripActive(session.phase)) {
     return (

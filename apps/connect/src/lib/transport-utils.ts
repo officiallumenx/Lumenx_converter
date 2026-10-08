@@ -38,10 +38,11 @@ export const TRANSPORT_EVENT_TONE: Record<
   stop_approved: "success",
 };
 
+/** Parent-facing arrival copy — avoid the technical label "ETA". */
 export function formatEtaMinutes(minutes: number): string {
-  if (minutes <= 0) return "Arriving now";
-  if (minutes === 1) return "1 min";
-  return `${minutes} mins`;
+  if (minutes <= 0) return "Bus arriving now";
+  if (minutes === 1) return "Bus arrives in 1 minute";
+  return `Bus arrives in ${minutes} minutes`;
 }
 
 export function trackingStatusLabel(tracking: TransportTracking): string {

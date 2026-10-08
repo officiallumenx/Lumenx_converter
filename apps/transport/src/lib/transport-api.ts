@@ -540,6 +540,7 @@ export async function pingTripLocation(
     latitude: number;
     longitude: number;
     accuracyM?: number | null;
+    speedKmh?: number | null;
     capturedAt?: string;
     clientEventId?: string;
     sequenceNumber?: number;
@@ -552,6 +553,9 @@ export async function pingTripLocation(
       latitude: input.latitude,
       longitude: input.longitude,
       accuracy_m: input.accuracyM ?? null,
+      ...(input.speedKmh != null && Number.isFinite(input.speedKmh)
+        ? { speed_kmh: input.speedKmh }
+        : {}),
       ...(input.capturedAt ? { captured_at: input.capturedAt } : {}),
       ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
       ...(input.sequenceNumber !== undefined

@@ -976,6 +976,12 @@ describe("transport api", () => {
       body: JSON.stringify({ phase: "running", current_stop_index: 0 }),
     });
 
+    // Expire approach start-grace so bands/arrival can fire on this ping.
+    const tripRow = db.transport_trip.find((t) => t.id === trip.id);
+    if (tripRow) {
+      tripRow.started_at = new Date(Date.now() - 120_000).toISOString();
+    }
+
     const ping = await app.request(`/api/v1/transport/trips/${trip.id}/location`, {
       method: "POST",
       headers: {
@@ -990,6 +996,7 @@ describe("transport api", () => {
     });
     expect(ping.status).toBe(201);
 
+    // Nearest band only (no 30+15+5 fan-out on one ping).
     expect(
       db.notification.some(
         (n) =>
@@ -1003,14 +1010,14 @@ describe("transport api", () => {
           typeof n.dedupe_key === "string" &&
           String(n.dedupe_key).includes(`:approach:15`),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       db.notification.some(
         (n) =>
           typeof n.dedupe_key === "string" &&
           String(n.dedupe_key).includes(`:approach:30`),
       ),
-    ).toBe(true);
+    ).toBe(false);
     // Arrival once per trip×stop — INFO, not critical.
     const arrivalKeys = db.notification
       .map((n) => String(n.dedupe_key ?? ""))
@@ -1073,7 +1080,13 @@ describe("transport api", () => {
       body: JSON.stringify({ phase: "running", current_stop_index: 0 }),
     });
 
-    // ~7.5 km north ≈ 15 min at default 30 km/h → bands 30 + 15, not 5
+    // Expire approach start-grace so bands can fire.
+    const tripRow = db.transport_trip.find((t) => t.id === trip.id);
+    if (tripRow) {
+      tripRow.started_at = new Date(Date.now() - 120_000).toISOString();
+    }
+
+    // ~7.5 km north ≈ 15–16 min at default urban speed → nearest band is 15, not 5.
     const ping = await app.request(`/api/v1/transport/trips/${trip.id}/location`, {
       method: "POST",
       headers: {
@@ -1091,8 +1104,9 @@ describe("transport api", () => {
     const keys = db.notification
       .map((n) => String(n.dedupe_key ?? ""))
       .filter((k) => k.includes(trip.id));
+    // ~16 min at default 28 km/h → nearest band is 30 (not 15/5). One band per ping.
     expect(keys.some((k) => k.includes(":approach:30"))).toBe(true);
-    expect(keys.some((k) => k.includes(":approach:15"))).toBe(true);
+    expect(keys.some((k) => k.includes(":approach:15"))).toBe(false);
     expect(keys.some((k) => k.includes(":approach:5"))).toBe(false);
   });
 
@@ -2532,7 +2546,8 @@ describe("transport api", () => {
         latitude: 12.97,
         longitude: 77.59,
         accuracy_m: 8,
-        captured_at: "2026-10-06T02:30:00.000Z",
+        // ~8 minutes before 08:45 IST (03:15 UTC) → GPS_STALE band (5–19 min), not offline.
+        captured_at: "2026-10-06T03:07:00.000Z",
         client_event_id: "gps-old",
         driver_id: DRIVER_A,
         sequence_number: 1,

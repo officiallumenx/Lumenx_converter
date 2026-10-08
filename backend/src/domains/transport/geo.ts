@@ -1,8 +1,11 @@
 /** Earth-surface distance helpers for transport approach alerts. */
 
 const EARTH_RADIUS_M = 6_371_000;
-/** Fallback urban bus speed when GPS speed is missing (~30 km/h ≈ 500 m/min). */
-const DEFAULT_SPEED_M_PER_MIN = 500;
+/**
+ * Fallback urban bus speed when GPS speed is missing (~28 km/h).
+ * Keep aligned with ETA_ENGINE.defaultSpeedKmh (do not import — circular).
+ */
+const DEFAULT_SPEED_M_PER_MIN = (28 * 1000) / 60;
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;

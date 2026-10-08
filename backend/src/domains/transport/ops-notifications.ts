@@ -215,6 +215,64 @@ export async function notifyTripStarted(
   }
 }
 
+/** Pickup trip reached school — once per trip (deduped). */
+export async function notifySchoolArrived(
+  admin: SupabaseClient,
+  trip: TransportTripRow,
+  createdByUserId: string,
+): Promise<void> {
+  const guardians = await guardianUserIdsForRoute(
+    admin,
+    trip.institute_id,
+    trip.route_id,
+  );
+  const staff = await staffUserIdsForInstitute(admin, trip.institute_id);
+  const driverUserId = await driverUserIdForTrip(admin, trip);
+
+  if (guardians.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
+      title: "Bus reached school",
+      body: "The school bus has arrived at school.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "parent"),
+      targetAudience: "parent",
+      dedupeKey: transportDedupe.schoolArrived(trip.id, "parent"),
+      recipientUserIds: guardians,
+      payload: { tripId: trip.id, routeId: trip.route_id },
+    });
+  }
+  if (staff.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
+      title: "Bus reached school",
+      body: "A transport trip has arrived at school.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "admin"),
+      targetAudience: "admin",
+      dedupeKey: transportDedupe.schoolArrived(trip.id, "admin"),
+      recipientUserIds: staff,
+      payload: { tripId: trip.id, routeId: trip.route_id },
+    });
+  }
+  if (driverUserId) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
+      title: "Arrived at school",
+      body: "School geofence reached. Mark boarding if needed, then continue or end the trip.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "driver"),
+      targetAudience: "driver",
+      dedupeKey: transportDedupe.schoolArrived(trip.id, "driver"),
+      recipientUserIds: [driverUserId],
+      payload: { tripId: trip.id, routeId: trip.route_id },
+    });
+  }
+}
+
 export async function notifyTripPhaseChanged(
   admin: SupabaseClient,
   trip: TransportTripRow,

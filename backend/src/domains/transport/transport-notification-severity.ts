@@ -61,7 +61,9 @@ export function severityForTransportEvent(
   opts?: { approachThresholdMin?: number },
 ): TransportSeverity {
   if (kind === TRANSPORT_EVENT.STOP_APPROACHING) {
-    // 5-min band stays ATTENTION (amber); never CRITICAL.
+    // 30-min band = INFO (blue); 15/5 = ATTENTION (amber); never CRITICAL.
+    const threshold = opts?.approachThresholdMin;
+    if (threshold != null && threshold > 15) return "info";
     return "attention";
   }
   return EVENT_SEVERITY[kind] ?? "info";
@@ -106,6 +108,12 @@ export function deepLinkForTransportEvent(
           : "/transport";
     case TRANSPORT_EVENT.STOP_APPROACHING:
       return audience === "parent" ? "/transport/live" : "/transport";
+    case TRANSPORT_EVENT.SCHOOL_ARRIVED:
+      return audience === "parent"
+        ? "/transport/live"
+        : audience === "driver"
+          ? "/attendance"
+          : "/transport";
     default:
       return audience === "driver" ? "/" : "/transport";
   }
@@ -132,6 +140,8 @@ export const transportDedupe = {
     `transport:${tripOrRouteKey}:reminder:${studentId}:${reminderType}:${serviceDate}`,
   tripStarted: (tripId: string, audience: string) =>
     `transport:${tripId}:started:${audience}`,
+  schoolArrived: (tripId: string, audience: string) =>
+    `transport:${tripId}:school_arrived:${audience}`,
   tripCompleted: (tripId: string) => `transport:${tripId}:completed`,
   emergency: (emergencyId: string, audience = "admin") =>
     `transport:sos:${emergencyId}:${audience}`,

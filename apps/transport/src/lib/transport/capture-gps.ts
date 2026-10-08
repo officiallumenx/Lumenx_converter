@@ -37,6 +37,7 @@ export async function captureCurrentGps(_options?: CaptureGpsOptions): Promise<G
           latitude: pos.latitude,
           longitude: pos.longitude,
           accuracyM: pos.accuracy,
+          speedKmh: null,
           capturedAt,
           source: "device",
         };
@@ -52,10 +53,16 @@ export async function captureCurrentGps(_options?: CaptureGpsOptions): Promise<G
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, options);
         });
+        const speedMs = pos.coords.speed;
+        const speedKmh =
+          speedMs != null && Number.isFinite(speedMs) && speedMs >= 0
+            ? speedMs * 3.6
+            : null;
         return {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           accuracyM: pos.coords.accuracy ?? null,
+          speedKmh,
           capturedAt,
           source: "device",
         };

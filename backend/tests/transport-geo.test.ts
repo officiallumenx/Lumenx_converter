@@ -18,8 +18,8 @@ describe("transport geo (Phase 2 Step 10)", () => {
   });
 
   it("uses GPS speed when available and maps 30/15/5 bands", () => {
-    // 15 km at default ~30 km/h → ~30 min
-    expect(etaMinutesFromDistance(15_000)).toBe(30);
+    // 15 km at engine default ~28 km/h → ~33 min
+    expect(etaMinutesFromDistance(15_000)).toBe(33);
     expect(approachBandForEta(30)).toBe(30);
     expect(approachBandForEta(16)).toBe(30);
     expect(approachBandForEta(15)).toBe(15);

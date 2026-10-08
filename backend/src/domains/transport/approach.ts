@@ -7,7 +7,13 @@ import {
   listStopsForRoute,
 } from "./repository.js";
 import type { StopRow } from "./types.js";
-import { etaMinutesFromDistance, haversineMeters } from "./geo.js";
+import { haversineMeters } from "./geo.js";
+import {
+  computeStableEta,
+  ingestTripGpsSample,
+  type EtaConfidence,
+  type MovementState,
+} from "./eta-engine.js";
 import type { TransportTripRow } from "./ops-types.js";
 import { STOP_RADIUS_DEFAULT_M } from "./stop-radius.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
@@ -46,9 +52,14 @@ export type ApproachSnapshot = {
   stopName: string;
   distanceM: number;
   withinRadius: boolean;
-  etaMinutes: number;
+  /** Smoothed ETA minutes; null when GPS stale / not publishable. */
+  etaMinutes: number | null;
   /** Nearest crossed product band, or null when farther than 30 min. */
   band: ApproachThresholdMin | null;
+  movementState?: MovementState;
+  confidence?: EtaConfidence;
+  displayMode?: "eta" | "stopped" | "stale" | "uncertain";
+  effectiveSpeedKmh?: number;
 };
 
 export function approachBandForEta(
@@ -60,6 +71,32 @@ export function approachBandForEta(
     if (etaMinutes <= threshold) band = threshold;
   }
   return band;
+}
+
+/**
+ * Emit only the nearest (tightest) crossed band for this ping.
+ * Prevents 30+15+5 fan-out when the first GPS sample already has a low ETA
+ * (common right after trip start with default urban speed).
+ * Progressive alerts still work across pings via per-band dedupe keys:
+ * ETA 25 → 30 once, later ETA 12 → 15 once, later ETA 4 → 5 once.
+ */
+export function approachThresholdToEmit(
+  etaMinutes: number,
+): ApproachThresholdMin | null {
+  return approachBandForEta(etaMinutes);
+}
+
+/** Suppress approach-band spam for a short window after trip start. */
+export const APPROACH_START_GRACE_MS = 90_000;
+
+export function isWithinApproachStartGrace(
+  startedAt: string | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!startedAt) return false;
+  const startedMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedMs)) return false;
+  return nowMs - startedMs < APPROACH_START_GRACE_MS;
 }
 
 /** Resolve stop approach geofence meters from stop.notification_radius_m. */
@@ -75,6 +112,35 @@ export function isBusWithinStopRadius(
 ): boolean {
   if (!Number.isFinite(distanceM) || distanceM < 0) return false;
   return distanceM <= resolveStopGeofenceM(notificationRadiusM);
+}
+
+/** Pickup vs drop destination for approach / live arrival. */
+export type ApproachDestinationMode = "pickup" | "drop";
+
+/**
+ * Evening trips and morning drop-phase use drop stops.
+ * Morning running/boarding use pickup stops.
+ * Decision: slot=evening ⇒ drop trip from start (Start Drop Trip).
+ */
+export function approachDestinationModeForTrip(trip: {
+  phase: string;
+  slot: string;
+}): ApproachDestinationMode {
+  if (trip.phase === "dropping" || trip.slot === "evening") return "drop";
+  return "pickup";
+}
+
+/** Student stop used for arrival/notifications; null ⇒ skip (no fake arrival). */
+export function enrollmentApproachStopId(
+  enrollment: {
+    pickup_stop_id: string | null;
+    drop_stop_id: string | null;
+  },
+  mode: ApproachDestinationMode,
+): string | null {
+  return mode === "drop"
+    ? enrollment.drop_stop_id
+    : enrollment.pickup_stop_id;
 }
 
 /** Test helper. */
@@ -113,9 +179,28 @@ type StopGeom = {
 export async function evaluateApproachAlertsOnPing(
   admin: SupabaseClient,
   trip: TransportTripRow,
-  location: { latitude: number; longitude: number; speedKmh?: number | null },
+  location: {
+    latitude: number;
+    longitude: number;
+    speedKmh?: number | null;
+    accuracyM?: number | null;
+    capturedAtMs?: number | null;
+  },
   createdByUserId: string,
 ): Promise<void> {
+  const capturedAtMs =
+    location.capturedAtMs != null && Number.isFinite(location.capturedAtMs)
+      ? location.capturedAtMs
+      : Date.now();
+  ingestTripGpsSample({
+    tripId: trip.id,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    capturedAtMs,
+    accuracyM: location.accuracyM,
+    reportedSpeedKmh: location.speedKmh,
+  });
+
   const [enrollments, stops] = await Promise.all([
     listEnrollmentsForRoute(admin, trip.institute_id, trip.route_id),
     loadRouteStopsCached(admin, trip.route_id),
@@ -133,13 +218,34 @@ export async function evaluateApproachAlertsOnPing(
     usable.map((e) => e.student_id),
   );
 
+  const orderedStops = [...stops]
+    .filter(
+      (s) =>
+        s.latitude != null &&
+        s.longitude != null &&
+        Number.isFinite(Number(s.latitude)) &&
+        Number.isFinite(Number(s.longitude)),
+    )
+    .sort((a, b) => (a.route_order ?? 0) - (b.route_order ?? 0))
+    .map((s) => ({
+      id: s.id,
+      latitude: Number(s.latitude),
+      longitude: Number(s.longitude),
+    }));
+
   const stopById = new Map(stops.map((s) => [s.id, s]));
   const nearby = new Map<string, StopGeom>();
+  const destinationMode = approachDestinationModeForTrip(trip);
 
   for (const enrollment of usable) {
     if (notRiding.has(enrollment.student_id)) continue;
-    if (!enrollment.pickup_stop_id) continue;
-    const stop = stopById.get(enrollment.pickup_stop_id);
+    const destinationStopId = enrollmentApproachStopId(
+      enrollment,
+      destinationMode,
+    );
+    // No stop assignment ⇒ no approach / arrival notifications.
+    if (!destinationStopId) continue;
+    const stop = stopById.get(destinationStopId);
     if (
       !stop ||
       stop.latitude == null ||
@@ -151,13 +257,21 @@ export async function evaluateApproachAlertsOnPing(
     }
     const latitude = Number(stop.latitude);
     const longitude = Number(stop.longitude);
-    const distanceM = haversineMeters(location, { latitude, longitude });
-    // Spatial filter: skip students whose pickup is far outside approach range.
-    if (distanceM > APPROACH_EVAL_RADIUS_M) continue;
+    const crowFliesM = haversineMeters(location, { latitude, longitude });
+    // Spatial filter: skip students whose stop is far outside approach range.
+    if (crowFliesM > APPROACH_EVAL_RADIUS_M) continue;
 
-    const etaMinutes = etaMinutesFromDistance(distanceM, location.speedKmh);
+    const stable = computeStableEta({
+      tripId: trip.id,
+      stopId: stop.id,
+      bus: location,
+      orderedStops,
+      destinationStopId: stop.id,
+      crowFliesFallbackM: crowFliesM,
+    });
+    const etaMinutes = stable.etaMinutes ?? Number.POSITIVE_INFINITY;
     const withinRadius = isBusWithinStopRadius(
-      distanceM,
+      crowFliesM,
       stop.notification_radius_m,
     );
     const existing = nearby.get(stop.id);
@@ -169,7 +283,7 @@ export async function evaluateApproachAlertsOnPing(
       stop,
       latitude,
       longitude,
-      distanceM,
+      distanceM: stable.distanceM,
       etaMinutes,
       withinRadius,
       studentIds: [enrollment.student_id],
@@ -187,15 +301,21 @@ export async function evaluateApproachAlertsOnPing(
     candidateStudentIds,
   );
 
-  // Approach bands — async; never block the GPS request on fanout.
-  for (const geom of nearby.values()) {
-    const crossed = APPROACH_THRESHOLDS_MIN.filter((t) => geom.etaMinutes <= t);
-    if (crossed.length === 0 && !geom.withinRadius) continue;
+  const suppressApproachBands = isWithinApproachStartGrace(trip.started_at);
 
-    for (const studentId of geom.studentIds) {
-      const recipients = guardiansByStudent.get(studentId) ?? [];
-      if (recipients.length === 0) continue;
-      for (const threshold of crossed) {
+  // Approach bands — async; never block the GPS request on fanout.
+  // One nearest band per student per ping (not every crossed threshold).
+  if (!suppressApproachBands) {
+    for (const geom of nearby.values()) {
+      // Do not fire ETA threshold alerts when ETA is not publishable.
+      if (!Number.isFinite(geom.etaMinutes)) continue;
+      const threshold = approachThresholdToEmit(geom.etaMinutes);
+      if (threshold == null && !geom.withinRadius) continue;
+      if (threshold == null) continue;
+
+      for (const studentId of geom.studentIds) {
+        const recipients = guardiansByStudent.get(studentId) ?? [];
+        if (recipients.length === 0) continue;
         const title =
           threshold <= 5
             ? "Bus is very close to your stop"
@@ -207,11 +327,13 @@ export async function evaluateApproachAlertsOnPing(
           createdByUserId,
           kind: TRANSPORT_EVENT.STOP_APPROACHING,
           approachThresholdMin: threshold,
-          severity: "attention",
           title,
           body: `The bus is about ${geom.etaMinutes} min away from ${geom.stop.name}.`,
-          deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_APPROACHING, "parent"),
-      targetAudience: "parent",
+          deepLink: deepLinkForTransportEvent(
+            TRANSPORT_EVENT.STOP_APPROACHING,
+            "parent",
+          ),
+          targetAudience: "parent",
           dedupeKey: transportDedupe.approach(trip.id, studentId, threshold),
           recipientUserIds: recipients,
           payload: {
@@ -302,7 +424,7 @@ export async function evaluateApproachAlertsOnPing(
   }
 }
 
-/** Live portal helper: distance/ETA to the learner's pickup stop. */
+/** Live portal helper: distance/ETA to the learner's assigned stop for this trip. */
 export async function computeApproachForStudent(
   admin: SupabaseClient,
   input: {
@@ -312,6 +434,11 @@ export async function computeApproachForStudent(
     latitude: number;
     longitude: number;
     speedKmh?: number | null;
+    tripId?: string | null;
+    tripPhase?: string | null;
+    tripSlot?: string | null;
+    accuracyM?: number | null;
+    capturedAtMs?: number | null;
   },
 ): Promise<ApproachSnapshot | null> {
   const enrollments = await listEnrollmentsForRoute(
@@ -320,10 +447,17 @@ export async function computeApproachForStudent(
     input.routeId,
   );
   const enrollment = enrollments.find((e) => e.student_id === input.studentId);
-  if (!enrollment || !enrollment.pickup_stop_id) return null;
+  if (!enrollment) return null;
+
+  const mode = approachDestinationModeForTrip({
+    phase: input.tripPhase ?? "running",
+    slot: input.tripSlot ?? "morning",
+  });
+  const destinationStopId = enrollmentApproachStopId(enrollment, mode);
+  if (!destinationStopId) return null;
 
   const stops = await loadRouteStopsCached(admin, input.routeId);
-  const stop = stops.find((s) => s.id === enrollment.pickup_stop_id);
+  const stop = stops.find((s) => s.id === destinationStopId);
   if (
     !stop ||
     stop.latitude == null ||
@@ -333,7 +467,7 @@ export async function computeApproachForStudent(
   ) {
     return null;
   }
-  const distanceM = haversineMeters(
+  const crowFliesM = haversineMeters(
     { latitude: input.latitude, longitude: input.longitude },
     {
       latitude: Number(stop.latitude),
@@ -341,13 +475,53 @@ export async function computeApproachForStudent(
     },
   );
   const geofenceM = resolveStopGeofenceM(stop.notification_radius_m);
-  const etaMinutes = etaMinutesFromDistance(distanceM, input.speedKmh);
+
+  const tripId = input.tripId?.trim() || `route:${input.routeId}`;
+  if (input.capturedAtMs != null || input.speedKmh != null) {
+    ingestTripGpsSample({
+      tripId,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      capturedAtMs: input.capturedAtMs ?? Date.now(),
+      accuracyM: input.accuracyM,
+      reportedSpeedKmh: input.speedKmh,
+    });
+  }
+
+  const orderedStops = [...stops]
+    .filter(
+      (s) =>
+        s.latitude != null &&
+        s.longitude != null &&
+        Number.isFinite(Number(s.latitude)) &&
+        Number.isFinite(Number(s.longitude)),
+    )
+    .sort((a, b) => (a.route_order ?? 0) - (b.route_order ?? 0))
+    .map((s) => ({
+      id: s.id,
+      latitude: Number(s.latitude),
+      longitude: Number(s.longitude),
+    }));
+
+  const stable = computeStableEta({
+    tripId,
+    stopId: stop.id,
+    bus: { latitude: input.latitude, longitude: input.longitude },
+    orderedStops,
+    destinationStopId: stop.id,
+    crowFliesFallbackM: crowFliesM,
+  });
+  const etaForBand = stable.etaMinutes ?? Number.POSITIVE_INFINITY;
   return {
     stopId: stop.id,
     stopName: stop.name,
-    distanceM: Math.round(distanceM),
-    withinRadius: distanceM <= geofenceM,
-    etaMinutes,
-    band: approachBandForEta(etaMinutes),
+    distanceM: stable.distanceM || Math.round(crowFliesM),
+    withinRadius: crowFliesM <= geofenceM,
+    etaMinutes: stable.etaMinutes,
+    band: Number.isFinite(etaForBand) ? approachBandForEta(etaForBand) : null,
+    movementState: stable.movementState,
+    confidence: stable.confidence,
+    displayMode: stable.displayMode,
+    effectiveSpeedKmh: stable.effectiveSpeedKmh,
   };
 }

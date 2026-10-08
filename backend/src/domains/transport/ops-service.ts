@@ -68,6 +68,7 @@ import {
   notifyDroppingMarked,
   notifyEmergencyOpened,
   notifyEmergencyResolved,
+  notifySchoolArrived,
   notifyTripEnded,
   notifyTripPhaseChanged,
   notifyTripStarted,
@@ -78,7 +79,11 @@ import {
   classifyGpsFreshness,
   type GpsFreshness,
 } from "./gps-freshness.js";
-import { assertValidTripPhaseTransition, isPickupPhase } from "./trip-lifecycle.js";
+import {
+  assertValidTripPhaseTransition,
+  isPickupPhase,
+  shouldNotifyTripPhaseChange,
+} from "./trip-lifecycle.js";
 import {
   buildDropStopSequence,
   buildPickupStopSequence,
@@ -620,7 +625,10 @@ export async function updateTripPhaseForActor(
       resultRef: updated.phase,
     });
   }
-  if (updated.phase !== trip.phase) {
+  if (
+    updated.phase !== trip.phase &&
+    shouldNotifyTripPhaseChange(trip.phase, updated.phase)
+  ) {
     await notifyTripPhaseChanged(admin, updated, actor.userId, trip.phase);
   }
   return enrichTrip(admin, updated);
@@ -725,6 +733,7 @@ async function maybeMarkSchoolArrivedOnPing(
   admin: SupabaseClient,
   trip: TransportTripRow,
   location: { latitude: number; longitude: number },
+  createdByUserId: string,
 ): Promise<void> {
   if (trip.school_arrived_at) return;
   if (!isPickupPhase(trip.phase)) return;
@@ -773,6 +782,8 @@ async function maybeMarkSchoolArrivedOnPing(
     },
     { school_arrived_at: now },
   );
+  // Product: "Reached school" push — once per trip (dedupe), not every GPS ping.
+  await notifySchoolArrived(admin, trip, createdByUserId);
 }
 
 export async function listBoardingForTripForActor(
@@ -1187,14 +1198,21 @@ export async function pingLocationForActor(
       latitude: validated.latitude,
       longitude: validated.longitude,
       speedKmh: input.speedKmh ?? null,
+      accuracyM: validated.accuracyM,
+      capturedAtMs: Date.parse(validated.capturedAt),
     },
     actor.userId,
   );
 
-  await maybeMarkSchoolArrivedOnPing(admin, trip, {
-    latitude: validated.latitude,
-    longitude: validated.longitude,
-  });
+  await maybeMarkSchoolArrivedOnPing(
+    admin,
+    trip,
+    {
+      latitude: validated.latitude,
+      longitude: validated.longitude,
+    },
+    actor.userId,
+  );
 
   return toLocationDto(row!);
 }
@@ -1249,8 +1267,15 @@ export async function getLearnerTransportLiveForActor(
         instituteId,
         routeId: tripRow.route_id,
         studentId: input.studentId,
+        tripId: tripRow.id,
+        tripPhase: tripRow.phase,
+        tripSlot: tripRow.slot,
         latitude: latestLocation.latitude,
         longitude: latestLocation.longitude,
+        accuracyM: latestLocation.accuracyM ?? null,
+        capturedAtMs: latestLocation.capturedAt
+          ? Date.parse(latestLocation.capturedAt)
+          : Date.now(),
       });
     }
   }

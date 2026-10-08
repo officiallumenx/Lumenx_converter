@@ -29,6 +29,8 @@ type LocationSettingsPlugin = {
     timestamp: number;
   }>;
   requestEnable: () => Promise<{ enabled: boolean }>;
+  startTripTracking: () => Promise<void>;
+  stopTripTracking: () => Promise<void>;
 };
 
 const locationSettings = registerPlugin<LocationSettingsPlugin>("LocationSettings");
@@ -319,4 +321,15 @@ export async function getNativeCurrentPosition(options: PositionAttempt): Promis
   } catch (capError) {
     throw pluginError ?? capError;
   }
+}
+
+/** Android foreground service so trip GPS survives screen lock / background. */
+export async function startNativeTripTrackingService(): Promise<void> {
+  if (!isNativePlatform()) return;
+  await locationSettings.startTripTracking();
+}
+
+export async function stopNativeTripTrackingService(): Promise<void> {
+  if (!isNativePlatform()) return;
+  await locationSettings.stopTripTracking();
 }

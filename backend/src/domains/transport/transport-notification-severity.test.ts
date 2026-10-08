@@ -43,6 +43,9 @@ describe("transport notification severity", () => {
     expect(transportDedupe.approach("t1", "stu", 5)).toBe(
       "transport:t1:student:stu:approach:5",
     );
+    expect(transportDedupe.schoolArrived("t1", "parent")).toBe(
+      "transport:t1:school_arrived:parent",
+    );
     expect(
       transportDedupe.reminder("route1", "stu", "pre_pickup", "2026-10-05"),
     ).toBe("transport:route1:reminder:stu:pre_pickup:2026-10-05");
@@ -52,6 +55,12 @@ describe("transport notification severity", () => {
     expect(
       deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "parent"),
     ).toBe("/transport/live");
+    expect(
+      deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "parent"),
+    ).toBe("/transport/live");
+    expect(
+      deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "driver"),
+    ).toBe("/attendance");
     expect(
       deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "parent"),
     ).toBe("/transport/history");

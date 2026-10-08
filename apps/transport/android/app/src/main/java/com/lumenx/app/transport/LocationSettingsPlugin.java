@@ -290,6 +290,33 @@ public class LocationSettingsPlugin extends Plugin {
         startActivityForResult(call, intent, "locationSettingsResult");
     }
 
+    /** Start location foreground service so trip GPS can continue when screen is locked. */
+    @PluginMethod
+    public void startTripTracking(PluginCall call) {
+        try {
+            TripTrackingService.start(getContext());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(
+                e.getMessage() != null ? e.getMessage() : "Unable to start trip tracking",
+                "TRIP_TRACKING_START_FAILED"
+            );
+        }
+    }
+
+    @PluginMethod
+    public void stopTripTracking(PluginCall call) {
+        try {
+            TripTrackingService.stop(getContext());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(
+                e.getMessage() != null ? e.getMessage() : "Unable to stop trip tracking",
+                "TRIP_TRACKING_STOP_FAILED"
+            );
+        }
+    }
+
     @ActivityCallback
     private void locationSettingsResult(PluginCall call, ActivityResult result) {
         if (call == null) return;

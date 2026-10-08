@@ -685,7 +685,8 @@ describe("diary — soft delete", () => {
     );
     expect(res.status).toBe(200);
     expect(db.notification.length).toBeGreaterThan(0);
-    expect(db.notification.some((n) => n.category === "leave")).toBe(true);
+    // Diary reminders emit under the homework notification category.
+    expect(db.notification.some((n) => n.category === "homework")).toBe(true);
     expect(
       db.notification_recipient.some((r) => r.user_profile_id === USER_TEACHER),
     ).toBe(true);

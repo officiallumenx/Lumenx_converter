@@ -100,6 +100,8 @@ export type GpsFix = {
   latitude: number;
   longitude: number;
   accuracyM: number | null;
+  /** Device-reported speed in km/h when the platform provides it. */
+  speedKmh: number | null;
   capturedAt: string;
   source: "device" | "demo";
 };

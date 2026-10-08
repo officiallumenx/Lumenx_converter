@@ -13,6 +13,10 @@ import {
   subscribeOpsOutbox,
   type OpsOutboxSnapshot,
 } from "./ops-outbox";
+import {
+  startNativeTripTracking,
+  stopNativeTripTracking,
+} from "./trip-tracking-native";
 
 export type GpsOutboxConnectionState =
   | "online"
@@ -157,6 +161,7 @@ function enqueueFix(
     latitude: number;
     longitude: number;
     accuracyM: number | null;
+    speedKmh?: number | null;
     capturedAt: string;
   },
 ) {
@@ -200,6 +205,9 @@ function enqueueFix(
       latitude: fix.latitude,
       longitude: fix.longitude,
       accuracyM: fix.accuracyM,
+      ...(fix.speedKmh != null && Number.isFinite(fix.speedKmh)
+        ? { speedKmh: fix.speedKmh }
+        : {}),
       driverId: trip.driverId,
       vehicleId: trip.vehicleId,
     },
@@ -235,6 +243,7 @@ async function captureAndEnqueue(): Promise<void> {
         latitude: fix.latitude,
         longitude: fix.longitude,
         accuracyM: fix.accuracyM ?? null,
+        speedKmh: fix.speedKmh ?? null,
         capturedAt: fix.capturedAt,
       },
     );
@@ -258,6 +267,7 @@ async function captureAndEnqueue(): Promise<void> {
 
 export function startTripGpsPing() {
   stopTripGpsPing();
+  void startNativeTripTracking();
   void captureAndEnqueue();
   pingTimer = setInterval(() => {
     void captureAndEnqueue();
@@ -271,6 +281,7 @@ export function stopTripGpsPing() {
     pingTimer = null;
   }
   lastEnqueuedFix = null;
+  void stopNativeTripTracking();
 }
 
 export async function flushGpsOutboxNow(): Promise<void> {

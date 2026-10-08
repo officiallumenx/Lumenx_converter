@@ -16,6 +16,8 @@ build/
 .tanstack/
 .vite/
 .cache/
+.eslintcache
+**/.eslintcache
 
 # ─── Cloudflare Wrangler ────────────────────────────────────────────────────
 .wrangler/

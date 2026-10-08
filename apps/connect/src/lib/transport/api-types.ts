@@ -168,7 +168,11 @@ export type LearnerTransportLiveDto = {
     stopName: string;
     distanceM: number;
     withinRadius: boolean;
-    etaMinutes: number;
+    etaMinutes: number | null;
+    movementState?: string;
+    confidence?: string;
+    displayMode?: string;
+    effectiveSpeedKmh?: number;
     band: 30 | 15 | 5 | null;
   } | null;
   gpsFreshness?: "live" | "recent" | "stale" | "offline";

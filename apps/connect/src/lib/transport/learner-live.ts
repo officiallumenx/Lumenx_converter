@@ -264,10 +264,31 @@ export function buildLiveTrackingFromApi(
     nextStopName = currentStop?.name || followingStop?.name || assignment.pickupStop.name;
   }
 
-  // Prefer API approach ETA (haversine from live bus GPS → pickup stop).
-  // Do not invent a countdown when GPS/approach is missing.
+  // Prefer API approach ETA (smoothed engine). Do not invent a countdown.
+  // Show for pickup (awaiting) and drop (picked_up / dropping phase).
   let etaMinutes = 0;
-  if (tracking.learnerStatus === "awaiting_pickup" && approach && gpsLive) {
+  const wantsArrival =
+    tracking.learnerStatus === "awaiting_pickup" ||
+    tracking.learnerStatus === "picked_up" ||
+    trip.phase === "dropping" ||
+    trip.phase === "running" ||
+    trip.phase === "boarding";
+  if (
+    wantsArrival &&
+    approach &&
+    gpsLive &&
+    approach.etaMinutes != null &&
+    Number.isFinite(approach.etaMinutes)
+  ) {
+    etaMinutes = Math.max(0, Math.round(approach.etaMinutes));
+  } else if (
+    wantsArrival &&
+    approach &&
+    !gpsLive &&
+    approach.etaMinutes != null &&
+    Number.isFinite(approach.etaMinutes)
+  ) {
+    // Stale GPS: keep last reliable estimate (do not collapse to 0/1).
     etaMinutes = Math.max(0, Math.round(approach.etaMinutes));
   }
 

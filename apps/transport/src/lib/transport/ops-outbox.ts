@@ -581,6 +581,7 @@ async function dispatchEvent(event: OpsOutboxEvent): Promise<void> {
         latitude: Number(p.latitude),
         longitude: Number(p.longitude),
         accuracyM: (p.accuracyM as number | null | undefined) ?? null,
+        speedKmh: (p.speedKmh as number | null | undefined) ?? null,
         capturedAt: event.capturedAt,
         clientEventId: event.clientEventId,
         sequenceNumber: event.sequence,

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AppError } from "../../errors/app-error.js";
-import { assertValidTripPhaseTransition } from "./trip-lifecycle.js";
+import {
+  assertValidTripPhaseTransition,
+  shouldNotifyTripPhaseChange,
+} from "./trip-lifecycle.js";
 import {
   buildDropStopSequence,
   buildPickupStopSequence,
@@ -24,6 +27,11 @@ describe("trip-lifecycle transitions", () => {
 
   it("allows same-phase no-op", () => {
     expect(() => assertValidTripPhaseTransition("boarding", "boarding")).not.toThrow();
+  });
+
+  it("does not notify phase-updated for starting→running (covered by trip started)", () => {
+    expect(shouldNotifyTripPhaseChange("starting", "running")).toBe(false);
+    expect(shouldNotifyTripPhaseChange("running", "boarding")).toBe(true);
   });
 });
 

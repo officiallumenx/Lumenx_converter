@@ -68,6 +68,7 @@ describe("gps-outbox", () => {
       latitude: 12.9,
       longitude: 77.5,
       accuracyM: 15,
+      speedKmh: null,
       capturedAt: new Date().toISOString(),
       source: "device",
     });
@@ -103,6 +104,7 @@ describe("gps-outbox", () => {
       latitude: 12.9,
       longitude: 77.5,
       accuracyM: 900,
+      speedKmh: null,
       capturedAt: new Date().toISOString(),
       source: "device",
     });

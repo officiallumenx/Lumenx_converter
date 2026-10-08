@@ -103,6 +103,7 @@ export function RouteSetupPage() {
             latitude: stop.latitude,
             longitude: stop.longitude,
             accuracyM: null,
+            speedKmh: null,
             capturedAt: stop.timestampCreated,
             source: "device",
           }

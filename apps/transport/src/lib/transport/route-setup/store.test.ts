@@ -179,29 +179,36 @@ describe("route setup API memory store", () => {
     expect(studentIdsAssignedElsewhere().has("STU-ASSIGNED")).toBe(true);
   });
 
-  it("surfaces sync failures to the caller", async () => {
+  it("keeps local pending stop when sync fails (offline-safe)", async () => {
     const sync = vi.fn(async () => {
       throw new Error("sync failed");
     });
     vi.doMock("./api-sync", () => ({
       syncStopAndEnrollmentsToApi: sync,
     }));
-    const { upsertRouteSetupStop, resetRouteSetupStore, setRouteSetupDriverScope } =
-      await import("./store");
+    const {
+      upsertRouteSetupStop,
+      resetRouteSetupStore,
+      setRouteSetupDriverScope,
+      getRouteSetupSnapshot,
+    } = await import("./store");
     resetRouteSetupStore();
     setRouteSetupDriverScope(TEST_SCOPE);
 
-    await expect(
-      upsertRouteSetupStop(
-        {
-          name: "Fail Stop",
-          latitude: 1,
-          longitude: 2,
-          notificationRadiusM: 150,
-          studentIds: ["STU-1"],
-        },
-        "drv-1",
-      ),
-    ).rejects.toThrow("sync failed");
+    const record = await upsertRouteSetupStop(
+      {
+        name: "Fail Stop",
+        latitude: 1,
+        longitude: 2,
+        notificationRadiusM: 150,
+        studentIds: ["STU-1"],
+      },
+      "drv-1",
+    );
+    expect(record.stops).toHaveLength(1);
+    expect(record.stops[0]?.name).toBe("Fail Stop");
+    expect(record.stops[0]?.status).toBe("pending");
+    expect(getRouteSetupSnapshot().stops[0]?.name).toBe("Fail Stop");
+    expect(sync).toHaveBeenCalled();
   });
 });

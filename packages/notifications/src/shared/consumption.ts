@@ -67,6 +67,9 @@ export {
   presentationFromPriority,
   effectiveStoredPriority,
   toneTokenFromPriority,
+  androidAccentHexFromPriority,
+  backendCategoryDisplayLabel,
+  NOTIFICATION_ACCENT_HEX,
 } from "./priority-presentation";
 export {
   playAlertChime,

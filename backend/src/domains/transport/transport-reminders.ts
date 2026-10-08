@@ -365,15 +365,30 @@ async function processInstituteReminders(
     if (ok.ok) emitted += 1;
   }
 
-  // TRIP_DELAYED: active trip, fresh GPS, past pickup+buffer+15m, not already marked delayed.
+  // TRIP_DELAYED: active running trip, fresh GPS, past pickup+buffer+15m,
+  // not already marked delayed. Grace after start avoids bundling delay with
+  // the trip-start notification burst.
+  const TRIP_DELAYED_START_GRACE_MS = 2 * 60_000;
   if (pickupUtc) {
     const delayThreshold = new Date(
       pickupUtc.getTime() + (bufferMins + 15) * 60_000,
     );
     if (now >= delayThreshold) {
       for (const trip of activeTrips) {
+        if (trip.phase !== "running" && trip.phase !== "boarding" && trip.phase !== "dropping") {
+          continue;
+        }
         if ((trip.timeline ?? []).some((e) => e.kind === TRANSPORT_EVENT.TRIP_DELAYED)) {
           continue;
+        }
+        if (trip.started_at) {
+          const startedMs = Date.parse(trip.started_at);
+          if (
+            Number.isFinite(startedMs) &&
+            now.getTime() - startedMs < TRIP_DELAYED_START_GRACE_MS
+          ) {
+            continue;
+          }
         }
         const loc = await findLatestLocationForTrip(admin, trip.id);
         if (!loc?.captured_at) continue;

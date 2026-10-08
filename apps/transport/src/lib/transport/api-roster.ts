@@ -130,13 +130,13 @@ export function listApprovedAttendanceRosterStudents(): Array<{
     .filter((s) => isOperationalApproval(s.approvalStatus) && !s.notRidingToday)
     .map((s) => ({
       id: s.studentId,
-      name: s.studentName,
-      grade: s.studentClass,
-      stopName: s.stopName ?? "Stop not assigned",
+      name: String(s.studentName ?? "").trim() || "Student",
+      grade: String(s.studentClass ?? "").trim(),
+      stopName: String(s.stopName ?? "").trim() || "Stop not assigned",
       stopId: s.stopId,
       dropStopId: s.dropStopId,
       dropStopName: s.dropStopName,
-      rollNo: s.rollNo,
+      rollNo: String(s.rollNo ?? "").trim(),
     }));
 }
 

@@ -21,9 +21,9 @@ function tracking(partial: Partial<TransportTracking>): TransportTracking {
 
 describe("transport-utils", () => {
   it("formats ETA minutes", () => {
-    expect(formatEtaMinutes(0)).toBe("Arriving now");
-    expect(formatEtaMinutes(1)).toBe("1 min");
-    expect(formatEtaMinutes(12)).toBe("12 mins");
+    expect(formatEtaMinutes(0)).toBe("Bus arriving now");
+    expect(formatEtaMinutes(1)).toBe("Bus arrives in 1 minute");
+    expect(formatEtaMinutes(12)).toBe("Bus arrives in 12 minutes");
   });
 
   it("labels learner journey ahead of stale ETA", () => {

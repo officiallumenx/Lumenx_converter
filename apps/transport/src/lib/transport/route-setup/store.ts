@@ -87,28 +87,113 @@ async function awaitApiStopSync(stop: RouteSetupStop): Promise<void> {
   const pendingAssignments = record.assignments.filter(
     (a) => a.stopId === stop.id && a.status === "pending",
   );
-  const { apiStopId, syncedEnrollmentIds } = await syncStopAndEnrollmentsToApi(
-    scope,
-    stop,
-    pendingAssignments,
+  try {
+    const { apiStopId, syncedEnrollmentIds } = await syncStopAndEnrollmentsToApi(
+      scope,
+      stop,
+      pendingAssignments,
+    );
+    if (!apiStopId && syncedEnrollmentIds.length === 0) {
+      writeOfflineDrafts();
+      return;
+    }
+    record = {
+      ...record,
+      stops: record.stops.map((s) =>
+        s.id === stop.id && apiStopId ? { ...s, apiStopId } : s,
+      ),
+      assignments: record.assignments.map((a) => {
+        if (!syncedEnrollmentIds.includes(a.id)) return a;
+        const source = pendingAssignments.find((p) => p.id === a.id);
+        return source?.apiEnrollmentId
+          ? { ...a, apiEnrollmentId: source.apiEnrollmentId }
+          : a;
+      }),
+    };
+    if (scope) byRoute[scope.routeId] = record;
+    writeOfflineDrafts();
+    persistMemory();
+    emit();
+  } catch {
+    // Offline / API failure: keep local pending stop and retry later.
+    writeOfflineDrafts();
+  }
+}
+
+const OFFLINE_DRAFT_KEY = "lumenx.transport.route-setup.offline-drafts.v1";
+
+type OfflineDraftBucket = {
+  routeId: string;
+  stops: RouteSetupStop[];
+  assignments: StudentStopAssignment[];
+  updatedAt: string;
+};
+
+function writeOfflineDrafts(): void {
+  if (!scope || typeof globalThis.localStorage === "undefined") return;
+  const pendingStops = record.stops.filter(
+    (s) =>
+      (s.status === "pending" || s.status === "rejected") &&
+      s.kind !== "school" &&
+      s.kind !== "parking",
   );
-  if (!apiStopId && syncedEnrollmentIds.length === 0) return;
-  record = {
-    ...record,
-    stops: record.stops.map((s) =>
-      s.id === stop.id && apiStopId ? { ...s, apiStopId } : s,
-    ),
-    assignments: record.assignments.map((a) => {
-      if (!syncedEnrollmentIds.includes(a.id)) return a;
-      const source = pendingAssignments.find((p) => p.id === a.id);
-      return source?.apiEnrollmentId
-        ? { ...a, apiEnrollmentId: source.apiEnrollmentId }
-        : a;
-    }),
-  };
-  if (scope) byRoute[scope.routeId] = record;
-  persistMemory();
-  emit();
+  const pendingAssignments = record.assignments.filter(
+    (a) => a.status === "pending" || a.status === "rejected",
+  );
+  let all: Record<string, OfflineDraftBucket> = {};
+  try {
+    const raw = globalThis.localStorage.getItem(OFFLINE_DRAFT_KEY);
+    if (raw) all = JSON.parse(raw) as Record<string, OfflineDraftBucket>;
+  } catch {
+    all = {};
+  }
+  if (pendingStops.length === 0 && pendingAssignments.length === 0) {
+    delete all[scope.routeId];
+  } else {
+    all[scope.routeId] = {
+      routeId: scope.routeId,
+      stops: pendingStops,
+      assignments: pendingAssignments,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  try {
+    globalThis.localStorage.setItem(OFFLINE_DRAFT_KEY, JSON.stringify(all));
+  } catch {
+    // Quota / private mode — in-memory stop still remains for this session.
+  }
+}
+
+function mergeOfflineDraftsForRoute(routeId: string): void {
+  if (typeof globalThis.localStorage === "undefined") return;
+  try {
+    const raw = globalThis.localStorage.getItem(OFFLINE_DRAFT_KEY);
+    if (!raw) return;
+    const all = JSON.parse(raw) as Record<string, OfflineDraftBucket>;
+    const draft = all[routeId];
+    if (!draft?.stops?.length) return;
+    const existingIds = new Set(record.stops.map((s) => s.id));
+    const existingApiIds = new Set(
+      record.stops.map((s) => s.apiStopId).filter(Boolean) as string[],
+    );
+    const toAdd = draft.stops.filter(
+      (s) =>
+        !existingIds.has(s.id) &&
+        !(s.apiStopId && existingApiIds.has(s.apiStopId)),
+    );
+    if (toAdd.length === 0) return;
+    const assignIds = new Set(record.assignments.map((a) => a.id));
+    const assignAdd = (draft.assignments ?? []).filter((a) => !assignIds.has(a.id));
+    record = {
+      ...record,
+      setupInProgress: true,
+      stops: renumber([...record.stops, ...toAdd]),
+      assignments: [...record.assignments, ...assignAdd],
+    };
+    byRoute[routeId] = record;
+  } catch {
+    // ignore corrupt draft
+  }
 }
 
 /** Switch route-setup + sync context to the logged-in driver's bus/route. */
@@ -139,6 +224,7 @@ export function setRouteSetupDriverScope(next: RouteSetupDriverScope): void {
     : seedRecordForScope(next);
   record = base;
   byRoute[next.routeId] = record;
+  mergeOfflineDraftsForRoute(next.routeId);
   persistMemory();
 }
 
@@ -642,7 +728,8 @@ export function deleteRouteSetupStop(stopId: string): RouteSetupRecord {
 export function reorderRouteSetupStop(stopId: string, direction: "up" | "down"): RouteSetupRecord {
   if (record.lockedByAdmin) return record;
   const stop = record.stops.find((s) => s.id === stopId);
-  if (!stop || stop.status !== "approved") return record;
+  // Preserve driver-selected order for pending/approved waypoints (not school/parking).
+  if (!stop || stop.status === "rejected" || stop.status === "draft") return record;
   if (stop.kind === "school" || stop.kind === "parking") return record;
 
   const waypoints = record.stops.filter(
@@ -824,6 +911,26 @@ export function resetRouteSetupStore(): void {
     byRoute = {};
   }
   emit();
+}
+
+/** Retry pending stop uploads after connectivity returns. */
+export async function flushPendingRouteSetupStops(): Promise<void> {
+  if (!scope) return;
+  const pending = record.stops.filter(
+    (s) =>
+      s.status === "pending" &&
+      s.kind !== "school" &&
+      s.kind !== "parking",
+  );
+  for (const stop of pending) {
+    await awaitApiStopSync(stop);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    void flushPendingRouteSetupStops();
+  });
 }
 
 export function getRouteSetupForAdmin() {

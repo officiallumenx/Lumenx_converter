@@ -34,3 +34,16 @@ export function isPickupPhase(phase: TripPhase): boolean {
 export function isDropPhase(phase: TripPhase): boolean {
   return phase === "dropping";
 }
+
+/**
+ * Whether admin should get a "Trip phase updated" push for this transition.
+ * starting→running is covered by TRIP_STARTED on POST /trips — skip the duplicate.
+ */
+export function shouldNotifyTripPhaseChange(
+  from: TripPhase | string,
+  to: TripPhase | string,
+): boolean {
+  if (from === to) return false;
+  if (from === "starting" && to === "running") return false;
+  return true;
+}
