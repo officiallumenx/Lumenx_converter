@@ -108,7 +108,7 @@ describe("API registration sign-up wiring", () => {
       email: "principal@school.edu",
       password: "SecurePass123",
       phone: "+919876543210",
-      pin: null,
+      pin: "123456",
       payload: registrationPayload,
     });
     expect(apiSignInWithPassword).toHaveBeenCalledWith(
@@ -158,7 +158,7 @@ describe("API registration sign-up wiring", () => {
       email: "principal@school.edu",
       password: "SecurePass123",
       phone: "+919876543210",
-      pin: null,
+      pin: "123456",
       payload: registrationPayload,
     });
     expect(submitRegistration.mock.calls[0]?.[0]).not.toHaveProperty("firebaseIdToken");

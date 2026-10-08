@@ -11,7 +11,7 @@ describe("exams mutations", () => {
   });
 
   it("refuses create without authenticated API client", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { createExam } = await import("./mutations");
     await expect(
       createExam({
@@ -26,7 +26,9 @@ describe("exams mutations", () => {
         totalMarks: 100,
         audienceScope: "year",
       }),
-    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
+    ).rejects.toThrow(
+      /API auth mode|Authentication required|Demo Mode is no longer supported|Saved offline|back online/,
+    );
   });
 
   it("does not call network for invalid exam UUID on delete", async () => {

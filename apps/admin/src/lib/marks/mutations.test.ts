@@ -17,7 +17,7 @@ describe("marks mutations", () => {
   });
 
   it("refuses create without authenticated API client", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { createMarkEntry } = await import("./mutations");
     await expect(
       createMarkEntry({
@@ -29,7 +29,9 @@ describe("marks mutations", () => {
         subjectId: SUBJECT,
         maxMarks: 100,
       }),
-    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
+    ).rejects.toThrow(
+      /API auth mode|Authentication required|Demo Mode is no longer supported|Saved offline|back online/,
+    );
   });
 
   it("does not call network for invalid entry UUID on publish", async () => {

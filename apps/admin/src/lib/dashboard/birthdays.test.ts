@@ -46,8 +46,12 @@ describe("isBirthdayOnDate", () => {
   });
 
   it("treats ISO midnight shifted into local day correctly", () => {
-    // 1990-10-02 00:00 IST stored as UTC instant
-    expect(isBirthdayOnDate("1990-10-01T18:30:00.000Z", today)).toBe(true);
+    // UTC midnight is Oct 2 on CI (UTC) and still Oct 2 in IST.
+    expect(isBirthdayOnDate("1990-10-02T00:00:00.000Z", today)).toBe(true);
+    // 1990-10-02 00:00 IST stored as UTC instant — only when runner TZ is IST.
+    if (new Date().getTimezoneOffset() === -330) {
+      expect(isBirthdayOnDate("1990-10-01T18:30:00.000Z", today)).toBe(true);
+    }
   });
 });
 
