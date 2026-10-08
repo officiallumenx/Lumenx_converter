@@ -58,3 +58,89 @@ export function toneTokenFromPriority(
   if (priority === "success") return "success";
   return "primary";
 }
+
+/** Android / tray accent hex — INFO blue, WARNING amber, CRITICAL red. */
+export const NOTIFICATION_ACCENT_HEX = {
+  info: "#2563EB",
+  warning: "#D97706",
+  critical: "#DC2626",
+} as const;
+
+/**
+ * Map stored priority (+ optional payload severity) to Android notification color.
+ * Mirrors backend `resolveAndroidNotificationColor` — keep in sync.
+ */
+export function androidAccentHexFromPriority(
+  priority: LumenXNotificationPriority | string | null | undefined,
+  opts?: {
+    severity?: string | null;
+    alertSeverity?: string | null;
+    isAlert?: boolean;
+  },
+): string {
+  const p = String(priority ?? "normal").toLowerCase();
+  const severity = String(opts?.severity ?? "").toLowerCase();
+  const alertSeverity = String(opts?.alertSeverity ?? "").toLowerCase();
+  if (
+    opts?.isAlert ||
+    p === "critical" ||
+    severity === "critical" ||
+    severity === "urgent" ||
+    alertSeverity === "emergency"
+  ) {
+    return NOTIFICATION_ACCENT_HEX.critical;
+  }
+  if (
+    p === "important" ||
+    severity === "attention" ||
+    severity === "warning" ||
+    alertSeverity === "mandatory"
+  ) {
+    return NOTIFICATION_ACCENT_HEX.warning;
+  }
+  return NOTIFICATION_ACCENT_HEX.info;
+}
+
+/** Human tray / in-app label for backend notification.category. */
+export function backendCategoryDisplayLabel(
+  category: string | null | undefined,
+): string {
+  switch (category) {
+    case "attendance":
+      return "Attendance";
+    case "homework":
+      return "Homework";
+    case "fees":
+      return "Fees";
+    case "exams":
+      return "Exam";
+    case "events":
+      return "Event";
+    case "transport":
+      return "Transport";
+    case "leave":
+      return "Leave";
+    case "announcements":
+      return "Announcement";
+    case "messages":
+      return "Message";
+    case "complaints":
+      return "Notice";
+    case "admissions":
+      return "Admissions";
+    case "careers":
+      return "Careers";
+    case "certificates":
+      return "Certificate";
+    case "documents":
+      return "Document";
+    case "timetable":
+      return "Timetable";
+    case "system":
+      return "Notice";
+    case "nexus":
+      return "Nexus";
+    default:
+      return "Notice";
+  }
+}

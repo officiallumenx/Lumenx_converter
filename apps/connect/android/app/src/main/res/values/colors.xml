@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppCompat theme tokens (referenced by styles.xml) -->
+    <color name="colorPrimary">#2563EB</color>
+    <color name="colorPrimaryDark">#1D4ED8</color>
+    <color name="colorAccent">#2563EB</color>
+
+    <!-- FCM / NotificationCompat accent (severity) -->
+    <color name="notification_color_info">#2563EB</color>
+    <color name="notification_color_warning">#D97706</color>
+    <color name="notification_color_critical">#DC2626</color>
+    <color name="default_notification_color">@color/notification_color_info</color>
+</resources>

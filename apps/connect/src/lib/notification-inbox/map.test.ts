@@ -51,4 +51,25 @@ describe("connect inbox map", () => {
     expect(row.type).toBe("warning");
     expect(row.priority).toBe("high");
   });
+
+  it("maps announcements / messages / events categories for Connect inbox", () => {
+    expect(
+      inboxItemDtoToAppNotification({
+        ...dto,
+        notification: { ...dto.notification, category: "announcements" },
+      }).category,
+    ).toBe("circulars");
+    expect(
+      inboxItemDtoToAppNotification({
+        ...dto,
+        notification: { ...dto.notification, category: "messages" },
+      }).category,
+    ).toBe("messages");
+    expect(
+      inboxItemDtoToAppNotification({
+        ...dto,
+        notification: { ...dto.notification, category: "events" },
+      }).category,
+    ).toBe("events");
+  });
 });

@@ -1,29 +1,15 @@
 import { useState } from "react";
-import type { AppNotification, NotificationCategory } from "@lumenx/types";
+import type { AppNotification } from "@lumenx/types";
 import { isAlertNotification } from "@lumenx/notifications";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, cn } from "@lumenx/ui";
 import { Bell, Sparkles, AlertTriangle, Info, Flame, ChevronRight } from "lucide-react";
 import { STUDENT_NOTIFICATION_COLOR, studentModuleIconStyle } from "@/lib/student/nav";
+import { CONNECT_UI_CATEGORY_LABELS } from "@/lib/notification-inbox/labels";
 
 const NOTIFICATION_ACCENT = STUDENT_NOTIFICATION_COLOR;
 const NOTIFICATION_ICON_STYLE = studentModuleIconStyle(NOTIFICATION_ACCENT);
 
-const CATEGORY_LABELS: Record<NotificationCategory, string> = {
-  academic: "Academic",
-  attendance: "Attendance",
-  assignments: "Assignments",
-  exams: "Exams",
-  fees: "Fees",
-  sports: "Sports",
-  events: "Events",
-  holidays: "Holidays",
-  circulars: "Circulars",
-  emergency: "Emergency",
-  messages: "Messages",
-  transport: "Transport",
-  leave: "Leave",
-  system: "System",
-};
+const CATEGORY_LABELS = CONNECT_UI_CATEGORY_LABELS;
 
 const TYPE_STYLES = {
   warning: {
@@ -44,11 +30,12 @@ const TYPE_STYLES = {
   },
   info: {
     icon: Info,
-    tone: "",
+    /** INFO severity → primary blue (never default to red). */
+    tone: "bg-primary/15 text-primary border-primary/30",
     label: "Update",
-    labelClass: "",
+    labelClass: "text-primary",
     unreadRow: "border-primary/25 bg-primary/5",
-    barClass: "",
+    barClass: "bg-primary",
   },
 } as const;
 

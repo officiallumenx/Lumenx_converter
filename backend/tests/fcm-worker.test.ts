@@ -142,14 +142,68 @@ describe("FCM worker — enqueue + flush", () => {
 
     expect(result.sent).toBe(1);
     expect(send).toHaveBeenCalledTimes(1);
-    const call = send.mock.calls[0]?.[0] as { notification?: { title?: string }; data?: Record<string, string> };
+    const call = send.mock.calls[0]?.[0] as {
+      notification?: { title?: string };
+      data?: Record<string, string>;
+      android?: { notification?: { color?: string; icon?: string; channelId?: string } };
+    };
     expect(call.notification?.title).toContain("Important:");
     expect(call.data?.presentation).toBe("alert");
+    expect(call.data?.app).toBe("connect");
+    expect(call.android?.notification?.channelId).toBe("lumenx_alerts");
+    expect(call.android?.notification?.color).toBe("#DC2626");
+    expect(call.android?.notification?.icon).toBe("ic_notification");
 
     const sent = db.notification_delivery_attempt.filter(
       (row) => row.channel === "fcm" && row.status === "sent",
     );
     expect(sent.length).toBe(1);
+  });
+
+  it("formats connect announcement tray with category + info color + small icon", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const adminClient = createMockSupabaseClients({
+      tokens: { "token-admin": USER_ADMIN },
+      db,
+    }).admin!;
+
+    await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: {
+        ...jsonHeaders,
+        "Idempotency-Key": "fcm-announcement-tray-1",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "announcements",
+        priority: "normal",
+        title: "Nate",
+        body: "Gate exam tomorrow be prepare.",
+        recipient_user_ids: [USER_PARENT],
+      }),
+    });
+
+    const send = vi.fn().mockResolvedValue("msg-id-ann");
+    const messaging = { send } as unknown as Messaging;
+    const result = await flushPendingFcmDeliveries({
+      admin: adminClient,
+      messaging,
+      logger: silentLogger,
+    });
+    expect(result.sent).toBe(1);
+    const call = send.mock.calls[0]?.[0] as {
+      notification?: { title?: string; body?: string };
+      data?: Record<string, string>;
+      android?: { notification?: { color?: string; icon?: string; channelId?: string } };
+    };
+    expect(call.notification?.title).toBe("Announcement • Nate");
+    expect(call.notification?.body).toContain("Gate exam");
+    expect(call.data?.category).toBe("announcements");
+    expect(call.data?.app).toBe("connect");
+    expect(call.android?.notification?.channelId).toBe("lumenx_notifications");
+    expect(call.android?.notification?.color).toBe("#2563EB");
+    expect(call.android?.notification?.icon).toBe("ic_notification");
   });
 
   it("retries transient FCM failures with backoff instead of failing once", async () => {

@@ -15,6 +15,7 @@ import { days } from "@/lib/mock-data";
 import { getInitials } from "@lumenx/utils";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { studentNotificationStore } from "@/lib/student/notification-store";
+import { connectUiCategoryLabel } from "@/lib/notification-inbox/labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import {
@@ -404,7 +405,14 @@ export function StudentDashboardPage() {
                   <Card title="Recent notifications" link="/notifications">
                     {recentNotifications.length ? (
                       <div className="min-w-0 flex-1 space-y-2">
-                        {recentNotifications.map((n) => (
+                        {recentNotifications.map((n) => {
+                          const severityTone =
+                            n.priority === "high"
+                              ? "text-destructive"
+                              : n.type === "warning"
+                                ? "text-warning-foreground"
+                                : "text-primary";
+                          return (
                           <div
                             key={n.id}
                             className={cn(
@@ -419,9 +427,12 @@ export function StudentDashboardPage() {
                             )}
                           >
                             <Bell
-                              className="mt-0.5 size-4 shrink-0 text-primary"
+                              className={cn("mt-0.5 size-4 shrink-0", severityTone)}
                             />
                             <div className="min-w-0 flex-1">
+                              <div className={cn("text-[10px] font-bold uppercase tracking-wide", severityTone)}>
+                                {connectUiCategoryLabel(n.category)}
+                              </div>
                               <div className="truncate text-sm font-medium">{n.title}</div>
                               <div className="truncate text-xs text-muted-foreground">{n.desc}</div>
                             </div>
@@ -434,7 +445,8 @@ export function StudentDashboardPage() {
                               />
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <EmptyState

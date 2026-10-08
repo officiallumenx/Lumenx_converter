@@ -11,6 +11,10 @@ import {
   updateDeliveryAttemptStatus,
 } from "./repository.js";
 import { isAlertNotificationRow } from "./fcm-enqueue.js";
+import {
+  buildFcmAndroidNotification,
+  formatFcmTrayTitle,
+} from "./fcm-presentation.js";
 
 export type FcmWorkerResult = {
   processed: number;
@@ -24,18 +28,29 @@ const DEFAULT_BATCH = 50;
 const BASE_BACKOFF_MS = 30_000;
 const MAX_BACKOFF_MS = 60 * 60 * 1000;
 
-function buildFcmData(notification: {
-  id: string;
-  institute_id: string;
-  deep_link: string | null;
-  payload: Record<string, unknown>;
-  priority: string;
-}): Record<string, string> {
+/** Exported for presentation unit tests — preserves existing data keys. */
+export function buildFcmData(
+  notification: {
+    id: string;
+    institute_id: string;
+    category?: string;
+    deep_link: string | null;
+    payload: Record<string, unknown>;
+    priority: string;
+  },
+  options?: { deviceApp?: string | null },
+): Record<string, string> {
   const data: Record<string, string> = {
     notificationId: notification.id,
     instituteId: notification.institute_id,
     priority: notification.priority,
   };
+  if (notification.category) {
+    data.category = notification.category;
+  }
+  if (options?.deviceApp) {
+    data.app = options.deviceApp;
+  }
   const deepLink = notification.deep_link?.trim() ?? "";
   // Only fan out relative in-app paths (never absolute / scheme URLs).
   if (deepLink.startsWith("/") && !deepLink.startsWith("//")) {
@@ -52,6 +67,9 @@ function buildFcmData(notification: {
   }
   if (typeof notification.payload?.severity === "string") {
     data.severity = notification.payload.severity;
+  }
+  if (typeof notification.payload?.alertSeverity === "string") {
+    data.alertSeverity = notification.payload.alertSeverity;
   }
   if (typeof notification.payload?.kind === "string") {
     data.kind = notification.payload.kind;
@@ -172,23 +190,28 @@ export async function processPendingFcmDeliveries(
     }
 
     const isAlert = isAlertNotificationRow(notification);
+    const androidNotification = buildFcmAndroidNotification({
+      isAlert,
+      priority: notification.priority,
+      payload: notification.payload,
+      deviceApp: tokenRow.app,
+    });
 
     try {
       await messaging.send({
         token: tokenRow.token,
         notification: {
-          title: isAlert
-            ? `Important: ${notification.title}`
-            : notification.title,
+          title: formatFcmTrayTitle({
+            title: notification.title,
+            category: notification.category,
+            isAlert,
+          }),
           body: notification.body,
         },
-        data: buildFcmData(notification),
+        data: buildFcmData(notification, { deviceApp: tokenRow.app }),
         android: {
           priority: isAlert ? "high" : "normal",
-          notification: {
-            channelId: isAlert ? "lumenx_alerts" : "lumenx_notifications",
-            color: isAlert ? "#DC2626" : undefined,
-          },
+          notification: androidNotification,
         },
         apns: {
           payload: {

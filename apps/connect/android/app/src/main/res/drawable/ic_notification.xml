@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Connect FCM / status-bar small icon.
+  Must be white/monochrome with transparent background (not the adaptive launcher).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Simplified Connect mark: open ring (readable at status-bar size) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3.5c-4.69,0 -8.5,3.81 -8.5,8.5s3.81,8.5 8.5,8.5c2.15,0 4.12,-0.8 5.62,-2.12l-1.48,-1.48C15.02,18.02 13.58,18.5 12,18.5c-3.58,0 -6.5,-2.92 -6.5,-6.5S8.42,5.5 12,5.5c1.58,0 3.02,0.58 4.14,1.52l1.48,-1.48C16.12,4.3 14.15,3.5 12,3.5z" />
+    <!-- Inner accent nodule (still monochrome white) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16.75,11.25c0,0.69 -0.56,1.25 -1.25,1.25s-1.25,-0.56 -1.25,-1.25 0.56,-1.25 1.25,-1.25 1.25,0.56 1.25,1.25z" />
+</vector>
