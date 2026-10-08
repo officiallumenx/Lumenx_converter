@@ -28,7 +28,8 @@ const EVENT_SEVERITY: Partial<Record<TransportEventKind | string, TransportSever
   [TRANSPORT_EVENT.EMERGENCY_RESOLVED]: "info",
   [TRANSPORT_EVENT.STOP_ARRIVED]: "info",
   [TRANSPORT_EVENT.GPS_STALE]: "attention",
-  [TRANSPORT_EVENT.GPS_OFFLINE]: "urgent",
+  /** Amber/attention — not critical red (SOS remains critical). */
+  [TRANSPORT_EVENT.GPS_OFFLINE]: "attention",
   [TRANSPORT_EVENT.GPS_RECOVERED]: "info",
   [TRANSPORT_EVENT.TRIP_NOT_STARTED]: "attention",
   [TRANSPORT_EVENT.STOP_MISSED]: "urgent",

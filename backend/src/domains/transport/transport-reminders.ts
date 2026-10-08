@@ -32,6 +32,7 @@ import {
   deepLinkForTransportEvent,
   transportDedupe,
 } from "./transport-notification-severity.js";
+import { nextGpsHealthAction } from "./gps-health-reminder.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
 
 export type TransportRemindersResult = {
@@ -252,34 +253,8 @@ async function processInstituteReminders(
     if (!loc?.captured_at) continue;
     const ageMin = minutesBetween(now, new Date(loc.captured_at));
     const timeline = trip.timeline ?? [];
-    const lastGpsHealth = [...timeline]
-      .reverse()
-      .find(
-        (e) =>
-          e.kind === TRANSPORT_EVENT.GPS_STALE ||
-          e.kind === TRANSPORT_EVENT.GPS_OFFLINE ||
-          e.kind === TRANSPORT_EVENT.GPS_RECOVERED,
-      );
-    // New dedupe episode after each recovery so a later stale window can alert again.
-    const gpsEpisode = timeline.filter(
-      (e) => e.kind === TRANSPORT_EVENT.GPS_RECOVERED,
-    ).length;
-
-    if (ageMin < 5) {
-      if (
-        lastGpsHealth &&
-        (lastGpsHealth.kind === TRANSPORT_EVENT.GPS_STALE ||
-          lastGpsHealth.kind === TRANSPORT_EVENT.GPS_OFFLINE)
-      ) {
-        await appendTripTimeline(admin, trip.id, {
-          id: `evt-gps-recovered-${trip.id}-${Date.now()}`,
-          at: now.toISOString(),
-          kind: TRANSPORT_EVENT.GPS_RECOVERED,
-          label: "Bus GPS recovered",
-        });
-      }
-      continue;
-    }
+    const decision = nextGpsHealthAction(ageMin, timeline);
+    if (decision.action === "none") continue;
 
     const recipients = [...staff];
     const guardians = await guardianUserIdsForRoute(
@@ -287,25 +262,59 @@ async function processInstituteReminders(
       instituteId,
       trip.route_id,
     );
-    // Parents get stale only after 10 min; staff after 5.
-    const parentRecipients = ageMin >= 10 ? guardians : [];
+    // Parents get stale/offline/recovered after 10 min; staff after 5 (for stale band).
+    const parentRecipients =
+      decision.action === "recover" || ageMin >= 10 ? guardians : [];
     const all = [...new Set([...recipients, ...parentRecipients])];
+    if (all.length === 0 && decision.action !== "recover") continue;
+
+    if (decision.action === "recover") {
+      if (all.length > 0) {
+        const recovered = await emitTransportNotification(admin, {
+          instituteId,
+          createdByUserId: systemUserId,
+          kind: TRANSPORT_EVENT.GPS_RECOVERED,
+          severity: "info",
+          title: "Bus GPS recovered",
+          body: "Live location is updating again.",
+          deepLink: "/transport",
+          targetAudience: "parent",
+          targetApps: ["connect", "admin"],
+          softChime: true,
+          positiveOutcome: true,
+          dedupeKey: `${transportDedupe.gpsStale(trip.id)}:recovered:ep${decision.episode}`,
+          recipientUserIds: all,
+          payload: {
+            tripId: trip.id,
+            kind: TRANSPORT_EVENT.GPS_RECOVERED,
+            reminderType: "gps_recovered",
+          },
+        });
+        if (recovered.ok) emitted += 1;
+      }
+      await appendTripTimeline(admin, trip.id, {
+        id: `evt-gps-recovered-${trip.id}-ep${decision.episode}`,
+        at: now.toISOString(),
+        kind: TRANSPORT_EVENT.GPS_RECOVERED,
+        label: "Bus GPS recovered",
+      });
+      continue;
+    }
+
     if (all.length === 0) continue;
 
-    const offline = ageMin >= 20;
-    if (offline) {
-      if (lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_OFFLINE) continue;
+    if (decision.action === "offline") {
       const ok = await emitTransportNotification(admin, {
         instituteId,
         createdByUserId: systemUserId,
         kind: TRANSPORT_EVENT.GPS_OFFLINE,
-        severity: "urgent",
+        severity: "attention",
         title: "Bus GPS offline",
         body: "Live location has not updated for over 20 minutes.",
         deepLink: "/transport",
         targetAudience: "parent",
         targetApps: ["connect", "admin"],
-        dedupeKey: `${transportDedupe.gpsOffline(trip.id)}:ep${gpsEpisode}`,
+        dedupeKey: `${transportDedupe.gpsOffline(trip.id)}:ep${decision.episode}`,
         recipientUserIds: all,
         payload: {
           tripId: trip.id,
@@ -316,20 +325,13 @@ async function processInstituteReminders(
       });
       if (ok.ok || ok.reason === "dedupe") {
         await appendTripTimeline(admin, trip.id, {
-          id: `evt-gps-offline-${trip.id}-ep${gpsEpisode}`,
+          id: `evt-gps-offline-${trip.id}-ep${decision.episode}`,
           at: now.toISOString(),
           kind: TRANSPORT_EVENT.GPS_OFFLINE,
           label: "Bus GPS offline",
         });
       }
       if (ok.ok) emitted += 1;
-      continue;
-    }
-
-    if (
-      lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_STALE ||
-      lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_OFFLINE
-    ) {
       continue;
     }
 
@@ -343,7 +345,7 @@ async function processInstituteReminders(
       deepLink: "/transport",
       targetAudience: "parent",
       targetApps: ["connect", "admin"],
-      dedupeKey: `${transportDedupe.gpsStale(trip.id)}:ep${gpsEpisode}`,
+      dedupeKey: `${transportDedupe.gpsStale(trip.id)}:ep${decision.episode}`,
       recipientUserIds: all,
       payload: {
         tripId: trip.id,
@@ -354,7 +356,7 @@ async function processInstituteReminders(
     });
     if (ok.ok || ok.reason === "dedupe") {
       await appendTripTimeline(admin, trip.id, {
-        id: `evt-gps-stale-${trip.id}-ep${gpsEpisode}`,
+        id: `evt-gps-stale-${trip.id}-ep${decision.episode}`,
         at: now.toISOString(),
         kind: TRANSPORT_EVENT.GPS_STALE,
         label: "Bus GPS stale",
