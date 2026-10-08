@@ -17,6 +17,10 @@ export const TRANSPORT_EVENT = {
   SCHOOL_ARRIVED: "SCHOOL_ARRIVED",
   /** Operational reminder / monitoring kinds */
   GPS_STALE: "GPS_STALE",
+  /** Stronger than stale — no usable fix for an extended window. */
+  GPS_OFFLINE: "GPS_OFFLINE",
+  /** GPS recovered after stale/offline (timeline marker for reminder state machine). */
+  GPS_RECOVERED: "GPS_RECOVERED",
   TRIP_NOT_STARTED: "TRIP_NOT_STARTED",
   STOP_MISSED: "STOP_MISSED",
   TRANSPORT_ISSUE: "TRANSPORT_ISSUE",

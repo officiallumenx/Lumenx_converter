@@ -69,6 +69,18 @@ export const envSchema = z.object({
       const t = String(v).trim().toLowerCase();
       return !(t === "false" || t === "0" || t === "off" || t === "no");
     }),
+  /**
+   * Dangerous escape hatch: allow a non-production Node process to drain the
+   * FCM outbox against a production Supabase project. Default false — local
+   * `npm run dev:api` must not become a silent second production worker.
+   */
+  FCM_ALLOW_PROD_OUTBOX: z
+    .enum(["true", "false", "1", "0", "on", "off", "yes", "no"])
+    .optional()
+    .transform((v) => {
+      const t = (v ?? "").trim().toLowerCase();
+      return t === "true" || t === "1" || t === "on" || t === "yes";
+    }),
 
   /**
    * OTP delivery:

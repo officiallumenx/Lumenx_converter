@@ -12,13 +12,16 @@ const health = new Hono<AppBindings>();
 
 function fcmHealthSnapshot() {
   const env = loadEnv();
-  const workerEnabled = env.FCM_WORKER_ENABLED !== false;
+  const configEnabled = env.FCM_WORKER_ENABLED !== false;
   const firebaseConfigured = getLumenXFirebaseAdminApp() != null;
   const runtime = getFcmWorkerRuntimeStatus();
   return {
-    workerEnabled,
+    /** Env intent: FCM_WORKER_ENABLED (not process gate). */
+    workerEnabled: configEnabled,
     firebaseConfigured,
+    /** True only when this process owns an active setInterval worker. */
     workerRunning: runtime.workerRunning,
+    messagingReady: configEnabled && firebaseConfigured && runtime.workerRunning,
     projectId: env.FIREBASE_PROJECT_ID ?? null,
     intervalMs: runtime.intervalMs,
     batchSize: runtime.batchSize,
@@ -59,8 +62,9 @@ health.get("/ready", async (c) => {
   const result = await checkSupabaseConnectivity(probe);
 
   if (result.status === "ok") {
-    const fcmOk =
-      !fcm.workerEnabled || (fcm.firebaseConfigured && fcm.workerRunning);
+    // When push is intentionally disabled (FCM_WORKER_ENABLED=false), do not
+    // fail readiness — but expose messagingReady=false for operators.
+    const fcmOk = !fcm.workerEnabled || Boolean(fcm.messagingReady);
     return c.json({
       status: fcmOk ? "ready" : "degraded",
       checks: {

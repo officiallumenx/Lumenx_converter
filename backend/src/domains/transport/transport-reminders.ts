@@ -237,7 +237,9 @@ async function processInstituteReminders(
     }
   }
 
-  // GPS stale on active trips (operational — ATTENTION, not critical).
+  // GPS health state machine on active trips (operational — ATTENTION / URGENT).
+  // HEALTHY → STALE (once) → OFFLINE (once). Stay in state: no repeats.
+  // Recovery (fresh fix) → GPS_RECOVERED so a later stale episode can alert again.
   const tripsToday = await listTrips(admin, instituteId, serviceDate);
   const activeTrips = tripsToday.filter(
     (t) => !t.finalized && t.phase !== "completed" && t.phase !== "ready",
@@ -249,7 +251,35 @@ async function processInstituteReminders(
     const loc = await findLatestLocationForTrip(admin, trip.id);
     if (!loc?.captured_at) continue;
     const ageMin = minutesBetween(now, new Date(loc.captured_at));
-    if (ageMin < 5) continue;
+    const timeline = trip.timeline ?? [];
+    const lastGpsHealth = [...timeline]
+      .reverse()
+      .find(
+        (e) =>
+          e.kind === TRANSPORT_EVENT.GPS_STALE ||
+          e.kind === TRANSPORT_EVENT.GPS_OFFLINE ||
+          e.kind === TRANSPORT_EVENT.GPS_RECOVERED,
+      );
+    // New dedupe episode after each recovery so a later stale window can alert again.
+    const gpsEpisode = timeline.filter(
+      (e) => e.kind === TRANSPORT_EVENT.GPS_RECOVERED,
+    ).length;
+
+    if (ageMin < 5) {
+      if (
+        lastGpsHealth &&
+        (lastGpsHealth.kind === TRANSPORT_EVENT.GPS_STALE ||
+          lastGpsHealth.kind === TRANSPORT_EVENT.GPS_OFFLINE)
+      ) {
+        await appendTripTimeline(admin, trip.id, {
+          id: `evt-gps-recovered-${trip.id}-${Date.now()}`,
+          at: now.toISOString(),
+          kind: TRANSPORT_EVENT.GPS_RECOVERED,
+          label: "Bus GPS recovered",
+        });
+      }
+      continue;
+    }
 
     const recipients = [...staff];
     const guardians = await guardianUserIdsForRoute(
@@ -262,20 +292,58 @@ async function processInstituteReminders(
     const all = [...new Set([...recipients, ...parentRecipients])];
     if (all.length === 0) continue;
 
+    const offline = ageMin >= 20;
+    if (offline) {
+      if (lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_OFFLINE) continue;
+      const ok = await emitTransportNotification(admin, {
+        instituteId,
+        createdByUserId: systemUserId,
+        kind: TRANSPORT_EVENT.GPS_OFFLINE,
+        severity: "urgent",
+        title: "Bus GPS offline",
+        body: "Live location has not updated for over 20 minutes.",
+        deepLink: "/transport",
+        targetAudience: "parent",
+        targetApps: ["connect", "admin"],
+        dedupeKey: `${transportDedupe.gpsOffline(trip.id)}:ep${gpsEpisode}`,
+        recipientUserIds: all,
+        payload: {
+          tripId: trip.id,
+          ageMin,
+          kind: TRANSPORT_EVENT.GPS_OFFLINE,
+          reminderType: "gps_offline",
+        },
+      });
+      if (ok.ok || ok.reason === "dedupe") {
+        await appendTripTimeline(admin, trip.id, {
+          id: `evt-gps-offline-${trip.id}-ep${gpsEpisode}`,
+          at: now.toISOString(),
+          kind: TRANSPORT_EVENT.GPS_OFFLINE,
+          label: "Bus GPS offline",
+        });
+      }
+      if (ok.ok) emitted += 1;
+      continue;
+    }
+
+    if (
+      lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_STALE ||
+      lastGpsHealth?.kind === TRANSPORT_EVENT.GPS_OFFLINE
+    ) {
+      continue;
+    }
+
     const ok = await emitTransportNotification(admin, {
       instituteId,
       createdByUserId: systemUserId,
-      kind: "GPS_STALE",
-      severity: ageMin >= 20 ? "urgent" : "attention",
-      title: ageMin >= 20 ? "Bus GPS offline" : "Bus GPS stale",
-      body:
-        ageMin >= 20
-          ? "Live location has not updated for over 20 minutes."
-          : `Live location last updated ${ageMin} minutes ago.`,
+      kind: TRANSPORT_EVENT.GPS_STALE,
+      severity: "attention",
+      title: "Bus GPS stale",
+      body: `Live location last updated ${ageMin} minutes ago.`,
       deepLink: "/transport",
       targetAudience: "parent",
       targetApps: ["connect", "admin"],
-      dedupeKey: `${transportDedupe.gpsStale(trip.id)}:${Math.floor(ageMin / 10)}`,
+      dedupeKey: `${transportDedupe.gpsStale(trip.id)}:ep${gpsEpisode}`,
       recipientUserIds: all,
       payload: {
         tripId: trip.id,
@@ -284,6 +352,14 @@ async function processInstituteReminders(
         reminderType: "gps_stale",
       },
     });
+    if (ok.ok || ok.reason === "dedupe") {
+      await appendTripTimeline(admin, trip.id, {
+        id: `evt-gps-stale-${trip.id}-ep${gpsEpisode}`,
+        at: now.toISOString(),
+        kind: TRANSPORT_EVENT.GPS_STALE,
+        label: "Bus GPS stale",
+      });
+    }
     if (ok.ok) emitted += 1;
   }
 

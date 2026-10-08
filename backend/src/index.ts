@@ -8,6 +8,7 @@ import { assertProductionEnv } from "./config/production.js";
 import { createLogger } from "./logger/logger.js";
 import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
+import { shouldStartFcmWorker } from "./integrations/fcm-worker-gate.js";
 import {
   FCM_WORKER_DEFAULT_BATCH,
   FCM_WORKER_DEFAULT_INTERVAL_MS,
@@ -21,10 +22,11 @@ assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);
 const supabase = createSupabaseClients(env, logger);
 const firebaseApp = initFirebaseAdmin(env, logger);
-const workerEnabled = env.FCM_WORKER_ENABLED !== false;
+const workerGate = shouldStartFcmWorker(env);
+const workerEnabled = workerGate.start;
 const messaging = workerEnabled ? getFirebaseMessaging(firebaseApp) : null;
 
-if (env.NODE_ENV === "production" && workerEnabled) {
+if (env.NODE_ENV === "production" && env.FCM_WORKER_ENABLED !== false) {
   if (!firebaseApp || !messaging || !supabase?.admin) {
     logger.error({
       msg: "fcm_worker_startup_failed",
@@ -40,7 +42,7 @@ if (env.NODE_ENV === "production" && workerEnabled) {
 }
 
 const app = createApp(env, logger, supabase, firebaseApp);
-if (supabase?.admin && messaging) {
+if (supabase?.admin && messaging && workerEnabled) {
   startFcmWorkerLoop({
     admin: supabase.admin,
     messaging,
@@ -59,9 +61,10 @@ if (supabase?.admin && messaging) {
   logger.warn({
     msg: "fcm_worker_disabled",
     workerEnabled,
+    gateReason: workerGate.reason,
     firebaseConfigured: Boolean(firebaseApp),
     projectId: env.FIREBASE_PROJECT_ID ?? null,
-    hint: "Configure Firebase credentials and Supabase to enable FCM delivery (or set FCM_WORKER_ENABLED=true).",
+    hint: "Configure Firebase credentials and Supabase on Railway for production push. Local API must not drain prod outbox unless FCM_ALLOW_PROD_OUTBOX=true.",
   });
 }
 

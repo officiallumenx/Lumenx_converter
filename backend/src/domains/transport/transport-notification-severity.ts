@@ -28,6 +28,8 @@ const EVENT_SEVERITY: Partial<Record<TransportEventKind | string, TransportSever
   [TRANSPORT_EVENT.EMERGENCY_RESOLVED]: "info",
   [TRANSPORT_EVENT.STOP_ARRIVED]: "info",
   [TRANSPORT_EVENT.GPS_STALE]: "attention",
+  [TRANSPORT_EVENT.GPS_OFFLINE]: "urgent",
+  [TRANSPORT_EVENT.GPS_RECOVERED]: "info",
   [TRANSPORT_EVENT.TRIP_NOT_STARTED]: "attention",
   [TRANSPORT_EVENT.STOP_MISSED]: "urgent",
   [TRANSPORT_EVENT.TRANSPORT_ISSUE]: "urgent",
@@ -139,6 +141,8 @@ export const transportDedupe = {
   notRidingCancelled: (studentId: string, serviceDate: string) =>
     `transport:not_riding_cancelled:${studentId}:${serviceDate}`,
   gpsStale: (tripId: string) => `transport:${tripId}:gps_stale`,
+  /** One offline alert per trip episode (until GPS_RECOVERED). */
+  gpsOffline: (tripId: string) => `transport:${tripId}:gps_offline`,
   tripNotStarted: (routeId: string, serviceDate: string) =>
     `transport:${routeId}:not_started:${serviceDate}`,
   tripDelayed: (tripId: string) => `transport:${tripId}:delayed`,

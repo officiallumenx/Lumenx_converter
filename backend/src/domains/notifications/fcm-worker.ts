@@ -2,9 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Messaging } from "firebase-admin/messaging";
 import type { Logger } from "../../logger/logger.js";
 import {
+  claimPendingFcmDeliveryAttempt,
   findDeviceTokenById,
   findNotificationById,
   listPendingFcmDeliveryAttempts,
+  reclaimStaleSendingFcmAttempts,
   softInvalidateDeviceToken,
   updateDeliveryAttemptStatus,
 } from "./repository.js";
@@ -103,6 +105,8 @@ export async function processPendingFcmDeliveries(
   };
   if (!messaging) return result;
 
+  await reclaimStaleSendingFcmAttempts(admin);
+
   const pending = await listPendingFcmDeliveryAttempts(
     admin,
     options?.limit ?? DEFAULT_BATCH,
@@ -114,7 +118,21 @@ export async function processPendingFcmDeliveries(
     Awaited<ReturnType<typeof findNotificationById>>
   >();
 
-  for (const attempt of pending) {
+  for (const candidate of pending) {
+    // Atomic claim — another Railway/local worker may have taken this row.
+    // Pre-migration DBs without `sending` status fall back to the candidate row.
+    let attempt = candidate;
+    try {
+      const claimed = await claimPendingFcmDeliveryAttempt(admin, candidate.id);
+      if (!claimed) {
+        result.skipped += 1;
+        continue;
+      }
+      attempt = claimed;
+    } catch {
+      attempt = candidate;
+    }
+
     result.processed += 1;
     const maxAttempts = Math.max(1, Number(attempt.max_attempts) || 8);
     const priorAttempts = Number(attempt.attempt_count) || 0;

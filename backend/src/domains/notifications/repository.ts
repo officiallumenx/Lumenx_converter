@@ -283,11 +283,69 @@ export async function listPendingFcmDeliveryAttempts(
     .slice(0, limit);
 }
 
+/** Reclaim `sending` rows stuck after a worker crash (default 2 minutes). */
+export async function reclaimStaleSendingFcmAttempts(
+  admin: SupabaseClient,
+  olderThanMs = 120_000,
+): Promise<number> {
+  const listed = await admin
+    .from("notification_delivery_attempt")
+    .select("id, attempted_at")
+    .eq("channel", "fcm")
+    .eq("status", "sending")
+    .limit(200);
+  const rows = ensureDbOk(listed) as Array<{ id: string; attempted_at: string }>;
+  const cutoff = Date.now() - olderThanMs;
+  const staleIds = rows
+    .filter((row) => {
+      const at = new Date(row.attempted_at).getTime();
+      return Number.isFinite(at) && at < cutoff;
+    })
+    .map((row) => row.id);
+  if (staleIds.length === 0) return 0;
+  const result = await admin
+    .from("notification_delivery_attempt")
+    .update({
+      status: "pending",
+      error: "reclaimed_stale_sending",
+    })
+    .in("id", staleIds)
+    .select("id");
+  return (ensureDbOk(result) as Array<{ id: string }>).length;
+}
+
+/**
+ * Atomically claim a pending FCM row for this worker.
+ * Returns the row when claim succeeds; null if another worker won the race.
+ */
+export async function claimPendingFcmDeliveryAttempt(
+  admin: SupabaseClient,
+  id: string,
+): Promise<DeliveryAttemptRow | null> {
+  const result = await admin
+    .from("notification_delivery_attempt")
+    .update({
+      status: "sending",
+      attempted_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("channel", "fcm")
+    .eq("status", "pending")
+    .select(
+      "id, institute_id, notification_id, notification_recipient_id, device_token_id, channel, status, error, attempted_at, created_at, attempt_count, next_attempt_at, max_attempts",
+    )
+    .maybeSingle();
+  if (result.error) {
+    ensureDbOk(result);
+  }
+  return (result.data as DeliveryAttemptRow | null) ?? null;
+}
+
 export async function updateDeliveryAttemptStatus(
   admin: SupabaseClient,
   id: string,
   patch: {
-    status: "sent" | "failed" | "skipped" | "pending";
+    status: "sent" | "failed" | "skipped" | "pending" | "sending";
     error?: string | null;
     attemptCount?: number;
     nextAttemptAt?: string | null;
