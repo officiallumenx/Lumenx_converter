@@ -7,18 +7,38 @@ import { cn } from "@lumenx/ui";
 import { Badge } from "@/components/ui/badge";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import type { TransportNotification, TransportNotificationKind } from "@/lib/transport";
+import type {
+  TransportNotification,
+  TransportNotificationKind,
+  TransportNotificationSeverity,
+} from "@/lib/transport/types";
 import { MODULE_COLORS, type ModuleColor } from "@/theme/colors";
 
-const kindMeta: Record<
+/**
+ * Category → label + icon only.
+ * Color accent is driven by severity, not category — so all INFO-level
+ * transport/reminder notifications show blue (not orange).
+ */
+const KIND_META: Record<
   TransportNotificationKind,
-  { label: string; icon: LucideIcon; color: ModuleColor }
+  { label: string; icon: LucideIcon }
 > = {
-  route: { label: "Route", icon: Bus, color: MODULE_COLORS.primary },
-  school: { label: "School", icon: School, color: MODULE_COLORS.success },
-  reminder: { label: "Reminder", icon: CalendarClock, color: MODULE_COLORS.transport },
-  urgent: { label: "Urgent", icon: CircleAlert, color: MODULE_COLORS.warning },
+  route: { label: "Transport", icon: Bus },
+  school: { label: "School", icon: School },
+  reminder: { label: "Reminder", icon: CalendarClock },
+  urgent: { label: "Alert", icon: CircleAlert },
 };
+
+/**
+ * Severity → icon chip color.
+ * INFO = blue, WARNING = amber, CRITICAL = red.
+ * Normal Transport/Reminder notifications always show blue (not orange/red).
+ */
+function severityChipColor(severity: TransportNotificationSeverity): ModuleColor {
+  if (severity === "critical") return MODULE_COLORS.danger;
+  if (severity === "warning") return MODULE_COLORS.warning;
+  return MODULE_COLORS.primary; // info → blue
+}
 
 export function TransportNotificationCard({
   notification,
@@ -29,9 +49,12 @@ export function TransportNotificationCard({
 }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const meta = kindMeta[notification.kind];
+  const meta = KIND_META[notification.kind] ?? KIND_META.reminder;
   const Icon = meta.icon;
-  const isUrgent = notification.kind === "urgent";
+  /** Color driven by SEVERITY, not category. Normal transport/route = blue. */
+  const chipColor = severityChipColor(notification.severity);
+  const isCritical = notification.severity === "critical";
+  const isWarning = notification.severity === "warning";
 
   const openDetail = () => {
     setOpen(true);
@@ -63,15 +86,18 @@ export function TransportNotificationCard({
         className={cn(
           "transport-pressable flex min-w-0 w-full items-start gap-3 rounded-2xl border bg-card p-4 text-left shadow-soft sm:p-5",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          notification.unread && "border-primary/25 bg-primary/[0.04]",
-          isUrgent && notification.unread && "border-destructive/35 bg-destructive/5",
+          // Severity drives the unread row highlight color (not category)
+          notification.unread && !isCritical && !isWarning && "border-primary/25 bg-primary/[0.04]",
+          notification.unread && isWarning && "border-warning/35 bg-warning/5",
+          notification.unread && isCritical && "border-destructive/35 bg-destructive/5",
         )}
       >
+        {/* Icon chip: category icon with severity-based color */}
         <span
           className="grid size-10 shrink-0 place-items-center rounded-xl"
           style={{
-            color: meta.color.primary,
-            backgroundColor: meta.color.iconBackground,
+            color: chipColor.primary,
+            backgroundColor: chipColor.iconBackground,
           }}
           aria-hidden
         >
@@ -80,9 +106,20 @@ export function TransportNotificationCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            {/* Category label — e.g. "Transport", "School", "Reminder" */}
             <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               {meta.label}
             </span>
+            {isCritical && (
+              <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                Urgent
+              </span>
+            )}
+            {isWarning && !isCritical && (
+              <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning-foreground">
+                Attention
+              </span>
+            )}
             {notification.unread ? (
               <Badge variant="default" className="h-5 border-0 px-1.5 text-[10px]">
                 New
@@ -94,6 +131,7 @@ export function TransportNotificationCard({
             className={cn(
               "mt-1 font-display text-sm leading-snug text-foreground sm:text-base",
               notification.unread ? "font-bold" : "font-medium",
+              isCritical && "text-destructive",
             )}
           >
             {notification.title}
@@ -113,17 +151,19 @@ export function TransportNotificationCard({
 
         {notification.unread ? (
           <span
-            className="mt-1 size-2.5 shrink-0 rounded-full bg-primary"
+            className="mt-1 size-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: chipColor.primary }}
             aria-label="Unread"
           />
         ) : null}
       </button>
 
+      {/* Detail bottom-sheet: shows "Category · Time" as subtitle */}
       <BottomSheet
         open={open}
         onOpenChange={setOpen}
         title={notification.title}
-        description={meta.label}
+        description={`${meta.label} · ${notification.time}`}
         footer={
           <div className="flex w-full flex-col gap-2 sm:flex-row">
             {notification.href ? (
@@ -139,7 +179,18 @@ export function TransportNotificationCard({
       >
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
+            {/* Category + severity badges */}
             <Badge variant="outline">{meta.label}</Badge>
+            {isCritical && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive">
+                Urgent
+              </Badge>
+            )}
+            {isWarning && !isCritical && (
+              <Badge variant="outline" className="border-warning/40 text-warning-foreground">
+                Attention
+              </Badge>
+            )}
             {notification.unread ? (
               <Badge variant="default" className="border-0">
                 New

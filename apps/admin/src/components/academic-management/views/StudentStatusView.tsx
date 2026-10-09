@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardBody,
@@ -28,7 +29,8 @@ import {
   studentStatusBadgeTone,
   type StudentLifecycleStatus,
 } from "@/lib/academic-management-data";
-import { listClassesCatalog, type ClassDto, type SectionDto } from "@/lib/classes";
+// D.1: Reference data now comes from the shared TanStack catalog query (no per-component fetch)
+import { useCatalogClassesQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { classSortRank, sectionSortRank } from "@/lib/classes/name-format";
 import {
   enrollmentStatusLabel,
@@ -299,12 +301,19 @@ function StudentStatusDemoView() {
 
 function StudentStatusApiView() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [classes, setClasses] = useState<ClassDto[]>([]);
-  const [sections, setSections] = useState<SectionDto[]>([]);
+  // D.1: Use the shared catalog query so all pages share one cached fetch for classes/sections.
+  const catalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    instituteCtx.status === "ready",
+  );
+  const classes = catalogQuery.data?.classes ?? [];
+  const sections = catalogQuery.data?.sections ?? [];
+
   const [rows, setRows] = useState<EnrollmentListItem[]>([]);
   const [loadStatus, setLoadStatus] = useState<EnrollmentListStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -317,21 +326,35 @@ function StudentStatusApiView() {
   const [sectionId, setSectionId] = useState<string>("");
   const [multiClassIds, setMultiClassIds] = useState<string[]>([]);
 
+  // Reset class/section filter state when the active institute changes.
+  useEffect(() => {
+    setCurrentClassId("");
+    setMultiClassIds([]);
+    setSectionId("");
+  }, [instituteCtx.activeInstituteId]);
+
+  // D.1: Initialize class/section filter defaults from the shared catalog query.
+  // Runs whenever catalog data arrives (cache hit = instant; cold fetch = after resolve).
+  useEffect(() => {
+    if (classes.length === 0) return;
+    setCurrentClassId((prev) => prev || classes[0]?.id || "");
+    setMultiClassIds((prev) =>
+      prev.length > 0 ? prev : classes.slice(0, 2).map((row) => row.id),
+    );
+  }, [classes]);
+
+  // D.1: Only load enrollments here; classes/sections come from the shared catalog query above.
   useEffect(() => {
     if (instituteCtx.status === "loading") {
       setLoadStatus("loading");
       setLoadError(null);
       setRows([]);
-      setClasses([]);
-      setSections([]);
       return;
     }
     if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
       setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
       setLoadError(instituteCtx.errorMessage);
       setRows([]);
-      setClasses([]);
-      setSections([]);
       return;
     }
     if (
@@ -342,8 +365,6 @@ function StudentStatusApiView() {
       setLoadStatus("needs_institute");
       setLoadError(null);
       setRows([]);
-      setClasses([]);
-      setSections([]);
       return;
     }
 
@@ -355,43 +376,19 @@ function StudentStatusApiView() {
       setLoadError(null);
     }
 
-    void Promise.all([
-      listClassesCatalog({ instituteId: requestInstituteId }),
-      loadEnrollmentsList(requestInstituteId),
-    ]).then(([catalog, enrollments]) => {
+    void loadEnrollmentsList(requestInstituteId).then((enrollments) => {
       if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
 
-      setClasses(catalog.classes);
-      setSections(catalog.sections);
-
-      const classesById = new Map(catalog.classes.map((row) => [row.id, row]));
-      const sectionsById = new Map(catalog.sections.map((row) => [row.id, row]));
-      const labeled = enrollments.items.map((item) => {
-        const section = sectionsById.get(item.sectionId);
-        const cls =
-          classesById.get(item.classId) ??
-          (section ? classesById.get(section.classId) : undefined);
-        return {
-          ...item,
-          classLabel: cls?.name?.trim() || cls?.code?.trim() || item.classLabel,
-          sectionLabel: section?.code?.trim() || section?.name?.trim() || item.sectionLabel,
-        };
-      });
-
-      setRows(labeled);
+      // Raw items stored here; label enrichment happens in enrichedRows memo below.
+      setRows(enrollments.items);
       setLoadStatus(
         enrollments.status === "ready" || enrollments.status === "empty"
-          ? labeled.length === 0
+          ? enrollments.items.length === 0
             ? "empty"
             : "ready"
           : enrollments.status,
       );
       setLoadError(enrollments.errorMessage);
-
-      setCurrentClassId((prev) => prev || catalog.classes[0]?.id || "");
-      setMultiClassIds((prev) =>
-        prev.length > 0 ? prev : catalog.classes.slice(0, 2).map((row) => row.id),
-      );
     });
 
     return () => {
@@ -403,6 +400,25 @@ function StudentStatusApiView() {
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
   ]);
+
+  // D.1: Enrich enrollment items with class/section labels from the shared catalog.
+  // This memo re-runs whenever enrollments OR catalog data changes.
+  const enrichedRows = useMemo(() => {
+    if (!rows.length || !classes.length) return rows;
+    const classesById = new Map(classes.map((row) => [row.id, row]));
+    const sectionsById = new Map(sections.map((row) => [row.id, row]));
+    return rows.map((item) => {
+      const section = sectionsById.get(item.sectionId);
+      const cls =
+        classesById.get(item.classId) ??
+        (section ? classesById.get(section.classId) : undefined);
+      return {
+        ...item,
+        classLabel: cls?.name?.trim() || cls?.code?.trim() || item.classLabel,
+        sectionLabel: section?.code?.trim() || section?.name?.trim() || item.sectionLabel,
+      };
+    });
+  }, [rows, classes, sections]);
 
   const classOptions = useMemo(() => {
     return [...classes].sort(
@@ -434,9 +450,9 @@ function StudentStatusApiView() {
     }
   }, [scope, sectionId, sectionOptions]);
 
-  const activeCount = rows.filter((r) => r.status === "active").length;
-  const graduatedCount = rows.filter((r) => r.status === "graduated").length;
-  const transferredCount = rows.filter((r) => r.status === "transferred").length;
+  const activeCount = enrichedRows.filter((r) => r.status === "active").length;
+  const graduatedCount = enrichedRows.filter((r) => r.status === "graduated").length;
+  const transferredCount = enrichedRows.filter((r) => r.status === "transferred").length;
 
   const scopeLabel = useMemo(() => {
     if (scope === "all") return "All classes";
@@ -452,7 +468,7 @@ function StudentStatusApiView() {
   }, [scope, multiClassIds, classOptions, currentClassId, sectionOptions, sectionId]);
 
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
+    return enrichedRows.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
 
       if (scope === "single") {
@@ -466,7 +482,7 @@ function StudentStatusApiView() {
         `${r.studentName} ${r.rollNo} ${r.classLabel} ${r.sectionLabel} ${enrollmentStatusLabel(r.status)}`.toLowerCase();
       return hay.includes(q.trim().toLowerCase());
     });
-  }, [rows, statusFilter, scope, currentClassId, sectionId, multiClassIds, q]);
+  }, [enrichedRows, statusFilter, scope, currentClassId, sectionId, multiClassIds, q]);
 
   const toggleMultiClass = (classId: string) => {
     setMultiClassIds((prev) =>
@@ -485,6 +501,13 @@ function StudentStatusApiView() {
           prev.map((item) => (item.id === row.id ? { ...item, status } : item)),
         );
         notify(`Status updated · ${enrollmentStatusLabel(status)}`);
+        // D.3: Invalidate TanStack enrollment cache so EnrollmentsApiPage reflects the change.
+        const id = instituteCtx.activeInstituteId;
+        if (id) {
+          void queryClient.invalidateQueries({
+            queryKey: adminModulePrefix(id, adminQueryRoots.enrollments),
+          });
+        }
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to update status");
@@ -508,7 +531,7 @@ function StudentStatusApiView() {
   return (
     <PageStack>
       <KpiGrid cols={4}>
-        <Kpi label="Directory" value={String(rows.length)} />
+        <Kpi label="Directory" value={String(enrichedRows.length)} />
         <Kpi label="Active" value={String(activeCount)} tone="up" />
         <Kpi label="Graduated" value={String(graduatedCount)} />
         <Kpi label="Transferred" value={String(transferredCount)} />

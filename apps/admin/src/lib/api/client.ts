@@ -15,6 +15,8 @@ export type ApiRequestOptions = {
    * (used while flushing the outbox itself).
    */
   skipOfflineQueue?: boolean;
+  /** Internal: already retried once after session refresh. */
+  _authRetried?: boolean;
 };
 
 export type QueueOfflineWriteInput = {
@@ -26,7 +28,12 @@ export type QueueOfflineWriteInput = {
 export type ApiClientConfig = {
   getBaseUrl: () => string;
   getAccessToken: () => Promise<string | null>;
-  /** Called on HTTP 401 after normalizing the error (session cleanup hook). */
+  /**
+   * Optional silent refresh before treating HTTP 401 as logout.
+   * Return true when a new access token is available.
+   */
+  tryRefreshSession?: () => Promise<boolean>;
+  /** Called on HTTP 401 after refresh+retry failed (session cleanup hook). */
   onUnauthorized?: () => void;
   fetchImpl?: typeof fetch;
   /** Default fetch timeout — avoids hung requests after network flaps. */
@@ -130,6 +137,30 @@ function resolveIsOnline(config: ApiClientConfig): boolean {
 export function createApiClient(config: ApiClientConfig) {
   const fetchImpl = config.fetchImpl ?? fetch;
   const defaultTimeoutMs = config.defaultTimeoutMs ?? API_DEFAULT_TIMEOUT_MS;
+
+  /**
+   * On 401: refresh once + allow caller to retry. Only invoke onUnauthorized
+   * when refresh is unavailable or already retried (genuine auth failure).
+   * Returns true when the caller should retry the request once.
+   */
+  async function shouldRetryAfterUnauthorized(
+    options: ApiRequestOptions,
+  ): Promise<boolean> {
+    if (options.skipAuth || options._authRetried) {
+      config.onUnauthorized?.();
+      return false;
+    }
+    if (!config.tryRefreshSession) {
+      config.onUnauthorized?.();
+      return false;
+    }
+    const refreshed = await config.tryRefreshSession();
+    if (!refreshed) {
+      config.onUnauthorized?.();
+      return false;
+    }
+    return true;
+  }
 
   async function maybeQueueWrite(
     method: string,
@@ -240,7 +271,14 @@ export function createApiClient(config: ApiClientConfig) {
         response.statusText || "Request failed",
       );
       if (response.status === 401) {
-        config.onUnauthorized?.();
+        const retry = await shouldRetryAfterUnauthorized(options);
+        if (retry) {
+          return request<T>(path, {
+            ...options,
+            accessToken: undefined,
+            _authRetried: true,
+          });
+        }
       }
       throw err;
     }
@@ -250,6 +288,187 @@ export function createApiClient(config: ApiClientConfig) {
     }
 
     return json as T;
+  }
+
+  /** Multipart upload — does not set Content-Type (boundary is automatic). */
+  async function uploadForm<T>(
+    path: string,
+    form: FormData,
+    options?: Omit<ApiRequestOptions, "method" | "body">,
+  ): Promise<T> {
+    const base = resolveBaseUrl(config.getBaseUrl());
+    if (!base) {
+      throw new ApiClientError({
+        status: 0,
+        code: "UNKNOWN",
+        message: "VITE_API_BASE_URL is not configured",
+      });
+    }
+    const url = path.startsWith("http")
+      ? path
+      : `${base}${path.startsWith("/") ? path : `/${path}`}`;
+    const headers: Record<string, string> = { Accept: "application/json" };
+    const opts = options ?? {};
+    if (!opts.skipAuth) {
+      const token =
+        opts.accessToken !== undefined
+          ? opts.accessToken
+          : await config.getAccessToken();
+      if (!token) {
+        throw new ApiClientError({
+          status: 401,
+          code: "UNAUTHENTICATED",
+          message: "Authentication required",
+        });
+      }
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const online = resolveIsOnline(config);
+    const timeoutMs =
+      opts.timeoutMs ??
+      (online
+        ? defaultTimeoutMs
+        : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
+    const { signal, cleanup } = mergeTimeoutSignal(opts.signal, timeoutMs);
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers,
+        body: form,
+        signal,
+      });
+    } catch (err) {
+      throw networkFailureFromAbort(err, opts.signal);
+    } finally {
+      cleanup();
+    }
+    const text = await response.text();
+    let json: unknown = null;
+    if (text) {
+      try {
+        json = JSON.parse(text) as unknown;
+      } catch {
+        json = null;
+      }
+    }
+    if (!response.ok) {
+      const err = normalizeApiError(
+        response.status,
+        json,
+        response.statusText || "Upload failed",
+      );
+      if (response.status === 401) {
+        const retry = await shouldRetryAfterUnauthorized(opts);
+        if (retry) {
+          return uploadForm<T>(path, form, {
+            ...opts,
+            accessToken: undefined,
+            _authRetried: true,
+          });
+        }
+      }
+      throw err;
+    }
+    if (json && typeof json === "object" && "data" in json) {
+      return (json as { data: T }).data;
+    }
+    return json as T;
+  }
+
+  /**
+   * Authenticated binary/text download (no JSON unwrap).
+   * Used for report job files — never opens public secret URLs.
+   */
+  async function download(
+    path: string,
+    options?: Omit<ApiRequestOptions, "method" | "body">,
+  ): Promise<{ blob: Blob; fileName: string | null; contentType: string | null }> {
+    const base = resolveBaseUrl(config.getBaseUrl());
+    if (!base) {
+      throw new ApiClientError({
+        status: 0,
+        code: "UNKNOWN",
+        message: "VITE_API_BASE_URL is not configured",
+      });
+    }
+    const url = path.startsWith("http")
+      ? path
+      : `${base}${path.startsWith("/") ? path : `/${path}`}`;
+
+    const headers: Record<string, string> = { Accept: "*/*" };
+    const opts = options ?? {};
+    if (!opts.skipAuth) {
+      const token =
+        opts.accessToken !== undefined
+          ? opts.accessToken
+          : await config.getAccessToken();
+      if (!token) {
+        throw new ApiClientError({
+          status: 401,
+          code: "UNAUTHENTICATED",
+          message: "Authentication required",
+        });
+      }
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const online = resolveIsOnline(config);
+    const timeoutMs =
+      opts.timeoutMs ??
+      (online
+        ? defaultTimeoutMs
+        : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
+    const { signal, cleanup } = mergeTimeoutSignal(opts.signal, timeoutMs);
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers,
+        signal,
+      });
+    } catch (err) {
+      throw networkFailureFromAbort(err, opts.signal);
+    } finally {
+      cleanup();
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      let parsed: unknown = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      const err = normalizeApiError(
+        response.status,
+        parsed,
+        response.statusText || "Download failed",
+      );
+      if (response.status === 401) {
+        const retry = await shouldRetryAfterUnauthorized(opts);
+        if (retry) {
+          return download(path, {
+            ...opts,
+            accessToken: undefined,
+            _authRetried: true,
+          });
+        }
+      }
+      throw err;
+    }
+
+    const disposition = response.headers.get("Content-Disposition");
+    let fileName: string | null = null;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    if (match?.[1]) fileName = match[1];
+
+    return {
+      blob: await response.blob(),
+      fileName,
+      contentType: response.headers.get("Content-Type"),
+    };
   }
 
   return {
@@ -264,165 +483,8 @@ export function createApiClient(config: ApiClientConfig) {
       request<T>(path, { ...options, method: "PUT", body }),
     delete: <T>(path: string, options?: Omit<ApiRequestOptions, "method" | "body">) =>
       request<T>(path, { ...options, method: "DELETE" }),
-    /** Multipart upload — does not set Content-Type (boundary is automatic). */
-    uploadForm: async <T>(
-      path: string,
-      form: FormData,
-      options?: Omit<ApiRequestOptions, "method" | "body">,
-    ): Promise<T> => {
-      const base = resolveBaseUrl(config.getBaseUrl());
-      if (!base) {
-        throw new ApiClientError({
-          status: 0,
-          code: "UNKNOWN",
-          message: "VITE_API_BASE_URL is not configured",
-        });
-      }
-      const url = path.startsWith("http")
-        ? path
-        : `${base}${path.startsWith("/") ? path : `/${path}`}`;
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (!options?.skipAuth) {
-        const token =
-          options?.accessToken !== undefined
-            ? options.accessToken
-            : await config.getAccessToken();
-        if (!token) {
-          throw new ApiClientError({
-            status: 401,
-            code: "UNAUTHENTICATED",
-            message: "Authentication required",
-          });
-        }
-        headers.Authorization = `Bearer ${token}`;
-      }
-      const online = resolveIsOnline(config);
-      const timeoutMs =
-        options?.timeoutMs ??
-        (online
-          ? defaultTimeoutMs
-          : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
-      const { signal, cleanup } = mergeTimeoutSignal(options?.signal, timeoutMs);
-      let response: Response;
-      try {
-        response = await fetchImpl(url, {
-          method: "POST",
-          headers,
-          body: form,
-          signal,
-        });
-      } catch (err) {
-        throw networkFailureFromAbort(err, options?.signal);
-      } finally {
-        cleanup();
-      }
-      const text = await response.text();
-      let json: unknown = null;
-      if (text) {
-        try {
-          json = JSON.parse(text) as unknown;
-        } catch {
-          json = null;
-        }
-      }
-      if (!response.ok) {
-        const err = normalizeApiError(
-          response.status,
-          json,
-          response.statusText || "Upload failed",
-        );
-        if (response.status === 401) config.onUnauthorized?.();
-        throw err;
-      }
-      if (json && typeof json === "object" && "data" in json) {
-        return (json as { data: T }).data;
-      }
-      return json as T;
-    },
-    /**
-     * Authenticated binary/text download (no JSON unwrap).
-     * Used for report job files — never opens public secret URLs.
-     */
-    download: async (
-      path: string,
-      options?: Omit<ApiRequestOptions, "method" | "body">,
-    ): Promise<{ blob: Blob; fileName: string | null; contentType: string | null }> => {
-      const base = resolveBaseUrl(config.getBaseUrl());
-      if (!base) {
-        throw new ApiClientError({
-          status: 0,
-          code: "UNKNOWN",
-          message: "VITE_API_BASE_URL is not configured",
-        });
-      }
-      const url = path.startsWith("http")
-        ? path
-        : `${base}${path.startsWith("/") ? path : `/${path}`}`;
-
-      const headers: Record<string, string> = { Accept: "*/*" };
-      if (!options?.skipAuth) {
-        const token =
-          options?.accessToken !== undefined
-            ? options.accessToken
-            : await config.getAccessToken();
-        if (!token) {
-          throw new ApiClientError({
-            status: 401,
-            code: "UNAUTHENTICATED",
-            message: "Authentication required",
-          });
-        }
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const online = resolveIsOnline(config);
-      const timeoutMs =
-        options?.timeoutMs ??
-        (online
-          ? defaultTimeoutMs
-          : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
-      const { signal, cleanup } = mergeTimeoutSignal(options?.signal, timeoutMs);
-      let response: Response;
-      try {
-        response = await fetchImpl(url, {
-          method: "GET",
-          headers,
-          signal,
-        });
-      } catch (err) {
-        throw networkFailureFromAbort(err, options?.signal);
-      } finally {
-        cleanup();
-      }
-
-      if (!response.ok) {
-        const text = await response.text();
-        let parsed: unknown = null;
-        try {
-          parsed = text ? JSON.parse(text) : null;
-        } catch {
-          parsed = null;
-        }
-        const err = normalizeApiError(
-          response.status,
-          parsed,
-          response.statusText || "Download failed",
-        );
-        if (response.status === 401) config.onUnauthorized?.();
-        throw err;
-      }
-
-      const disposition = response.headers.get("Content-Disposition");
-      let fileName: string | null = null;
-      const match = disposition?.match(/filename="([^"]+)"/);
-      if (match?.[1]) fileName = match[1];
-
-      return {
-        blob: await response.blob(),
-        fileName,
-        contentType: response.headers.get("Content-Type"),
-      };
-    },
+    uploadForm,
+    download,
   };
 }
 

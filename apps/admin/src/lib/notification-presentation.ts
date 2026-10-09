@@ -1,10 +1,14 @@
 import {
   AlertTriangle,
+  BookOpen,
   Bus,
   CalendarDays,
+  CalendarOff,
   ClipboardList,
+  FileText,
   IndianRupee,
   Info,
+  Megaphone,
   MessageSquare,
   Sparkles,
   type LucideIcon,
@@ -42,20 +46,40 @@ export function notificationCategoryLabel(
   return ADMIN_NOTIFICATION_CATEGORY_LABELS[category] ?? category;
 }
 
-/** Icon chip classes — same palette as Notification Center inbox. */
+/**
+ * Icon chip classes — category drives the chip tint (not severity).
+ * CRITICAL/alert rows always get the destructive red chip regardless.
+ * Normal INFO-level transport/announcements/events show blue, not orange.
+ */
 export function notificationIconChipClass(
   row: Pick<NotificationInboxListItem, "type" | "priority" | "payload" | "category">,
 ): string {
+  // Alert/emergency rows always red — overrides category
   if (isNotificationAlertRow(row)) return ALERT_ICON_CHIP_CLASS;
+  // Category → specific chip tint
   if (row.category === "leave") {
     return "bg-violet-500/15 border-violet-500/30 text-violet-700 dark:text-violet-300";
   }
   if (row.category === "transport") {
-    return "bg-cyan-500/15 border-cyan-500/30 text-cyan-700 dark:text-cyan-300";
+    // Transport category = blue chip (INFO level); severity may still be amber/red for the row
+    return "bg-sky-500/15 border-sky-500/30 text-sky-700 dark:text-sky-300";
   }
   if (row.category === "fees") {
     return "bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300";
   }
+  if (row.category === "circulars" || row.category === "messages") {
+    return "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300";
+  }
+  if (row.category === "events") {
+    return "bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300";
+  }
+  if (row.category === "attendance") {
+    return "bg-rose-500/15 border-rose-500/30 text-rose-700 dark:text-rose-300";
+  }
+  if (row.category === "assignments" || row.category === "exams") {
+    return "bg-orange-500/15 border-orange-500/30 text-orange-700 dark:text-orange-300";
+  }
+  // Severity fallback — only for categories without a specific chip
   if (row.type === "warning") {
     return "bg-amber-500/15 border-amber-500/30 text-amber-800 dark:text-amber-300";
   }
@@ -73,16 +97,26 @@ export function notificationRowSurfaceClass(
   return "";
 }
 
-/** Prefer category-specific icons so leave/transport/etc. are not a blank Info mark. */
+/**
+ * Prefer category-specific icons.
+ * Icon is always based on CATEGORY (what kind of notification).
+ * Severity color is handled separately via notificationIconChipClass.
+ */
 export function notificationTypeIcon(
   type: NotificationInboxListItem["type"],
   category?: NotificationCategory,
 ): LucideIcon {
-  if (category === "leave") return CalendarDays;
+  // Category → icon (do NOT infer category from title text)
+  if (category === "leave") return CalendarOff;
   if (category === "transport") return Bus;
   if (category === "fees") return IndianRupee;
   if (category === "attendance") return ClipboardList;
   if (category === "messages") return MessageSquare;
+  if (category === "circulars") return Megaphone;
+  if (category === "assignments") return BookOpen;
+  if (category === "events") return CalendarDays;
+  if (category === "exams") return FileText;
+  // Severity fallback (only when no specific category icon)
   if (type === "warning") return AlertTriangle;
   if (type === "positive") return Sparkles;
   return Info;

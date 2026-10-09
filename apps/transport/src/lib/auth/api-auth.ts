@@ -67,6 +67,7 @@ async function fetchMe(accessToken: string): Promise<MeResponse> {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
+      signal: AbortSignal.timeout(8_000),
     });
   } catch {
     throw new Error(
@@ -75,9 +76,10 @@ async function fetchMe(accessToken: string): Promise<MeResponse> {
   }
   const json = await readJson(response);
   if (!response.ok) {
+    // Only 401 means identity is unusable. 403 is authorization — do not force logout.
     throw new SessionValidationError(
       json.error?.message ?? "Failed to load profile",
-      response.status === 401 || response.status === 403,
+      response.status === 401,
     );
   }
   return json.data as MeResponse;
@@ -98,6 +100,7 @@ async function fetchDriverMe(
           Accept: "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
+        signal: AbortSignal.timeout(8_000),
       },
     );
   } catch {

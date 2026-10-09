@@ -1,7 +1,12 @@
 import { useRouterState } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PageLoadingSkeleton } from "@lumenx/ui-admin";
 
+/**
+ * Soft page chrome during slow route transitions.
+ * Must NOT remount `{children}` on every pageKey — that destroyed query-backed
+ * UI state and forced full-page loading on every navigation.
+ */
 export function AdminPageTransition({
   children,
   pageKey,
@@ -11,6 +16,7 @@ export function AdminPageTransition({
 }) {
   const busy = useRouterState({ select: (s) => s.isLoading || s.isTransitioning });
   const [showSkeleton, setShowSkeleton] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const swipePaging = Boolean(document.documentElement.dataset.lxNavDir);
@@ -22,6 +28,16 @@ export function AdminPageTransition({
     return () => window.clearTimeout(t);
   }, [busy, pageKey]);
 
+  // Replay enter animation without remounting the route tree / Query observers.
+  useEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    node.classList.remove("lx-page-content--enter");
+    // Force reflow so the class can re-trigger CSS animation.
+    void node.offsetWidth;
+    node.classList.add("lx-page-content--enter");
+  }, [pageKey]);
+
   return (
     <div className="relative min-h-[12rem]" aria-busy={showSkeleton || undefined}>
       <div
@@ -30,7 +46,7 @@ export function AdminPageTransition({
       >
         <PageLoadingSkeleton />
       </div>
-      <div key={pageKey} className="lx-page-content">
+      <div ref={contentRef} className="lx-page-content" data-page-key={pageKey}>
         {children}
       </div>
     </div>

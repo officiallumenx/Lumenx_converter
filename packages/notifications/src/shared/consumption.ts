@@ -70,6 +70,7 @@ export {
   androidAccentHexFromPriority,
   backendCategoryDisplayLabel,
   NOTIFICATION_ACCENT_HEX,
+  SEVERITY_UI_LABEL,
 } from "./priority-presentation";
 export {
   playAlertChime,

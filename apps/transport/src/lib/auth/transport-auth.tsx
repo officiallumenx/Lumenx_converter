@@ -61,11 +61,30 @@ function readPersistedSession(): TransportSessionUser | null {
     const raw = storage.getItem(TRANSPORT_STORAGE_KEYS.session);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as TransportSessionUser;
-    if (!parsed?.id || !parsed?.driverId) return null;
+    // instituteId is required for assignment queries — incomplete rows cause a stuck loader.
+    if (!parsed?.id || !parsed?.driverId || !parsed?.instituteId) return null;
     return parsed;
   } catch {
     return null;
   }
+}
+
+const AUTH_HYDRATE_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Auth hydrate timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 export function TransportAuthProvider({ children }: { children: ReactNode }) {
@@ -75,11 +94,15 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const hardDeadline = window.setTimeout(() => {
+      if (!cancelled) setHydrated(true);
+    }, AUTH_HYDRATE_TIMEOUT_MS + 500);
+
     async function hydrate() {
       const persisted = readPersistedSession();
       if (!cancelled && persisted) setUser(persisted);
       try {
-        const session = await hydrateApiTransportSession();
+        const session = await withTimeout(hydrateApiTransportSession(), AUTH_HYDRATE_TIMEOUT_MS);
         if (cancelled) return;
         if (session) {
           const next = {
@@ -96,13 +119,13 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         // No API session — only clear UI if Supabase also has no token.
-        const token = await getSupabaseAccessToken();
+        const token = await withTimeout(getSupabaseAccessToken(), 3_000).catch(() => null);
         if (!token) {
           setUser(null);
           persistSession(null);
         }
       } catch {
-        // Keep persisted UI session on transient hydrate failures.
+        // Keep persisted UI session on transient hydrate failures / timeouts.
       } finally {
         if (!cancelled) setHydrated(true);
       }
@@ -110,6 +133,7 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
     void hydrate();
     return () => {
       cancelled = true;
+      window.clearTimeout(hardDeadline);
     };
   }, []);
 

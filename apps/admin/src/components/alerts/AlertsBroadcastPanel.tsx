@@ -390,7 +390,8 @@ export function AlertsBroadcastPanel() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm font-medium ${urgent ? "text-destructive" : ""}`}>
+                        {/* D.4: break-words so long unbreakable titles wrap within the flex-1 container */}
+                        <span className={`break-words min-w-0 text-sm font-medium ${urgent ? "text-destructive" : ""}`}>
                           {row.title}
                         </span>
                         <Pill tone={urgent ? "danger" : "warning"}>
@@ -398,8 +399,8 @@ export function AlertsBroadcastPanel() {
                         </Pill>
                         <Pill tone="neutral">{CATEGORY_LABELS[row.category] ?? row.category}</Pill>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{row.summary}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">{row.summary}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 break-words">
                         {formatWhen(row.createdAt)} · {row.recipientCount} recipients · {row.sourceLabel}
                       </p>
                     </div>

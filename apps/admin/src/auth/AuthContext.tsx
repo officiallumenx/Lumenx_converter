@@ -40,7 +40,6 @@ import {
   clearApiActiveInstituteSession,
 } from "./api-active-institute";
 import { setAdminApiUnauthorizedHandler } from "@/lib/admin-api";
-import { tryRefreshSupabaseSession } from "@/lib/supabase-browser";
 import { bindApiRegistrationUser } from "./api-registration-state";
 import { finalizeApiAuthUser } from "./api-auth-finalize";
 import { runApiInstituteSignUp } from "./api-signup-flow";
@@ -94,14 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAdminApiUnauthorizedHandler(() => {
-      void (async () => {
-        // Expired access JWT is normal — refresh first; only logout if refresh fails.
-        const refreshed = await tryRefreshSupabaseSession();
-        if (refreshed) return;
-        await apiSignOut().finally(() => {
-          clearApiSessionKeepCache();
-        });
-      })();
+      // API client already refreshed + retried once on 401.
+      // Reaching here means auth is genuinely invalid — logout (do not refresh-and-bail).
+      void apiSignOut().finally(() => {
+        clearApiSessionKeepCache();
+      });
     });
     return () => setAdminApiUnauthorizedHandler(null);
   }, [clearApiSessionKeepCache]);

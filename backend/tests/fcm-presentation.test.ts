@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADMIN_FCM_SMALL_ICON,
   CONNECT_FCM_SMALL_ICON,
   FCM_ANDROID_COLOR,
+  TRANSPORT_FCM_SMALL_ICON,
+  androidSmallIconForApp,
   backendCategoryTrayLabel,
   buildFcmAndroidNotification,
   formatFcmTrayTitle,
@@ -59,7 +62,7 @@ describe("FCM presentation metadata", () => {
     );
   });
 
-  it("uses dedicated Connect small icon only for connect tokens", () => {
+  it("sets dedicated small icon for connect, transport, and admin tokens", () => {
     const connect = buildFcmAndroidNotification({
       isAlert: false,
       priority: "normal",
@@ -73,7 +76,59 @@ describe("FCM presentation metadata", () => {
       priority: "normal",
       deviceApp: "transport",
     });
-    expect(transport.icon).toBeUndefined();
+    expect(transport.icon).toBe(TRANSPORT_FCM_SMALL_ICON);
+    expect(transport.color).toBe(FCM_ANDROID_COLOR.info);
+
+    const admin = buildFcmAndroidNotification({
+      isAlert: false,
+      priority: "normal",
+      deviceApp: "admin",
+    });
+    expect(admin.icon).toBe(ADMIN_FCM_SMALL_ICON);
+    expect(admin.color).toBe(FCM_ANDROID_COLOR.info);
+
+    // Unknown app → no icon (no crash)
+    const unknown = buildFcmAndroidNotification({
+      isAlert: false,
+      priority: "normal",
+      deviceApp: "unknown_app",
+    });
+    expect(unknown.icon).toBeUndefined();
+  });
+
+  it("androidSmallIconForApp resolves per-app drawable names", () => {
+    expect(androidSmallIconForApp("connect")).toBe(CONNECT_FCM_SMALL_ICON);
+    expect(androidSmallIconForApp("transport")).toBe(TRANSPORT_FCM_SMALL_ICON);
+    expect(androidSmallIconForApp("admin")).toBe(ADMIN_FCM_SMALL_ICON);
+    expect(androidSmallIconForApp(null)).toBeUndefined();
+    expect(androidSmallIconForApp(undefined)).toBeUndefined();
+    expect(androidSmallIconForApp("nexus")).toBeUndefined();
+  });
+
+  it("normal INFO transport notification uses blue not red/orange", () => {
+    // Trip started, student boarded etc. → priority=normal → blue
+    const android = buildFcmAndroidNotification({
+      isAlert: false,
+      priority: "normal",
+      deviceApp: "connect",
+    });
+    expect(android.color).toBe(FCM_ANDROID_COLOR.info);
+
+    // Approaching 15 min → priority=important → amber
+    const approachAmber = buildFcmAndroidNotification({
+      isAlert: false,
+      priority: "important",
+      deviceApp: "connect",
+    });
+    expect(approachAmber.color).toBe(FCM_ANDROID_COLOR.warning);
+
+    // Emergency SOS → priority=critical → red
+    const sos = buildFcmAndroidNotification({
+      isAlert: true,
+      priority: "critical",
+      deviceApp: "connect",
+    });
+    expect(sos.color).toBe(FCM_ANDROID_COLOR.critical);
   });
 
   it("background-equivalent data retains category, severity, and deep link", () => {

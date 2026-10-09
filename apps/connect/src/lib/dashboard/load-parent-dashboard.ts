@@ -60,16 +60,19 @@ export async function loadParentPortalSnapshotFromApi(input: {
   const { instituteId, studentId } = input;
   const now = new Date();
 
-  const dto = await getStudent(studentId);
-
-  const [cardsResult, homeworkResult, attendanceResult, inbox, timetableResult, remarkDtos] =
+  // Start student + independent module loads together; homework waits only on student.
+  const studentPromise = getStudent(studentId);
+  const [dto, cardsResult, homeworkResult, attendanceResult, inbox, timetableResult, remarkDtos] =
     await Promise.all([
+      studentPromise,
       loadStudentReportCards({ instituteId, studentId }),
-      loadStudentHomeworkItems({
-        instituteId,
-        studentId,
-        classLabel: dto.classLabel?.trim() || "Class",
-      }),
+      studentPromise.then((student) =>
+        loadStudentHomeworkItems({
+          instituteId,
+          studentId,
+          classLabel: student.classLabel?.trim() || "Class",
+        }),
+      ),
       loadLearnerAttendancePortal({ instituteId, studentId }),
       loadConnectPortalInbox(instituteId),
       loadLearnerTimetable({ instituteId, studentId }),

@@ -17,14 +17,45 @@ function relativeTime(iso: string): string {
   });
 }
 
-function kindFromDto(dto: InboxItemDto): TransportNotification["kind"] {
-  const payload = dto.notification.payload ?? {};
-  if (payload.presentation === "alert" || dto.notification.priority === "critical") {
-    return "urgent";
-  }
-  if (dto.notification.category === "transport") return "route";
-  if (dto.notification.category === "system") return "school";
+/**
+ * Map category → kind (label/icon group).
+ * Does NOT read priority — category and severity are separate concerns.
+ */
+function categoryKindFromDto(dto: InboxItemDto): TransportNotification["kind"] {
+  const cat = dto.notification.category;
+  if (cat === "transport") return "route";
+  if (cat === "system" || cat === "nexus") return "school";
+  // announcements, messages, events, homework, fees, etc. → reminder (general info)
   return "reminder";
+}
+
+/**
+ * Map stored priority + payload → severity (color only).
+ * INFO (normal/success) = blue, WARNING (important) = amber, CRITICAL = red.
+ * Does NOT infer from category — reads metadata only.
+ */
+function severityFromDto(dto: InboxItemDto): TransportNotification["severity"] {
+  const prio = dto.notification.priority;
+  const payload = dto.notification.payload ?? {};
+  // School-alert emergency or explicit critical priority → red
+  if (
+    prio === "critical" ||
+    payload.presentation === "alert" ||
+    payload.alertSeverity === "emergency"
+  ) {
+    return "critical";
+  }
+  // Attention-level (approaching, delayed, not-boarded) → amber
+  if (
+    prio === "important" ||
+    payload.severity === "attention" ||
+    payload.severity === "warning" ||
+    payload.alertSeverity === "mandatory"
+  ) {
+    return "warning";
+  }
+  // INFO (trip started, boarded, dropped, reminder) → blue
+  return "info";
 }
 
 export function inboxItemDtoToTransportNotification(dto: InboxItemDto): TransportNotification {
@@ -33,7 +64,8 @@ export function inboxItemDtoToTransportNotification(dto: InboxItemDto): Transpor
     title: dto.notification.title?.trim() || "Notification",
     message: dto.notification.body?.trim() || "",
     time: relativeTime(dto.notification.createdAt || dto.createdAt),
-    kind: kindFromDto(dto),
+    kind: categoryKindFromDto(dto),
+    severity: severityFromDto(dto),
     unread: dto.readAt == null,
     href: dto.notification.deepLink?.trim() || "/alerts",
   };

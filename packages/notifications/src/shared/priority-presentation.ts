@@ -67,6 +67,21 @@ export const NOTIFICATION_ACCENT_HEX = {
 } as const;
 
 /**
+ * Human-readable severity labels for in-app UI.
+ * Category (Transport, Announcement, etc.) is shown separately via
+ * `backendCategoryDisplayLabel`.
+ */
+export const SEVERITY_UI_LABEL: Record<string, string> = {
+  /** INFO — normal informational update. */
+  normal: "Update",
+  success: "Update",
+  /** WARNING — needs attention (amber). */
+  important: "Attention",
+  /** CRITICAL — urgent, requires immediate action (red). */
+  critical: "Urgent",
+} as const;
+
+/**
  * Map stored priority (+ optional payload severity) to Android notification color.
  * Mirrors backend `resolveAndroidNotificationColor` — keep in sync.
  */

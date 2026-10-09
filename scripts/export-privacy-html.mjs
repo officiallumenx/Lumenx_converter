@@ -26,10 +26,10 @@ async function loadLegal() {
     legalName: "LumenX",
     addressLine:
       "Door / PIN 534201, Bhimavaram, West Godavari District, Andhra Pradesh, India",
-    privacyEmail: "official.lumenx@gmail.com",
-    grievanceEmail: "official.lumenx@gmail.com",
-    supportEmail: "official.lumenx@gmail.com",
-    contactEmail: "official.lumenx@gmail.com",
+    privacyEmail: "lumenxtech.official@gmail.com",
+    grievanceEmail: "lumenxtech.official@gmail.com",
+    supportEmail: "lumenxtech.official@gmail.com",
+    contactEmail: "lumenxtech.official@gmail.com",
     apps: [
       "LumenX Nexus (platform operations)",
       "LumenX Admin (institute administration)",
@@ -209,7 +209,7 @@ a{color:#1d4ed8}
 <p class="meta">Last updated: ${esc(doc.lastUpdated)}</p>
 ${doc.intro ? `<p><strong>${esc(doc.intro)}</strong></p>` : ""}
 ${sections}
-<p style="margin-top:2.5rem;color:#555">Contact: <a href="mailto:official.lumenx@gmail.com">official.lumenx@gmail.com</a></p>
+<p style="margin-top:2.5rem;color:#555">Contact: <a href="mailto:lumenxtech.official@gmail.com">lumenxtech.official@gmail.com</a></p>
 </body>
 </html>
 `;

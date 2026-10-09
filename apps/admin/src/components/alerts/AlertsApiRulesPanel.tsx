@@ -305,7 +305,8 @@ export function AlertsApiRulesPanel() {
                 <Siren className="size-4 text-muted-foreground shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-medium">{r.name}</div>
+                    {/* D.4: break-words so long rule names wrap inside the flex-1 content area */}
+                    <div className="text-sm font-medium break-words min-w-0">{r.name}</div>
                     <Pill tone={r.priority === "P0" ? "danger" : "warning"}>{r.priority}</Pill>
                     <Pill tone={r.iconKey === "complaint" ? "success" : "neutral"}>
                       {r.iconKey} · evaluated
@@ -316,7 +317,7 @@ export function AlertsApiRulesPanel() {
                       </Pill>
                     ))}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{r.desc}</p>
+                  <p className="mt-1 text-xs text-muted-foreground break-words">{r.desc}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Pill tone={r.active ? "success" : "neutral"}>
@@ -358,9 +359,10 @@ export function AlertsApiRulesPanel() {
                 className="flex items-start justify-between gap-3 text-sm border border-border rounded-lg p-3"
               >
                 <div className="min-w-0">
-                  <div className="font-medium">{f.title}</div>
+                  {/* D.4: break-words prevents long alert titles/details from overflowing */}
+                  <div className="font-medium break-words">{f.title}</div>
                   {f.detail ? (
-                    <div className="text-xs text-muted-foreground mt-1">{f.detail}</div>
+                    <div className="text-xs text-muted-foreground mt-1 break-words">{f.detail}</div>
                   ) : null}
                   <div className="text-[11px] text-muted-foreground mt-1">{f.at}</div>
                 </div>

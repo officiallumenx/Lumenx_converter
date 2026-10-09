@@ -77,7 +77,9 @@ export async function hydrateFromAccessToken(
   try {
     me = await fetchMe(accessToken);
   } catch (err) {
-    if (err instanceof ApiClientError && (err.status === 401 || err.status === 403)) {
+    // 401 = identity invalid → clear session.
+    // 403 = authenticated but not allowed → keep Supabase session (authorization ≠ logout).
+    if (err instanceof ApiClientError && err.status === 401) {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
       clearStoredActiveInstituteId();
       throw new Error(err.message);

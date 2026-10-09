@@ -50,7 +50,12 @@ export function useAdmissionsApplications(options: UseAdmissionsApplicationsOpti
     }
 
     let cancelled = false;
-    setState((prev) => ({ ...prev, status: "loading", errorMessage: null }));
+    // Cache-first: keep prior rows visible while refreshing (no blank reload flash).
+    setState((prev) => ({
+      ...prev,
+      status: prev.items.length > 0 ? prev.status : "loading",
+      errorMessage: null,
+    }));
 
     void loadAdmissionsApplications(instituteId, {
       applicantId: scope === "parent" ? user.id : undefined,
@@ -62,11 +67,11 @@ export function useAdmissionsApplications(options: UseAdmissionsApplicationsOpti
       })
       .catch((err) => {
         if (!cancelled) {
-          setState({
-            status: "error",
-            items: [],
+          setState((prev) => ({
+            status: prev.items.length > 0 ? prev.status : "error",
+            items: prev.items,
             errorMessage: err instanceof Error ? err.message : "Failed to load applications",
-          });
+          }));
         }
       });
 
@@ -85,7 +90,8 @@ export function useAdmissionsApplications(options: UseAdmissionsApplicationsOpti
 
   const applications =
     apiMode && state.status !== "demo" ? state.items : demoApps;
-  const loading = apiMode && state.status === "loading";
+  // Skeleton only when there is nothing to paint yet.
+  const loading = apiMode && state.status === "loading" && state.items.length === 0;
   const status: AdmissionsLoadStatus = apiMode ? state.status : "demo";
 
   return {

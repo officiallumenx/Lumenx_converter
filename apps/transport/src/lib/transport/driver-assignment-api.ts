@@ -31,6 +31,7 @@ async function transportGet<T>(path: string): Promise<T> {
   if (!token) throw new Error("Authentication required");
   const response = await fetch(`${base}${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(12_000),
   });
   const json = (await response.json()) as { data?: T; error?: { message?: string } };
   if (!response.ok) throw new Error(json.error?.message ?? "Request failed");

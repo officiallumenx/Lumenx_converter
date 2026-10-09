@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { Navigate, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { AuthHeader, AuthScreen } from "@/components/auth/auth-screen";
@@ -23,10 +23,6 @@ export function DriverLoginPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const country = COUNTRIES[0]!;
-
-  useEffect(() => {
-    if (hydrated && user) void navigate({ to: "/" });
-  }, [hydrated, user, navigate]);
 
   const handlePinSignIn = async () => {
     setApiError(null);
@@ -71,12 +67,16 @@ export function DriverLoginPage() {
     }
   };
 
-  if (!hydrated || user) {
+  if (!hydrated) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background">
         <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
       </div>
     );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
   }
 
   return (

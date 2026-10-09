@@ -292,22 +292,42 @@ async function ensureParentIdentity(
   if (!parent) throw genericLoginError();
   const phone = normalizePhone(parent.phone);
   const authEmail = parentPortalAuthEmail(phone, parent.institute_id);
+  const displayName = parent.name.trim() || "Parent";
+
   if (parent.user_profile_id) {
+    await ensureAuthUserForConnectProfile(admin, parent.user_profile_id, authEmail);
+    await ensureParentMembership(admin, parent.user_profile_id, parent.institute_id);
     return {
       userId: parent.user_profile_id,
       authEmail,
-      displayName: parent.name.trim() || "Parent",
+      displayName,
       phone,
     };
   }
 
-  const userId = await createPasswordlessAuthUser(admin, authEmail);
-  await ensureParentProfile(admin, {
-    userId,
-    displayName: parent.name.trim() || "Parent",
-    email: authEmail,
-    phone,
-  });
+  // Reuse an existing profile for this phone (partial prior provision / shared login).
+  // Creating a second auth user here collides on phone/membership unique indexes.
+  const profileResult = await admin
+    .from("user_profile")
+    .select("id")
+    .eq("phone_digits", phone)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (profileResult.error) ensureDbOk(profileResult);
+
+  let userId = (profileResult.data as { id: string } | null)?.id ?? null;
+  if (!userId) {
+    userId = await createPasswordlessAuthUser(admin, authEmail);
+    await ensureParentProfile(admin, {
+      userId,
+      displayName,
+      email: authEmail,
+      phone,
+    });
+  } else {
+    await ensureAuthUserForConnectProfile(admin, userId, authEmail);
+  }
+
   await ensureParentMembership(admin, userId, parent.institute_id);
   await updateParentFields(admin, parent.id, {
     user_profile_id: userId,
@@ -316,7 +336,7 @@ async function ensureParentIdentity(
   return {
     userId,
     authEmail,
-    displayName: parent.name.trim() || "Parent",
+    displayName,
     phone,
   };
 }

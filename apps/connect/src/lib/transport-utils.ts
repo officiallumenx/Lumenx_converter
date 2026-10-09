@@ -45,14 +45,79 @@ export function formatEtaMinutes(minutes: number): string {
   return `Bus arrives in ${minutes} minutes`;
 }
 
+export type ApproachEtaDisplayInput = {
+  minutes: number | null | undefined;
+  displayMode?: "eta" | "stopped" | "stale" | "uncertain" | null;
+  confidence?: "high" | "medium" | "low" | null;
+  gpsFreshness?: "live" | "recent" | "stale" | "offline" | null;
+  lastUpdated?: string | null;
+};
+
+/**
+ * Confidence-aware arrival copy. Does not claim road-network accuracy.
+ * Stale / uncertain GPS must not show a precise countdown as fact.
+ */
+export function formatApproachEta(input: ApproachEtaDisplayInput): string {
+  const mode = input.displayMode;
+  const freshness = input.gpsFreshness;
+  const minutes =
+    input.minutes != null && Number.isFinite(input.minutes)
+      ? Math.max(0, Math.round(input.minutes))
+      : null;
+
+  if (mode === "stale" || freshness === "stale" || freshness === "offline") {
+    if (input.lastUpdated) return `Location is stale · ${input.lastUpdated}`;
+    return "Location is stale";
+  }
+
+  if (mode === "stopped") {
+    if (minutes == null) return "Bus may be stopped · ETA unavailable";
+    if (minutes <= 0) return "Arriving soon · bus may be stopped";
+    return `About ${minutes} min · bus may be stopped`;
+  }
+
+  if (mode === "uncertain" || input.confidence === "low") {
+    if (minutes == null) {
+      return input.lastUpdated
+        ? `Location updated · ${input.lastUpdated}`
+        : "ETA unavailable";
+    }
+    if (minutes <= 0) return "Arriving soon";
+    if (minutes === 1) return "About 1 min away";
+    return `About ${minutes} min away`;
+  }
+
+  if (minutes == null) return "ETA unavailable";
+  if (input.confidence === "medium") {
+    if (minutes <= 0) return "Arriving soon";
+    return `About ${minutes} min`;
+  }
+  return formatEtaMinutes(minutes);
+}
+
 export function trackingStatusLabel(tracking: TransportTracking): string {
+  // Learner boarding/drop records are authoritative for picked-up / not-boarded / dropped.
+  if (tracking.droppingStatus === "dropped" || tracking.learnerStatus === "reached_school") {
+    return "Reached school";
+  }
+  if (tracking.boardingStatus === "not_boarded") {
+    return "Not boarded";
+  }
+  if (tracking.boardingStatus === "boarded" || tracking.learnerStatus === "picked_up") {
+    if (tracking.parentStatus === "at_school" || tracking.parentStatus === "dropping") {
+      return PARENT_TRANSPORT_STATUS_LABEL[tracking.parentStatus];
+    }
+    return "Picked up";
+  }
+  // Unmarked: prefer live trip approach labels; never imply boarded.
   if (tracking.parentStatus) {
     return PARENT_TRANSPORT_STATUS_LABEL[tracking.parentStatus];
   }
+  if (tracking.boardingStatus === "pending") {
+    return "Not marked";
+  }
   if (tracking.emergencyActive) return tracking.emergencyLabel || "Emergency on bus";
   if (tracking.runStatus === "delayed") return `Delayed · +${tracking.delayMinutes} min`;
-  if (tracking.learnerStatus === "reached_school") return "Reached school";
-  if (tracking.learnerStatus === "picked_up") return "Picked up";
   if (tracking.runStatus === "scheduled") return "Trip not started";
   if (tracking.etaMinutes <= 5 && tracking.runStatus === "en_route") return "Arriving soon";
   if (tracking.runStatus === "at_stop") return "At stop";

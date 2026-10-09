@@ -1156,6 +1156,26 @@ export async function pingLocationForActor(
   }
 
   const previous = await findLatestLocationForTrip(admin, trip.id);
+  const capturedAtMs = Date.parse(validated.capturedAt);
+  const { evaluateGpsTrust } = await import("./eta-engine.js");
+  const jumpTrust = evaluateGpsTrust({
+    previous: previous
+      ? {
+          latitude: previous.latitude,
+          longitude: previous.longitude,
+          capturedAtMs: Date.parse(previous.captured_at),
+          accuracyM: previous.accuracy_m ?? null,
+        }
+      : null,
+    next: {
+      latitude: validated.latitude,
+      longitude: validated.longitude,
+      capturedAtMs: Number.isFinite(capturedAtMs) ? capturedAtMs : Date.now(),
+      accuracyM: validated.accuracyM,
+    },
+  });
+  const rejectJump = !jumpTrust.ok && jumpTrust.reason === "jump";
+
   const { shouldPersistGpsSample } = await import("./gps-persist.js");
   const persist = shouldPersistGpsSample({
     previous: previous
@@ -1172,8 +1192,9 @@ export async function pingLocationForActor(
     },
   });
 
+  // Impossible GPS jumps must not become the live location of record.
   let row = previous;
-  if (persist.shouldPersist || !previous) {
+  if (!rejectJump && (persist.shouldPersist || !previous)) {
     row = await insertVehicleLocation(admin, {
       instituteId: trip.institute_id,
       tripId: input.tripId,
@@ -1188,6 +1209,11 @@ export async function pingLocationForActor(
     });
   }
 
+  const approachLat =
+    rejectJump && previous ? previous.latitude : validated.latitude;
+  const approachLng =
+    rejectJump && previous ? previous.longitude : validated.longitude;
+
   // Approach bands enqueue async; rare arrival emit is awaited inside.
   // Keep await so timeline/school side-effects settle before the response returns.
   const { evaluateApproachAlertsOnPing } = await import("./approach.js");
@@ -1195,11 +1221,11 @@ export async function pingLocationForActor(
     admin,
     trip,
     {
-      latitude: validated.latitude,
-      longitude: validated.longitude,
-      speedKmh: input.speedKmh ?? null,
+      latitude: approachLat,
+      longitude: approachLng,
+      speedKmh: rejectJump ? 0 : (input.speedKmh ?? null),
       accuracyM: validated.accuracyM,
-      capturedAtMs: Date.parse(validated.capturedAt),
+      capturedAtMs: Number.isFinite(capturedAtMs) ? capturedAtMs : Date.now(),
     },
     actor.userId,
   );
@@ -1208,8 +1234,8 @@ export async function pingLocationForActor(
     admin,
     trip,
     {
-      latitude: validated.latitude,
-      longitude: validated.longitude,
+      latitude: approachLat,
+      longitude: approachLng,
     },
     actor.userId,
   );

@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { isOnline } from "@lumenx/utils";
 
 import { routeTree } from "./routeTree.gen";
 
@@ -9,8 +10,19 @@ export const getRouter = () => {
       queries: {
         staleTime: 3 * 60_000,
         gcTime: 30 * 60_000,
+        // Cache-first navigation: paint last assignment/inbox, refresh when stale.
+        refetchOnMount: true,
         refetchOnWindowFocus: false,
-        retry: 1,
+        refetchOnReconnect: true,
+        networkMode: "offlineFirst",
+        retry: (failureCount) => {
+          if (!isOnline()) return false;
+          return failureCount < 1;
+        },
+      },
+      mutations: {
+        networkMode: "offlineFirst",
+        retry: false,
       },
     },
   });

@@ -10,6 +10,7 @@ import {
   insertMembership,
   listRolesForMemberships,
   replaceMembershipRoles,
+  updateMembershipFields,
 } from "../identity/repository.js";
 import {
   findParentById,
@@ -167,23 +168,41 @@ export async function ensureParentMembership(
   userId: string,
   instituteId: string,
 ): Promise<void> {
-  const existing = await findActiveMembershipForUserInstitute(admin, userId, instituteId);
-  if (existing) {
-    const roles = await listRolesForMemberships(admin, [existing.id]);
+  const ensureParentRole = async (membershipId: string) => {
+    const roles = await listRolesForMemberships(admin, [membershipId]);
     const codes = roles.map((r) => r.role_code);
     if (!codes.includes("parent")) {
-      await replaceMembershipRoles(admin, existing.id, [...new Set([...codes, "parent"])]);
+      await replaceMembershipRoles(admin, membershipId, [...new Set([...codes, "parent"])]);
     }
+  };
+
+  const existing = await findActiveMembershipForUserInstitute(admin, userId, instituteId);
+  if (existing) {
+    if (existing.status !== "active") {
+      await updateMembershipFields(admin, existing.id, { status: "active" });
+    }
+    await ensureParentRole(existing.id);
     return;
   }
 
-  const membership = await insertMembership(admin, {
-    userId,
-    instituteId,
-    status: "active",
-    roles: ["parent"],
-  });
-  await replaceMembershipRoles(admin, membership.id, ["parent"]);
+  try {
+    const membership = await insertMembership(admin, {
+      userId,
+      instituteId,
+      status: "active",
+      roles: ["parent"],
+    });
+    await replaceMembershipRoles(admin, membership.id, ["parent"]);
+  } catch (err) {
+    // Concurrent login / prior partial provision — reuse the membership row.
+    if (!(err instanceof AppError) || err.code !== "CONFLICT") throw err;
+    const again = await findActiveMembershipForUserInstitute(admin, userId, instituteId);
+    if (!again) throw err;
+    if (again.status !== "active") {
+      await updateMembershipFields(admin, again.id, { status: "active" });
+    }
+    await ensureParentRole(again.id);
+  }
 }
 
 export type ProvisionParentAccessInput = {

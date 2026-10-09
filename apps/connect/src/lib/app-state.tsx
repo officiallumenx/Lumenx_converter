@@ -22,10 +22,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { apiSignOut, tryHydrateApiSession } from "@/auth/api-auth";
 import { setConnectApiUnauthorizedHandler } from "@/lib/connect-api";
 import { ApiClientError } from "@/lib/api";
-import {
-  getSupabaseAccessToken,
-  tryRefreshSupabaseSession,
-} from "@/lib/supabase-browser";
+import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
 
@@ -100,8 +97,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setConnectApiUnauthorizedHandler(() => {
       void (async () => {
-        const refreshed = await tryRefreshSupabaseSession();
-        if (refreshed) return;
+        // API client already refreshed + retried once on 401.
+        // Reaching here means auth is genuinely invalid — clear Supabase + UI.
+        await apiSignOut().catch(() => undefined);
         clearAuthStorage();
         setUser(null);
         setRoleState(null);
@@ -245,6 +243,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInApi = useCallback((u: User, r: Role, instituteId: string) => {
+    let previousUserId: string | null = null;
+    try {
+      const raw = localStorage.getItem(CONNECT_STORAGE_KEYS.user);
+      const prev = raw ? (JSON.parse(raw) as { id?: string }) : null;
+      previousUserId = prev?.id?.trim() || null;
+    } catch {
+      previousUserId = null;
+    }
     const apply = () => {
       setUser(u);
       setRoleState(r);
@@ -253,7 +259,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
       localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
     };
-    void awaitConnectStoreReset().then(apply);
+    void awaitConnectStoreReset()
+      .then(() =>
+        import("@/lib/connect-queries").then(
+          ({ clearConnectQueryClient, clearPersistedConnectCache }) => {
+            // Drop prior session in-memory cache; keep the new user's persisted warm cache.
+            clearConnectQueryClient();
+            if (previousUserId && previousUserId !== u.id) {
+              void clearPersistedConnectCache(previousUserId);
+            }
+          },
+        ),
+      )
+      .then(apply);
   }, []);
 
   const signOut = useCallback(() => {
@@ -276,6 +294,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     void resetAllConnectStores();
+    // Drop in-memory + persisted server-state so the next account cannot see prior data.
+    void import("@/lib/connect-queries").then(
+      ({ clearConnectQueryClient, clearAllPersistedConnectCaches }) => {
+        clearConnectQueryClient();
+        void clearAllPersistedConnectCaches();
+      },
+    );
   }, []);
 
   const setActiveChildId = useCallback(

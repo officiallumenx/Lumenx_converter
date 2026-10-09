@@ -11,10 +11,10 @@ export const LUMENX_COMPANY = {
   pincode: "534201",
   governingLaw: "Laws of India",
   exclusiveJurisdiction: "Courts at Bhimavaram / West Godavari, Andhra Pradesh, India",
-  contactEmail: "official.lumenx@gmail.com",
-  privacyEmail: "official.lumenx@gmail.com",
-  grievanceEmail: "official.lumenx@gmail.com",
-  supportEmail: "official.lumenx@gmail.com",
+  contactEmail: "lumenxtech.official@gmail.com",
+  privacyEmail: "lumenxtech.official@gmail.com",
+  grievanceEmail: "lumenxtech.official@gmail.com",
+  supportEmail: "lumenxtech.official@gmail.com",
   websiteNote: "LumenX education technology platform",
   /**
    * Public privacy policy URLs for Play Console / store listings.

@@ -3399,12 +3399,136 @@ main table th {
   box-shadow: 0 0 0 3px rgb(34 197 94 / 0.25);
   animation: lx-home-pulse-dot 1.8s ease-out infinite;
 }
-.dark .lx-home-kpi--students,
-.dark .lx-home-kpi--teachers,
-.dark .lx-home-kpi--parents,
-.dark .lx-home-kpi--leave {
-  background: var(--color-background);
+.dark .lx-home-kpi--students {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #3b82f6 22%, transparent), transparent 55%),
+    linear-gradient(160deg, color-mix(in oklab, #2563eb 16%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #3b82f6 40%, var(--color-border));
+  box-shadow: 0 10px 24px rgb(37 99 235 / 0.18);
 }
+.dark .lx-home-kpi--teachers {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #8b5cf6 22%, transparent), transparent 55%),
+    linear-gradient(160deg, color-mix(in oklab, #7c3aed 16%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #8b5cf6 40%, var(--color-border));
+  box-shadow: 0 10px 24px rgb(124 58 237 / 0.18);
+}
+.dark .lx-home-kpi--parents {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #f43f5e 20%, transparent), transparent 55%),
+    linear-gradient(160deg, color-mix(in oklab, #e11d48 14%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #f43f5e 38%, var(--color-border));
+  box-shadow: 0 10px 24px rgb(225 29 72 / 0.18);
+}
+.dark .lx-home-kpi--leave {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #0ea5e9 22%, transparent), transparent 55%),
+    linear-gradient(160deg, color-mix(in oklab, #0284c7 14%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #0ea5e9 40%, var(--color-border));
+  box-shadow: 0 10px 24px rgb(14 165 233 / 0.18);
+}
+.dark .lx-home-kpi__label,
+.dark .lx-home-kpi__chevron {
+  color: var(--color-muted-foreground);
+}
+.dark .lx-home-kpi__value {
+  color: var(--color-foreground);
+}
+.dark .lx-home-kpi__context {
+  color: color-mix(in oklab, var(--color-success) 80%, white);
+}
+.dark .lx-home-kpi__icon {
+  box-shadow: 0 5px 12px rgb(0 0 0 / 0.35);
+}
+
+/* Home soft panels: keep accent tint, use dark card surfaces */
+.dark .lx-home-birthdays {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #38bdf8 18%, transparent), transparent 55%),
+    radial-gradient(50% 60% at 0% 100%, color-mix(in oklab, #a78bfa 12%, transparent), transparent 50%),
+    linear-gradient(180deg, color-mix(in oklab, #0ea5e9 12%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #38bdf8 35%, var(--color-border));
+  box-shadow: 0 10px 28px rgb(14 165 233 / 0.12);
+}
+.dark .lx-home-birthdays__cake {
+  border-color: var(--color-card);
+}
+.dark .lx-home-birthdays__row:hover {
+  background: color-mix(in oklab, #0ea5e9 16%, transparent);
+}
+.dark .lx-home-attention {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #fb7185 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #f43f5e 12%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #fb7185 36%, var(--color-border));
+  box-shadow: 0 10px 28px rgb(244 63 94 / 0.12);
+}
+.dark .lx-home-attention-row {
+  background: color-mix(in oklab, var(--color-card) 88%, #fb7185);
+  border-color: color-mix(in oklab, #fb7185 28%, var(--color-border));
+}
+.dark .lx-home-attention-row:hover {
+  background: color-mix(in oklab, var(--color-card) 82%, #60a5fa);
+  border-color: color-mix(in oklab, #60a5fa 32%, var(--color-border));
+  box-shadow: 0 6px 16px rgb(37 99 235 / 0.16);
+}
+.dark .lx-home-attention-action {
+  color: var(--color-muted-foreground);
+}
+.dark .lx-home-healthy {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, #22c55e 14%, var(--color-card)),
+    color-mix(in oklab, #16a34a 8%, var(--color-card))
+  );
+  border-color: color-mix(in oklab, #22c55e 32%, var(--color-border));
+  box-shadow: 0 6px 16px rgb(22 163 74 / 0.14);
+}
+.dark .lx-home-activity,
+.dark .lx-home-activity--inbox {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #60a5fa 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #3b82f6 12%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #3b82f6 34%, var(--color-border));
+  box-shadow: 0 10px 28px rgb(37 99 235 / 0.12);
+}
+.dark .lx-home-notif {
+  background:
+    radial-gradient(80% 70% at 100% 0%, color-mix(in oklab, #fb7185 14%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #f43f5e 10%, var(--color-card)), var(--color-card));
+  border-color: color-mix(in oklab, #fb7185 30%, var(--color-border));
+}
+.dark .lx-home-activity__row:hover {
+  background: color-mix(in oklab, var(--color-muted) 55%, transparent);
+  border-color: color-mix(in oklab, #38bdf8 28%, var(--color-border));
+  box-shadow: none;
+}
+.dark .lx-home-panel--diary {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #8b5cf6 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #7c3aed 12%, var(--color-card)), var(--color-card));
+}
+.dark .lx-home-panel--leave {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #0ea5e9 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #0284c7 12%, var(--color-card)), var(--color-card));
+}
+.dark .lx-home-panel--attendance {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #14b8a6 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #0d9488 12%, var(--color-card)), var(--color-card));
+}
+.dark .lx-home-panel--marks {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #4f46e5 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #4338ca 12%, var(--color-card)), var(--color-card));
+}
+.dark .lx-home-panel--transport {
+  background:
+    radial-gradient(70% 80% at 100% 0%, color-mix(in oklab, #f97316 16%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, #ea580c 12%, var(--color-card)), var(--color-card));
+}
+
 .lx-home-birthdays {
   border-radius: 1.1rem;
   border: 1px solid color-mix(in oklab, #38bdf8 40%, var(--color-border));

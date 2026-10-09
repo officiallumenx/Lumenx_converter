@@ -47,7 +47,8 @@ export function useCareersProfile() {
     }
 
     let cancelled = false;
-    setLoading(true);
+    // Cache-first: only skeleton when we have nothing to show yet.
+    if (!profile) setLoading(true);
     void getMyCandidateProfile(instituteId)
       .then((dto) => {
         if (cancelled) return;
@@ -60,7 +61,7 @@ export function useCareersProfile() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setProfile(getCandidateProfile(user.id));
+        setProfile((prev) => prev ?? getCandidateProfile(user.id));
         setErrorMessage(err instanceof Error ? err.message : "Failed to load profile");
       })
       .finally(() => {

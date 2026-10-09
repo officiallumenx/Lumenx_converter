@@ -5,3 +5,9 @@ export * from "./prefetch-teacher";
 export * from "./prefetch-parent";
 export * from "./prefetch-activity";
 export * from "./prefetch-student";
+export * from "./query-client";
+export {
+  clearAllPersistedConnectCaches,
+  clearPersistedConnectCache,
+  shouldDehydrateConnectQuery,
+} from "./persist";

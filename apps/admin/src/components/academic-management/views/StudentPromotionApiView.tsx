@@ -26,7 +26,8 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { listClassesCatalog } from "@/lib/classes/api";
+// D.1: Target-year classes come from the shared catalog query; no extra fetch needed.
+import { useCatalogClassesQuery } from "@/lib/admin-queries";
 import { loadProgressionCatalog } from "@/lib/enrollments/progression-load";
 import {
   promoteEnrollments,
@@ -59,8 +60,24 @@ export function StudentPromotionApiView() {
   const [enrollments, setEnrollments] = useState<EnrollmentListItem[]>([]);
   const [sourceClasses, setSourceClasses] = useState<ClassDto[]>([]);
   const [sourceSections, setSourceSections] = useState<SectionDto[]>([]);
-  const [targetClasses, setTargetClasses] = useState<ClassDto[]>([]);
-  const [targetSections, setTargetSections] = useState<SectionDto[]>([]);
+  // D.1: targetClasses/targetSections are derived from the shared catalog query filtered by year.
+  // This avoids a duplicate listClassesCatalog call that was previously nested in the useEffect.
+  const catalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    instituteCtx.status === "ready",
+  );
+  const targetClasses = useMemo(() => {
+    if (!targetYearId || !catalogQuery.data) return [];
+    return catalogQuery.data.classes.filter((c) => c.academicYearId === targetYearId);
+  }, [targetYearId, catalogQuery.data]);
+  const targetSections = useMemo(() => {
+    if (!targetYearId || !catalogQuery.data) return [];
+    return catalogQuery.data.sections.filter((s) => s.academicYearId === targetYearId);
+  }, [targetYearId, catalogQuery.data]);
+  // defaultTargetClassId/SectionId remain state so users can override via the UI dropdown.
+  // They are initialized from the catalog when the target year or catalog data changes.
+  const [defaultTargetClassId, setDefaultTargetClassId] = useState("");
+  const [defaultTargetSectionId, setDefaultTargetSectionId] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -68,12 +85,18 @@ export function StudentPromotionApiView() {
   const [targetByEnrollment, setTargetByEnrollment] = useState<
     Record<string, { classId: string; sectionId: string }>
   >({});
-  const [defaultTargetClassId, setDefaultTargetClassId] = useState("");
-  const [defaultTargetSectionId, setDefaultTargetSectionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useReloadKey();
+
+  // D.1: Initialize the user-overrideable default promotion target from the catalog-derived data.
+  useEffect(() => {
+    const firstClass = targetClasses[0];
+    const firstSection = targetSections.find((s) => s.classId === firstClass?.id);
+    setDefaultTargetClassId((prev) => prev || firstClass?.id || "");
+    setDefaultTargetSectionId((prev) => prev || firstSection?.id || "");
+  }, [targetClasses, targetSections]);
 
   useEffect(() => {
     if (!isApiAuthMode() || !instituteCtx.activeInstituteId) return;
@@ -103,25 +126,8 @@ export function StudentPromotionApiView() {
         setSourceSections(catalog.sections);
         setEnrollments(catalog.enrollments);
         setError(null);
-
-        if (nextTarget && instituteCtx.activeInstituteId) {
-          const targetCatalog = await listClassesCatalog({
-            instituteId: instituteCtx.activeInstituteId,
-          });
-          if (cancelled) return;
-          const classes = targetCatalog.classes.filter(
-            (c) => c.academicYearId === nextTarget,
-          );
-          const sections = targetCatalog.sections.filter(
-            (s) => s.academicYearId === nextTarget,
-          );
-          setTargetClasses(classes);
-          setTargetSections(sections);
-          const firstClass = classes[0];
-          const firstSection = sections.find((s) => s.classId === firstClass?.id);
-          setDefaultTargetClassId(firstClass?.id ?? "");
-          setDefaultTargetSectionId(firstSection?.id ?? "");
-        }
+        // D.1: targetClasses / targetSections / defaultTargetClassId / defaultTargetSectionId are
+        // now derived from the shared useCatalogClassesQuery above, no extra fetch needed here.
         setLoading(false);
       },
     );

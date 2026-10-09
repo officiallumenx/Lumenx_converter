@@ -30,7 +30,7 @@ import {
   PARENT_TRANSPORT_STATUS_LABEL,
   type ParentTransportStatus,
 } from "@/lib/transport/parent-status";
-import { formatEtaMinutes } from "@/lib/transport-utils";
+import { formatApproachEta } from "@/lib/transport-utils";
 import type { LearnerTransportHistoryDayDto } from "@/lib/transport/api-types";
 
 type Props = {
@@ -335,15 +335,28 @@ export function LearnerTransportApiView({
       parentStatus === "dropping" ||
       tracking.learnerStatus === "awaiting_pickup" ||
       tracking.learnerStatus === "picked_up");
+  const approachEta = formatApproachEta({
+    minutes: tracking.etaMinutes,
+    displayMode: tracking.etaDisplayMode,
+    confidence: tracking.etaConfidence,
+    gpsFreshness: tracking.gpsFreshness,
+    lastUpdated: tracking.lastUpdated,
+  });
   const etaLabel =
     parentStatus === "not_riding"
       ? "—"
-      : showArrivalMinutes
-        ? formatEtaMinutes(tracking.etaMinutes)
-        : tracking.sharedTripActive && hasGps && tracking.etaMinutes <= 0
-          ? formatEtaMinutes(0)
-          : tracking.sharedTripActive && !hasGps
-            ? tracking.lastUpdated || "Location unavailable"
+      : showArrivalMinutes ||
+          (tracking.sharedTripActive &&
+            hasGps &&
+            tracking.etaMinutes <= 0 &&
+            tracking.etaDisplayMode !== "stale")
+        ? approachEta
+        : tracking.sharedTripActive && !hasGps
+          ? tracking.lastUpdated || "Location unavailable"
+          : tracking.etaDisplayMode === "stale" ||
+              tracking.gpsFreshness === "stale" ||
+              tracking.gpsFreshness === "offline"
+            ? approachEta
             : "—";
   const gpsAge =
     live?.latestLocation?.capturedAt
@@ -419,7 +432,7 @@ export function LearnerTransportApiView({
           value={PARENT_TRANSPORT_STATUS_LABEL[parentStatus]}
           hint={
             hasGps && tracking.etaMinutes > 0
-              ? `${formatEtaMinutes(tracking.etaMinutes)} · ${tracking.nextStopName}`
+              ? `${approachEta} · ${tracking.nextStopName}`
               : summary.driverName ?? "Contact school transport office"
           }
           tone={tracking.sharedTripActive ? "primary" : "default"}

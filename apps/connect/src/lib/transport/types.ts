@@ -96,6 +96,10 @@ export interface TransportTracking {
   currentStopName?: string | null;
   notRidingToday?: boolean;
   tripId?: string | null;
+  /** Backend ETA engine display mode — crow-flies/stop-legs, not road ETA. */
+  etaDisplayMode?: "eta" | "stopped" | "stale" | "uncertain" | null;
+  etaConfidence?: "high" | "medium" | "low" | null;
+  movementState?: string | null;
 }
 
 export interface TransportAlert {

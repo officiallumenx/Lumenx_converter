@@ -295,7 +295,13 @@ function LoginPage() {
             }
             setStep("portalPinVerify");
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Account not found");
+            const raw = err instanceof Error ? err.message : "Account not found";
+            // Login must never surface signup-style unique-conflict copy.
+            const message =
+              /already exists|already registered|membership already/i.test(raw)
+                ? "Unable to continue sign-in for this number. Try again, or contact your institute if it keeps failing."
+                : raw;
+            toast.error(message);
           } finally {
             setLoading(false);
           }

@@ -596,6 +596,8 @@ export function useLearnerTransportLiveQuery(
       isInstituteUuid(instituteId ?? "") &&
       isInstituteUuid(studentId ?? ""),
     staleTime: 10_000,
+    // Keep last known bus/ETA painted while a poll/refetch runs.
+    placeholderData: (previous) => previous,
     refetchInterval: pollMs === false ? false : (pollMs ?? false),
   });
   const refresh = () => {

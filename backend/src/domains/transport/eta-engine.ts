@@ -1,8 +1,12 @@
 /**
  * Production Transport ETA engine (route-stop-leg aware, smoothed speed/ETA).
  *
- * Limitation: no route polyline in DB — remaining distance uses ordered stop
- * haversine legs (bus → next stops → assigned stop), not map-matched roads.
+ * LIMITATIONS (do not claim road-accurate ETA in product copy):
+ * - No route polyline / map-matching in DB.
+ * - Remaining distance = ordered stop haversine legs (bus → stops → dest),
+ *   not road-network distance (turns, one-ways, bridges, traffic).
+ * - Speed is GPS-reported / implied + smoothed; not traffic-aware.
+ * - See docs/TRANSPORT_ETA.md.
  */
 import { haversineMeters } from "./geo.js";
 
@@ -360,6 +364,7 @@ function confidenceFor(tracker: TripEtaTracker, nowMs: number): EtaConfidence {
 
 /**
  * Compute smoothed ETA minutes to a destination stop for a trip.
+ * Prefers last trusted GPS for distance so rejected jumps cannot shrink ETA.
  */
 export function computeStableEta(input: {
   tripId: string;
@@ -377,8 +382,16 @@ export function computeStableEta(input: {
     trackers.set(input.tripId, tracker);
   }
 
+  // Prefer last trusted position — never treat a rejected jump as current bus.
+  const bus: LatLng = tracker.lastTrusted
+    ? {
+        latitude: tracker.lastTrusted.latitude,
+        longitude: tracker.lastTrusted.longitude,
+      }
+    : input.bus;
+
   const along = remainingDistanceAlongStopsM({
-    bus: input.bus,
+    bus,
     orderedStops: input.orderedStops,
     destinationStopId: input.destinationStopId,
   });
@@ -390,23 +403,48 @@ export function computeStableEta(input: {
     distanceM = input.crowFliesFallbackM;
   }
 
-  const speed = Math.max(
-    ETA_ENGINE.minUsableGpsSpeedKmh,
-    tracker.effectiveSpeedKmh || ETA_ENGINE.defaultSpeedKmh,
-  );
-  const speedMPerMin = (speed * 1000) / 60;
-  let rawEta =
-    !Number.isFinite(distanceM) || distanceM <= 0
-      ? 0
-      : Math.max(1, Math.ceil(distanceM / speedMPerMin));
+  const effective = tracker.effectiveSpeedKmh;
+  const recentSamples = tracker.speedSamples.slice(-3);
+  const recentNearZero =
+    recentSamples.length >= 3 &&
+    recentSamples.every((s) => s.kmh <= ETA_ENGINE.stoppedEnterKmh);
+  const isEffectivelyStopped =
+    tracker.movementState === "stopped" ||
+    recentNearZero ||
+    (Number.isFinite(effective) && effective <= ETA_ENGINE.stoppedEnterKmh) ||
+    tracker.candidateStoppedSinceMs != null;
 
-  // Stopped + still far: do not collapse to "1 min".
-  if (
-    tracker.movementState === "stopped" &&
-    distanceM > ETA_ENGINE.nearStopDistanceM
-  ) {
+  // Do not floor to minUsableGpsSpeed while stopped — that pretends the bus is moving.
+  let speedKmh: number;
+  if (isEffectivelyStopped) {
+    speedKmh = 0;
+  } else {
+    speedKmh = Math.max(
+      ETA_ENGINE.minUsableGpsSpeedKmh,
+      effective > 0 ? effective : ETA_ENGINE.defaultSpeedKmh,
+    );
+  }
+
+  let rawEta: number;
+  if (!Number.isFinite(distanceM) || distanceM <= 0) {
+    rawEta = 0;
+  } else if (speedKmh <= 0) {
+    // Stopped / near-zero: hold last published ETA; never invent progress at 3 km/h.
     const last = tracker.lastEtaByStop.get(input.stopId);
-    rawEta = last ?? rawEta;
+    rawEta =
+      last ??
+      Math.max(
+        1,
+        Math.ceil(distanceM / ((ETA_ENGINE.defaultSpeedKmh * 1000) / 60)),
+      );
+  } else {
+    rawEta = Math.max(1, Math.ceil(distanceM / ((speedKmh * 1000) / 60)));
+  }
+
+  // Stopped + still far: never collapse toward "1 min" via floor/smoothing alone.
+  if (isEffectivelyStopped && distanceM > ETA_ENGINE.nearStopDistanceM) {
+    const last = tracker.lastEtaByStop.get(input.stopId);
+    if (last != null) rawEta = last;
   }
 
   const previous = tracker.lastEtaByStop.get(input.stopId);
@@ -426,10 +464,7 @@ export function computeStableEta(input: {
   let displayMode: StableEtaResult["displayMode"] = "eta";
   if (tracker.movementState === "gps_stale") displayMode = "stale";
   else if (tracker.movementState === "gps_uncertain") displayMode = "uncertain";
-  else if (
-    tracker.movementState === "stopped" &&
-    distanceM > ETA_ENGINE.nearStopDistanceM
-  ) {
+  else if (isEffectivelyStopped && distanceM > ETA_ENGINE.nearStopDistanceM) {
     displayMode = "stopped";
   }
 

@@ -43,6 +43,30 @@ const LOADING: DriverAssignment = {
   message: "Loading assignment…",
 };
 
+const NO_SESSION: DriverAssignment = {
+  status: "no_session",
+  account: null,
+  driver: null,
+  bus: null,
+  route: null,
+  studentCount: 0,
+  lockedByAdmin: false,
+  tripAssignment: null,
+  message: "Sign in to see your bus assignment.",
+};
+
+const MISSING_SCOPE: DriverAssignment = {
+  status: "not_found",
+  account: null,
+  driver: null,
+  bus: null,
+  route: null,
+  studentCount: 0,
+  lockedByAdmin: false,
+  tripAssignment: null,
+  message: "Missing institute or driver profile. Sign out and sign in again.",
+};
+
 const NOT_FOUND: DriverAssignment = {
   status: "not_found",
   account: null,
@@ -82,6 +106,7 @@ export function useDriverAssignmentQuery(): DriverAssignment {
   const instituteId = user?.instituteId ?? null;
   const driverId = user?.driverId ?? null;
 
+  const canFetch = Boolean(hydrated && user && instituteId && driverId);
   const query = useQuery({
     queryKey: transportQueryKeys.assignment(instituteId ?? "_", driverId ?? "_"),
     queryFn: () =>
@@ -92,14 +117,22 @@ export function useDriverAssignmentQuery(): DriverAssignment {
         phone: user!.phone,
         employeeId: user!.employeeId,
       }),
-    enabled: hydrated && Boolean(instituteId && driverId),
+    enabled: canFetch,
+    placeholderData: (previous) => previous,
   });
 
+  // Disabled/error queries stay `isPending` without data in RQ v5 — never treat that as LOADING.
   const assignment = !hydrated
     ? LOADING
-    : query.isPending && !query.data
-      ? LOADING
-      : (query.data ?? LOADING);
+    : !user
+      ? NO_SESSION
+      : !instituteId || !driverId
+        ? MISSING_SCOPE
+        : query.data
+          ? query.data
+          : query.isFetching || query.isPending
+            ? LOADING
+            : NOT_FOUND;
 
   const status = assignment.status;
   const accountId = assignment.account?.id ?? null;

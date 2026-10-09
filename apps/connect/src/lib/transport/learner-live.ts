@@ -208,6 +208,11 @@ export function buildLiveTrackingFromApi(
     currentStopName: trip?.currentStopName ?? approach?.stopName ?? null,
     notRidingToday,
     tripId: trip?.id ?? null,
+    etaDisplayMode:
+      (approach?.displayMode as TransportTracking["etaDisplayMode"]) ?? null,
+    etaConfidence:
+      (approach?.confidence as TransportTracking["etaConfidence"]) ?? null,
+    movementState: approach?.movementState ?? null,
   };
 
   if (emergency) {
@@ -264,8 +269,8 @@ export function buildLiveTrackingFromApi(
     nextStopName = currentStop?.name || followingStop?.name || assignment.pickupStop.name;
   }
 
-  // Prefer API approach ETA (smoothed engine). Do not invent a countdown.
-  // Show for pickup (awaiting) and drop (picked_up / dropping phase).
+  // Prefer API approach ETA (smoothed stop-leg engine — not road routing).
+  // Never invent a countdown; stale/offline must not look like a live ETA.
   let etaMinutes = 0;
   const wantsArrival =
     tracking.learnerStatus === "awaiting_pickup" ||
@@ -273,22 +278,17 @@ export function buildLiveTrackingFromApi(
     trip.phase === "dropping" ||
     trip.phase === "running" ||
     trip.phase === "boarding";
+  const approachStale =
+    approach?.displayMode === "stale" ||
+    gpsFreshness === "stale" ||
+    gpsFreshness === "offline";
   if (
     wantsArrival &&
     approach &&
-    gpsLive &&
+    !approachStale &&
     approach.etaMinutes != null &&
     Number.isFinite(approach.etaMinutes)
   ) {
-    etaMinutes = Math.max(0, Math.round(approach.etaMinutes));
-  } else if (
-    wantsArrival &&
-    approach &&
-    !gpsLive &&
-    approach.etaMinutes != null &&
-    Number.isFinite(approach.etaMinutes)
-  ) {
-    // Stale GPS: keep last reliable estimate (do not collapse to 0/1).
     etaMinutes = Math.max(0, Math.round(approach.etaMinutes));
   }
 

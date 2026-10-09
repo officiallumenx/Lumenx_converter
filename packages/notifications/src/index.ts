@@ -155,6 +155,7 @@ export {
   androidAccentHexFromPriority,
   backendCategoryDisplayLabel,
   NOTIFICATION_ACCENT_HEX,
+  SEVERITY_UI_LABEL,
   isImportantNotification,
   isAlertNotification,
   isAlertPresentationPayload,

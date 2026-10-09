@@ -49,7 +49,7 @@ describe("createApiClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("normalizes 401 and invokes onUnauthorized", async () => {
+  it("normalizes 401 and invokes onUnauthorized when refresh is unavailable", async () => {
     const onUnauthorized = vi.fn();
     fetchMock.mockResolvedValue({
       ok: false,
@@ -73,6 +73,97 @@ describe("createApiClient", () => {
     });
 
     await expect(api.get("/api/v1/me")).rejects.toBeInstanceOf(ApiClientError);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("401 → refresh → retry once succeeds without onUnauthorized", async () => {
+    const onUnauthorized = vi.fn();
+    const tryRefreshSession = vi.fn().mockResolvedValue(true);
+    let token = "stale";
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        text: async () =>
+          JSON.stringify({
+            error: { code: "UNAUTHENTICATED", message: "expired" },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ data: { ok: true } }),
+      });
+
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => token,
+      tryRefreshSession: async () => {
+        const ok = await tryRefreshSession();
+        if (ok) token = "fresh";
+        return ok;
+      },
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(api.get<{ ok: boolean }>("/api/v1/me")).resolves.toEqual({ ok: true });
+    expect(tryRefreshSession).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe("Bearer fresh");
+  });
+
+  it("401 → refresh fails → onUnauthorized once", async () => {
+    const onUnauthorized = vi.fn();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({
+          error: { code: "UNAUTHENTICATED", message: "expired" },
+        }),
+    });
+
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "stale",
+      tryRefreshSession: async () => false,
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(api.get("/api/v1/me")).rejects.toBeInstanceOf(ApiClientError);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("401 → refresh ok but retry still 401 → onUnauthorized once (no infinite retry)", async () => {
+    const onUnauthorized = vi.fn();
+    const tryRefreshSession = vi.fn().mockResolvedValue(true);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({
+          error: { code: "UNAUTHENTICATED", message: "revoked" },
+        }),
+    });
+
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      tryRefreshSession,
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(api.get("/api/v1/me")).rejects.toBeInstanceOf(ApiClientError);
+    expect(tryRefreshSession).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 

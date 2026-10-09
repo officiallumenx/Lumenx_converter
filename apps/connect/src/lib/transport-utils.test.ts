@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatEtaMinutes, trackingStatusLabel } from "./transport-utils";
+import {
+  formatApproachEta,
+  formatEtaMinutes,
+  trackingStatusLabel,
+} from "./transport-utils";
 import type { TransportTracking } from "./transport/types";
 
 function tracking(partial: Partial<TransportTracking>): TransportTracking {
@@ -53,5 +57,28 @@ describe("transport-utils", () => {
     expect(
       trackingStatusLabel(tracking({ parentStatus: "arrived", etaMinutes: 0 })),
     ).toBe("Arrived");
+  });
+
+  it("formats confidence-aware approach ETA without claiming road accuracy", () => {
+    expect(formatApproachEta({ minutes: 6, confidence: "high", displayMode: "eta" })).toBe(
+      "Bus arrives in 6 minutes",
+    );
+    expect(formatApproachEta({ minutes: 8, confidence: "medium", displayMode: "eta" })).toBe(
+      "About 8 min",
+    );
+    expect(formatApproachEta({ minutes: 10, displayMode: "stopped" })).toBe(
+      "About 10 min · bus may be stopped",
+    );
+    expect(
+      formatApproachEta({
+        minutes: 5,
+        displayMode: "stale",
+        gpsFreshness: "stale",
+        lastUpdated: "2 min ago",
+      }),
+    ).toBe("Location is stale · 2 min ago");
+    expect(formatApproachEta({ minutes: null, displayMode: "uncertain" })).toBe(
+      "ETA unavailable",
+    );
   });
 });

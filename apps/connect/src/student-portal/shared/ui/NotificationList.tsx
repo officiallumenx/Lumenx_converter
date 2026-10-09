@@ -119,6 +119,7 @@ export function NotificationList({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* "Category · Severity" — category from metadata, color from severity/type */}
                     <span
                       className={cn(
                         "text-xs font-bold",
@@ -126,6 +127,12 @@ export function NotificationList({
                       )}
                     >
                       {CATEGORY_LABELS[n.category]}
+                      {meta.label !== "Update" && (
+                        <>
+                          <span className="mx-1 font-normal opacity-50">·</span>
+                          <span>{meta.label}</span>
+                        </>
+                      )}
                     </span>
                     {n.unread && (
                       <span
@@ -227,6 +234,7 @@ function NotificationDetailDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="mb-2 flex flex-wrap items-center gap-2">
+            {/* "Category · Severity" label — category from metadata, severity from type */}
             <span
               className={cn("text-sm font-bold", meta.labelClass || "text-foreground")}
               style={
@@ -236,16 +244,12 @@ function NotificationDetailDialog({
               }
             >
               {CATEGORY_LABELS[notification.category]}
-            </span>
-            <span
-              className={cn("text-sm font-bold", meta.labelClass || "text-foreground")}
-              style={
-                notification.type === "info"
-                  ? { color: NOTIFICATION_ACCENT.primary }
-                  : undefined
-              }
-            >
-              {meta.label}
+              {meta.label !== "Update" && (
+                <span className="mx-1.5 font-normal opacity-50">·</span>
+              )}
+              {meta.label !== "Update" ? (
+                <span className={meta.labelClass || ""}>{meta.label}</span>
+              ) : null}
             </span>
             {notification.priority === "high" && (
               <Badge className="border-0 bg-destructive/15 text-destructive">High priority</Badge>

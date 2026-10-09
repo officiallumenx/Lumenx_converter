@@ -23,7 +23,6 @@ import { useParentPortal } from "@/context/ParentPortalContext";
 import { AlertsDashboardPanel } from "@/components/app/alerts/AlertsCenterView";
 import { alertStore } from "@/lib/alert-store";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import {
   todayWorkForChild,
 } from "@/lib/assignment-status";
@@ -106,21 +105,11 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    // API alerts are owned by ConnectSchoolAlertsSync — avoid duplicate Home fetches.
     if (!isApiAuthMode()) {
       alertStore.initOnce(schoolAlerts.parent);
-      return;
     }
-    let cancelled = false;
-    void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready" || result.status === "empty") {
-        alertStore.replaceFromApi(result.alerts);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId]);
+  }, []);
 
   const portalAlerts = useSyncExternalStore(
     alertStore.subscribe,

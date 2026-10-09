@@ -80,12 +80,26 @@ export type AttendanceStudentState = RosterStudent & {
 
 export type TransportNotificationKind = "route" | "school" | "reminder" | "urgent";
 
+/**
+ * Notification severity — drives color accent only.
+ * INFO=blue, WARNING=amber, CRITICAL=red.
+ * Derived from notification priority + payload; independent of category (kind).
+ */
+export type TransportNotificationSeverity = "info" | "warning" | "critical";
+
 export type TransportNotification = {
   id: string;
   title: string;
   message: string;
   time: string;
+  /** Category of the notification — determines label and icon only. */
   kind: TransportNotificationKind;
+  /**
+   * Severity derived from stored priority + payload.
+   * INFO → blue, WARNING → amber, CRITICAL → red.
+   * Normal transport/route/reminder notifications are INFO (blue).
+   */
+  severity: TransportNotificationSeverity;
   unread: boolean;
   /** Deep link into the Transport app (e.g. /attendance, /emergency). */
   href?: string;

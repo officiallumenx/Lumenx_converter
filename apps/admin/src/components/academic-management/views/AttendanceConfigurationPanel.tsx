@@ -42,7 +42,8 @@ import {
   type AttendanceConfigDto,
   type AttendanceConfigLoadStatus,
 } from "@/lib/attendance";
-import { listClassesCatalog, type ClassDto, type SectionDto } from "@/lib/classes";
+// D.1: Reference data (classes/sections) now comes from the shared TanStack catalog query.
+import { useCatalogClassesQuery } from "@/lib/admin-queries";
 import { classSortRank, normalizeSchoolClassName, sectionSortRank } from "@/lib/classes/name-format";
 import { useInstituteContext } from "@/lib/institutes";
 
@@ -83,12 +84,18 @@ function AttendanceConfigurationApiPanel() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
+  // D.1: Use the shared catalog query; avoids a duplicate listClassesCatalog fetch per mount.
+  const catalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    instituteCtx.status === "ready",
+  );
+  const classes = catalogQuery.data?.classes ?? [];
+  const sections = catalogQuery.data?.sections ?? [];
+
   const [items, setItems] = useState<AttendanceConfigDto[]>([]);
   const [loadStatus, setLoadStatus] = useState<AttendanceConfigLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useReloadKey();
-  const [classes, setClasses] = useState<ClassDto[]>([]);
-  const [sections, setSections] = useState<SectionDto[]>([]);
   const [saving, setSaving] = useState(false);
 
   const today = todayIso();
@@ -100,21 +107,18 @@ function AttendanceConfigurationApiPanel() {
   const [effectiveFrom, setEffectiveFrom] = useState(today);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // D.1: Only load attendance config here; classes/sections come from the shared catalog query.
   useEffect(() => {
     if (instituteCtx.status === "loading") {
       setItems([]);
       setLoadStatus("loading");
       setLoadError(null);
-      setClasses([]);
-      setSections([]);
       return;
     }
     if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
       setItems([]);
       setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
       setLoadError(instituteCtx.errorMessage);
-      setClasses([]);
-      setSections([]);
       return;
     }
     if (
@@ -125,8 +129,6 @@ function AttendanceConfigurationApiPanel() {
       setItems([]);
       setLoadStatus("needs_institute");
       setLoadError(null);
-      setClasses([]);
-      setSections([]);
       return;
     }
 
@@ -138,16 +140,11 @@ function AttendanceConfigurationApiPanel() {
       setLoadError(null);
     }
 
-    void Promise.all([
-      loadAttendanceConfigList(requestInstituteId),
-      listClassesCatalog({ instituteId: requestInstituteId }),
-    ]).then(([configState, catalog]) => {
+    void loadAttendanceConfigList(requestInstituteId).then((configState) => {
       if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
       setItems(configState.items);
       setLoadStatus(configState.status);
       setLoadError(configState.errorMessage);
-      setClasses(catalog.classes);
-      setSections(catalog.sections);
     });
 
     return () => {

@@ -3,7 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { subscribeDataRefresh, getDataRefreshGeneration } from "@/lib/data-refresh";
-import { invalidateConnectSoftRefresh } from "@/lib/connect-queries/invalidate";
+import {
+  invalidateConnectAutoSoftRefresh,
+  invalidateConnectSoftRefresh,
+} from "@/lib/connect-queries/invalidate";
 
 /** Match QueryClient staleTime — resume does not invalidate while data is still fresh. */
 const AUTO_MIN_INTERVAL_MS = 30 * 60_000;
@@ -37,8 +40,8 @@ export function DataRefreshHost() {
         return;
       }
       lastAutoAt.current = now;
-      // Background RQ refetch only — do not bump useReloadKey / useAsyncLoad.
-      void invalidateConnectSoftRefresh(queryClient);
+      // Narrow background RQ refetch — do not storm marks/homework/fees.
+      void invalidateConnectAutoSoftRefresh(queryClient);
     };
 
     const onVisibility = () => {

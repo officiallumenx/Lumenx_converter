@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useRouteContext } from "@tanstack/react-router";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
 import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
@@ -11,6 +12,7 @@ import { StudentPortalRegistry } from "@/context/StudentPortalContext";
 import { TeacherSessionRegistry } from "@/context/TeacherSessionContext";
 import { ActivityWorkspaceRegistry } from "@/context/ActivityWorkspaceContext";
 import { ConnectFeedbackTransportBridge } from "@/components/app/ConnectFeedbackTransportBridge";
+import { ConnectPersistQueryProvider } from "@/lib/connect-queries/PersistProvider";
 
 /**
  * Connect session + portal registries for all non-isolated routes.
@@ -21,27 +23,31 @@ export function ConnectPortalProviders({
 }: {
   children: ReactNode;
 }) {
+  const { queryClient } = useRouteContext({ from: "__root__" });
+
   return (
     <AppProvider>
-      <ParentPortalRegistry>
-        <TeacherPortalRegistry>
-          <TeacherSessionRegistry>
-            <StudentPortalRegistry>
-              <ActivityWorkspaceRegistry>
-              <ConnectFeedbackTransportBridge />
-              <InAppAlertListener />
-              <FirebaseClientServices enabled />
-              <PushDeviceTokenRegistration enabled />
-              <div className="px-3 pt-2">
-                <PushPermissionRecoveryBanner />
-              </div>
-              <ConnectSchoolAlertsSync />
-              {children}
-            </ActivityWorkspaceRegistry>
-            </StudentPortalRegistry>
-          </TeacherSessionRegistry>
-        </TeacherPortalRegistry>
-      </ParentPortalRegistry>
+      <ConnectPersistQueryProvider client={queryClient}>
+        <ParentPortalRegistry>
+          <TeacherPortalRegistry>
+            <TeacherSessionRegistry>
+              <StudentPortalRegistry>
+                <ActivityWorkspaceRegistry>
+                  <ConnectFeedbackTransportBridge />
+                  <InAppAlertListener />
+                  <FirebaseClientServices enabled />
+                  <PushDeviceTokenRegistration enabled />
+                  <div className="px-3 pt-2">
+                    <PushPermissionRecoveryBanner />
+                  </div>
+                  <ConnectSchoolAlertsSync />
+                  {children}
+                </ActivityWorkspaceRegistry>
+              </StudentPortalRegistry>
+            </TeacherSessionRegistry>
+          </TeacherPortalRegistry>
+        </ParentPortalRegistry>
+      </ConnectPersistQueryProvider>
     </AppProvider>
   );
 }

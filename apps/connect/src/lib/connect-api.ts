@@ -1,6 +1,9 @@
 import { createApiClient, type ConnectApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
+import {
+  getSupabaseAccessToken,
+  tryRefreshSupabaseSession,
+} from "@/lib/supabase-browser";
 
 let onUnauthorizedHandler: (() => void) | null = null;
 let client: ConnectApiClient | null = null;
@@ -20,6 +23,10 @@ export function getConnectApiClient(): ConnectApiClient {
     getAccessToken: async () => {
       if (!isApiAuthMode()) return null;
       return getSupabaseAccessToken();
+    },
+    tryRefreshSession: async () => {
+      if (!isApiAuthMode()) return false;
+      return tryRefreshSupabaseSession();
     },
     onUnauthorized: () => {
       onUnauthorizedHandler?.();

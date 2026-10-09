@@ -1,20 +1,9 @@
-import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { createConnectQueryClient } from "@/lib/connect-queries/query-client";
 
 export const getRouter = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30 * 60_000,
-        gcTime: 24 * 60 * 60_000,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
-        refetchOnWindowFocus: false,
-        retry: 1,
-      },
-    },
-  });
+  const queryClient = createConnectQueryClient();
 
   const router = createRouter({
     routeTree,

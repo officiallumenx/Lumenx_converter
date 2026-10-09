@@ -4,6 +4,23 @@ let client: SupabaseClient | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
 
 const REFRESH_SKEW_MS = 60_000;
+const AUTH_CALL_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Supabase auth call timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 export function getSupabaseBrowserConfig(): {
   url: string;
@@ -66,19 +83,31 @@ export async function tryRefreshSupabaseSession(): Promise<boolean> {
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error) return null;
-  let session = data.session;
-  if (!session?.access_token) return null;
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.getSession(),
+      AUTH_CALL_TIMEOUT_MS,
+    );
+    if (error) return null;
+    let session = data.session;
+    if (!session?.access_token) return null;
 
-  const expiresAtMs = (session.expires_at ?? 0) * 1000;
-  if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
-    const ok = await tryRefreshSupabaseSession();
-    if (!ok) {
-      return expiresAtMs > Date.now() ? session.access_token : null;
+    const expiresAtMs = (session.expires_at ?? 0) * 1000;
+    if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
+      const ok = await withTimeout(tryRefreshSupabaseSession(), AUTH_CALL_TIMEOUT_MS).catch(
+        () => false,
+      );
+      if (!ok) {
+        return expiresAtMs > Date.now() ? session.access_token : null;
+      }
+      const refreshed = await withTimeout(
+        supabase.auth.getSession(),
+        AUTH_CALL_TIMEOUT_MS,
+      ).catch(() => null);
+      session = refreshed?.data.session ?? session;
     }
-    const refreshed = await supabase.auth.getSession();
-    session = refreshed.data.session ?? session;
+    return session.access_token ?? null;
+  } catch {
+    return null;
   }
-  return session.access_token ?? null;
 }

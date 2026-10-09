@@ -25,7 +25,8 @@ export const PARENT_TRANSPORT_STATUS_LABEL: Record<ParentTransportStatus, string
   trip_started: "Trip started",
   approaching: "Approaching",
   arrived: "Arrived",
-  boarding: "Boarding",
+  /** Learner boarded (boarding record), not trip.phase === "boarding". */
+  boarding: "Picked up",
   at_school: "At school",
   dropping: "Dropping",
   completed: "Completed",
@@ -74,14 +75,17 @@ export function deriveParentTransportStatus(
 
   if ((input.delayMinutes ?? 0) > 0) return "delayed";
 
+  // Learner-level boarding/drop records are authoritative.
+  // Trip phase, schoolArrivedAt, and geofence must never imply this student boarded.
   if (input.droppingStatus === "dropped") return "completed";
-  if (phase === "dropping") return "dropping";
-  if (input.schoolArrivedAt || phase === "dropping") return "at_school";
+
   if (input.boardingStatus === "boarded") {
+    if (phase === "dropping") return "dropping";
     if (input.schoolArrivedAt) return "at_school";
     return "boarding";
   }
-  if (phase === "boarding") return "boarding";
+
+  // Unmarked / not_boarded: continue with stop approach + trip GPS only.
   if (input.withinRadius) return "arrived";
   if (input.approachBand === 5 || input.approachBand === 15 || input.approachBand === 30) {
     return "approaching";
@@ -96,6 +100,13 @@ export function deriveParentTransportStatus(
     return "location_unavailable";
   }
 
-  if (phase === "starting" || phase === "running") return "trip_started";
+  if (
+    phase === "starting" ||
+    phase === "running" ||
+    phase === "boarding" ||
+    phase === "dropping"
+  ) {
+    return "trip_started";
+  }
   return "scheduled";
 }

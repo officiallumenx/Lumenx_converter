@@ -14,6 +14,7 @@ import { EmptyState, PageSkeleton } from "@/student-portal/shared/ui";
 import { Badge, Button, cn, Dialog, DialogContent, DialogHeader, DialogTitle } from "@lumenx/ui";
 import { Trophy, Medal, Award } from "lucide-react";
 import type { Achievement } from "@lumenx/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 const TONE_CLS = {
   success: "text-success",
@@ -90,11 +91,18 @@ export function StudentAchievementsPage({ readOnlyParent = false }: { readOnlyPa
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div
+        className={cn(
+          "grid gap-3",
+          isApiAuthMode() ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4",
+        )}
+      >
         <Stat label="Unlocked" value={String(unlocked.length)} icon={Trophy} />
         <Stat label="In progress" value={String(inProgress.length)} icon={Award} />
         <Stat label="Competitions" value={String(studentCompetitions.length)} icon={Medal} />
-        <Stat label="Class awards" value={String(classAchievements.length)} icon={Trophy} />
+        {!isApiAuthMode() ? (
+          <Stat label="Class awards" value={String(classAchievements.length)} icon={Trophy} />
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -191,17 +199,19 @@ export function StudentAchievementsPage({ readOnlyParent = false }: { readOnlyPa
         )}
       </SectionCard>
 
-      <SectionCard title="Class recognition">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {classAchievements.map((c) => (
-            <div key={c.id} className="rounded-xl border bg-muted/30 p-4">
-              <div className="student-stat-label">Section {c.section}</div>
-              <div className="mt-1 font-medium leading-snug">{c.title}</div>
-              <div className={cn("mt-1 text-xs font-medium", TONE_CLS[c.tone])}>{c.value}</div>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+      {!isApiAuthMode() ? (
+        <SectionCard title="Class recognition">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {classAchievements.map((c) => (
+              <div key={c.id} className="rounded-xl border bg-muted/30 p-4">
+                <div className="student-stat-label">Section {c.section}</div>
+                <div className="mt-1 font-medium leading-snug">{c.title}</div>
+                <div className={cn("mt-1 text-xs font-medium", TONE_CLS[c.tone])}>{c.value}</div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="rounded-2xl max-w-sm">

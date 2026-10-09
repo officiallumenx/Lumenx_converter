@@ -10,7 +10,7 @@ import {
   TransportTrackingPanel,
 } from "@/components/app/transport/TransportRouteTimeline";
 import { transportStore } from "@/lib/transport-store";
-import { formatEtaMinutes } from "@/lib/transport-utils";
+import { formatApproachEta } from "@/lib/transport-utils";
 
 type LearnerTransportViewProps = {
   title?: string;
@@ -83,7 +83,13 @@ export function LearnerTransportView({
               ? "Reached school"
               : tracking.learnerStatus === "picked_up"
                 ? "Picked up"
-                : formatEtaMinutes(tracking.etaMinutes)
+                : formatApproachEta({
+                    minutes: tracking.etaMinutes,
+                    displayMode: tracking.etaDisplayMode,
+                    confidence: tracking.etaConfidence,
+                    gpsFreshness: tracking.gpsFreshness,
+                    lastUpdated: tracking.lastUpdated,
+                  })
           }
           hint={
             tracking.learnerStatus === "awaiting_pickup"

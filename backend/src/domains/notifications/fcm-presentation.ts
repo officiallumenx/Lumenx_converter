@@ -3,13 +3,22 @@
  * Does not change delivery/claim/outbox behavior.
  */
 
-/** Android status-bar small icon resource (Connect drawable name). */
+/**
+ * Android status-bar small icon resource names (drawable names).
+ * Must be a monochrome/white-silhouette PNG in the app's drawable directory.
+ * Each app declares its own asset; do not mix across apps.
+ */
 export const CONNECT_FCM_SMALL_ICON = "ic_notification";
+export const TRANSPORT_FCM_SMALL_ICON = "ic_notification";
+export const ADMIN_FCM_SMALL_ICON = "ic_notification";
 
 /** Accent colors for Android NotificationCompat / FCM `android.notification.color`. */
 export const FCM_ANDROID_COLOR = {
+  /** INFO / normal priority → blue (not orange/red). */
   info: "#2563EB",
+  /** WARNING / important → amber. */
   warning: "#D97706",
+  /** CRITICAL / urgent / alert → red. */
   critical: "#DC2626",
 } as const;
 
@@ -103,11 +112,26 @@ export function formatFcmTrayTitle(input: {
   return `${prefix}${title}`;
 }
 
+/**
+ * Resolve the Android small icon resource for a given device app.
+ * All three apps use `ic_notification` but the constant is kept per-app
+ * so future renaming or per-app customisation stays isolated.
+ */
+export function androidSmallIconForApp(deviceApp: string | null | undefined): string | undefined {
+  if (deviceApp === "connect") return CONNECT_FCM_SMALL_ICON;
+  if (deviceApp === "transport") return TRANSPORT_FCM_SMALL_ICON;
+  if (deviceApp === "admin") return ADMIN_FCM_SMALL_ICON;
+  return undefined;
+}
+
 export function buildFcmAndroidNotification(input: {
   isAlert: boolean;
   priority: string;
   payload?: Record<string, unknown> | null;
-  /** device_token.app — only Connect has the dedicated small icon asset. */
+  /**
+   * device_token.app — "connect" | "transport" | "admin".
+   * Used to select the correct monochrome small icon asset per app.
+   */
   deviceApp?: string | null;
 }): {
   channelId: string;
@@ -123,8 +147,7 @@ export function buildFcmAndroidNotification(input: {
     channelId: input.isAlert ? "lumenx_alerts" : "lumenx_notifications",
     color,
   };
-  if (input.deviceApp === "connect") {
-    out.icon = CONNECT_FCM_SMALL_ICON;
-  }
+  const icon = androidSmallIconForApp(input.deviceApp);
+  if (icon) out.icon = icon;
   return out;
 }

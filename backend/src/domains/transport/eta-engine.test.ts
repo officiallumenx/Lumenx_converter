@@ -145,6 +145,108 @@ describe("eta-engine smoothing + stopped", () => {
     expect(stopped.etaMinutes!).toBeGreaterThan(5);
   });
 
+  it("does not pretend stopped bus is still moving at 3 km/h during confirm window", () => {
+    const tripId = "trip-stop-confirm";
+    const t0 = Date.now();
+    const stops = [{ id: "pickup", latitude: 13.0, longitude: 77.6 }];
+
+    ingestTripGpsSample({
+      tripId,
+      latitude: 12.97,
+      longitude: 77.59,
+      capturedAtMs: t0,
+      accuracyM: 10,
+      reportedSpeedKmh: 30,
+      nowMs: t0,
+    });
+    const moving = computeStableEta({
+      tripId,
+      stopId: "pickup",
+      bus: { latitude: 12.97, longitude: 77.59 },
+      orderedStops: stops,
+      destinationStopId: "pickup",
+      nowMs: t0,
+    });
+    expect(moving.etaMinutes!).toBeGreaterThan(5);
+    const movingEta = moving.etaMinutes!;
+
+    // Near-zero speed samples before full stoppedConfirmMs — still effectively stopped.
+    let t = t0;
+    for (let i = 0; i < 3; i++) {
+      t += 5_000;
+      ingestTripGpsSample({
+        tripId,
+        latitude: 12.97,
+        longitude: 77.59,
+        capturedAtMs: t,
+        accuracyM: 10,
+        reportedSpeedKmh: 0,
+        nowMs: t,
+      });
+    }
+    const duringConfirm = computeStableEta({
+      tripId,
+      stopId: "pickup",
+      bus: { latitude: 12.97, longitude: 77.59 },
+      orderedStops: stops,
+      destinationStopId: "pickup",
+      nowMs: t,
+    });
+    expect(duringConfirm.displayMode).toBe("stopped");
+    expect(duringConfirm.etaMinutes).not.toBe(1);
+    // Must not crash downward as if still traveling at minUsableGpsSpeed.
+    expect(duringConfirm.etaMinutes!).toBeGreaterThanOrEqual(
+      movingEta - ETA_ENGINE.maxEtaDropPerUpdateMin,
+    );
+  });
+
+  it("does not shrink ETA distance when a jump ping is rejected", () => {
+    const tripId = "trip-jump-1";
+    const t0 = Date.now();
+    const stops = [{ id: "pickup", latitude: 13.0, longitude: 77.6 }];
+
+    ingestTripGpsSample({
+      tripId,
+      latitude: 12.97,
+      longitude: 77.59,
+      capturedAtMs: t0,
+      accuracyM: 10,
+      reportedSpeedKmh: 28,
+      nowMs: t0,
+    });
+    const before = computeStableEta({
+      tripId,
+      stopId: "pickup",
+      bus: { latitude: 12.97, longitude: 77.59 },
+      orderedStops: stops,
+      destinationStopId: "pickup",
+      nowMs: t0,
+    });
+
+    const jump = ingestTripGpsSample({
+      tripId,
+      latitude: 13.05,
+      longitude: 77.65,
+      capturedAtMs: t0 + 1_000,
+      accuracyM: 10,
+      reportedSpeedKmh: 80,
+      nowMs: t0 + 1_000,
+    });
+    expect(jump.trusted).toBe(false);
+    expect(jump.rejectReason).toBe("jump");
+
+    const after = computeStableEta({
+      tripId,
+      stopId: "pickup",
+      // Caller may still pass jumped coords — engine must use last trusted.
+      bus: { latitude: 13.05, longitude: 77.65 },
+      orderedStops: stops,
+      destinationStopId: "pickup",
+      nowMs: t0 + 1_000,
+    });
+    expect(after.distanceM).toBe(before.distanceM);
+  });
+
   it("limits sudden ETA drop from noisy distance", () => {
     const tripId = "trip-smooth-1";
     const t0 = Date.now();

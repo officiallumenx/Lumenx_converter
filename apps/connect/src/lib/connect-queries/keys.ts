@@ -146,5 +146,20 @@ export const connectQueryKeys = {
     [connectQueryRoots.prefs, "teacher", instituteId] as const,
 };
 
-/** Roots invalidated on Connect soft refresh for the active session. */
+/** Roots invalidated on manual pull-to-refresh for the active session. */
 export const CONNECT_SOFT_REFRESH_ROOTS = Object.values(connectQueryRoots);
+
+/**
+ * Narrow set for resume/focus auto soft-refresh.
+ * Transport / inbox / alerts / portal shells only — do not storm marks/homework/fees.
+ */
+export const CONNECT_AUTO_SOFT_REFRESH_ROOTS = [
+  connectQueryRoots.parentPortal,
+  connectQueryRoots.studentPortal,
+  connectQueryRoots.teacherPortal,
+  connectQueryRoots.inbox,
+  connectQueryRoots.messages,
+  connectQueryRoots.transport,
+  connectQueryRoots.schoolAlerts,
+  connectQueryRoots.announcements,
+] as const;

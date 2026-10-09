@@ -15,17 +15,22 @@ export function setApiTransportNotifications(items: TransportNotification[]): vo
 let surfacedUrgentIds = new Set<string>();
 let skipInitialUrgentSurfacing = true;
 
+/** A notification is truly urgent when its severity is critical (safety/SOS events). */
+function isUrgentNotification(n: TransportNotification): boolean {
+  return n.severity === "critical";
+}
+
 function notifyNewUrgentItems(notifications: TransportNotification[]): void {
   if (typeof window === "undefined") return;
   if (skipInitialUrgentSurfacing) {
     skipInitialUrgentSurfacing = false;
     surfacedUrgentIds = new Set(
-      notifications.filter((n) => n.kind === "urgent").map((n) => n.id),
+      notifications.filter(isUrgentNotification).map((n) => n.id),
     );
     return;
   }
   for (const n of notifications) {
-    if (n.kind !== "urgent" || !n.unread || surfacedUrgentIds.has(n.id)) continue;
+    if (!isUrgentNotification(n) || !n.unread || surfacedUrgentIds.has(n.id)) continue;
     surfacedUrgentIds.add(n.id);
     void import("@lumenx/notifications").then(({ dispatchInAppAlert }) => {
       dispatchInAppAlert({
@@ -38,7 +43,7 @@ function notifyNewUrgentItems(notifications: TransportNotification[]): void {
     });
   }
   surfacedUrgentIds = new Set(
-    notifications.filter((n) => n.kind === "urgent").map((n) => n.id),
+    notifications.filter(isUrgentNotification).map((n) => n.id),
   );
 }
 

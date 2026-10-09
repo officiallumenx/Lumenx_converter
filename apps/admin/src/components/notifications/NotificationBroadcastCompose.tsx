@@ -247,15 +247,16 @@ export function NotificationBroadcastCompose() {
         <CardHeader title="Recent Broadcasts" />
         <div className="px-5 pb-5 divide-y divide-border">
           {recent.map((n) => (
-            <div key={n.id} className="py-3 first:pt-0 last:pb-0">
-              <div className="flex items-center gap-2 mb-1">
+            <div key={n.id} className="py-3 first:pt-0 last:pb-0 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                 {n.priority === "critical" && <Pill tone="danger">Critical</Pill>}
                 {n.priority === "high" && <Pill tone="warning">High</Pill>}
                 {n.priority === "normal" && <Pill tone="info">Normal</Pill>}
-                <span className="text-[10px] text-muted-foreground ml-auto">{n.time}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{n.time}</span>
               </div>
-              <div className="text-xs font-medium">{n.title}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">→ {n.audience}</div>
+              {/* D.4: break-words prevents long unbreakable strings from overflowing the card */}
+              <div className="text-xs font-medium break-words overflow-wrap-anywhere">{n.title}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 break-words min-w-0">→ {n.audience}</div>
             </div>
           ))}
         </div>
