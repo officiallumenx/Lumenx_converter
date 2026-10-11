@@ -45,8 +45,8 @@ export function CalendarYearGrid({
               onClick={() => onSelectMonth(year, monthIndex)}
               className={`flex min-h-[7.5rem] flex-col rounded-lg border p-3 text-left transition-colors ${
                 isCurrent
-                  ? "border-primary bg-primary/[0.07] shadow-[inset_0_0_0_1px] shadow-primary/30"
-                  : "border-border bg-background/40 hover:bg-surface-hover"
+                  ? "border-primary/45 bg-primary/[0.06] shadow-xs"
+                  : "border-border bg-card hover:bg-surface-hover"
               }`}
             >
               <div className="flex items-center justify-between gap-1">

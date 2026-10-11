@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useReloadKey } from "@/hooks/useReloadKey";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
+import { CertHubNav } from "@/components/templates/CertHubNav";
 import { PublishedCertificateCatalogView } from "@/components/templates/views/PublishedCertificateCatalogView";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -16,6 +17,13 @@ import {
   type CertificatesListStatus,
   type IssuedCertificateHistoryItem,
 } from "@/lib/certificates";
+import {
+  CERTIFICATES_VIEW_CONFIG,
+  CERT_VIEW_SUBTITLES,
+  CERT_VIEW_TITLES,
+  type CertHubView,
+} from "@/lib/certificates/cert-hub-views";
+import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   loadDocumentsTemplatesList,
@@ -23,15 +31,15 @@ import {
   shouldCommitDocumentsTemplatesLoad,
   type DocumentsTemplatesListStatus,
 } from "@/lib/documents";
+import { connectPortalUrl } from "@/lib/connect-portal-links";
+import { Button, Card, CardBody, CardHeader, PageStack } from "@lumenx/ui-admin";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/templates")({
   head: () => ({ meta: [{ title: "Certificates — LumenX Admin" }] }),
-  validateSearch: (search: Record<string, unknown>): {
-    view?: string;
-    templateId?: string;
-  } => {
-    const out: { view?: string; templateId?: string } = {};
-    if (typeof search.view === "string") out.view = search.view;
+  validateSearch: (search: Record<string, unknown>) => {
+    const hub = validateHubViewSearch(search, CERTIFICATES_VIEW_CONFIG);
+    const out: { view: CertHubView; templateId?: string } = { view: hub.view };
     if (typeof search.templateId === "string") out.templateId = search.templateId;
     return out;
   },
@@ -53,6 +61,7 @@ function listHint(
 }
 
 function CertificatesPage() {
+  const { view } = Route.useSearch();
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
@@ -264,18 +273,27 @@ function CertificatesPage() {
   }, [apiMode, issuedListView.items, issuedListView.rowsValid]);
 
   const subtitle = useMemo(() => {
-    const base =
-      "Published Nexus templates · issue certificates · history keeps the original template version";
+    const base = CERT_VIEW_SUBTITLES[view];
     if (!apiMode) return base;
-    const catalogPart = catalogListView.rowsValid
-      ? `${catalogListView.items.length} templates`
-      : catalogHint ?? "…";
-    const issuedPart = issuedListView.rowsValid
-      ? `${issuedListView.items.length} issued`
-      : issuedHint ?? "…";
-    return `${catalogPart} · ${issuedPart}`;
+    if (view === "templates" || view === "overview") {
+      const catalogPart = catalogListView.rowsValid
+        ? `${catalogListView.items.length} templates`
+        : catalogHint ?? "…";
+      if (view === "templates") return catalogPart;
+      const issuedPart = issuedListView.rowsValid
+        ? `${issuedListView.items.length} issued`
+        : issuedHint ?? "…";
+      return `${catalogPart} · ${issuedPart}`;
+    }
+    if (view === "issued") {
+      return issuedListView.rowsValid
+        ? `${issuedListView.items.length} issued certificates`
+        : issuedHint ?? "…";
+    }
+    return base;
   }, [
     apiMode,
+    view,
     catalogListView.items.length,
     catalogListView.rowsValid,
     catalogHint,
@@ -284,10 +302,47 @@ function CertificatesPage() {
     issuedHint,
   ]);
 
+  const verifyUrl = connectPortalUrl("/verify-certificate");
+  const verifyPanel = (
+    <PageStack>
+      <Card>
+        <CardHeader
+          title="Public verification"
+          hint="Anyone with the institute id and certificate number can check status — PDF is never exposed"
+        />
+        <CardBody className="space-y-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Verification uses the existing Connect page. Issued certificate numbers are
+            preserved; Transfer Certificates generated under Documents are not on this
+            ledger and cannot be verified here.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a href={verifyUrl} target="_blank" rel="noreferrer">
+              <Button variant="primary">
+                <ShieldCheck className="size-3.5" />
+                Open verify page
+                <ExternalLink className="size-3.5" />
+              </Button>
+            </a>
+            <Link to="/documents" search={{ view: "official" }}>
+              <Button variant="outline">Official school documents (incl. TC)</Button>
+            </Link>
+          </div>
+        </CardBody>
+      </Card>
+    </PageStack>
+  );
+
   return (
-    <AppShell title="Certificates" subtitle={subtitle}>
-      <ModuleHero eyebrow="Institute" title="Certificates" subtitle={subtitle} />
+    <AppShell title={CERT_VIEW_TITLES[view]} subtitle={subtitle}>
+      <ModuleHero
+        eyebrow="Institute"
+        title={CERT_VIEW_TITLES[view]}
+        subtitle={subtitle}
+      />
+      <CertHubNav active={view} />
       <PublishedCertificateCatalogView
+        section={view}
         catalogTemplates={catalogTemplatesForView}
         catalogBlocked={apiMode && !catalogListView.rowsValid}
         catalogHint={catalogHint}
@@ -296,6 +351,7 @@ function CertificatesPage() {
         issuedRecords={issuedRecordsForView}
         issuedListBlocked={apiMode && !issuedListView.rowsValid}
         issuedListHint={issuedHint}
+        verifyPanel={verifyPanel}
         onRevokeCertificate={
           apiMode
             ? async (id, reason) => {

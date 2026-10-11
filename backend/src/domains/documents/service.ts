@@ -399,11 +399,17 @@ export async function deleteTemplateForActor(
   const deleted = await softDeleteTemplate(admin, id);
   if (!deleted) throw AppError.notFound("Template not found");
 
+  // assertWritableInstituteTemplate already rejected platform / null institute.
+  const instituteId = existing.institute_id;
+  if (!instituteId) {
+    throw AppError.forbidden("Template has no institute");
+  }
+
   const { recordEntitySoftDeleteInRecycleBin } = await import(
     "../recycle/on-soft-delete.js"
   );
   await recordEntitySoftDeleteInRecycleBin(admin, actor, {
-    instituteId: existing.institute_id,
+    instituteId,
     entityKind: "template",
     entityId: id,
     module: "Templates",

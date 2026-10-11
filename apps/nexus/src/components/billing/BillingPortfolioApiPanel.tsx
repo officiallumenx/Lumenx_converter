@@ -12,6 +12,7 @@ import {
 } from "@lumenx/ui-admin";
 import { CreditCard } from "lucide-react";
 import { NexusOfflinePaymentsInbox } from "@/components/billing/NexusOfflinePaymentsInbox";
+import { SubscriptionCoverageAuditPanel } from "@/components/billing/SubscriptionCoverageAuditPanel";
 import { listLicenses, type LicenseDto } from "@/lib/licenses/api";
 import { listSubscriptions, type SubscriptionDto } from "@/lib/subscriptions/api";
 
@@ -77,6 +78,7 @@ export function BillingPortfolioApiPanel({
   return (
     <div className="space-y-6">
       <NexusOfflinePaymentsInbox />
+      <SubscriptionCoverageAuditPanel />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Kpi label="Subscriptions" value={String(kpis.total)} icon={<CreditCard className="size-3.5" />} />

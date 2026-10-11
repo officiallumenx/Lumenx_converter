@@ -73,7 +73,7 @@ export function ScheduleConfigForm({
 
   return (
     <div className="lx-schedule-form space-y-4">
-      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-[11px] text-muted-foreground">
+      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground">
           {mode === "institute-default" ? "Institute default" : "Class override"}
         </span>

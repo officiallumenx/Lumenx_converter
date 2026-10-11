@@ -1,8 +1,9 @@
 /**
  * Institute-aware Excel template for teacher bulk import.
  * Uses ExcelJS so columns get real dropdowns from live class/section/subject lists.
+ * ExcelJS is loaded on demand so directory browse never pays for it.
  */
-import ExcelJS from "exceljs";
+import type { Worksheet } from "exceljs";
 
 import {
   TEACHER_CSV_HEADERS,
@@ -43,7 +44,7 @@ function colLetter(index1Based: number): string {
 }
 
 function applyListValidation(
-  sheet: ExcelJS.Worksheet,
+  sheet: Worksheet,
   columnIndex: number,
   startRow: number,
   endRow: number,
@@ -78,6 +79,7 @@ export async function downloadTeacherBulkImportTemplate(
   const dataRows = Math.max(options.dataRows ?? 200, 20);
   const endRow = 1 + dataRows;
 
+  const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "LumenX Admin";
   workbook.created = new Date();

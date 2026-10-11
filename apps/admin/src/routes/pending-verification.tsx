@@ -64,17 +64,10 @@ export const Route = createFileRoute("/pending-verification")({
 function ReviewIllustration() {
   return (
     <div
-      className="relative mx-auto w-full max-w-[280px] aspect-[4/3] rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.06] via-background to-chart-5/[0.05] overflow-hidden"
+      className="relative mx-auto aspect-[4/3] w-full max-w-[280px] overflow-hidden rounded-2xl border border-border bg-muted/30"
       aria-hidden
     >
-      <div className="absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-      <div className="absolute top-4 left-4 right-4 h-2 rounded-full bg-primary/15" />
+      <div className="absolute left-4 right-4 top-4 h-2 rounded-full bg-muted" />
       <div className="absolute top-8 left-6 flex items-end gap-2">
         <IconChip icon={Building2} size="lg" className="!size-16 !rounded-lg" />
         <div className="w-12 h-14 rounded-lg bg-muted border border-border flex items-center justify-center">
@@ -126,8 +119,8 @@ function StatusTimeline({ steps }: { steps: DemoApplicationStatus["timeline"] })
                 </div>
               )}
               {step.status === "current" && (
-                <div className="size-6 rounded-full bg-primary/15 border-2 border-primary flex items-center justify-center">
-                  <span className="size-2 rounded-full bg-primary animate-pulse" />
+                <div className="flex size-6 items-center justify-center rounded-full border-2 border-border bg-muted/40">
+                  <span className="size-2 rounded-full bg-foreground" />
                 </div>
               )}
               {step.status === "upcoming" && (
@@ -439,13 +432,8 @@ function PendingVerificationPage() {
     apiRegistrationSnapshot?.status === "rejected";
 
   return (
-    <div className="min-h-screen-dvh bg-background text-foreground flex flex-col">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/[0.05] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-amber-500/[0.04] rounded-full blur-3xl" />
-      </div>
-
-      <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50">
+    <div className="flex min-h-screen-dvh flex-col bg-background text-foreground">
+      <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border">
         <div className="flex items-center gap-2.5">
           <LumenXAdminLogo size="sm" className="max-h-8" />
         </div>

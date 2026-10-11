@@ -63,12 +63,6 @@ function SplashScreen() {
       ].join(" ")}
       aria-label="Loading LumenX Admin"
     >
-      {/* Ambient glows */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-[40vw] h-[40vw] bg-primary/[0.07] rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-[30vw] h-[30vw] bg-chart-5/[0.06] rounded-full blur-3xl" />
-      </div>
-
       {/* Logo + brand */}
       <div
         className={[
@@ -76,10 +70,8 @@ function SplashScreen() {
           phase === "entering" ? "opacity-0 scale-90 translate-y-4" : "opacity-100 scale-100 translate-y-0",
         ].join(" ")}
       >
-        {/* Animated logo */}
         <div className="relative mb-6">
-          <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-ping" />
-          <div className="relative rounded-2xl bg-white p-3 shadow-glow">
+          <div className="relative rounded-2xl border border-border bg-card p-3 shadow-sm">
             <LumenXAdminLogo size="hero" className="max-h-16" />
           </div>
         </div>

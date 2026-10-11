@@ -24,6 +24,7 @@ import {
   calculateSubscriptionQuote,
   parseSubscriptionDuration,
 } from "./pricing.js";
+import { syncSubscriptionActiveStudentCountSafe } from "./headcount.js";
 import { SYSTEM_WORKER_USER_ID } from "../jobs/system-actor.js";
 import {
   assertSubscriptionBillingWriter,
@@ -92,8 +93,11 @@ export async function beginOnlineCheckoutForActor(
   const institute = await findInstituteById(admin, instituteId);
   if (!institute) throw AppError.notFound("Institute not found");
 
-  const sub = await findSubscriptionByInstituteId(admin, instituteId);
+  let sub = await findSubscriptionByInstituteId(admin, instituteId);
   if (!sub) throw AppError.notFound("Subscription not found for institute");
+
+  await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
+  sub = (await findSubscriptionByInstituteId(admin, instituteId)) ?? sub;
 
   const [renewals, payments] = await Promise.all([
     listRenewalsByInstitute(admin, instituteId),

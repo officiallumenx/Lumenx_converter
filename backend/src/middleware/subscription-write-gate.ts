@@ -1,26 +1,43 @@
 /**
- * Block mutating /api/v1 calls when the institute subscription is read-only.
- * Invoked from requireAuth after actor resolution (so actor is available).
- * Platform operators bypass. Billing/auth/session paths are allowlisted.
+ * Block mutating /api/v1 calls when the institute subscription is missing
+ * or read-only. Invoked from requireAuth after actor resolution.
+ * Platform operators bypass. Pre-subscription / recovery paths are allowlisted.
  */
 import type { Context } from "hono";
 import { AppError } from "../errors/app-error.js";
 import type { AppBindings } from "../types/app.js";
 import type { Actor } from "../auth/types.js";
-import { resolveInstituteWriteGate } from "../domains/subscriptions/write-gate.js";
+import {
+  resolveInstituteWriteGate,
+  writeGateForbiddenError,
+} from "../domains/subscriptions/write-gate.js";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Path prefixes under /api/v1 that must remain writable while locked. */
+/**
+ * Path prefixes under /api/v1 that must remain writable without a writable
+ * subscription. Keep this list minimal and justified:
+ *
+ * - health: ops probes
+ * - me: session / access profile (includes /me/access)
+ * - auth/* + firebase: login, OTP, handoff, recovery (pre-subscription)
+ * - subscriptions: checkout, offline pay, quote while read_only / renewing
+ * - reports: export jobs are read-oriented (authorized reporting while read_only)
+ * - registrations: institute signup before Nexus creates a trial row
+ * - product-feedback: support channel while locked
+ *
+ * Payment webhooks are unauthenticated and never pass through requireAuth.
+ */
 const ALLOWLIST_PREFIXES = [
   "/api/v1/health",
   "/api/v1/me",
-  "/api/v1/auth/parent",
-  "/api/v1/auth/staff",
+  "/api/v1/auth",
+  "/api/v1/firebase",
   "/api/v1/subscriptions",
+  "/api/v1/reports",
   "/api/v1/registrations",
   "/api/v1/product-feedback",
 ];
@@ -96,20 +113,16 @@ export async function enforceSubscriptionWriteGate(
   if (actor.isPlatformOperator) return;
 
   const clients = c.get("supabase");
-  if (!clients?.admin) return;
+  if (!clients?.admin) {
+    // Fail closed — cannot evaluate commercial state without DB.
+    throw AppError.internal("Subscription enforcement unavailable");
+  }
 
   const instituteId = await resolveInstituteIdFromRequest(c, actor);
   if (instituteId) {
     const gate = await resolveInstituteWriteGate(clients.admin, instituteId);
     if (gate.writeLocked) {
-      throw AppError.forbidden(
-        "Institute subscription is read-only. Renew billing to restore edits.",
-        {
-          reason: "SUBSCRIPTION_READ_ONLY",
-          lifecycleStatus: gate.lifecycleStatus,
-          instituteId: gate.instituteId,
-        },
-      );
+      throw writeGateForbiddenError(gate);
     }
     return;
   }
@@ -126,15 +139,10 @@ export async function enforceSubscriptionWriteGate(
   const gates = await Promise.all(
     instituteIds.map((id) => resolveInstituteWriteGate(clients.admin, id)),
   );
+  // Ambiguous institute on a mutating call: only allow when at least one
+  // membership is writable (trial/active/grace). If every membership is
+  // locked or missing a subscription, block.
   if (gates.every((g) => g.writeLocked)) {
-    const first = gates[0]!;
-    throw AppError.forbidden(
-      "Institute subscription is read-only. Renew billing to restore edits.",
-      {
-        reason: "SUBSCRIPTION_READ_ONLY",
-        lifecycleStatus: first.lifecycleStatus,
-        instituteId: first.instituteId,
-      },
-    );
+    throw writeGateForbiddenError(gates[0]!);
   }
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Button, Modal, Pill } from "@lumenx/ui-admin";
-import { read, utils } from "xlsx";
 
 import {
   parseTeacherCsv,
@@ -85,6 +84,7 @@ export function TeacherBulkImportDialog({
         extension === "csv"
           ? parseTeacherCsv(await file.text(), catalog)
           : await (async () => {
+              const { read, utils } = await import("xlsx");
               const workbook = read(await file.arrayBuffer(), {
                 type: "array",
                 raw: false,

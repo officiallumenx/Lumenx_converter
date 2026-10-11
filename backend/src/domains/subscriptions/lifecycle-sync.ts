@@ -18,7 +18,8 @@ import type { RenewalRecordRow } from "../billing/types.js";
 import { DEFAULT_GRACE_DAYS } from "./pricing.js";
 import { deriveSubscriptionLifecycle } from "./lifecycle.js";
 
-const OPEN_RENEWAL_STATUSES = new Set(["issued", "pending"]);
+/** Only issued invoices auto-age to overdue — pending = awaiting verification. */
+const OVERDUE_RENEWAL_STATUSES = new Set(["issued"]);
 
 export type LifecycleTransition = {
   subscriptionId: string;
@@ -89,14 +90,14 @@ function shouldMarkRenewalOverdue(
   renewal: RenewalRecordRow,
   nowMs: number,
 ): boolean {
-  if (!OPEN_RENEWAL_STATUSES.has(renewal.status)) return false;
+  if (!OVERDUE_RENEWAL_STATUSES.has(renewal.status)) return false;
   if (!renewal.due_at) return false;
   return new Date(renewal.due_at).getTime() < nowMs;
 }
 
 /**
  * Scan all subscriptions, persist derived lifecycle when it drifts,
- * and mark issued/pending renewals past due_at as overdue.
+ * and mark issued renewals past due_at as overdue (pending stays awaiting verify).
  */
 export async function syncSubscriptionLifecycles(
   admin: SupabaseClient,

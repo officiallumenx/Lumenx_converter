@@ -31,7 +31,10 @@ function mapDetailToLocal(detail: InstituteSubscriptionDetailDto): InstituteSubs
   return {
     instituteId: detail.instituteId,
     instituteName: detail.instituteName,
-    lifecycleStatus: detail.lifecycleStatus as SubscriptionLifecycleStatus,
+    // Prefer live-derived status so Admin banners/write-gate match dates even if
+    // the stored lifecycle_status column has not been worker-synced yet.
+    lifecycleStatus: (detail.derivedLifecycleStatus ??
+      detail.lifecycleStatus) as SubscriptionLifecycleStatus,
     assignedRateInr: detail.assignedRateInr,
     activeStudentCount: detail.activeStudentCount,
     trialStartAt: detail.trialStartAt,

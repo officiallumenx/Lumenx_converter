@@ -1,4 +1,5 @@
 import { adminNav } from "./admin-nav";
+import { isAdminRouteModuleEnabled } from "./admin-plan-config";
 import { getRolePermission } from "./roles-access";
 import { CURRENT_INSTITUTE_ID } from "./institute-billing-store";
 import type { StudentDto } from "@/lib/students/types";
@@ -20,6 +21,8 @@ export type AdminSearchScope = {
   /** Session institute id (Admin portal for this tenant only). */
   instituteId: string;
   accessRoleId?: string;
+  /** When set, omit pages for modules disabled by Nexus / Admin entitlement. */
+  moduleEnabled?: Record<string, boolean>;
 };
 
 /**
@@ -29,12 +32,19 @@ export type AdminSearchScope = {
 export function buildAdminSearchIndex(scope: AdminSearchScope): AdminSearchItem[] {
   const instituteId = scope.instituteId || CURRENT_INSTITUTE_ID;
   const accessRoleId = scope.accessRoleId;
+  const moduleEnabled = scope.moduleEnabled;
 
   return adminNav.flatMap((group) =>
     group.items
-      .filter(
-        (item) => !accessRoleId || getRolePermission(accessRoleId, item.to) !== "none",
-      )
+      .filter((item) => {
+        if (accessRoleId && getRolePermission(accessRoleId, item.to) === "none") {
+          return false;
+        }
+        if (moduleEnabled && !isAdminRouteModuleEnabled(item.to, moduleEnabled)) {
+          return false;
+        }
+        return true;
+      })
       .map((item) => ({
         id: `page-${item.to}`,
         label: item.label,

@@ -103,6 +103,9 @@ describe("syncStopAndEnrollmentsToApi", () => {
 
   it("PATCHes existing apiStopId instead of skipping", async () => {
     const apiStopId = "11111111-1111-4111-8111-111111111111";
+    listTransportStops.mockResolvedValue([
+      { id: apiStopId, kind: "waypoint", routeOrder: 2 },
+    ]);
     updateTransportStop.mockResolvedValue({ id: apiStopId });
 
     const { syncStopAndEnrollmentsToApi } = await import("./api-sync");
@@ -115,9 +118,25 @@ describe("syncStopAndEnrollmentsToApi", () => {
       locationLabel: stop.locationLabel,
       latitude: stop.latitude,
       longitude: stop.longitude,
-      routeOrder: 0,
+      routeOrder: 2,
       notificationRadiusM: 100,
     });
+  });
+
+  it("POSTs next free route_order so school order 1 does not 409", async () => {
+    const apiStopId = "11111111-1111-4111-8111-111111111111";
+    listTransportStops.mockResolvedValue([
+      { id: "gate", kind: "waypoint", routeOrder: 0 },
+      { id: "school", kind: "school", routeOrder: 1 },
+    ]);
+    submitTransportStop.mockResolvedValue({ id: apiStopId });
+
+    const { syncStopAndEnrollmentsToApi } = await import("./api-sync");
+    await syncStopAndEnrollmentsToApi(SCOPE, STOP, []);
+
+    expect(submitTransportStop).toHaveBeenCalledWith(
+      expect.objectContaining({ routeOrder: 2 }),
+    );
   });
 
   it("parking GPS refresh PATCHes only lat/lng", async () => {

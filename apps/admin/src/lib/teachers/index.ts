@@ -8,7 +8,7 @@ export type {
   TeacherStatus,
   TeachingScope,
 } from "./types";
-export { assertApiMode, getTeacher, listTeachers } from "./api";
+export { assertApiMode, getTeacher, listTeachers, listTeachersPage } from "./api";
 export {
   createTeacher,
   updateTeacher,

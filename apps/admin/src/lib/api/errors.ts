@@ -1,5 +1,10 @@
 /** Normalized Admin API client errors (backend envelope fields only). */
 
+import {
+  formatSubscriptionWriteBlockedMessage,
+  isSubscriptionWriteBlockedError,
+} from "@lumenx/utils";
+
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
@@ -87,6 +92,9 @@ function formatFieldErrors(details: unknown): string | null {
 
 /** Prefer Zod field details over the generic "Request validation failed" wrapper. */
 export function formatApiClientError(err: unknown, fallback: string): string {
+  if (isSubscriptionWriteBlockedError(err)) {
+    return formatSubscriptionWriteBlockedMessage(err, fallback);
+  }
   if (err instanceof ApiClientError) {
     const fields = formatFieldErrors(err.details);
     if (fields) {
@@ -101,6 +109,8 @@ export function formatApiClientError(err: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+export { isSubscriptionWriteBlockedError, formatSubscriptionWriteBlockedMessage };
 
 /** Map generic 409 / unique-violation copy to clearer UI messages. */
 export function humanizeConflictMessage(message: string): string {

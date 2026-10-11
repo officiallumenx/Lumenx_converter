@@ -320,7 +320,7 @@ export function RolesAccessApiPanel() {
                     title="Manage assigned teachers"
                     disabled={!writesEnabled}
                     onClick={() => setManagingRole(role)}
-                    className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40"
+                    className="flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
                   >
                     <UserPlus className="size-3.5" />
                   </button>
@@ -1292,7 +1292,7 @@ function ApiRoleTeacherManager({
               key={assignee.id}
               className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-3"
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-foreground">
                 {assignee.displayName
                   .split(/\s+/)
                   .slice(0, 2)

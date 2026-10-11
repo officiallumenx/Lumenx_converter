@@ -11,23 +11,72 @@ export default defineConfig({
   projects: [
     {
       name: "admin",
-      testMatch: /admin-auth-boundaries\.spec\.ts/,
+      testMatch:
+        /admin-(auth-boundaries|documents-certificates-safe)\.spec\.ts|platform-templates-integration\.gated\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4181" },
     },
     {
       name: "nexus",
-      testMatch: /nexus-auth-boundaries\.spec\.ts/,
+      testMatch: /nexus-(auth-boundaries|certificate-catalog-safe)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4182" },
     },
     {
       name: "connect",
-      testMatch: /connect-auth-boundaries\.spec\.ts/,
+      testMatch: /connect-(auth-boundaries|verify-certificate-safe)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4183" },
     },
     {
       name: "transport",
       testMatch: /transport-auth-boundaries\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4184" },
+    },
+    {
+      name: "transport-workflow",
+      testMatch: /transport-pickup-drop-workflow\.spec\.ts/,
+      timeout: 180_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:4184",
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+        permissions: ["geolocation", "notifications"],
+        geolocation: { latitude: 17.385, longitude: 78.4867 },
+        actionTimeout: 45_000,
+        navigationTimeout: 60_000,
+      },
+    },
+    {
+      name: "transport-admin-integration",
+      testMatch: /transport-admin-integration\.spec\.ts/,
+      timeout: 240_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:4184",
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+        permissions: ["geolocation", "notifications"],
+        geolocation: { latitude: 17.385, longitude: 78.4867 },
+        actionTimeout: 45_000,
+        navigationTimeout: 60_000,
+      },
+    },
+    {
+      name: "transport-phase3",
+      testMatch: /transport-phase3-enrollment-trip\.spec\.ts/,
+      timeout: 300_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:4184",
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+        permissions: ["geolocation", "notifications"],
+        geolocation: { latitude: 17.385, longitude: 78.4867 },
+        actionTimeout: 45_000,
+        navigationTimeout: 60_000,
+      },
     },
     {
       name: "admissions",
@@ -67,6 +116,8 @@ export default defineConfig({
         VITE_E2E_SAFE_AUTH: "1",
         VITE_AUTH_PROVIDER: "supabase",
         VITE_API_BASE_URL: "http://127.0.0.1:4182",
+        // Dual-read stays OFF for mocked catalog journeys (never enable prod cutover here).
+        VITE_NEXUS_TEMPLATE_DB_CATALOG: "false",
       },
     },
     {

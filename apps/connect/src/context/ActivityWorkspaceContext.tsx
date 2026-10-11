@@ -10,7 +10,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { activityRepository } from "@/lib/activity/repositories";
-import { connectQueryKeys } from "@/lib/connect-queries";
+import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { prefetchActivityModuleQueries } from "@/lib/connect-queries/prefetch-activity";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type { ActivityDashboardSnapshot } from "@/lib/activity/types";
@@ -28,19 +29,26 @@ const ActivityWorkspaceCtx = createContext<ActivityWorkspaceState | undefined>(u
 
 /** Loads Activity Workspace dashboard data when the teacher role is in activity mode. */
 export function ActivityWorkspaceRegistry({ children }: { children: ReactNode }) {
-  const { role, activeInstituteId } = useApp();
+  const { role, activeInstituteId, user } = useApp();
   const access = useTeacherPortalAccess();
   const queryClient = useQueryClient();
+  const userId = useConnectQueryUserId();
 
   const isActive =
     role === "teacher" &&
     (access.isActivityWorkspaceActive ?? access.isActivityPortalActive);
 
   const canRun =
-    isActive && Boolean(activeInstituteId) && isInstituteUuid(activeInstituteId ?? "");
+    isActive &&
+    Boolean(user?.id) &&
+    Boolean(activeInstituteId) &&
+    isInstituteUuid(activeInstituteId ?? "");
 
   const query = useQuery({
-    queryKey: connectQueryKeys.activityWorkspace(activeInstituteId ?? "_"),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.activityWorkspace(activeInstituteId ?? "_"),
+    ),
     queryFn: () => activityRepository.getDashboard(),
     enabled: canRun,
   });
@@ -52,15 +60,18 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
 
   useEffect(() => {
     if (!canRun || !activeInstituteId) return;
-    prefetchActivityModuleQueries(queryClient, activeInstituteId);
-  }, [canRun, activeInstituteId, queryClient]);
+    prefetchActivityModuleQueries(queryClient, userId, activeInstituteId);
+  }, [canRun, activeInstituteId, queryClient, userId]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.activityWorkspace(activeInstituteId),
+      queryKey: scopedConnectKey(
+        userId,
+        connectQueryKeys.activityWorkspace(activeInstituteId),
+      ),
     });
-  }, [activeInstituteId, queryClient]);
+  }, [activeInstituteId, queryClient, userId]);
 
   const dashboard = query.data ?? null;
   const isLoading = canRun && query.isLoading && !dashboard;

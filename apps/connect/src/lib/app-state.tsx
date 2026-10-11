@@ -14,7 +14,6 @@ import { applyTextScale, loadTextScale } from "@lumenx/ui";
 import { recordLocalChangeForSync } from "@lumenx/utils";
 import { registeredInstitutes, children as demoLinkedChildren } from "./mock-data";
 import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
-import { loadLinkedChildrenFromApi } from "@/lib/parents";
 import { appLockStore } from "./app-lock-store";
 import { awaitConnectStoreReset, resetAllConnectStores } from "./reset-stores";
 import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
@@ -25,6 +24,18 @@ import { ApiClientError } from "@/lib/api";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
+import {
+  clearAllLinkedChildrenCaches,
+  clearLinkedChildrenCacheForUser,
+  readLinkedChildrenCache,
+  writeLinkedChildrenCache,
+} from "@/lib/parents/linked-children-cache";
+import {
+  enrichLinkedChildrenMetrics,
+  loadLinkedChildrenFromApi,
+} from "@/lib/parents/load-linked-children";
+import { clearPhotoSignedUrlCache } from "@/lib/photos/api";
+import { clearTeacherPortalApiCache } from "@/lib/teacher-classes/load";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
@@ -98,12 +109,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setConnectApiUnauthorizedHandler(() => {
       void (async () => {
         // API client already refreshed + retried once on 401.
-        // Reaching here means auth is genuinely invalid — clear Supabase + UI.
+        // Reaching here means auth is genuinely invalid — clear Supabase + UI + caches.
         await apiSignOut().catch(() => undefined);
         clearAuthStorage();
         setUser(null);
         setRoleState(null);
         setActiveInstituteIdState(null);
+        setLinkedChildren(isApiAuthMode() ? [] : demoLinkedChildren);
+        setLinkedChildrenLoading(false);
+        setLinkedChildrenError(null);
+        clearPhotoSignedUrlCache();
+        clearAllLinkedChildrenCaches();
+        void import("@/lib/connect-queries").then(
+          ({ clearConnectQueryClient, clearAllPersistedConnectCaches }) => {
+            clearConnectQueryClient();
+            void clearAllPersistedConnectCaches();
+          },
+        );
       })();
     });
     return () => setConnectApiUnauthorizedHandler(null);
@@ -137,6 +159,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setRoleState(persistedRole);
             setActiveInstituteIdState(session.instituteId);
             localStorage.setItem(CONNECT_STORAGE_KEYS.institute, session.instituteId);
+          } else if (isApiAuthMode()) {
+            // Persisted UI without a usable token must not stay "logged in".
+            // Institute resolve failures with a live token keep the shell (API 401 clears).
+            const token = await getSupabaseAccessToken();
+            if (!token) {
+              clearAuthStorage();
+              setUser(null);
+              setRoleState(null);
+              setActiveInstituteIdState(null);
+              clearPhotoSignedUrlCache();
+              clearTeacherPortalApiCache();
+              clearAllLinkedChildrenCaches();
+            }
           }
           return;
         }
@@ -180,27 +215,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let cancelled = false;
-    setLinkedChildrenLoading(true);
-    setLinkedChildrenError(null);
-    void loadLinkedChildrenFromApi({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
+    const userId = user?.id?.trim() ?? "";
+    const warm =
+      userId && activeInstituteId
+        ? readLinkedChildrenCache(userId, activeInstituteId)
+        : null;
+    if (warm && warm.length > 0) {
+      // Paint ChildSwitcher / Home immediately from last successful load.
+      setLinkedChildren(warm);
       setLinkedChildrenLoading(false);
+      setLinkedChildrenError(null);
+      setActiveChildIdState((current) => {
+        const valid = warm.some((child) => child.id === current);
+        const next = valid ? current : warm[0]!.id;
+        localStorage.setItem(CONNECT_STORAGE_KEYS.child, next);
+        return next;
+      });
+    } else {
+      setLinkedChildrenLoading(true);
+      setLinkedChildrenError(null);
+    }
+
+    let cancelled = false;
+    void loadLinkedChildrenFromApi({
+      instituteId: activeInstituteId,
+      priorChildren: warm ?? undefined,
+      fastIdentityOnly: true,
+    }).then(async (result) => {
+      if (cancelled) return;
       if (result.status === "error") {
-        setLinkedChildren([]);
+        // Keep warm cache visible — never replace real children with empty on refresh fail.
+        setLinkedChildrenLoading(false);
         setLinkedChildrenError(result.errorMessage);
+        if (!warm?.length) setLinkedChildren([]);
         return;
       }
       if (result.status !== "ready" && result.status !== "empty") {
-        setLinkedChildren([]);
+        setLinkedChildrenLoading(false);
+        if (!warm?.length) setLinkedChildren([]);
         return;
       }
       setLinkedChildren(result.children);
+      setLinkedChildrenLoading(false);
       setLinkedChildrenError(result.errorMessage);
       if (result.children.length === 0) {
         setActiveChildIdState("");
         localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
         return;
+      }
+      if (userId) {
+        writeLinkedChildrenCache(userId, activeInstituteId, result.children);
       }
       setActiveChildIdState((current) => {
         const valid = result.children.some((child) => child.id === current);
@@ -208,11 +272,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(CONNECT_STORAGE_KEYS.child, next);
         return next;
       });
+
+      // Metrics (attendance / avg) enrich in background — do not block Home.
+      const enriched = await enrichLinkedChildrenMetrics(
+        activeInstituteId,
+        result.children,
+      );
+      if (cancelled) return;
+      setLinkedChildren(enriched);
+      if (userId) {
+        writeLinkedChildrenCache(userId, activeInstituteId, enriched);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [hydrated, role, activeInstituteId, refreshGeneration]);
+  }, [hydrated, role, activeInstituteId, refreshGeneration, user?.id]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -265,8 +340,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ({ clearConnectQueryClient, clearPersistedConnectCache }) => {
             // Drop prior session in-memory cache; keep the new user's persisted warm cache.
             clearConnectQueryClient();
+            clearPhotoSignedUrlCache();
+            clearTeacherPortalApiCache();
             if (previousUserId && previousUserId !== u.id) {
               void clearPersistedConnectCache(previousUserId);
+              clearLinkedChildrenCacheForUser(previousUserId);
             }
           },
         ),
@@ -294,6 +372,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     void resetAllConnectStores();
+    clearPhotoSignedUrlCache();
+    clearTeacherPortalApiCache();
+    clearAllLinkedChildrenCaches();
     // Drop in-memory + persisted server-state so the next account cannot see prior data.
     void import("@/lib/connect-queries").then(
       ({ clearConnectQueryClient, clearAllPersistedConnectCaches }) => {

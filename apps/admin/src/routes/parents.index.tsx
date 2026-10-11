@@ -15,7 +15,12 @@ import {
   type ParentListItem,
   type ParentsListStatus,
 } from "@/lib/parents";
-import { useParentsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
+import {
+  useParentsDirectoryInfiniteQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
+import { VirtualizedDirectoryList } from "@/components/people/VirtualizedDirectoryList";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Mail, MoreHorizontal, Phone, Plus, Users } from "lucide-react";
 
@@ -155,14 +160,29 @@ function ParentsPage() {
   >(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ParentFilter>("all");
+  const [classFilter, setClassFilter] = useState<ClassFilter>("all");
+  const [sectionFilter, setSectionFilter] = useState<SectionFilter>("all");
   const listEnabled =
     apiMode &&
     instituteCtx.status === "ready" &&
     Boolean(instituteCtx.activeInstituteId);
-  const parentsQuery = useParentsListQuery(
+  const parentsQuery = useParentsDirectoryInfiniteQuery(
     instituteCtx.activeInstituteId,
+    {
+      q: q.trim() || undefined,
+      accessStatus:
+        statusFilter === "active" ||
+        statusFilter === "hold" ||
+        statusFilter === "suspended"
+          ? statusFilter
+          : undefined,
+      inviteStatus: statusFilter === "pending" ? "pending" : undefined,
+    },
     listEnabled,
   );
+  const hasMoreParents = Boolean(parentsQuery.hasNextPage);
   const bumpParentsReload = () => {
     invalidateAdminCache("admin:parents");
     if (instituteCtx.activeInstituteId) {
@@ -184,10 +204,6 @@ function ParentsPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
   const displayItems: ParentRow[] = apiMode ? listView.items : rows;
-  const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ParentFilter>("all");
-  const [classFilter, setClassFilter] = useState<ClassFilter>("all");
-  const [sectionFilter, setSectionFilter] = useState<SectionFilter>("all");
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<NewParentDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
@@ -249,12 +265,23 @@ function ParentsPage() {
       setListError(null);
       return;
     }
+    if (parentsQuery.isError) {
+      setApiItems([]);
+      setListStatus("error");
+      setListError(
+        parentsQuery.error instanceof Error
+          ? parentsQuery.error.message
+          : "Failed to load guardians",
+      );
+      setResolvedForInstituteId(null);
+      return;
+    }
     if (!parentsQuery.data) return;
 
-    const next = parentsQuery.data;
-    setApiItems(next.items);
-    setListStatus(next.status);
-    setListError(next.errorMessage);
+    const items = parentsQuery.data.pages.flatMap((p) => p.items);
+    setApiItems(items);
+    setListStatus(items.length === 0 ? "empty" : "ready");
+    setListError(null);
     setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
@@ -263,6 +290,8 @@ function ParentsPage() {
     instituteCtx.errorMessage,
     parentsQuery.data,
     parentsQuery.isLoading,
+    parentsQuery.isError,
+    parentsQuery.error,
   ]);
 
   useEffect(() => {
@@ -653,38 +682,107 @@ function ParentsPage() {
         ) : (
           <>
             <div className="lx-people-list sm:hidden">
-              {list.map(({ parent, visibleChildren }) => (
-                <PeopleDirectoryCard
-                  key={parent.id}
-                  name={parent.name}
-                  personId={parent.id}
-                  subtitle={parentListSubtitle(parent)}
-                  status={<ParentStatusPill parent={parent} />}
-                  meta={
-                    <>
-                      {parent.phone ? <span>{parent.phone}</span> : null}
-                      {parent.email ? (
-                        <span className="truncate max-w-[12rem]">{parent.email}</span>
-                      ) : null}
-                      <span>{parentLinkedChildrenText(parent, visibleChildren)}</span>
-                    </>
-                  }
-                  menu={
-                    writesEnabled ? (
-                      <ParentRowMenu
-                        parent={parent}
-                        onView={() => openParentDetail(parent.id)}
-                        onResendInvite={() => resendInvite(parent.id)}
-                        onHold={() => setAccessStatus(parent.id, "hold")}
-                        onSuspend={() => setAccessStatus(parent.id, "suspended")}
-                        onReactivate={() => setAccessStatus(parent.id, "active")}
-                        onDelete={() => setPendingDelete(parent)}
-                      />
+              {apiMode ? (
+                <VirtualizedDirectoryList
+                  items={list}
+                  estimateRowHeight={96}
+                  getKey={(row) => row.parent.id}
+                  footer={
+                    hasMoreParents ? (
+                      <div className="flex justify-center py-2">
+                        <Button
+                          disabled={parentsQuery.isFetchingNextPage}
+                          onClick={() => void parentsQuery.fetchNextPage()}
+                        >
+                          {parentsQuery.isFetchingNextPage
+                            ? "Loading…"
+                            : "Load more"}
+                        </Button>
+                      </div>
                     ) : null
                   }
-                  onOpen={() => openParentDetail(parent.id)}
+                  renderRow={({ parent, visibleChildren }) => (
+                    <PeopleDirectoryCard
+                      name={parent.name}
+                      personId={parent.id}
+                      subtitle={parentListSubtitle(parent)}
+                      status={<ParentStatusPill parent={parent} />}
+                      meta={
+                        <>
+                          {parent.phone ? <span>{parent.phone}</span> : null}
+                          {parent.email ? (
+                            <span className="truncate max-w-[12rem]">
+                              {parent.email}
+                            </span>
+                          ) : null}
+                          <span>
+                            {parentLinkedChildrenText(parent, visibleChildren)}
+                          </span>
+                        </>
+                      }
+                      menu={
+                        writesEnabled ? (
+                          <ParentRowMenu
+                            parent={parent}
+                            onView={() => openParentDetail(parent.id)}
+                            onResendInvite={() => resendInvite(parent.id)}
+                            onHold={() => setAccessStatus(parent.id, "hold")}
+                            onSuspend={() =>
+                              setAccessStatus(parent.id, "suspended")
+                            }
+                            onReactivate={() =>
+                              setAccessStatus(parent.id, "active")
+                            }
+                            onDelete={() => setPendingDelete(parent)}
+                          />
+                        ) : null
+                      }
+                      onOpen={() => openParentDetail(parent.id)}
+                    />
+                  )}
                 />
-              ))}
+              ) : (
+                list.map(({ parent, visibleChildren }) => (
+                  <PeopleDirectoryCard
+                    key={parent.id}
+                    name={parent.name}
+                    personId={parent.id}
+                    subtitle={parentListSubtitle(parent)}
+                    status={<ParentStatusPill parent={parent} />}
+                    meta={
+                      <>
+                        {parent.phone ? <span>{parent.phone}</span> : null}
+                        {parent.email ? (
+                          <span className="truncate max-w-[12rem]">
+                            {parent.email}
+                          </span>
+                        ) : null}
+                        <span>
+                          {parentLinkedChildrenText(parent, visibleChildren)}
+                        </span>
+                      </>
+                    }
+                    menu={
+                      writesEnabled ? (
+                        <ParentRowMenu
+                          parent={parent}
+                          onView={() => openParentDetail(parent.id)}
+                          onResendInvite={() => resendInvite(parent.id)}
+                          onHold={() => setAccessStatus(parent.id, "hold")}
+                          onSuspend={() =>
+                            setAccessStatus(parent.id, "suspended")
+                          }
+                          onReactivate={() =>
+                            setAccessStatus(parent.id, "active")
+                          }
+                          onDelete={() => setPendingDelete(parent)}
+                        />
+                      ) : null
+                    }
+                    onOpen={() => openParentDetail(parent.id)}
+                  />
+                ))
+              )}
             </div>
             <div className="hidden sm:block">
           <DataTable>
@@ -793,6 +891,16 @@ function ParentsPage() {
               ))}
             </tbody>
           </DataTable>
+          {apiMode && hasMoreParents ? (
+            <div className="flex justify-center border-t border-border py-3">
+              <Button
+                disabled={parentsQuery.isFetchingNextPage}
+                onClick={() => void parentsQuery.fetchNextPage()}
+              >
+                {parentsQuery.isFetchingNextPage ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          ) : null}
             </div>
           </>
         )}
@@ -982,7 +1090,7 @@ function ParentRowMenu({
       ? createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[80] min-w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-pop"
+            className="fixed z-[80] min-w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-sm"
             style={{ top: coords.top, left: coords.left }}
           >
             <button type="button" className={itemClass} onClick={() => run(onView)}>

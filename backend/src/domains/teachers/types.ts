@@ -132,6 +132,8 @@ export type ListTeachersFilter = {
   status?: TeacherStatus;
   teachingScope?: TeachingScope;
   q?: string;
+  limit?: number;
+  cursor?: string;
 };
 
 export type PortalLearnerFacultyMemberDto = {

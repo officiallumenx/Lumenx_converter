@@ -23,7 +23,7 @@ export function AuthInfoCallout({
 }: AuthInfoCalloutProps) {
   const styles =
     variant === "primary"
-      ? "border-primary/20 bg-primary/[0.04]"
+      ? "border-border bg-muted/40"
       : "border-border/60 bg-muted/30";
 
   return (

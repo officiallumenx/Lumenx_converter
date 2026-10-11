@@ -26,11 +26,6 @@ export function ModuleHero({
         {subtitle ? <p className="lx-module-hero__sub">{subtitle}</p> : null}
       </div>
       {action ? <div className="lx-module-hero__action">{action}</div> : null}
-      <div className="lx-module-hero__art" aria-hidden>
-        <span className="lx-module-hero__orb lx-module-hero__orb--a" />
-        <span className="lx-module-hero__orb lx-module-hero__orb--b" />
-        <span className="lx-module-hero__orb lx-module-hero__orb--c" />
-      </div>
     </section>
   );
 }

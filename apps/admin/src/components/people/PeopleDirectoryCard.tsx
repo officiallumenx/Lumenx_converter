@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { PersonPhotoPreview } from "@lumenx/ui";
 import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 
@@ -36,7 +36,31 @@ export function PeopleDirectoryCard({
   photoAssetPath?: string | null;
   photoKind?: "student" | "teacher";
 }) {
-  const photo = usePersonPhotoUrl(photoKind, personId ?? "", photoAssetPath);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "120px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const photo = usePersonPhotoUrl(photoKind, personId ?? "", photoAssetPath, {
+    enabled: visible,
+  });
   const line = subtitle?.trim() ?? "";
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -47,6 +71,7 @@ export function PeopleDirectoryCard({
 
   return (
     <div
+      ref={rootRef}
       role="link"
       tabIndex={0}
       onClick={onOpen}
@@ -64,6 +89,8 @@ export function PeopleDirectoryCard({
             <img
               src={photo.data}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="size-full object-cover pointer-events-none"
             />
           </PersonPhotoPreview>

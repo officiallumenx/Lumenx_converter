@@ -101,24 +101,28 @@ export function adminModuleLightSurface(color: AdminModuleColor) {
 const BRAND_BLUE = ADMIN_MODULE_COLORS.blue.primary;
 
 export function adminMobileNavIconStyle(color: AdminModuleColor, active: boolean) {
+  // Solid accent chips stay readable on light and dark surfaces (no pastel washes).
   if (active) {
     return { color: "#FFFFFF", backgroundColor: BRAND_BLUE };
   }
-  return { color: color.primary, backgroundColor: color.iconBackground };
+  return { color: "#FFFFFF", backgroundColor: color.primary };
 }
 
 export function adminMoreTileStyle(color: AdminModuleColor, active: boolean) {
+  // Neutral tile surfaces; module accent lives on the icon chip only.
   if (active) {
     return {
       borderColor: BRAND_BLUE,
-      boxShadow: `0 0 0 1px ${BRAND_BLUE}`,
-      backgroundColor: color.iconBackground,
+      boxShadow: "none",
+      backgroundColor: "var(--color-card)",
+      color: "var(--color-foreground)",
     };
   }
   return {
-    borderColor: color.iconBackground,
-    backgroundColor: color.iconBackground,
-    boxShadow: `0 4px 12px ${color.primary}22`,
+    borderColor: "var(--color-border)",
+    backgroundColor: "var(--color-card)",
+    boxShadow: "none",
+    color: "var(--color-foreground)",
   };
 }
 

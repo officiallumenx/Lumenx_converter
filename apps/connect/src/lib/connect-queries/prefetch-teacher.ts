@@ -5,6 +5,7 @@ import { loadTeacherTimetable } from "@/lib/timetable";
 import { loadTeacherExamPapers } from "@/lib/exams";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { connectQueryKeys } from "./keys";
+import { scopedConnectKey } from "./scope";
 
 /**
  * Warm common teacher module caches after roster/bundle is ready so navigating
@@ -12,11 +13,15 @@ import { connectQueryKeys } from "./keys";
  */
 export function prefetchTeacherModuleQueries(
   queryClient: QueryClient,
+  userId: string,
   instituteId: string,
   teacherId: string,
 ): void {
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.homeworkTeacher(instituteId, teacherId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.homeworkTeacher(instituteId, teacherId),
+    ),
     queryFn: async () => {
       const [subjects, assignments, list] = await Promise.all([
         listSubjects(instituteId),
@@ -28,7 +33,10 @@ export function prefetchTeacherModuleQueries(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.timetableTeacher(instituteId, "mine"),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.timetableTeacher(instituteId, "mine"),
+    ),
     queryFn: async () => {
       // Avoid caching "Authentication required" when session hydrate lags roster.
       const token = await getSupabaseAccessToken();
@@ -40,7 +48,7 @@ export function prefetchTeacherModuleQueries(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.examsTeacher(instituteId),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.examsTeacher(instituteId)),
     queryFn: () => loadTeacherExamPapers({ instituteId }),
   });
 }

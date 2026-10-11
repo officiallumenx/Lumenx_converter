@@ -11,8 +11,19 @@ import type {
   UpdateTemplateInput,
 } from "./types.js";
 
+/** Columns present on committed `public.template` (pre–PPTX catalog migration). */
 export const TEMPLATE_COLS =
   "id, owner_scope, institute_id, type, name, description, category, status, source, version, preview_aspect, layout_mode, blocks, visual_theme, visual_fields, tags, created_by_user_id, created_at, updated_at, deleted_at";
+
+/** PPTX catalog columns — must not appear in Documents select/insert until migration is applied. */
+export const TEMPLATE_PPTX_CATALOG_COLS = [
+  "family_id",
+  "asset_path",
+  "file_name",
+  "file_byte_size",
+  "file_content_type",
+  "pptx_meta",
+] as const;
 
 export const GENERATED_COLS =
   "id, institute_id, template_id, type, title, student_id, teacher_id, recipient_name, recipient_ref, status, workflow_state, certificate_number, portal_student, portal_parent, portal_teacher, rejection_reason, payload, asset_path, generated_by_user_id, published_at, created_at, updated_at, deleted_at";

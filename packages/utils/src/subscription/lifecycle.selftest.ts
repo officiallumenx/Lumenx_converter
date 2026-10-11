@@ -161,4 +161,36 @@ assert(TRIAL_EXPIRING_DAYS === 7, "expiring threshold must be 7 days");
   assert(shouldEnforceSubscriptionReadOnly(active) === false, "active writes ok");
 }
 
+{
+  // Prepaid / stacked renewal: future-dated paid period still grants active access
+  const start = "2026-06-01T00:00:00.000Z";
+  const end = addUtcDays(start, 365);
+  const sub: InstituteSubscription = {
+    ...base,
+    lifecycleStatus: "trial_active",
+    trialStartAt: "2026-01-01T00:00:00.000Z",
+    trialEndAt: "2026-03-02T00:00:00.000Z",
+    graceEndsAt: "2026-03-09T00:00:00.000Z",
+    currentPeriod: {
+      durationMonths: 12,
+      activeStudentCount: 100,
+      assignedRateInr: 12,
+      monthlyPriceInr: 8000,
+      regularAmountInr: 8000 * 12,
+      discountAmountInr: 8000 * 2,
+      payableAmountInr: 8000 * 10,
+      freeMonths: 2,
+      startAt: start,
+      endAt: end,
+      paymentMethod: "offline",
+      paymentStatus: "paid",
+      amountPaidInr: 8000 * 10,
+      paidAt: "2026-04-01T00:00:00.000Z",
+    },
+  };
+  const prepaid = deriveSubscriptionLifecycle(sub, new Date("2026-04-15T00:00:00.000Z"));
+  assert(prepaid === "active", `expected prepaid active got ${prepaid}`);
+  assert(shouldEnforceSubscriptionReadOnly(prepaid) === false, "prepaid writes ok");
+}
+
 console.log("subscription/lifecycle.selftest: OK");

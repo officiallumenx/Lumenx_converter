@@ -65,7 +65,7 @@ export function TeacherAvatar({
   }
   return (
     <div
-      className={`${sizeClass} rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-2 ring-border flex items-center justify-center font-semibold`}
+      className={`${sizeClass} flex items-center justify-center rounded-full border border-border bg-muted font-semibold text-foreground ring-2 ring-border`}
     >
       {teacherInitials(name)}
     </div>

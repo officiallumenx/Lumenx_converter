@@ -5,7 +5,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listAdmissionApplications } from "@/lib/admissions/api";
 import { listCareerApplications } from "@/lib/careers/api";
-import { listMarkEntries } from "@/lib/marks/api";
+import { listSubmittedMarkEntriesCached } from "@/lib/directory-lists-cache";
 import { listTransportReviewQueue } from "@/lib/transport/approval-api";
 import { mapCareerStatusToStage } from "@/lib/careers/map";
 
@@ -63,7 +63,7 @@ export async function refreshPendingReviewsApi(
 
   try {
     const [markEntries, admissions, careers, transportQueue] = await Promise.all([
-      listMarkEntries({ instituteId: activeInstituteId, status: "submitted" }),
+      listSubmittedMarkEntriesCached(activeInstituteId),
       listAdmissionApplications({ instituteId: activeInstituteId }),
       listCareerApplications({ instituteId: activeInstituteId }),
       listTransportReviewQueue({ instituteId: activeInstituteId }),

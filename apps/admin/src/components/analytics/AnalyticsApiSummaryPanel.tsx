@@ -881,11 +881,6 @@ export function AnalyticsApiSummaryPanel() {
             Live institute counts and durable chart series — view only.
           </p>
         </div>
-        <div className="lx-analytics-hero__art" aria-hidden>
-          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--a" />
-          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--b" />
-          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--c" />
-        </div>
       </section>
 
       <section className="lx-analytics-summary">

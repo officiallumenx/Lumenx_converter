@@ -37,7 +37,7 @@ export function RecoveryLayout({
 
   return (
     <div className="min-h-screen-dvh flex bg-background text-foreground">
-      <aside className="hidden lg:flex lg:w-[38%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.06] via-background to-muted/20 border-r border-border shrink-0">
+      <aside className="hidden shrink-0 flex-col justify-between border-r border-border bg-muted/20 p-10 lg:flex lg:w-[38%]">
         <div>
           <div className="flex items-center gap-2.5 mb-10">
             <LumenXAdminLogo size="sm" className="max-h-9" />
@@ -60,19 +60,29 @@ export function RecoveryLayout({
               <li
                 key={s.id}
                 className={[
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
-                  active ? "border-primary/30 bg-primary/[0.04]" : done ? "border-emerald-500/20 bg-emerald-500/[0.03]" : "border-border/50 opacity-60",
+                  "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
+                  active
+                    ? "border-border bg-muted/40 shadow-xs"
+                    : done
+                      ? "border-border bg-muted/20"
+                      : "border-border/50 opacity-60",
                 ].join(" ")}
               >
                 <div
                   className={[
-                    "size-6 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
-                    done ? "bg-emerald-500 border-emerald-500 text-white" : active ? "bg-primary border-primary text-primary-foreground" : "bg-muted border-border text-muted-foreground",
+                    "flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
+                    done
+                      ? "border-success bg-success text-white"
+                      : active
+                        ? "border-border bg-muted/70 text-foreground"
+                        : "border-border bg-muted text-muted-foreground",
                   ].join(" ")}
                 >
                   {done ? <Check className="size-3" /> : i + 1}
                 </div>
-                <span className={`text-xs font-medium ${active ? "text-primary" : ""}`}>{s.label}</span>
+                <span className={`text-xs font-medium ${active || done ? "text-foreground" : "text-muted-foreground"}`}>
+                  {s.label}
+                </span>
               </li>
             );
           })}

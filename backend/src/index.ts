@@ -1,10 +1,11 @@
-import { config as loadDotenv } from "dotenv";
-loadDotenv();
+import { loadLumenxDotenv } from "./config/load-dotenv.js";
+loadLumenxDotenv();
 
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { loadEnv } from "./config/env.js";
 import { assertProductionEnv } from "./config/production.js";
+import { assertStagingEnv } from "./config/staging.js";
 import { createLogger } from "./logger/logger.js";
 import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
@@ -17,6 +18,7 @@ import {
 import { startSubscriptionLifecycleLoop } from "./workers/subscription-lifecycle-runner.js";
 import { startBackgroundJobsLoop } from "./workers/background-jobs-runner.js";
 
+assertStagingEnv(process.env as Record<string, string | undefined>);
 const env = loadEnv();
 assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);

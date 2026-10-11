@@ -141,20 +141,45 @@ export function readNexusAppEntitlements(
  * Apply Nexus entitlement as a ceiling on Admin's enabled-module map.
  * - Nexus `false` → force Admin off (hide from nav)
  * - Nexus `true` / missing key → leave Admin local preference
- * - Opt-in modules (storage, attendance reports) stay off unless Nexus `true`
+ * - Opt-in modules stay off unless Nexus explicitly grants `true`
  * Locked Admin modules (caller responsibility) should stay on.
  *
  * Maps Nexus catalog ids onto Admin catalog aliases where they differ
  * (e.g. homework → homework-logs) without changing Admin workflows.
  */
 const NEXUS_TO_ADMIN_MODULE_ALIASES: Record<string, string[]> = {
+  accounts: ["accounts"],
   homework: ["homework", "homework-logs"],
   diary: ["diary", "teacher-diary"],
   documents: ["documents"],
 };
 
-/** Must be explicitly enabled in Nexus before Admin can show/use them. */
-export const NEXUS_OPT_IN_ADMIN_MODULES = ["storage", "attendance"] as const;
+/**
+ * Admin module ids that stay off for every institute until Nexus grants them.
+ * Accounts and Homework are unavailable by default; Storage and Attendance
+ * Reports keep the same opt-in ceiling.
+ */
+export const NEXUS_OPT_IN_ADMIN_MODULES = [
+  "storage",
+  "attendance",
+  "accounts",
+  "homework-logs",
+] as const;
+
+/** True when Nexus (or API license map) explicitly grants this Admin module id. */
+export function isNexusModuleGranted(
+  entitlements: Record<string, boolean> | null | undefined,
+  adminModuleId: string,
+): boolean {
+  if (!entitlements) return false;
+  if (entitlements[adminModuleId] === true) return true;
+  for (const [nexusId, aliases] of Object.entries(NEXUS_TO_ADMIN_MODULE_ALIASES)) {
+    if (aliases.includes(adminModuleId) && entitlements[nexusId] === true) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export function applyNexusEntitlementCeiling(
   adminEnabled: Record<string, boolean>,
@@ -162,9 +187,9 @@ export function applyNexusEntitlementCeiling(
 ): Record<string, boolean> {
   const next = { ...adminEnabled };
 
-  // Opt-in modules: hidden unless Nexus explicitly grants true.
+  // Opt-in modules: hidden unless Nexus explicitly grants true (alias-aware).
   for (const moduleId of NEXUS_OPT_IN_ADMIN_MODULES) {
-    if (entitlements?.[moduleId] !== true) {
+    if (!isNexusModuleGranted(entitlements, moduleId)) {
       next[moduleId] = false;
     }
   }

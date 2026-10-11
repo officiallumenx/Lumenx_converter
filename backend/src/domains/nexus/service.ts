@@ -608,6 +608,19 @@ export async function syncSubscriptionLifecyclesForActor(
   return syncSubscriptionLifecycles(admin, { now });
 }
 
+/** Read-only dry-run coverage report (no repairs). Platform operators only. */
+export async function auditSubscriptionCoverageForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  now?: Date,
+) {
+  assertNexusReader(actor);
+  const { auditSubscriptionCoverage } = await import(
+    "../subscriptions/coverage-audit.js"
+  );
+  return auditSubscriptionCoverage(admin, { now });
+}
+
 export async function upsertSubscriptionForActor(
   admin: SupabaseClient,
   actor: Actor,

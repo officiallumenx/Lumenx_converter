@@ -18,20 +18,9 @@ describe("loadDashboardWidgets", () => {
     expect(result.birthdays.rows).toEqual([]);
   });
 
-  it("composes birthdays, diary, attendance drafts, and marks from list APIs", async () => {
+  it("composes diary, attendance drafts, and marks from list APIs (birthdays via dedicated query)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const onDate = new Date(2026, 7, 29);
-    vi.doMock("@/lib/students/api", () => ({
-      listStudents: vi.fn().mockResolvedValue([
-        {
-          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-          displayName: "Ada",
-          dateOfBirth: "2012-08-29",
-          classLabel: "5",
-          sectionLabel: "A",
-        },
-      ]),
-    }));
     vi.doMock("@/lib/teachers/api", () => ({
       listTeachers: vi.fn().mockResolvedValue([]),
     }));
@@ -88,8 +77,7 @@ describe("loadDashboardWidgets", () => {
     const { loadDashboardWidgets } = await import("./load-widgets");
     const result = await loadDashboardWidgets(INST, onDate);
     expect(result.status).toBe("ready");
-    expect(result.birthdays.rows).toHaveLength(1);
-    expect(result.birthdays.rows[0]?.name).toBe("Ada");
+    expect(result.birthdays.rows).toEqual([]);
     expect(result.diary.todaySubmittedCount).toBe(1);
     expect(result.attendanceDrafts.rows).toHaveLength(1);
     expect(result.marksPending.rows).toHaveLength(1);
@@ -124,6 +112,32 @@ describe("loadDashboardWidgets", () => {
     expect(result.diary.errorMessage).toBe("diary down");
     expect(result.birthdays.status).toBe("empty");
     expect(result.marksPending.rows).toEqual([]);
+  });
+
+  it("marks overall error when every live widget slice fails (birthdays skipped)", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockRejectedValue(new Error("teachers down")),
+    }));
+    vi.doMock("@/lib/diary/api", () => ({
+      listDiaryDays: vi.fn().mockRejectedValue(new Error("diary down")),
+    }));
+    vi.doMock("@/lib/attendance/api", () => ({
+      listAttendanceRegisters: vi.fn().mockRejectedValue(new Error("attendance down")),
+    }));
+    vi.doMock("@/lib/marks/api", () => ({
+      listMarkEntries: vi.fn().mockRejectedValue(new Error("marks down")),
+    }));
+    vi.doMock("@/lib/leave/api", () => ({
+      listLeaveRequests: vi.fn().mockRejectedValue(new Error("leave down")),
+    }));
+
+    const { loadDashboardWidgets } = await import("./load-widgets");
+    const result = await loadDashboardWidgets(INST, new Date(2026, 7, 29));
+    expect(result.status).toBe("error");
+    expect(result.birthdays.status).toBe("empty");
+    expect(result.diary.status).toBe("error");
+    expect(result.errorMessage).toMatch(/down/);
   });
 });
 

@@ -167,10 +167,40 @@ export async function listGuardianStudentIds(
   return rows.map((r) => r.student_id);
 }
 
-export async function listMarkEntries(
+const MARK_ENTRY_PAGE_DEFAULT = 100;
+const MARK_ENTRY_PAGE_MAX = 200;
+
+function clampMarkEntryLimit(limit: number | undefined): number {
+  return Math.min(
+    Math.max(1, limit ?? MARK_ENTRY_PAGE_DEFAULT),
+    MARK_ENTRY_PAGE_MAX,
+  );
+}
+
+function encodeMarkEntryCursor(id: string): string {
+  return Buffer.from(JSON.stringify({ i: id }), "utf8").toString("base64url");
+}
+
+function decodeMarkEntryCursor(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw?.trim()) return null;
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(raw.trim(), "base64url").toString("utf8"),
+    ) as { i?: unknown };
+    if (typeof parsed.i !== "string" || !parsed.i.trim()) return null;
+    return parsed.i.trim();
+  } catch {
+    return null;
+  }
+}
+
+export async function listMarkEntriesPage(
   admin: SupabaseClient,
   filter: ListMarkEntriesFilter,
-): Promise<MarkEntryRow[]> {
+): Promise<{ items: MarkEntryRow[]; nextCursor: string | null; hasMore: boolean }> {
+  const limit = clampMarkEntryLimit(filter.limit);
   let query = admin
     .from("mark_entry")
     .select(ENTRY_COLS)
@@ -184,8 +214,45 @@ export async function listMarkEntries(
   if (filter.teacherId) query = query.eq("teacher_id", filter.teacherId);
   if (filter.status) query = query.eq("status", filter.status);
 
-  const result = await query;
-  return ensureDbOk(result) as MarkEntryRow[];
+  const cursorId = decodeMarkEntryCursor(filter.cursor);
+  if (cursorId) query = query.gt("id", cursorId);
+
+  // Stable order with unique id tie-breaker (id is the sort key).
+  const result = await query.order("id", { ascending: true }).limit(limit + 1);
+  const fetched = ensureDbOk(result) as MarkEntryRow[];
+  const hasMore = fetched.length > limit;
+  const items = hasMore ? fetched.slice(0, limit) : fetched;
+  const last = items[items.length - 1];
+  return {
+    items,
+    nextCursor: hasMore && last ? encodeMarkEntryCursor(last.id) : null,
+    hasMore,
+  };
+}
+
+/** Walk all pages — reports/analytics that need the full filtered set. */
+export async function listMarkEntries(
+  admin: SupabaseClient,
+  filter: ListMarkEntriesFilter,
+): Promise<MarkEntryRow[]> {
+  const items: MarkEntryRow[] = [];
+  let cursor: string | null = filter.cursor ?? null;
+  let guard = 0;
+  for (;;) {
+    const page = await listMarkEntriesPage(admin, {
+      ...filter,
+      cursor,
+      limit: filter.limit ?? MARK_ENTRY_PAGE_DEFAULT,
+    });
+    items.push(...page.items);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+    guard += 1;
+    if (guard > 500) {
+      throw new Error("Mark entry pagination exceeded safety page limit");
+    }
+  }
+  return items;
 }
 
 export async function findMarkEntryById(

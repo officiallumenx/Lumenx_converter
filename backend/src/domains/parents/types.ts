@@ -112,4 +112,6 @@ export type ListParentsFilter = {
   inviteStatus?: ParentInviteStatus;
   accessStatus?: ParentAccessStatus;
   q?: string;
+  limit?: number;
+  cursor?: string;
 };

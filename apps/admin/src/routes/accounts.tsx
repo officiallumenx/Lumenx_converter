@@ -548,7 +548,7 @@ function AccountsPage() {
         </PageToolbar>
 
         {scoped && (
-          <div className="px-5 py-2 border-b border-border bg-primary/[0.03] text-[11px] text-muted-foreground">
+          <div className="border-b border-border bg-muted/40 px-5 py-2 text-[11px] text-muted-foreground">
             Showing student & parent accounts for {scopeLabel}
             {rollNo.trim() ? ` · Roll ${rollNo.trim()}` : ""}. Teachers and admins are hidden while
             class filters are active.
@@ -1020,7 +1020,7 @@ function AccountRowMenu({
         <MoreHorizontal className="size-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 min-w-[10.5rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-pop">
+        <div className="absolute right-0 top-full z-30 mt-1 min-w-[10.5rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-sm">
           <button
             type="button"
             className="block w-full px-3 py-2 text-left text-xs hover:bg-accent hover:text-accent-foreground"

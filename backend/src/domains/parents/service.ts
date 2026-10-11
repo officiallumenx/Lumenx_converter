@@ -17,6 +17,7 @@ import {
   listLinksForParentIds,
   listLinksForStudent,
   listParents,
+  listParentsPage,
   softDeleteGuardianLink,
   softDeleteParent,
   toLinkUpdatePatch,
@@ -24,6 +25,8 @@ import {
   updateGuardianLinkFields,
   updateParentFields,
 } from "./repository.js";
+import { fillAuthorizedPage } from "../../lib/fill-authorized-page.js";
+import { clampListLimit } from "../../lib/name-id-cursor.js";
 import type {
   CreateGuardianLinkInput,
   CreateParentInput,
@@ -167,14 +170,20 @@ async function assertCanReadParent(
   throw AppError.forbidden("Insufficient permissions");
 }
 
-export async function listParentsForActor(
+export type ParentDtoPage = {
+  items: ParentDto[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+async function toParentDtoPage(
   admin: SupabaseClient,
   actor: Actor,
-  filter: ListParentsFilter,
-): Promise<ParentDto[]> {
-  const instituteId = requireInstituteId(actor, filter.instituteId);
-  const rows = await listParents(admin, { ...filter, instituteId });
-
+  instituteId: string,
+  rows: ParentRow[],
+  nextCursor: string | null,
+  hasMore: boolean,
+): Promise<ParentDtoPage> {
   let visible = rows;
   if (!isStaffReader(actor, instituteId)) {
     const accessible = await resolveAccessibleParentIds(admin, actor, instituteId);
@@ -196,12 +205,83 @@ export async function listParentsForActor(
     byParent.set(link.parent_id, list);
   }
 
-  return visible.map((r) =>
-    toParentDto(
-      r,
-      filterLinksForActor(actor, instituteId, r.id, byParent.get(r.id) ?? []),
+  return {
+    items: visible.map((r) =>
+      toParentDto(
+        r,
+        filterLinksForActor(actor, instituteId, r.id, byParent.get(r.id) ?? []),
+      ),
     ),
-  );
+    nextCursor,
+    hasMore,
+  };
+}
+
+export async function listParentsPageForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListParentsFilter,
+): Promise<ParentDtoPage> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+
+  if (isStaffReader(actor, instituteId)) {
+    const page = await listParentsPage(admin, { ...filter, instituteId });
+    return toParentDtoPage(
+      admin,
+      actor,
+      instituteId,
+      page.rows,
+      page.nextCursor,
+      page.hasMore,
+    );
+  }
+
+  const accessible = await resolveAccessibleParentIds(admin, actor, instituteId);
+  if (accessible.size === 0) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const limit = clampListLimit(filter.limit);
+  return fillAuthorizedPage({
+    limit,
+    cursor: filter.cursor,
+    fetchPage: async (cursor) => {
+      const next = await listParentsPage(admin, {
+        ...filter,
+        instituteId,
+        cursor,
+        limit,
+      });
+      return {
+        rows: next.rows,
+        nextCursor: next.nextCursor,
+        hasMore: next.hasMore,
+      };
+    },
+    mapAuthorized: async (rows) => {
+      const visible = rows.filter((r) => accessible.has(r.id));
+      const mapped = await toParentDtoPage(
+        admin,
+        actor,
+        instituteId,
+        visible,
+        null,
+        false,
+      );
+      return mapped.items;
+    },
+  });
+}
+
+export async function listParentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListParentsFilter,
+): Promise<ParentDto[]> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+  const rows = await listParents(admin, { ...filter, instituteId });
+  const page = await toParentDtoPage(admin, actor, instituteId, rows, null, false);
+  return page.items;
 }
 
 export async function getParentForActor(

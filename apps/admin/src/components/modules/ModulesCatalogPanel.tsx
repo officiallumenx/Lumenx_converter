@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin-plan-config";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import {
+  isNexusModuleGranted,
   NEXUS_OPT_IN_ADMIN_MODULES,
   readNexusModuleEntitlements,
 } from "@lumenx/config";
@@ -137,14 +138,14 @@ function ModuleCard({
   const Icon = iconMap[mod.id] ?? Users;
   return (
     <div
-      className={`rounded-lg border p-4 transition-all ${
+      className={`rounded-lg border p-4 transition-colors ${
         on
-          ? "border-primary/30 bg-primary/[0.04]"
+          ? "border-border bg-muted/20"
           : "border-border bg-background/40 opacity-80"
       }`}
     >
       <div className="flex items-center gap-3">
-        <IconChip icon={Icon} size="md" variant={on ? "brand" : "soft"} />
+        <IconChip icon={Icon} size="md" variant="soft" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
             {mod.label}
@@ -211,7 +212,7 @@ export function ModulesCatalogPanel() {
       const entitlements = apiMode ? nexusEntitlements : readNexusModuleEntitlements();
       const optIn = (NEXUS_OPT_IN_ADMIN_MODULES as readonly string[]).includes(id);
       const blocked = optIn
-        ? entitlements?.[id] !== true
+        ? !isNexusModuleGranted(entitlements, id)
         : entitlements?.[id] === false;
       if (blocked) {
         notify(
@@ -269,7 +270,7 @@ export function ModulesCatalogPanel() {
                   mod.id,
                 );
                 const nexusOff = optIn
-                  ? nexusEntitlements?.[mod.id] !== true
+                  ? !isNexusModuleGranted(nexusEntitlements, mod.id)
                   : nexusEntitlements?.[mod.id] === false;
                 const on = locked || Boolean(enabled[mod.id]);
                 return (

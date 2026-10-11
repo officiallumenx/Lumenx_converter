@@ -13,11 +13,10 @@
  *
  * Exit 0 only when all selected steps pass.
  */
-import { config as loadDotenv } from "dotenv";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { assertRemoteWriteAck } from "./assert-remote-write-ack.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
 
-loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+loadLumenxDotenv();
 
 const API_BASE =
   process.env.SMOKE_API_BASE_URL?.trim() ||
@@ -28,6 +27,13 @@ const token = process.env.SMOKE_ACCESS_TOKEN?.trim();
 const instituteId = process.env.SMOKE_INSTITUTE_ID?.trim();
 const skipAuth = process.env.SMOKE_SKIP_AUTH === "1";
 const skipFcm = process.env.SMOKE_SKIP_FCM === "1";
+
+// Authenticated smoke can exercise a student POST write-path probe.
+if (token && !skipAuth) {
+  assertRemoteWriteAck(process.env, {
+    purpose: "smoke (authenticated probes may hit write paths)",
+  });
+}
 
 const results = [];
 

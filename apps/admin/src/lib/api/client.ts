@@ -17,6 +17,11 @@ export type ApiRequestOptions = {
   skipOfflineQueue?: boolean;
   /** Internal: already retried once after session refresh. */
   _authRetried?: boolean;
+  /**
+   * When true, return the full JSON body (including next_cursor / has_more)
+   * instead of unwrapping `{ data }`.
+   */
+  envelope?: boolean;
 };
 
 export type QueueOfflineWriteInput = {
@@ -283,7 +288,12 @@ export function createApiClient(config: ApiClientConfig) {
       throw err;
     }
 
-    if (json && typeof json === "object" && "data" in json) {
+    if (
+      !options.envelope &&
+      json &&
+      typeof json === "object" &&
+      "data" in json
+    ) {
       return (json as { data: T }).data;
     }
 

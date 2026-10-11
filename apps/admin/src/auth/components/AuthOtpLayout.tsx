@@ -22,16 +22,16 @@ interface AuthOtpLayoutProps {
 
 function BrandPanel({ brand }: { brand: AuthOtpBrandContent }) {
   return (
-    <div className="hidden lg:flex lg:w-[420px] xl:w-[480px] shrink-0 flex-col justify-between bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-10 text-primary-foreground">
+    <div className="hidden shrink-0 flex-col justify-between border-r border-primary/20 bg-primary p-10 text-primary-foreground lg:flex lg:w-[420px] xl:w-[480px]">
       <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-white px-2 py-1.5 shadow-sm">
+        <div className="rounded-xl border border-border bg-white px-2 py-1.5 shadow-xs">
           <LumenXAdminLogo size="sm" className="max-h-8" />
         </div>
       </div>
 
       <div className="space-y-8">
         <div>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium backdrop-blur-sm">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-sm font-medium">
             <ShieldCheck className="h-4 w-4" aria-hidden />
             {brand.badge}
           </div>
@@ -46,8 +46,8 @@ function BrandPanel({ brand }: { brand: AuthOtpBrandContent }) {
             <div key={text} className="flex items-center gap-3">
               <div
                 className={[
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold backdrop-blur-sm",
-                  done ? "bg-emerald-400/30 text-emerald-200" : "bg-white/20",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                  done ? "bg-white/25 text-white" : "bg-white/15 text-white/90",
                 ].join(" ")}
               >
                 {icon}

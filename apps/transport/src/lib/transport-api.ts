@@ -95,6 +95,8 @@ export type DriverMe = {
   instituteId: string;
   displayName: string;
   phone: string;
+  /** Institute IANA timezone for service dates; defaults applied server-side. */
+  timezone?: string;
 };
 
 export async function getDriverMe(instituteId: string): Promise<DriverMe> {
@@ -429,6 +431,21 @@ export async function getActiveTripForVehicle(
   assertUuidPathParam("Vehicle id", vehicleId);
   return transportFetch<TransportTripDto | null>(
     `/api/v1/transport/vehicles/${vehicleId}/active-trip`,
+  );
+}
+
+/** Today's trips for the signed-in institute (drivers see only their own). */
+export async function listTransportTrips(input: {
+  instituteId: string;
+  tripDate: string;
+}): Promise<TransportTripDto[]> {
+  assertUuidPathParam("Institute id", input.instituteId);
+  const q = new URLSearchParams({
+    institute_id: input.instituteId,
+    trip_date: input.tripDate,
+  });
+  return transportFetch<TransportTripDto[]>(
+    `/api/v1/transport/trips?${q.toString()}`,
   );
 }
 

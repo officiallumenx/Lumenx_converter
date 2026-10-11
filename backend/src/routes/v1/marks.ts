@@ -13,7 +13,7 @@ import {
   deleteMarkEntryForActor,
   getMarkEntryForActor,
   getMarkPublicationForActor,
-  listMarkEntriesForActor,
+  listMarkEntriesPageForActor,
   listMarkPublicationsForActor,
   publishMarkEntryForActor,
   rejectMarkEntryForActor,
@@ -113,6 +113,8 @@ const listQuerySchema = z.object({
   subject_id: uuid.optional(),
   teacher_id: uuid.optional(),
   status: statusSchema.optional(),
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  cursor: z.string().min(1).max(500).optional(),
 });
 
 const createSchema = z.object({
@@ -141,7 +143,7 @@ marks.get("/entries", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const query = validateQuery(listQuerySchema, c.req.query());
-  const data = await listMarkEntriesForActor(admin, actor, {
+  const page = await listMarkEntriesPageForActor(admin, actor, {
     instituteId: query.institute_id,
     academicYearId: query.academic_year_id,
     sectionId: query.section_id,
@@ -149,8 +151,14 @@ marks.get("/entries", async (c) => {
     subjectId: query.subject_id,
     teacherId: query.teacher_id,
     status: query.status,
+    limit: query.limit,
+    cursor: query.cursor,
   });
-  return c.json({ data });
+  return c.json({
+    data: page.items,
+    next_cursor: page.nextCursor,
+    has_more: page.hasMore,
+  });
 });
 
 marks.get("/entries/:id", async (c) => {

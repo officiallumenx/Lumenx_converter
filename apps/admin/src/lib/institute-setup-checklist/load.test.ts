@@ -37,20 +37,83 @@ describe("setup checklist load", () => {
       key: (i: number) => [...store.keys()][i] ?? null,
     });
 
+    const { SETUP_VERIFIED_FRESH_MS } = await import("./defer");
     const {
       readVerifiedSetupCoreComplete,
+      readVerifiedSetupCoreSnapshot,
+      isVerifiedSetupCoreCompleteFresh,
       writeVerifiedSetupCoreComplete,
       clearVerifiedSetupCoreComplete,
     } = await import("./load");
 
     expect(readVerifiedSetupCoreComplete(INST)).toBe(false);
-    writeVerifiedSetupCoreComplete(INST, true);
+    const at = 1_700_000_000_000;
+    writeVerifiedSetupCoreComplete(INST, true, at);
     expect(readVerifiedSetupCoreComplete(INST)).toBe(true);
+    expect(readVerifiedSetupCoreSnapshot(INST)).toEqual({ complete: true, at });
+    expect(isVerifiedSetupCoreCompleteFresh(INST, at + 1_000)).toBe(true);
+    expect(
+      isVerifiedSetupCoreCompleteFresh(INST, at + SETUP_VERIFIED_FRESH_MS + 1),
+    ).toBe(false);
+
     writeVerifiedSetupCoreComplete(INST, false);
     expect(readVerifiedSetupCoreComplete(INST)).toBe(false);
-    writeVerifiedSetupCoreComplete(INST, true);
+    writeVerifiedSetupCoreComplete(INST, true, at);
     clearVerifiedSetupCoreComplete(INST);
     expect(readVerifiedSetupCoreComplete(INST)).toBe(false);
+  });
+
+  it("treats legacy verified flag as complete but stale", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      get length() {
+        return store.size;
+      },
+      key: (i: number) => [...store.keys()][i] ?? null,
+    });
+
+    const {
+      readVerifiedSetupCoreComplete,
+      readVerifiedSetupCoreSnapshot,
+      isVerifiedSetupCoreCompleteFresh,
+    } = await import("./load");
+
+    store.set(`lumenx.admin.setup-core-complete.v1:${INST}`, "1");
+    expect(readVerifiedSetupCoreComplete(INST)).toBe(true);
+    expect(readVerifiedSetupCoreSnapshot(INST)).toEqual({ complete: true, at: 0 });
+    expect(isVerifiedSetupCoreCompleteFresh(INST, Date.now())).toBe(false);
+  });
+
+  it("keeps verified snapshots institute-scoped", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      get length() {
+        return store.size;
+      },
+      key: (i: number) => [...store.keys()][i] ?? null,
+    });
+
+    const other = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const { writeVerifiedSetupCoreComplete, readVerifiedSetupCoreComplete } =
+      await import("./load");
+
+    writeVerifiedSetupCoreComplete(INST, true, Date.now());
+    expect(readVerifiedSetupCoreComplete(INST)).toBe(true);
+    expect(readVerifiedSetupCoreComplete(other)).toBe(false);
   });
 
   it("returns error (not ready+incomplete) when a core list API rejects", async () => {

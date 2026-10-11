@@ -247,7 +247,7 @@ function LogoUpload({
       </label>
 
       {preview ? (
-        <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.03] p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-background">
             <img src={preview} alt="School logo" className="size-full object-cover" />
           </div>
@@ -269,11 +269,11 @@ function LogoUpload({
           onClick={() => fileRef.current?.click()}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
-          className="group flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-5 transition-all hover:border-primary/40 hover:bg-primary/[0.02]"
+          className="group flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-5 transition-colors hover:border-border-strong hover:bg-muted/30"
         >
           <IconChip icon={ImageIcon} size="md" variant="soft" />
           <div className="text-center">
-            <div className="text-xs font-medium transition-colors group-hover:text-primary">
+            <div className="text-xs font-medium transition-colors group-hover:text-foreground">
               Upload school logo
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground">PNG or JPG · optional</div>

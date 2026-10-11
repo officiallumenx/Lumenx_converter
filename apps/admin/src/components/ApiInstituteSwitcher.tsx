@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { buildInstituteMonogramLogoUrl } from "@lumenx/utils";
 import { useAuth } from "@/auth/AuthContext";
 import { useInstituteContext, settingsToDemoProfile } from "@/lib/institutes";
-import { useInstituteProfileQuery } from "@/lib/admin-queries";
+import { useInstituteProfileQuery } from "@/lib/admin-queries/hooks-shell";
 import { cn } from "@lumenx/ui";
 
 function hueFromId(id: string): number {

@@ -1,31 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bus, MapPinned, Play, Route, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, MapPinned, Play } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { DriverAssignmentGate } from "@/components/app/driver-assignment-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { IconWell } from "@/components/ui/icon-well";
-import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { LocationTrackingBanner } from "@/components/app/location-tracking-banner";
 import { OfflineTripBanner } from "@/components/app/offline-trip-banner";
 import { ROUTES } from "@/constants";
 import { useAttendanceStudents } from "@/hooks/use-attendance-students";
 import { useDriverAssignmentQuery } from "@/lib/transport-queries";
-import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTripSession } from "@/hooks/use-trip-session";
 import {
-  getApiPendingStopCount,
-  getApiRosterParticipationCounts,
-  subscribeApiDriverRoster,
-} from "@/lib/transport/api-roster";
-import { isTripActive, tripPhaseLabel, tripRepository } from "@/lib/transport/trip";
-import { MODULE_COLORS } from "@/theme/colors";
+  homeActionHeadline,
+  homeActionPrimaryLabel,
+  isTripActive,
+  nextStartSlot,
+  tripRepository,
+  type TripSlot,
+} from "@/lib/transport/trip";
 
-import { ActiveTripPanel, EndTripSummaryGrid } from "./ActiveTripPanel";
-import { HomeClockCards } from "./HomeClockCards";
+import { ActiveTripPanel } from "./ActiveTripPanel";
 import { StartTripReadinessDialog } from "./StartTripReadinessDialog";
 
 function getGreeting(hour = new Date().getHours()): string {
@@ -38,47 +35,19 @@ export function HomePage() {
   const navigate = useNavigate();
   const assignment = useDriverAssignmentQuery();
   const session = useTripSession();
-  const routeSetup = useRouteSetup();
   const students = useAttendanceStudents();
-  const { bus, route, totalStudents, driver } = session.assignment;
+  const { bus, route, driver } = session.assignment;
   const greeting = getGreeting();
   const [readinessOpen, setReadinessOpen] = useState(false);
-  const [pendingStops, setPendingStops] = useState(0);
-  const [participation, setParticipation] = useState(() =>
-    getApiRosterParticipationCounts(session.assignment.bus.vehicleId),
-  );
+  /** Locked when the sheet opens so labels do not flip to Pickup after Drop starts. */
+  const [readinessSlot, setReadinessSlot] = useState<TripSlot>("morning");
   const [dismissing, setDismissing] = useState(false);
-  const tripActive = isTripActive(session.phase);
-  const tripCompleted = session.phase === "completed";
-  const needsRouteSetup =
-    routeSetup.status === "not_configured" && !routeSetup.lockedByAdmin;
-  const waitingAdminStops = useMemo(
-    () => routeSetup.stops.filter((s) => s.status === "pending").length,
-    [routeSetup.stops],
-  );
-  const hasUsableStops = useMemo(
-    () => routeSetup.stops.some((s) => s.status === "approved" || s.status === "pending"),
-    [routeSetup.stops],
-  );
-  const homeStatus = tripActive
-    ? { label: tripPhaseLabel(session.phase), tone: "success" as const }
-    : tripCompleted
-      ? { label: "Completed", tone: "success" as const }
-      : needsRouteSetup
-        ? { label: "Set up route", tone: "warning" as const }
-        : !hasUsableStops
-          ? { label: "Add stops", tone: "warning" as const }
-          : { label: "Ready to start", tone: "transport" as const };
 
-  const primaryLabel = tripActive
-    ? "Continue trip"
-    : tripCompleted
-      ? "Trip completed"
-      : needsRouteSetup
-        ? "Set up route"
-        : !hasUsableStops
-          ? "View stops"
-          : "Start trip";
+  const action = session.homeAction;
+  const headline = homeActionHeadline(action);
+  const primaryLabel = homeActionPrimaryLabel(action);
+  const tripActive = isTripActive(session.phase);
+  const startSlot = nextStartSlot(action);
 
   const boarded = useMemo(
     () => students.filter((s) => s.boarding === "boarded").length,
@@ -89,36 +58,26 @@ export function HomePage() {
     [students],
   );
 
-  useEffect(() => {
-    if (!bus.vehicleId) {
-      setPendingStops(0);
-      setParticipation({ expectedCount: 0, notRidingCount: 0, expectedOnboardCount: 0 });
-      return;
-    }
-    const refresh = () => {
-      setPendingStops(getApiPendingStopCount(bus.vehicleId));
-      setParticipation(getApiRosterParticipationCounts(bus.vehicleId));
-    };
-    refresh();
-    return subscribeApiDriverRoster(refresh);
-  }, [bus.vehicleId]);
-
   const handlePrimaryAction = () => {
-    if (tripActive) {
+    if (action === "loading") return;
+    if (action === "continue_pickup" || action === "continue_drop") {
       void navigate({ to: ROUTES.attendance });
       return;
     }
-    if (tripCompleted) {
-      toast.message("Trip already completed", {
-        description: "Review the summary, then tap Done for the next trip.",
-      });
-      return;
-    }
-    if (needsRouteSetup || !hasUsableStops) {
+    if (action === "setup_route" || action === "add_stops") {
       void navigate({ to: ROUTES.routeSetup });
       return;
     }
-    setReadinessOpen(true);
+    if (action === "day_complete") {
+      toast.message("Trips complete for today", {
+        description: "Pickup and Drop are both finished.",
+      });
+      return;
+    }
+    if (action === "start_pickup" || action === "start_drop") {
+      setReadinessSlot(startSlot ?? (action === "start_drop" ? "evening" : "morning"));
+      setReadinessOpen(true);
+    }
   };
 
   const handleDismissCompleted = () => {
@@ -126,12 +85,22 @@ export function HomePage() {
     void tripRepository.dismissCompleted().then((result) => {
       setDismissing(false);
       if (!result.ok) {
-        toast.error("Cannot reset trip", { description: result.reason });
+        toast.error("Couldn't reset trip", { description: result.reason });
         return;
       }
-      toast.success("Ready for next trip");
+      toast.success(
+        result.session.morningCompletedToday && !result.session.eveningCompletedToday
+          ? "Ready for Drop trip"
+          : "Ready for next trip",
+      );
     });
   };
+
+  const showPickupCompleteBanner =
+    session.morningCompletedToday &&
+    !session.eveningCompletedToday &&
+    (action === "start_drop" ||
+      (session.phase === "completed" && session.slot !== "evening"));
 
   return (
     <DriverAssignmentGate assignment={assignment}>
@@ -143,112 +112,75 @@ export function HomePage() {
           </>
         ) : null}
 
-        {assignment.lockedByAdmin ? (
-          <Card className="border-warning/40 bg-warning/10">
+        {session.endSyncPending ? (
+          <Card className="border-warning/40 bg-warning/5">
             <CardContent className="p-4 sm:p-5">
-              <p className="font-display text-base font-semibold text-foreground">Route locked</p>
+              <p className="font-display text-base font-semibold text-foreground">
+                Ending trip — waiting for sync
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                An administrator locked this route. You can review the trip but cannot edit stops.
+                Trip end is queued. It is not confirmed complete until the server
+                acknowledges. Stay on this trip until you reconnect.
               </p>
             </CardContent>
           </Card>
         ) : null}
 
-        {needsRouteSetup ? (
-          <Card className="border-transport/40 bg-transport/10">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="min-w-0">
-                <p className="font-display text-base font-semibold text-foreground">Set up your route</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Drive to each stop, save GPS, and add students. You can start trips once stops are saved.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="transport"
-                className="shrink-0"
-                onClick={() => void navigate({ to: ROUTES.routeSetup })}
-              >
-                <MapPinned className="size-4" aria-hidden />
-                Set up route
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {pendingStops > 0 ? (
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        {showPickupCompleteBanner ? (
+          <Card className="border-success/30 bg-success/5">
+            <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
               <div className="min-w-0">
                 <p className="font-display text-base font-semibold text-foreground">
-                  {pendingStops} student{pendingStops === 1 ? "" : "s"} need a stop
+                  Pickup complete
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Assigned to {bus.busNumber} by Admin · use Route Setup → Students → New
+                  Next trip is Drop. Start when you are ready — no schedule window.
                 </p>
+                {session.phase === "completed" && session.lastSummary ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    loading={dismissing}
+                    disabled={dismissing}
+                    onClick={handleDismissCompleted}
+                  >
+                    Clear pickup summary
+                  </Button>
+                ) : null}
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0"
-                onClick={() => void navigate({ to: ROUTES.routeSetup })}
-              >
-                <MapPinned className="size-4" aria-hidden />
-                Assign stops
-              </Button>
             </CardContent>
           </Card>
         ) : null}
 
-        {waitingAdminStops > 0 && !needsRouteSetup && !tripActive && !tripCompleted ? (
-          <Card className="border-border bg-muted/30">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="min-w-0">
-                <p className="font-display text-base font-semibold text-foreground">
-                  {waitingAdminStops} stop{waitingAdminStops === 1 ? "" : "s"} in Admin review
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  You can start the trip now. Admin review does not block daily operations.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0"
-                onClick={() => void navigate({ to: ROUTES.routeSetup })}
-              >
-                <MapPinned className="size-4" aria-hidden />
-                View stops
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {tripCompleted && session.lastSummary ? (
+        {action === "day_complete" ? (
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="space-y-3 p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-display text-base font-semibold text-foreground">
-                    Trip completed
+                    Day complete
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Summary for {bus.busNumber} · {route.code}
+                    Pickup and Drop finished for {bus.busNumber}
                   </p>
                 </div>
                 <StatusChip label="Completed" tone="success" />
               </div>
-              <EndTripSummaryGrid summary={session.lastSummary} />
-              <Button
-                type="button"
-                variant="transport"
-                expanded
-                loading={dismissing}
-                disabled={dismissing}
-                onClick={handleDismissCompleted}
-              >
-                Done — ready for next trip
-              </Button>
+              {session.phase === "completed" ? (
+                <Button
+                  type="button"
+                  variant="transport"
+                  expanded
+                  loading={dismissing}
+                  disabled={dismissing}
+                  onClick={handleDismissCompleted}
+                >
+                  Done
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
@@ -258,7 +190,7 @@ export function HomePage() {
             session={session}
             boarded={boarded}
             dropped={dropped}
-            totalStudents={students.length || totalStudents}
+            totalStudents={students.length || session.assignment.totalStudents}
           />
         ) : null}
 
@@ -268,132 +200,80 @@ export function HomePage() {
 
           <div className="relative flex w-full min-w-0 flex-col gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">{greeting}</p>
-              <h1 className="mt-1 font-display text-xl font-semibold leading-tight text-pretty text-foreground sm:text-2xl">
-                Today&apos;s shift
-              </h1>
-              <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-pretty text-muted-foreground">
-                {tripActive
-                  ? "Trip is running. Mark boarding and dropping as students get on and off."
-                  : tripCompleted
-                    ? "Last trip finished. Tap Done when you are ready for the next one."
-                    : needsRouteSetup
-                      ? "Add your stops first, then start the trip."
-                      : !hasUsableStops
-                        ? "Add at least one pickup stop before starting."
-                        : "When you are at the first stop, start the trip."}
+              <p className="text-xs font-medium text-muted-foreground">
+                {greeting}
+                {driver.name && driver.name !== "—" ? ` · ${driver.name}` : ""}
               </p>
-              <div className="mt-3">
-                <StatusChip label={homeStatus.label} tone={homeStatus.tone} />
+              <h1 className="mt-1 font-display text-xl font-semibold leading-tight text-pretty text-foreground sm:text-2xl">
+                Today&apos;s trip
+              </h1>
+              <p className="mt-3 font-display text-lg font-semibold tracking-wide text-transport">
+                {headline.tripTitle}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{headline.status}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusChip
+                  label={headline.status}
+                  tone={
+                    action === "setup_route" || action === "add_stops"
+                      ? "warning"
+                      : tripActive
+                        ? "success"
+                        : action === "day_complete"
+                          ? "success"
+                          : "transport"
+                  }
+                />
+                {bus.busNumber !== "—" ? (
+                  <StatusChip label={bus.busNumber} tone="neutral" />
+                ) : null}
+                {route.code !== "—" ? (
+                  <StatusChip label={route.code} tone="neutral" />
+                ) : null}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Users className="size-4 text-transport" aria-hidden />
-                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
-                  {participation.expectedCount || totalStudents}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Expected
-                </p>
-              </div>
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Users className="size-4 text-muted-foreground" aria-hidden />
-                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
-                  {participation.notRidingCount}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Not riding
-                </p>
-              </div>
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Bus className="size-4 text-transport" aria-hidden />
-                <p className="mt-1.5 font-display text-sm font-semibold tabular-nums text-foreground sm:text-base">
-                  {participation.expectedOnboardCount || totalStudents}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Onboard
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Bus className="size-4 text-transport" aria-hidden />
-                <p className="mt-1.5 truncate font-display text-sm font-semibold text-foreground sm:text-base">
-                  {bus.busNumber}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Bus
-                </p>
-              </div>
-              <div className="transport-home-hero__stat min-w-0 rounded-2xl border p-2.5 sm:p-3">
-                <Route className="size-4 text-transport" aria-hidden />
-                <p className="mt-1.5 truncate font-display text-sm font-semibold text-foreground sm:text-base">
-                  {route.code}
-                </p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                  Route
-                </p>
-              </div>
-            </div>
-
-            <HomeClockCards variant="inline" />
+            {action === "setup_route" ? (
+              <Card className="border-transport/40 bg-transport/10 shadow-none">
+                <CardContent className="flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    No stops on this route yet. Add stops before starting a trip.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => void navigate({ to: ROUTES.routeSetup })}
+                  >
+                    <MapPinned className="size-4" aria-hidden />
+                    Route setup
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Button
               type="button"
               variant="transport"
               size="lg"
               expanded
-              className="transport-pressable"
+              className="transport-pressable min-h-12 text-base"
               onClick={handlePrimaryAction}
-              disabled={tripCompleted}
+              disabled={action === "loading" || action === "day_complete"}
+              loading={action === "loading"}
             >
-              <Play className="size-5" aria-hidden />
+              {action === "loading" ? null : <Play className="size-5" aria-hidden />}
               {primaryLabel}
             </Button>
           </div>
         </section>
 
-        <section className="space-y-3">
-          <SectionHeader title="Your bus today" subtitle="Bus, route, and approved stops" />
-          <Card className="transport-home-detail-card overflow-hidden">
-            <CardContent className="space-y-0 p-0">
-              <div className="flex items-start gap-3 border-b border-border p-4 sm:p-5">
-                <IconWell icon={Bus} size="lg" color={MODULE_COLORS.transport} />
-                <div className="min-w-0 flex-1">
-                  <p className="transport-stat-label">Bus number</p>
-                  <p className="mt-0.5 font-display text-lg font-semibold tracking-tight break-words text-foreground">
-                    {bus.busNumber}
-                  </p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    Driver · {driver.name}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-4 sm:p-5">
-                <IconWell icon={MapPinned} size="lg" color={MODULE_COLORS.transport} />
-                <div className="min-w-0 flex-1">
-                  <p className="transport-stat-label">Assigned route</p>
-                  <p className="mt-0.5 font-display text-lg font-semibold tracking-tight text-foreground">
-                    {route.code}
-                  </p>
-                  <p className="mt-0.5 text-sm break-words text-muted-foreground">{route.name}</p>
-                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                    <Route className="size-3.5 shrink-0 text-transport" aria-hidden />
-                    {route.stops.length > 0
-                      ? `${route.stops.length} approved stops on this route`
-                      : "No approved stops yet"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        <StartTripReadinessDialog open={readinessOpen} onOpenChange={setReadinessOpen} />
+        <StartTripReadinessDialog
+          open={readinessOpen}
+          onOpenChange={setReadinessOpen}
+          tripSlot={readinessSlot}
+        />
       </div>
     </DriverAssignmentGate>
   );

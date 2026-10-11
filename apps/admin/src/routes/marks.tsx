@@ -82,7 +82,11 @@ import {
   type MarkStudentScoreItem,
   type MarksListStatus,
 } from "@/lib/marks";
-import { useMarksListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
+import {
+  useMarksEntriesInfiniteQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { adminDataFacade } from "@/lib/admin-data-facade";
 
@@ -130,10 +134,11 @@ function MarksPage() {
     apiMode &&
     instituteCtx.status === "ready" &&
     Boolean(instituteCtx.activeInstituteId);
-  const marksQuery = useMarksListQuery(
+  const marksInfinite = useMarksEntriesInfiniteQuery(
     instituteCtx.activeInstituteId,
     listEnabled,
   );
+  const hasMoreMarks = Boolean(marksInfinite.hasNextPage);
   const bumpMarksReload = () => {
     invalidateAdminCache("admin:marks");
     if (instituteCtx.activeInstituteId) {
@@ -150,7 +155,7 @@ function MarksPage() {
     resolvedForInstituteId,
     storedItems: apiItems,
     storedStatus:
-      marksQuery.isLoading && !marksQuery.data ? "loading" : listStatus,
+      marksInfinite.isLoading && !marksInfinite.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -220,25 +225,39 @@ function MarksPage() {
       return;
     }
 
-    if (marksQuery.isLoading && !marksQuery.data) {
+    if (marksInfinite.isLoading && !marksInfinite.data) {
       setListStatus("loading");
       setListError(null);
       return;
     }
-    if (!marksQuery.data) return;
+    if (marksInfinite.isError) {
+      const err = marksInfinite.error;
+      const status =
+        err && typeof err === "object" && "status" in err
+          ? Number((err as { status: unknown }).status)
+          : null;
+      setApiItems([]);
+      setListStatus(status === 403 ? "forbidden" : "error");
+      setListError(err instanceof Error ? err.message : "Failed to load marks");
+      setResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (!marksInfinite.data) return;
 
-    const next = marksQuery.data;
-    setApiItems(next.items);
-    setListStatus(next.status);
-    setListError(next.errorMessage);
+    const items = marksInfinite.data.pages.flatMap((p) => p.items);
+    setApiItems(items);
+    setListStatus(items.length === 0 ? "empty" : "ready");
+    setListError(null);
     setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    marksQuery.data,
-    marksQuery.isLoading,
+    marksInfinite.data,
+    marksInfinite.isLoading,
+    marksInfinite.isError,
+    marksInfinite.error,
   ]);
 
   useEffect(() => {
@@ -707,6 +726,10 @@ function MarksPage() {
 
   const approveAllReady = () => {
     if (!writesEnabled) return;
+    if (apiMode && hasMoreMarks) {
+      notify("Load all pages before Approve all ready (more entries remain).");
+      return;
+    }
     const ids = list.filter((e) => e.status === "submitted").map((e) => e.id);
     if (ids.length === 0) return;
     if (apiMode) {
@@ -787,7 +810,16 @@ function MarksPage() {
               </Button>
             ) : null}
             {stage === "ready" ? (
-              <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0 || mutating}>
+              <Button
+                variant="primary"
+                onClick={approveAllReady}
+                disabled={list.length === 0 || mutating || (apiMode && hasMoreMarks)}
+                title={
+                  apiMode && hasMoreMarks
+                    ? "Load all pages before approving every ready sheet"
+                    : undefined
+                }
+              >
                 <Send className="size-3.5" /> Approve all ready ({list.length})
               </Button>
             ) : null}
@@ -1028,6 +1060,16 @@ function MarksPage() {
             </tbody>
           </DataTable>
         )}
+        {apiMode && hasMoreMarks ? (
+          <div className="flex justify-center border-t border-border py-3">
+            <Button
+              disabled={marksInfinite.isFetchingNextPage}
+              onClick={() => void marksInfinite.fetchNextPage()}
+            >
+              {marksInfinite.isFetchingNextPage ? "Loading…" : "Load more"}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <Modal
@@ -1492,14 +1534,14 @@ function StageCard({
 }) {
   const tones = {
     waiting: active
-      ? "border-amber-500/50 bg-amber-500/10 ring-1 ring-amber-500/30"
-      : "border-border bg-surface hover:bg-surface-hover",
+      ? "border-amber-500/45 bg-amber-500/10 shadow-xs"
+      : "border-border bg-card hover:bg-surface-hover",
     ready: active
-      ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-500/30"
-      : "border-border bg-surface hover:bg-surface-hover",
+      ? "border-sky-500/45 bg-sky-500/10 shadow-xs"
+      : "border-border bg-card hover:bg-surface-hover",
     published: active
-      ? "border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/30"
-      : "border-border bg-surface hover:bg-surface-hover",
+      ? "border-emerald-500/45 bg-emerald-500/10 shadow-xs"
+      : "border-border bg-card hover:bg-surface-hover",
   };
   const countTone = {
     waiting: "warning" as const,

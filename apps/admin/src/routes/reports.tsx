@@ -73,9 +73,9 @@ function ReportsDemoPage() {
         subtitle="Download & export only · Excel, PDF, CSV · no charts or live dashboards"
       />
       <PageStack>
-        <Card className="p-4 border-primary/20 bg-primary/5">
+        <Card className="border-border bg-muted/40 p-4">
           <div className="flex gap-3">
-            <Info className="size-4 text-primary shrink-0 mt-0.5" />
+            <Info className="size-4 shrink-0 text-muted-foreground mt-0.5" />
             <div className="text-xs text-muted-foreground leading-relaxed">
               Reports are for export only.{" "}
               <span className="text-foreground font-medium">Excel</span> and{" "}
@@ -90,12 +90,14 @@ function ReportsDemoPage() {
         <Card>
           <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
             <div className="lx-segmented-scroll flex-1 min-w-0">
-              <div className="flex items-center gap-1 p-1 bg-background rounded-md border border-border w-max max-w-full">
+              <div className="flex w-max max-w-full items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
                 <button
                   type="button"
                   onClick={() => setModule("all")}
-                  className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
-                    module === "all" ? "bg-surface text-foreground" : "text-muted-foreground"
+                  className={`h-7 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+                    module === "all"
+                      ? "border-border bg-muted/70 text-foreground shadow-xs"
+                      : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                   }`}
                 >
                   All
@@ -105,8 +107,10 @@ function ReportsDemoPage() {
                     key={m}
                     type="button"
                     onClick={() => setModule(m)}
-                    className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
-                      module === m ? "bg-surface text-foreground" : "text-muted-foreground"
+                    className={`h-7 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+                      module === m
+                        ? "border-border bg-muted/70 text-foreground shadow-xs"
+                        : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                     }`}
                   >
                     {m}

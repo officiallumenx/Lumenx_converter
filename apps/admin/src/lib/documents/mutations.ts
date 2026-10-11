@@ -14,6 +14,10 @@ import type {
   GeneratedDocumentDto,
   GeneratedWorkflowState,
 } from "./types";
+import {
+  isDocumentsHubTemplateType,
+  type DocumentsHubTemplateType,
+} from "./doc-hub-views";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -81,6 +85,29 @@ export async function createDocumentTemplate(
     tags: input.tags,
     activate_now: input.activateNow,
   });
+}
+
+export type CreateDocumentsHubTemplateInput = Omit<
+  CreateDocumentTemplateInput,
+  "type"
+> & {
+  type: DocumentsHubTemplateType;
+};
+
+/**
+ * Documents hub create path — rejects certificate / id_card.
+ * Low-level {@link createDocumentTemplate} remains for Certificates hybrid sync.
+ */
+export async function createDocumentsHubTemplate(
+  input: CreateDocumentsHubTemplateInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<DocumentTemplateDto> {
+  if (!isDocumentsHubTemplateType(input.type)) {
+    throw new Error(
+      "Documents hub only supports document and report templates",
+    );
+  }
+  return createDocumentTemplate(input, client);
 }
 
 export async function updateDocumentTemplate(

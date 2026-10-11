@@ -145,6 +145,7 @@ export function useDriverAssignmentQuery(): DriverAssignment {
   const employeeId = assignment.account?.employeeId ?? null;
   const licenseNumber = assignment.account?.licenseNumber ?? null;
   const driverPhone = assignment.driver?.phone ?? user?.phone ?? null;
+  const instituteTimezone = assignment.timezone ?? null;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -173,17 +174,32 @@ export function useDriverAssignmentQuery(): DriverAssignment {
         employeeId,
         licenseNumber,
         instituteId: instituteId ?? undefined,
+        timezone: instituteTimezone ?? undefined,
       };
       setRouteSetupDriverScope(scope);
       setAttendanceVehicleScope(scopeVehicleId || null);
       if (instituteId) {
-        void loadDriverRosterForHydrate(instituteId).then((roster) =>
-          hydrateRouteSetupFromApi(scope, roster),
-        );
+        void import("@/lib/transport/trip/store").then(({ setRouteHydrated }) => {
+          setRouteHydrated(false);
+        });
         void queryClient.invalidateQueries({
           queryKey: transportQueryKeys.roster(instituteId),
         });
-        void tripRepository.hydrateFromApi().then(() => attendanceRepository.hydrateFromApi());
+        // Roster + today's trip completions must finish before Home shows a CTA.
+        // Previously routeHydrated flipped true before list-trips, so Start Pickup
+        // appeared after a completed Pickup (Drop never showed until full reload).
+        void Promise.all([
+          loadDriverRosterForHydrate(instituteId).then((roster) =>
+            hydrateRouteSetupFromApi(scope, roster),
+          ),
+          tripRepository.hydrateFromApi().then(() => attendanceRepository.hydrateFromApi()),
+        ])
+          .catch(() => undefined)
+          .finally(() => {
+            void import("@/lib/transport/trip/store").then(({ setRouteHydrated }) => {
+              setRouteHydrated(true);
+            });
+          });
       }
       return;
     }
@@ -203,6 +219,7 @@ export function useDriverAssignmentQuery(): DriverAssignment {
     licenseNumber,
     driverPhone,
     instituteId,
+    instituteTimezone,
     queryClient,
   ]);
 
@@ -226,6 +243,7 @@ export function useEnsureDriverScope(): () => void {
         employeeId: assignment.account.employeeId,
         licenseNumber: assignment.account.licenseNumber,
         instituteId: user?.instituteId,
+        timezone: assignment.timezone ?? undefined,
       });
       setAttendanceVehicleScope(assignment.bus.vehicleId);
     }

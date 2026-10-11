@@ -31,10 +31,17 @@ import {
   invalidateAdminCache,
   peekAdminCacheSoft,
 } from "@/lib/admin-resource-cache";
+import { SETUP_VERIFIED_FRESH_MS } from "./defer";
 import { evaluateSetupProgress, summarizeSetupProgress } from "./progress";
 import type { SetupChecklistState, SetupCounts } from "./types";
 
 const COMPLETE_SNAPSHOT_PREFIX = "lumenx.admin.setup-core-complete.v1:";
+
+export type VerifiedSetupCoreSnapshot = {
+  complete: true;
+  /** Epoch ms when a successful ready+coreComplete recount last wrote this flag. */
+  at: number;
+};
 
 function isCacheableSetupState(state: SetupChecklistState): boolean {
   return state.status === "ready";
@@ -60,25 +67,61 @@ function completeSnapshotKey(instituteId: string): string {
   return `${COMPLETE_SNAPSHOT_PREFIX}${instituteId}`;
 }
 
-/** Last verified core-complete flag (institute-scoped). Not auth secrets. */
-export function readVerifiedSetupCoreComplete(instituteId: string): boolean {
-  if (typeof localStorage === "undefined") return false;
+/**
+ * Last verified core-complete snapshot (institute-scoped). Not auth secrets.
+ * - Modern: JSON `{ complete: true, at: <epochMs> }`
+ * - Legacy: `"1"` (complete, unknown age → treated as stale for deferral)
+ */
+export function readVerifiedSetupCoreSnapshot(
+  instituteId: string,
+): VerifiedSetupCoreSnapshot | null {
+  if (typeof localStorage === "undefined") return null;
   try {
-    return localStorage.getItem(completeSnapshotKey(instituteId)) === "1";
+    const raw = localStorage.getItem(completeSnapshotKey(instituteId));
+    if (raw == null) return null;
+    if (raw === "1") {
+      // Legacy boolean flag — verified complete but not fresh (force recount).
+      return { complete: true, at: 0 };
+    }
+    const parsed = JSON.parse(raw) as { complete?: unknown; at?: unknown };
+    if (parsed?.complete === true && typeof parsed.at === "number" && Number.isFinite(parsed.at)) {
+      return { complete: true, at: parsed.at };
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** True when a verified core-complete flag exists (any age, including legacy). */
+export function readVerifiedSetupCoreComplete(instituteId: string): boolean {
+  return readVerifiedSetupCoreSnapshot(instituteId)?.complete === true;
+}
+
+/** True when verified complete and written within {@link SETUP_VERIFIED_FRESH_MS}. */
+export function isVerifiedSetupCoreCompleteFresh(
+  instituteId: string,
+  now: number = Date.now(),
+): boolean {
+  const snap = readVerifiedSetupCoreSnapshot(instituteId);
+  if (!snap) return false;
+  return now - snap.at <= SETUP_VERIFIED_FRESH_MS;
 }
 
 export function writeVerifiedSetupCoreComplete(
   instituteId: string,
   complete: boolean,
+  at: number = Date.now(),
 ): void {
   if (typeof localStorage === "undefined") return;
   try {
     const key = completeSnapshotKey(instituteId);
-    if (complete) localStorage.setItem(key, "1");
-    else localStorage.removeItem(key);
+    if (complete) {
+      const payload: VerifiedSetupCoreSnapshot = { complete: true, at };
+      localStorage.setItem(key, JSON.stringify(payload));
+    } else {
+      localStorage.removeItem(key);
+    }
   } catch {
     // Ignore quota / private mode.
   }

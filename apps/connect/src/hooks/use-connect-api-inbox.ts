@@ -4,11 +4,14 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useConnectInboxQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { markInboxItemRead, markAllInboxRead } from "@/lib/notification-inbox";
 import { isAlertNotification, subscribeInAppAlerts } from "@lumenx/notifications";
 import type { AppNotification } from "@lumenx/types";
 
 export function useConnectApiInbox(activeInstituteId: string | null) {
+  const userId = useConnectQueryUserId();
   const { role } = useApp();
   const apiMode = isApiAuthMode();
   const queryClient = useQueryClient();
@@ -62,11 +65,11 @@ export function useConnectApiInbox(activeInstituteId: string | null) {
     (updater: (prev: AppNotification[]) => AppNotification[]) => {
       if (!activeInstituteId) return;
       queryClient.setQueryData<AppNotification[]>(
-        connectQueryKeys.inbox(activeInstituteId, roleKey),
+        scopedConnectKey(userId, connectQueryKeys.inbox(activeInstituteId, roleKey)),
         (prev) => updater(prev ?? []),
       );
     },
-    [activeInstituteId, queryClient, roleKey],
+    [activeInstituteId, queryClient, roleKey, userId],
   );
 
   const markRead = useCallback(

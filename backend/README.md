@@ -43,6 +43,10 @@ See **`backend/.env.example`**. Highlights:
 
 Production boot runs a **fail-closed packaging gate** (missing Supabase/Firebase/CORS/OTP provider → process exits). Details: [DEPLOY.md](./DEPLOY.md).
 
+**Local safety (single existing project):** **[DEV_SAFETY.md](./DEV_SAFETY.md)** — OTP demo default, FCM outbox gate, write-script ack, migration preflight.
+
+**Optional staging (separate Supabase project):** copy `.env.staging.example` → `.env.staging`, then follow **[STAGING.md](./STAGING.md)**.
+
 ## Migrations
 
 ```bash

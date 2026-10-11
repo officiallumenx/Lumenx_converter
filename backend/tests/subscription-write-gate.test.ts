@@ -133,6 +133,38 @@ function baseDb(lifecycle: string): MockDb {
 }
 
 describe("subscription write-gate HTTP", () => {
+  it("blocks student create when subscription row is missing", async () => {
+    const db = baseDb("trial_active");
+    db.subscription = [];
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const clients = createMockSupabaseClients({
+      db,
+      tokens: { [TOKEN]: USER_ADMIN },
+    });
+    const app = createApp(env, silentLogger, clients);
+
+    const gate = await resolveInstituteWriteGate(clients.admin, INST_A);
+    expect(gate.writeLocked).toBe(true);
+    expect(gate.subscriptionMissing).toBe(true);
+    expect(gate.lifecycleStatus).toBe("registered");
+
+    const res = await app.request("/api/v1/students", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        first_name: "Aanya",
+        surname: "Shah",
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error?.details?.reason).toBe("SUBSCRIPTION_REQUIRED");
+  });
+
   it("blocks student create when institute is read_only", async () => {
     const db = baseDb("read_only");
     const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
@@ -196,6 +228,123 @@ describe("subscription write-gate HTTP", () => {
     expect(res.status).not.toBe(403);
   });
 
+  it("allows student create during grace_period", async () => {
+    const db = baseDb("trial_active");
+    // Force derive → grace: trial ended yesterday, grace ends in 6 days
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setUTCDate(trialEnd.getUTCDate() - 2);
+    const trialStart = new Date(trialEnd);
+    trialStart.setUTCDate(trialStart.getUTCDate() - 60);
+    const graceEnd = new Date(trialEnd);
+    graceEnd.setUTCDate(graceEnd.getUTCDate() + 7);
+    db.subscription[0]!.trial_start_at = trialStart.toISOString();
+    db.subscription[0]!.trial_end_at = trialEnd.toISOString();
+    db.subscription[0]!.grace_ends_at = graceEnd.toISOString();
+    db.subscription[0]!.lifecycle_status = "grace_period";
+
+    const clients = createMockSupabaseClients({
+      db,
+      tokens: { [TOKEN]: USER_ADMIN },
+    });
+    const gate = await resolveInstituteWriteGate(clients.admin, INST_A);
+    expect(gate.writeLocked).toBe(false);
+    expect(["grace_period", "trial_expired"]).toContain(gate.lifecycleStatus);
+
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(env, silentLogger, clients);
+    const res = await app.request("/api/v1/students", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        first_name: "Grace",
+        surname: "User",
+      }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  it("allows registration create without a subscription row", async () => {
+    const db = emptyMockDb();
+    db.user_profile = [
+      {
+        id: USER_ADMIN,
+        display_name: "Applicant",
+        email: "applicant@test.com",
+        status: "active",
+        deleted_at: null,
+      },
+    ];
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        db,
+        tokens: { [TOKEN]: USER_ADMIN },
+      }),
+    );
+
+    const res = await app.request("/api/v1/registrations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        instituteName: "New School",
+        instituteCode: "NEW-SCH",
+        instituteType: "school",
+        educationBoard: "CBSE",
+        schoolPhone: "9876543210",
+        schoolEmail: "office@newschool.test",
+        country: "India",
+        state: "KA",
+        district: "Bengaluru",
+        city: "Bengaluru",
+        area: "Indiranagar",
+        pincode: "560038",
+        adminFullName: "Applicant",
+        adminPhone: "9876543210",
+        adminEmail: "applicant@test.com",
+      }),
+    });
+    // Allowlisted — must not be subscription 403
+    expect(res.status).not.toBe(403);
+  });
+
+  it("allows report export job create while read_only", async () => {
+    const db = baseDb("read_only");
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        db,
+        tokens: { [TOKEN]: USER_ADMIN },
+      }),
+    );
+
+    const res = await app.request("/api/v1/reports/jobs", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        report_id: "students",
+      }),
+    });
+    // Allowlisted — reporting remains available in subscription read-only.
+    expect(res.status).not.toBe(403);
+    expect([201, 200]).toContain(res.status);
+  });
+
   it("allows offline payment submit path while read_only", async () => {
     const db = baseDb("read_only");
     const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
@@ -241,5 +390,91 @@ describe("subscription write-gate HTTP", () => {
       { headers: { Authorization: `Bearer ${TOKEN}` } },
     );
     expect(res.status).not.toBe(403);
+  });
+
+  it("blocks Transport vehicle create when read_only", async () => {
+    const db = baseDb("read_only");
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        db,
+        tokens: { [TOKEN]: USER_ADMIN },
+      }),
+    );
+
+    const res = await app.request("/api/v1/transport/vehicles", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        label: "Bus 1",
+        registration_number: "KA01AB1234",
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error?.details?.reason).toBe("SUBSCRIPTION_READ_ONLY");
+  });
+
+  it("blocks Admissions program create when read_only", async () => {
+    const db = baseDb("read_only");
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        db,
+        tokens: { [TOKEN]: USER_ADMIN },
+      }),
+    );
+
+    const res = await app.request("/api/v1/admissions/programs", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        name: "Grade 1 Intake",
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error?.details?.reason).toBe("SUBSCRIPTION_READ_ONLY");
+  });
+
+  it("blocks Careers job create when subscription is missing", async () => {
+    const db = baseDb("trial_active");
+    db.subscription = [];
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        db,
+        tokens: { [TOKEN]: USER_ADMIN },
+      }),
+    );
+
+    const res = await app.request("/api/v1/careers/jobs", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        title: "Math Teacher",
+      }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error?.details?.reason).toBe("SUBSCRIPTION_REQUIRED");
   });
 });

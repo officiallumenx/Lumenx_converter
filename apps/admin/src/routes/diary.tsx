@@ -28,7 +28,6 @@ import { BookMarked, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
-import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { listClassesCatalog } from "@/lib/classes/api";
 import type { SectionDto } from "@/lib/classes/types";
 import { listTeachers, teacherDtosToListItems, type TeacherListItem } from "@/lib/teachers";
@@ -82,10 +81,8 @@ function DiaryViewPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = resolveWritesEnabled(apiMode, {
-    status: instituteCtx.status,
-    activeInstituteId: instituteCtx.activeInstituteId,
-  });
+  // Admin Diary is view-only: list/detail only (no create / edit / delete).
+  const writesEnabled = false;
 
   const [demoLogs] = useState<DiarySubmissionLog[]>(() => {
     if (apiMode) return [];
@@ -395,31 +392,13 @@ function DiaryViewPage() {
   return (
     <AppShell
       title={M.diary}
-      subtitle={
-        apiMode
-          ? writesEnabled
-            ? "Create / edit / submit / delete diary days"
-            : "Read-only list"
-          : "Teacher submits · Admin view only (no edit)"
-      }
-      actions={
-        apiMode && writesEnabled ? (
-          <Button variant="primary" onClick={openCreate}>
-            <Plus className="size-3.5" /> New diary day
-          </Button>
-        ) : null
-      }
+      subtitle="Teacher submits · Admin view only (no add, edit, or delete)"
+      actions={null}
     >
       <ModuleHero
         eyebrow="Academics"
         title={M.diary}
-        subtitle={
-          apiMode
-            ? writesEnabled
-              ? "Create / edit / submit / delete diary days"
-              : "Read-only list"
-            : "Teacher submits · Admin view only (no edit)"
-        }
+        subtitle="Teacher submits · Admin view only (no add, edit, or delete)"
       />
       <Card>
         {apiMode && !listView.rowsValid ? (
@@ -432,7 +411,8 @@ function DiaryViewPage() {
             title="No diary days yet"
             hint={
               apiMode
-                ? listHint ?? "Create a diary day for a teacher, or wait for Connect submissions."
+                ? listHint ??
+                  "Submitted teacher diary days from Connect appear here for viewing only."
                 : "Submitted teacher diary days from Connect appear here for viewing only."
             }
           />

@@ -16,6 +16,7 @@ import {
   listActiveDailyExceptionsForStudents,
 } from "./daily-exception-repository.js";
 import { resolveInstituteServiceDate } from "./daily-exception-service.js";
+import { findInstituteSettings } from "../identity/repository.js";
 import {
   findDriverById,
   findDriverByUserProfileId,
@@ -318,11 +319,14 @@ export async function getDriverMeForActor(
   }
   const driver = await findDriverByUserProfileId(admin, actor.userId, id);
   if (!driver) throw AppError.notFound("Driver profile not linked");
+  const settings = await findInstituteSettings(admin, id);
   return {
     driverId: driver.id,
     instituteId: driver.institute_id,
     displayName: driver.display_name,
     phone: driver.phone,
+    /** Institute wall-clock zone for trip service dates (YYYY-MM-DD). */
+    timezone: settings?.timezone?.trim() || "Asia/Kolkata",
   };
 }
 

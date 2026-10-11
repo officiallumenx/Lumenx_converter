@@ -26,6 +26,7 @@ vi.mock("../trip/api-ops", () => ({
 }));
 
 import { enqueueOpsEvent, isOpsOutboxOnline } from "../ops-outbox";
+import { getTripSessionSnapshot } from "../trip/store";
 import { getAttendanceSnapshot, setApiAttendanceRoster } from "./store";
 import { attendanceRepository } from "./repository";
 
@@ -73,5 +74,70 @@ describe("attendance sync via ops-outbox", () => {
     await attendanceRepository.markBoarding("stu-1", "boarded");
     const arg = vi.mocked(enqueueOpsEvent).mock.calls[0]?.[0];
     expect(arg?.clientEventId).toMatch(/^board-/);
+  });
+
+  it("queues drop with enrollment dropStopId (not pickup)", async () => {
+    setApiAttendanceRoster([
+      {
+        id: "stu-1",
+        name: "Ada",
+        grade: "5",
+        stopName: "Gate",
+        stopId: "stop-pickup",
+        dropStopId: "stop-school",
+        dropStopName: "School",
+        rollNo: "1",
+      },
+    ]);
+    // Let hydrateAttendanceFromApi (fired by setApiAttendanceRoster) settle first.
+    await Promise.resolve();
+    await Promise.resolve();
+    const result = await attendanceRepository.markDropping("stu-1", "dropped");
+    expect(result.ok).toBe(true);
+    expect(getAttendanceSnapshot()[0]?.dropping).toBe("dropped");
+    expect(enqueueOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "drop",
+        studentId: "stu-1",
+        tripId: "trip-1",
+        stopId: "stop-school",
+        payload: { droppingStatus: "dropped" },
+      }),
+    );
+  });
+
+  it("uses last route stop when dropStopId omitted from roster seed", async () => {
+    vi.mocked(getTripSessionSnapshot).mockReturnValue({
+      tripId: "trip-evening",
+      currentStopIndex: 0,
+      assignment: {
+        route: {
+          stops: [
+            { id: "stop-pickup", name: "Gate", sequence: 0 },
+            { id: "stop-school", name: "School", sequence: 1 },
+          ],
+        },
+      },
+    } as never);
+
+    setApiAttendanceRoster([
+      {
+        id: "stu-1",
+        name: "Ada",
+        grade: "5",
+        stopName: "Gate",
+        stopId: "stop-pickup",
+        rollNo: "1",
+      },
+    ]);
+    await Promise.resolve();
+    await Promise.resolve();
+    await attendanceRepository.markDropping("stu-1", "dropped");
+    expect(enqueueOpsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "drop",
+        stopId: "stop-school",
+      }),
+    );
   });
 });

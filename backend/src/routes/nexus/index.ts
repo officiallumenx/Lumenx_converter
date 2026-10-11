@@ -23,6 +23,7 @@ import {
   listSubscriptionsForActor,
   provisionOperatorForActor,
   syncSubscriptionLifecyclesForActor,
+  auditSubscriptionCoverageForActor,
   updateOperatorForActor,
   upsertLicenseForActor,
   upsertSubscriptionForActor,
@@ -35,6 +36,7 @@ import registrations from "./registrations.js";
 import recycle from "./recycle.js";
 import storage from "./storage.js";
 import analytics from "./analytics.js";
+import certificateTemplates from "./certificate-templates.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -270,6 +272,14 @@ subscriptions.post("/sync-lifecycle", async (c) => {
   return c.json({ data });
 });
 
+/** Read-only dry-run: institutes missing/inconsistent subscriptions (no mutations). */
+subscriptions.get("/coverage-audit", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const data = await auditSubscriptionCoverageForActor(admin, actor);
+  return c.json({ data });
+});
+
 subscriptions.get("/:id/periods", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
@@ -369,5 +379,6 @@ nexus.route("/registrations", registrations);
 nexus.route("/recycle", recycle);
 nexus.route("/storage", storage);
 nexus.route("/analytics", analytics);
+nexus.route("/certificate-templates", certificateTemplates);
 
 export default nexus;

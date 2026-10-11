@@ -4,9 +4,10 @@
  */
 
 import type { SubscriptionLifecycle } from "../nexus/types.js";
+import { DEFAULT_GRACE_DAYS } from "./pricing.js";
 
 export const TRIAL_EXPIRING_DAYS = 7;
-export { DEFAULT_GRACE_DAYS } from "./pricing.js";
+export { DEFAULT_GRACE_DAYS };
 
 export type SubscriptionAccessMode = "full" | "grace" | "read_only";
 
@@ -37,7 +38,7 @@ function daysRemainingUntil(endAt: string, now: Date): number {
 export function deriveSubscriptionLifecycle(
   sub: LifecycleDeriveInput,
   now: Date = new Date(),
-  graceDays: number = 7,
+  graceDays: number = DEFAULT_GRACE_DAYS,
 ): SubscriptionLifecycle {
   const nowMs = now.getTime();
   const period = sub.currentPeriod;
@@ -45,6 +46,10 @@ export function deriveSubscriptionLifecycle(
   if (period?.paymentStatus === "paid") {
     const startMs = new Date(period.startsAt).getTime();
     const endMs = new Date(period.endsAt).getTime();
+    // Prepaid / stacked renewal: period not started yet still grants paid access.
+    if (nowMs < startMs) {
+      return "active";
+    }
     if (nowMs >= startMs && nowMs <= endMs) {
       return "active";
     }

@@ -71,13 +71,8 @@ const STEPS = [
 
 function WelcomePage() {
   return (
-    <div className="flex min-h-screen-dvh flex-col bg-gradient-to-b from-background via-background to-muted/40 text-foreground">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute top-[-12%] left-1/2 h-[480px] w-[820px] -translate-x-1/2 rounded-full bg-primary/[0.08] blur-3xl" />
-        <div className="absolute bottom-[-18%] right-[-8%] h-[320px] w-[320px] rounded-full bg-chart-5/[0.07] blur-3xl" />
-      </div>
-
-      <header className="relative z-20 shrink-0 border-b border-border/70 bg-background/90 px-4 py-2.5 backdrop-blur-md lg:hidden">
+    <div className="flex min-h-screen-dvh flex-col bg-background text-foreground">
+      <header className="relative z-20 shrink-0 border-b border-border bg-background px-4 py-2.5 lg:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <LumenXAdminLogo size="sm" className="h-8" />
           <nav className="flex shrink-0 items-center gap-2" aria-label="Account">
@@ -101,7 +96,7 @@ function WelcomePage() {
             <div className="text-center lg:text-left">
               <LumenXAdminLogo
                 size="hero"
-                className="mx-auto mb-5 h-20 drop-shadow-md sm:h-24 lg:mx-0 lg:mb-6 lg:h-28"
+                className="mx-auto mb-5 h-20 sm:h-24 lg:mx-0 lg:mb-6 lg:h-28"
               />
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                 For principals & office staff
@@ -135,11 +130,11 @@ function WelcomePage() {
             </div>
 
             <div
-              className={`rounded-3xl border border-border/80 bg-card/90 p-5 shadow-elevated backdrop-blur-sm sm:p-7 ${AUTH_CARD_ENTER}`}
+              className={`rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7 ${AUTH_CARD_ENTER}`}
             >
-              <div className="relative mb-5 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/[0.16] via-primary/[0.05] to-chart-5/[0.08] p-4">
+              <div className="relative mb-5 overflow-hidden rounded-2xl border border-border bg-muted/40 p-4">
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-xs">
                     <Sparkles className="size-4" aria-hidden />
                   </span>
                   <div>
@@ -161,7 +156,7 @@ function WelcomePage() {
                     key={title}
                     className="flex gap-2.5 rounded-xl border border-border/70 bg-background/60 p-3"
                   >
-                    <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-muted text-muted-foreground">
                       <Icon className="size-4" aria-hidden />
                     </span>
                     <div className="min-w-0">

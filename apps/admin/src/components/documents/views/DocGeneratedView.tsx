@@ -233,7 +233,7 @@ function DetailPanel({
         onClick={onClose}
       />
       {/* Panel */}
-      <div className={`fixed inset-y-0 right-0 z-30 w-full max-w-md shadow-pop border-l border-border bg-background flex flex-col transition-transform duration-300 ease-out ${visible ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed inset-y-0 right-0 z-30 w-full max-w-md shadow-sm border-l border-border bg-card flex flex-col transition-transform duration-300 ease-out ${visible ? "translate-x-0" : "translate-x-full"}`}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-2 bg-surface/50">
           <div className="min-w-0">

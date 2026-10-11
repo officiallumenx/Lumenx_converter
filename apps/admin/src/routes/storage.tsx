@@ -204,12 +204,15 @@ function StoragePage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex gap-1 p-1 w-fit bg-background rounded-md border border-border">
+        <div className="flex w-fit items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
           <button
             type="button"
             onClick={() => setView("overview")}
-            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-[11px] font-medium transition-colors ${
-              view === "overview" ? "bg-surface text-foreground" : "text-muted-foreground"
+            aria-pressed={view === "overview"}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+              view === "overview"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             <LayoutDashboard className="size-3.5" /> Overview
@@ -217,8 +220,11 @@ function StoragePage() {
           <button
             type="button"
             onClick={() => setView("documents")}
-            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-[11px] font-medium transition-colors ${
-              view === "documents" ? "bg-surface text-foreground" : "text-muted-foreground"
+            aria-pressed={view === "documents"}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+              view === "documents"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             <FolderOpen className="size-3.5" /> Documents
@@ -226,8 +232,11 @@ function StoragePage() {
           <button
             type="button"
             onClick={() => setView("recycle")}
-            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded text-[11px] font-medium transition-colors ${
-              view === "recycle" ? "bg-surface text-foreground" : "text-muted-foreground"
+            aria-pressed={view === "recycle"}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+              view === "recycle"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             <Trash2 className="size-3.5" /> Recycle Bin
@@ -339,7 +348,7 @@ function StoragePage() {
                       className="flex flex-wrap items-center gap-3 py-3.5 first:pt-0 last:pb-0"
                     >
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className="size-9 rounded-md border border-border bg-accent flex items-center justify-center text-muted-foreground shrink-0">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
                           <Icon className="size-4" />
                         </div>
                         <div className="min-w-0">

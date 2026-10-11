@@ -1,17 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useApp } from "@/lib/app-state";
+import { ConnectRoleGate } from "@/components/app/ConnectRoleGate";
 import { TeacherRemarksPage } from "@/teacher-portal";
 
 export const Route = createFileRoute("/_authenticated/remarks")({
   head: () => ({ meta: [{ title: "Remarks — LumenX Connect" }] }),
   component: () => (
-    <RemarksRoute />
+    <ConnectRoleGate allow={["teacher"]}>
+      <TeacherRemarksPage />
+    </ConnectRoleGate>
   ),
 });
-
-function RemarksRoute() {
-  const { role } = useApp();
-  if (role !== "teacher")
-    return <div className="py-12 text-center text-muted-foreground">Teacher portal only.</div>;
-  return <TeacherRemarksPage />;
-}

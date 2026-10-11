@@ -10,7 +10,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
-import { connectQueryKeys } from "@/lib/connect-queries";
+import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
+import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import {
   bindTeacherPortalQueryClient,
   invalidateTeacherPortalQueries,
@@ -48,8 +50,10 @@ const EMPTY_CLASSES: TeacherClass[] = [];
 const EMPTY_STUDENTS: TeacherStudent[] = [];
 
 export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
-  const { role, activeInstituteId } = useApp();
+  const { role, activeInstituteId, user } = useApp();
   const queryClient = useTeacherPortalQueryClient();
+  const isRestoring = useConnectQueryRestoring();
+  const userId = useConnectQueryUserId();
   const isTeacher = role === "teacher";
   const instituteOk =
     Boolean(activeInstituteId) && isInstituteUuid(activeInstituteId ?? "");
@@ -61,7 +65,8 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const rosterQuery = useTeacherPortalRosterQuery({
     instituteId: activeInstituteId,
-    enabled: isTeacher,
+    userId,
+    enabled: isTeacher && !isRestoring && Boolean(user?.id),
   });
 
   // Leave teacher role / logout: drop cached roster so institutes cannot leak.
@@ -78,6 +83,7 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const bundleEnabled =
     isTeacher &&
+    !isRestoring &&
     isApiAuthMode() &&
     instituteOk &&
     Boolean(roster) &&
@@ -85,7 +91,10 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const bundleQuery = useQuery({
     queryKey: [
-      ...connectQueryKeys.teacherPortalBundle(activeInstituteId ?? "_"),
+      ...scopedConnectKey(
+        userId,
+        connectQueryKeys.teacherPortalBundle(activeInstituteId ?? "_"),
+      ),
       classSig,
     ],
     queryFn: () =>
@@ -103,13 +112,13 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isTeacher || !activeInstituteId || !teacherId || !instituteOk) return;
     if (!roster) return;
-    prefetchTeacherModuleQueries(queryClient, activeInstituteId, teacherId);
-  }, [isTeacher, activeInstituteId, teacherId, instituteOk, roster, queryClient]);
+    prefetchTeacherModuleQueries(queryClient, userId, activeInstituteId, teacherId);
+  }, [isTeacher, activeInstituteId, teacherId, instituteOk, roster, queryClient, userId]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;
-    void invalidateTeacherPortalQueries(queryClient, activeInstituteId);
-  }, [activeInstituteId, queryClient]);
+    void invalidateTeacherPortalQueries(queryClient, userId, activeInstituteId);
+  }, [activeInstituteId, queryClient, userId]);
 
   const rosterError =
     rosterQuery.isError && !roster
@@ -140,6 +149,7 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const isLoading =
     isTeacher &&
+    !isRestoring &&
     ((rosterQuery.isLoading && !roster) ||
       (bundleEnabled && bundleQuery.isLoading && !profile && !dashboard));
 

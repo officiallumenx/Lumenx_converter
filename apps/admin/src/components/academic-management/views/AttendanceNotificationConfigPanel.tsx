@@ -195,7 +195,7 @@ function AttendanceNotificationConfigDemoPanel() {
                     onClick={() => setTiming(opt.value)}
                     className={`rounded-xl border px-3 py-3 text-left transition-colors ${
                       on
-                        ? "border-primary/40 bg-primary/[0.06] ring-1 ring-primary/20"
+                        ? "border-primary/40 bg-primary/[0.06] shadow-xs"
                         : "border-border bg-card hover:bg-muted/30"
                     }`}
                   >
@@ -222,7 +222,7 @@ function AttendanceNotificationConfigDemoPanel() {
                     onClick={() => setTriggers((prev) => toggleIn(prev, opt.value))}
                     className={`rounded-xl border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed ${
                       on
-                        ? "border-primary/40 bg-primary/[0.06] ring-1 ring-primary/20"
+                        ? "border-primary/40 bg-primary/[0.06] shadow-xs"
                         : "border-border bg-card hover:bg-muted/30"
                     }`}
                   >
@@ -249,7 +249,7 @@ function AttendanceNotificationConfigDemoPanel() {
                     onClick={() => setRecipients((prev) => toggleIn(prev, opt.value))}
                     className={`rounded-xl border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed ${
                       on
-                        ? "border-primary/40 bg-primary/[0.06] ring-1 ring-primary/20"
+                        ? "border-primary/40 bg-primary/[0.06] shadow-xs"
                         : "border-border bg-card hover:bg-muted/30"
                     }`}
                   >

@@ -7,7 +7,12 @@ export type {
   MarkStudentScoreItem,
   MarksLookupMaps,
 } from "./types";
-export { assertApiMode, getMarkEntry, listMarkEntries } from "./api";
+export {
+  assertApiMode,
+  getMarkEntry,
+  listMarkEntries,
+  listMarkEntriesPage,
+} from "./api";
 export {
   isMarksEntryEditable,
   markEntryDtoToListItem,

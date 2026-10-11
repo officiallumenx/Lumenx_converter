@@ -14,13 +14,17 @@
  *   E2E_API_BASE_URL     (default http://127.0.0.1:8787)
  *   E2E_SMOKE_PASSWORD   (default E2eSmoke!2026)
  */
-import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { assertRemoteWriteAck } from "./assert-remote-write-ack.mjs";
+import { assertStagingEnv } from "./assert-staging-env.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
 
-loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+loadLumenxDotenv();
+assertStagingEnv(process.env);
+assertRemoteWriteAck(process.env, {
+  purpose: "smoke:tenant (seeds probe institutes data via API)",
+});
 
 const API =
   process.env.E2E_API_BASE_URL?.trim() ||

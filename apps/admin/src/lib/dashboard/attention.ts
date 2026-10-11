@@ -183,6 +183,30 @@ export function attentionTotalCount(items: AttentionItem[]): number {
   return items.reduce((sum, item) => sum + item.count, 0);
 }
 
+/**
+ * Progressive Home Needs Attention UI phase.
+ * - skeleton: summary still loading and nothing to show yet
+ * - partial-empty: summary ready, secondary widgets still loading, no items yet
+ * - ready-empty: summary + widgets settled, confirmed nothing actionable
+ * - list: one or more items (may still be partial while widgets load)
+ */
+export type AttentionDisplayMode =
+  | "skeleton"
+  | "partial-empty"
+  | "ready-empty"
+  | "list";
+
+export function resolveAttentionDisplayMode(opts: {
+  summaryLoading: boolean;
+  widgetsLoading: boolean;
+  itemCount: number;
+}): AttentionDisplayMode {
+  if (opts.itemCount > 0) return "list";
+  if (opts.summaryLoading) return "skeleton";
+  if (opts.widgetsLoading) return "partial-empty";
+  return "ready-empty";
+}
+
 export function attentionSeverityClass(severity: AttentionSeverity): string {
   switch (severity) {
     case "critical":

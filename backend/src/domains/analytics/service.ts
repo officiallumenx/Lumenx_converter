@@ -4,6 +4,7 @@ import {
   assertInstituteRoles,
   requireInstituteId,
 } from "../../authorization/index.js";
+import { AppError } from "../../errors/app-error.js";
 import { listStudentsForActor } from "../students/service.js";
 import { STUDENT_STAFF_READ_ROLES } from "../students/service.js";
 import { listTeachersForActor } from "../teachers/service.js";
@@ -51,12 +52,26 @@ function assertAnalyticsReader(actor: Actor, instituteId: string): void {
   assertInstituteRoles(actor, instituteId, [...STUDENT_STAFF_READ_ROLES]);
 }
 
+/** Secondary metrics may degrade to zero; core directory counts must not invent zeros. */
 async function safeCount(fn: () => Promise<unknown[]>): Promise<number> {
   try {
     const rows = await fn();
     return rows.length;
   } catch {
     return 0;
+  }
+}
+
+async function requiredCount(
+  label: string,
+  fn: () => Promise<unknown[]>,
+): Promise<number> {
+  try {
+    const rows = await fn();
+    return rows.length;
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw AppError.internal(`Failed to load ${label} for analytics summary`);
   }
 }
 
@@ -70,7 +85,8 @@ async function safeList<T>(fn: () => Promise<T[]>): Promise<T[]> {
 
 /**
  * Aggregate institute counts from existing domain list functions.
- * Individual list failures degrade to zero so the summary shape stays stable.
+ * Core directory lists (students/teachers/parents) fail the request so Home
+ * never shows false zeros. Secondary counters still degrade to zero.
  */
 export async function getAnalyticsSummaryForActor(
   admin: SupabaseClient,
@@ -82,9 +98,15 @@ export async function getAnalyticsSummaryForActor(
 
   const [students, teachers, parents, complaints, leave, homework] =
     await Promise.all([
-      safeCount(() => listStudentsForActor(admin, actor, { instituteId })),
-      safeCount(() => listTeachersForActor(admin, actor, { instituteId })),
-      safeCount(() => listParentsForActor(admin, actor, { instituteId })),
+      requiredCount("students", () =>
+        listStudentsForActor(admin, actor, { instituteId }),
+      ),
+      requiredCount("teachers", () =>
+        listTeachersForActor(admin, actor, { instituteId }),
+      ),
+      requiredCount("parents", () =>
+        listParentsForActor(admin, actor, { instituteId }),
+      ),
       (async () => {
         try {
           const rows = await listComplaintsForActor(admin, actor, {

@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import { AttendanceHubNav } from "@/components/attendance/AttendanceHubNav";
 import { AttendanceHubApiView } from "@/components/attendance/AttendanceHubApiView";
-import { AttendanceMonitorView } from "@/components/attendance/views/AttendanceMonitorView";
-import { AttendanceReportsView } from "@/components/attendance/views/AttendanceReportsView";
-import { AttendanceAnalyticsView } from "@/components/attendance/views/AttendanceAnalyticsView";
+import { RouteChunkFallback } from "@/components/RouteChunkFallback";
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -29,6 +28,22 @@ const ATTENDANCE_VIEW_CONFIG = {
   defaultView: "monitor" as const,
 };
 
+const AttendanceMonitorView = lazy(() =>
+  import("@/components/attendance/views/AttendanceMonitorView").then((m) => ({
+    default: m.AttendanceMonitorView,
+  })),
+);
+const AttendanceReportsView = lazy(() =>
+  import("@/components/attendance/views/AttendanceReportsView").then((m) => ({
+    default: m.AttendanceReportsView,
+  })),
+);
+const AttendanceAnalyticsView = lazy(() =>
+  import("@/components/attendance/views/AttendanceAnalyticsView").then((m) => ({
+    default: m.AttendanceAnalyticsView,
+  })),
+);
+
 export const Route = createFileRoute("/attendance")({
   head: () => ({ meta: [{ title: adminPageTitle("/attendance") }] }),
   validateSearch: (search: Record<string, unknown>): { view?: AttendanceHubView } => {
@@ -36,6 +51,7 @@ export const Route = createFileRoute("/attendance")({
     return validateHubViewSearch(search, ATTENDANCE_VIEW_CONFIG);
   },
   component: AttendancePage,
+  pendingComponent: () => <RouteChunkFallback label="Loading attendance…" />,
 });
 
 function AttendancePage() {
@@ -67,9 +83,11 @@ function AttendancePage() {
         subtitle={VIEW_SUBTITLES[view]}
       />
       <AttendanceHubNav active={view} />
-      {view === "monitor" ? <AttendanceMonitorView /> : null}
-      {view === "reports" ? <AttendanceReportsView /> : null}
-      {view === "analytics" ? <AttendanceAnalyticsView /> : null}
+      <Suspense fallback={<RouteChunkFallback label="Loading view…" />}>
+        {view === "monitor" ? <AttendanceMonitorView /> : null}
+        {view === "reports" ? <AttendanceReportsView /> : null}
+        {view === "analytics" ? <AttendanceAnalyticsView /> : null}
+      </Suspense>
     </AppShell>
   );
 }

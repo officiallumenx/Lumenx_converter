@@ -57,6 +57,7 @@ export async function loadApiDriverAssignment(input: {
   licenseNumber?: string;
 }): Promise<DriverAssignment> {
   const driverMe = await getDriverMe(input.instituteId);
+  const instituteTimezone = driverMe.timezone?.trim() || "Asia/Kolkata";
   const phoneDigits = normalizeIndianMobile(input.phone || driverMe.phone);
 
   const account = {
@@ -116,6 +117,7 @@ export async function loadApiDriverAssignment(input: {
       lockedByAdmin: false,
       tripAssignment: null,
       message: "No route assigned yet. Submit a route for admin approval.",
+      timezone: instituteTimezone,
     };
   }
 
@@ -185,6 +187,8 @@ export async function loadApiDriverAssignment(input: {
       grade: s.classLabel,
       stopName: s.pickupStopName ?? "Stop assignment pending",
       stopId: s.pickupStopId,
+      dropStopId: s.dropStopId ?? null,
+      dropStopName: s.dropStopName ?? null,
       rollNo: s.rollNo,
     })),
   );
@@ -206,6 +210,7 @@ export async function loadApiDriverAssignment(input: {
     lockedByAdmin: roster?.locked ?? route?.configStatus === "locked",
     tripAssignment,
     message: null,
+    timezone: instituteTimezone,
   };
 }
 

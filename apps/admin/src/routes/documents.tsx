@@ -22,14 +22,14 @@ import { DocCategoriesView } from "@/components/documents/views/DocCategoriesVie
 import { DocCategoriesApiPanel } from "@/components/documents/views/DocCategoriesApiPanel";
 import { DocSettingsView } from "@/components/documents/views/DocSettingsView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
-import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { adminPageTitle } from "@/lib/admin-module-labels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  activateDocumentTemplate,
+  filterDocumentsHubTemplates,
   resolveDocumentsGeneratedListView,
   resolveDocumentsTemplatesListView,
   transitionGeneratedDocument,
@@ -38,64 +38,19 @@ import {
   type DocumentsListStatus,
   type DocumentsTemplatesListStatus,
 } from "@/lib/documents";
+import {
+  DOCUMENTS_VIEW_CONFIG,
+  DOC_VIEW_SUBTITLES,
+  DOC_VIEW_TITLES,
+  type DocHubView,
+} from "@/lib/documents/doc-hub-views";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { getNextWorkflowState } from "@/lib/template-management/store";
 import type { GeneratedDocument, TemplateRecord } from "@/lib/template-management/types";
+import { Card, CardBody, CardHeader, PageStack } from "@lumenx/ui-admin";
 
-/** Kept for legacy document components that still reference this type. */
-export type DocHubView =
-  | "dashboard"
-  | "requests"
-  | "packages"
-  | "templates"
-  | "generate"
-  | "generated"
-  | "published"
-  | "signatures"
-  | "categories"
-  | "settings";
-
-const DOCUMENTS_VIEW_CONFIG = {
-  views: [
-    "dashboard",
-    "requests",
-    "packages",
-    "templates",
-    "generate",
-    "generated",
-    "published",
-    "signatures",
-    "categories",
-    "settings",
-  ] as const,
-  defaultView: "dashboard" as const,
-};
-
-const VIEW_TITLES: Record<DocHubView, string> = {
-  dashboard: M.documents,
-  requests: "Document Requests",
-  packages: "Document Packages",
-  templates: "Document Templates",
-  generate: "Generate Documents",
-  generated: "Generated Documents",
-  published: "Published Documents",
-  signatures: "Signatures",
-  categories: "Categories",
-  settings: "Studio Settings",
-};
-
-const VIEW_SUBTITLES: Record<DocHubView, string> = {
-  dashboard: "Issue, track, and publish official school documents from one place",
-  requests: "Student & staff requests for bonafides, TCs, marksheets, and more",
-  packages: "Pre-defined bundles of documents for common workflows",
-  templates: "Document layouts and formats available for generation",
-  generate: "Select students, choose a template, preview, and generate draft documents",
-  generated: "History of all documents generated · download · revoke",
-  published: "Documents published to students, parents, and staff via Connect",
-  signatures: "Authorised signatories and their signature configurations",
-  categories: "Organise templates and documents by category",
-  settings: "Numbering, expiry, watermark, and Connect sync settings",
-};
+/** Re-export for legacy imports. */
+export type { DocHubView };
 
 export const Route = createFileRoute("/documents")({
   head: () => ({ meta: [{ title: adminPageTitle("/documents") }] }),
@@ -132,13 +87,20 @@ function DocumentsPage() {
     apiMode &&
     instituteCtx.status === "ready" &&
     Boolean(instituteCtx.activeInstituteId);
+  const needsTemplates =
+    view === "templates" || view === "overview" || view === "official";
+  const needsGenerated =
+    view === "archive" ||
+    view === "student-docs" ||
+    view === "overview" ||
+    view === "official";
   const templatesQuery = useDocumentsTemplatesQuery(
     instituteCtx.activeInstituteId,
-    listEnabled && view === "templates",
+    listEnabled && needsTemplates,
   );
   const generatedQuery = useDocumentsGeneratedQuery(
     instituteCtx.activeInstituteId,
-    listEnabled && view === "generated",
+    listEnabled && needsGenerated,
   );
   const bumpDocumentsReload = () => {
     invalidateAdminCache("admin:documents");
@@ -206,7 +168,7 @@ function DocumentsPage() {
   );
 
   useEffect(() => {
-    if (!apiMode || view !== "templates") return;
+    if (!apiMode || !needsTemplates) return;
 
     if (instituteCtx.status === "loading") {
       setApiTemplates([]);
@@ -261,10 +223,11 @@ function DocumentsPage() {
     instituteCtx.errorMessage,
     templatesQuery.data,
     templatesQuery.isLoading,
+    needsTemplates,
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "generated") return;
+    if (!apiMode || !needsGenerated) return;
 
     if (instituteCtx.status === "loading") {
       setApiGenerated([]);
@@ -319,35 +282,45 @@ function DocumentsPage() {
     instituteCtx.errorMessage,
     generatedQuery.data,
     generatedQuery.isLoading,
+    needsGenerated,
   ]);
 
-  const apiTemplatesForView = useMemo(() => {
-    if (!apiMode || view !== "templates" || !templatesListView.rowsValid) {
-      return undefined;
-    }
-    return templatesListView.items.filter(
-      (t) => t.kind === "document" || t.kind === "certificate",
-    );
-  }, [apiMode, view, templatesListView.items, templatesListView.rowsValid]);
+  /** Document/report templates only — certificates/ID cards live under Certificates. */
+  const apiDocumentTemplates = useMemo(() => {
+    if (!apiMode || !templatesListView.rowsValid) return undefined;
+    return filterDocumentsHubTemplates(templatesListView.items);
+  }, [apiMode, templatesListView.items, templatesListView.rowsValid]);
 
-  const apiGeneratedForView = useMemo(() => {
-    if (!apiMode || view !== "generated" || !generatedListView.rowsValid) {
-      return undefined;
-    }
+  const apiGeneratedAll = useMemo(() => {
+    if (!apiMode || !generatedListView.rowsValid) return undefined;
     return generatedListView.items;
-  }, [apiMode, view, generatedListView.items, generatedListView.rowsValid]);
+  }, [apiMode, generatedListView.items, generatedListView.rowsValid]);
+
+  const apiStudentDocs = useMemo(() => {
+    if (!apiGeneratedAll) return undefined;
+    return apiGeneratedAll.filter(
+      (d) =>
+        d.portalVisibility?.student ||
+        d.portalVisibility?.parent ||
+        Boolean(d.recipientName?.trim()),
+    );
+  }, [apiGeneratedAll]);
 
   const subtitle = useMemo(() => {
-    const base = VIEW_SUBTITLES[view];
+    const base = DOC_VIEW_SUBTITLES[view];
     if (!apiMode) return base;
     if (view === "templates") {
       return templatesListView.rowsValid
-        ? `${templatesListView.items.length} templates`
+        ? `${apiDocumentTemplates?.length ?? 0} document templates`
         : `${templatesHint ?? "…"}`;
     }
-    if (view === "generated") {
+    if (view === "archive" || view === "student-docs") {
+      const count =
+        view === "student-docs"
+          ? apiStudentDocs?.length
+          : apiGeneratedAll?.length;
       return generatedListView.rowsValid
-        ? `${generatedListView.items.length} documents`
+        ? `${count ?? 0} documents`
         : `${generatedHint ?? "…"}`;
     }
     if (
@@ -356,28 +329,17 @@ function DocumentsPage() {
       view === "signatures" ||
       view === "settings"
     ) {
-      return "Read unavailable";
-    }
-    if (view === "dashboard") {
-      return "KPIs from templates + generated";
-    }
-    if (view === "generate") {
-      return "Create draft";
-    }
-    if (view === "published") {
-      return "Published workflow";
-    }
-    if (view === "categories") {
-      return "Categories from templates";
+      return "Not available in live API mode";
     }
     return base;
   }, [
     apiMode,
     view,
-    templatesListView.items.length,
+    apiDocumentTemplates?.length,
     templatesListView.rowsValid,
     templatesHint,
-    generatedListView.items.length,
+    apiGeneratedAll?.length,
+    apiStudentDocs?.length,
     generatedListView.rowsValid,
     generatedHint,
   ]);
@@ -385,24 +347,147 @@ function DocumentsPage() {
   const goToView = (nextView: DocHubView) =>
     navigate({ to: "/documents", search: { view: nextView } });
 
+  const generatedCallbacks = {
+    onAdvanceDocument: apiMode
+      ? async (doc: GeneratedDocument) => {
+          const next = getNextWorkflowState(doc.kind, doc.workflowState);
+          if (!next) {
+            notify("Document is already in a terminal workflow state");
+            return;
+          }
+          try {
+            await transitionGeneratedDocument(doc.id, {
+              workflowState: next,
+            });
+            bumpDocumentsReload();
+            notify(`Advanced to ${next.replace(/_/g, " ")}`);
+          } catch (err) {
+            notify(
+              err instanceof Error ? err.message : "Failed to advance document",
+            );
+          }
+        }
+      : undefined,
+    onRejectDocument: apiMode
+      ? async (doc: GeneratedDocument, reason: string) => {
+          try {
+            await transitionGeneratedDocument(doc.id, {
+              workflowState: "rejected",
+              rejectionReason: reason,
+            });
+            bumpDocumentsReload();
+            notify("Document rejected");
+          } catch (err) {
+            notify(
+              err instanceof Error ? err.message : "Failed to reject document",
+            );
+          }
+        }
+      : undefined,
+    onDownloadDocument: apiMode
+      ? async (doc: GeneratedDocument) => {
+          try {
+            const { signedUrl } = await getGeneratedDocumentSignedUrl(doc.id);
+            window.open(signedUrl, "_blank", "noopener,noreferrer");
+          } catch (err) {
+            notify(
+              err instanceof Error
+                ? err.message
+                : "Download unavailable — publish the document first",
+            );
+          }
+        }
+      : undefined,
+  };
+
   return (
-    <AppShell title={VIEW_TITLES[view]} subtitle={subtitle}>
-      <ModuleHero eyebrow="Institute" title={VIEW_TITLES[view]} subtitle={subtitle} />
+    <AppShell title={DOC_VIEW_TITLES[view]} subtitle={subtitle}>
+      <ModuleHero
+        eyebrow="Institute"
+        title={DOC_VIEW_TITLES[view]}
+        subtitle={subtitle}
+      />
       <DocHubNav active={view} />
       <AdminPageTransition pageKey={view}>
-        {view === "dashboard" ? (
+        {view === "overview" ? (
           apiMode ? (
             <DocDashboardApiPanel />
           ) : (
             <DocDashboardView />
           )
         ) : null}
+
+        {view === "official" ? (
+          <PageStack>
+            <Card>
+              <CardHeader
+                title="Create official document"
+                hint="Transfer certificates, bonafides, and other school documents · award certificates are under Certificates"
+              />
+              <CardBody className="text-sm text-muted-foreground">
+                Generate a draft, complete review if required, then publish. Retrieve
+                later from Archive. Transfer Certificates stay in Documents (not the
+                certificate ledger) so numbering and verification stay compatible.
+              </CardBody>
+            </Card>
+            {apiMode ? (
+              <DocGenerateApiPanel />
+            ) : (
+              <DocGenerateView onViewGenerated={() => goToView("archive")} />
+            )}
+            {apiMode ? <DocPublishedApiPanel /> : <DocPublishedView />}
+          </PageStack>
+        ) : null}
+
+        {view === "student-docs" ? (
+          <DocGeneratedView
+            documents={apiMode ? apiStudentDocs : undefined}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !generatedListView.rowsValid}
+            listHint={generatedHint}
+            {...generatedCallbacks}
+          />
+        ) : null}
+
+        {view === "templates"
+          ? apiMode ? (
+              <DocTemplatesApiPanel
+                templates={apiDocumentTemplates ?? []}
+                writesEnabled={writesEnabled}
+                listBlocked={!templatesListView.rowsValid}
+                listHint={templatesHint}
+                onChanged={() => bumpDocumentsReload()}
+              />
+            ) : (
+              <DocTemplatesView
+                templates={apiDocumentTemplates}
+                writesEnabled={writesEnabled}
+                listBlocked={false}
+                listHint={templatesHint}
+                onActivateTemplate={undefined}
+              />
+            )
+          : null}
+
+        {view === "archive" ? (
+          <PageStack>
+            <DocGeneratedView
+              documents={apiMode ? apiGeneratedAll : undefined}
+              writesEnabled={writesEnabled}
+              listBlocked={apiMode && !generatedListView.rowsValid}
+              listHint={generatedHint}
+              {...generatedCallbacks}
+            />
+            {apiMode ? <DocPublishedApiPanel /> : null}
+          </PageStack>
+        ) : null}
+
         {view === "requests" ? (
           apiMode ? (
             <ApiReadUnavailablePanel
               title="Document requests unavailable"
               domainLabel="Document requests"
-              hint="Request intake is not set up for this institute yet."
+              hint="There is no live request intake API yet. Existing demo data is not shown in API mode."
             />
           ) : (
             <DocRequestsView />
@@ -413,113 +498,10 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Document packages unavailable"
               domainLabel="Document packages"
-              hint="Document packages are not set up for this institute yet."
+              hint="Packages are demo-only and not available in API mode."
             />
           ) : (
             <DocPackagesView />
-          )
-        ) : null}
-        {view === "templates" &&
-          (apiMode ? (
-            <DocTemplatesApiPanel
-              templates={apiTemplatesForView ?? []}
-              writesEnabled={writesEnabled}
-              listBlocked={!templatesListView.rowsValid}
-              listHint={templatesHint}
-              onChanged={() => bumpDocumentsReload()}
-            />
-          ) : (
-            <DocTemplatesView
-              templates={apiTemplatesForView}
-              writesEnabled={writesEnabled}
-              listBlocked={apiMode && !templatesListView.rowsValid}
-              listHint={templatesHint}
-              onActivateTemplate={
-                apiMode
-                  ? async (id) => {
-                      await activateDocumentTemplate(id);
-                      bumpDocumentsReload();
-                    }
-                  : undefined
-              }
-            />
-          ))}
-        {view === "generate" ? (
-          apiMode ? (
-            <DocGenerateApiPanel />
-          ) : (
-            <DocGenerateView onViewGenerated={() => goToView("generated")} />
-          )
-        ) : null}
-        {view === "generated" && (
-          <DocGeneratedView
-            documents={apiGeneratedForView}
-            writesEnabled={writesEnabled}
-            listBlocked={apiMode && !generatedListView.rowsValid}
-            listHint={generatedHint}
-            onAdvanceDocument={
-              apiMode
-                ? async (doc) => {
-                    const next = getNextWorkflowState(doc.kind, doc.workflowState);
-                    if (!next) {
-                      notify("Document is already in a terminal workflow state");
-                      return;
-                    }
-                    try {
-                      await transitionGeneratedDocument(doc.id, {
-                        workflowState: next,
-                      });
-                      bumpDocumentsReload();
-                      notify(`Advanced to ${next.replace(/_/g, " ")}`);
-                    } catch (err) {
-                      notify(
-                        err instanceof Error ? err.message : "Failed to advance document",
-                      );
-                    }
-                  }
-                : undefined
-            }
-            onRejectDocument={
-              apiMode
-                ? async (doc, reason) => {
-                    try {
-                      await transitionGeneratedDocument(doc.id, {
-                        workflowState: "rejected",
-                        rejectionReason: reason,
-                      });
-                      bumpDocumentsReload();
-                      notify("Document rejected");
-                    } catch (err) {
-                      notify(
-                        err instanceof Error ? err.message : "Failed to reject document",
-                      );
-                    }
-                  }
-                : undefined
-            }
-            onDownloadDocument={
-              apiMode
-                ? async (doc) => {
-                    try {
-                      const { signedUrl } = await getGeneratedDocumentSignedUrl(doc.id);
-                      window.open(signedUrl, "_blank", "noopener,noreferrer");
-                    } catch (err) {
-                      notify(
-                        err instanceof Error
-                          ? err.message
-                          : "Download unavailable — publish the document first",
-                      );
-                    }
-                  }
-                : undefined
-            }
-          />
-        )}
-        {view === "published" ? (
-          apiMode ? (
-            <DocPublishedApiPanel />
-          ) : (
-            <DocPublishedView />
           )
         ) : null}
         {view === "signatures" ? (
@@ -527,7 +509,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Signatures unavailable"
               domainLabel="Document signatures"
-              hint="Signature capture is not set up for this institute yet."
+              hint="Signature capture is demo-only and not available in API mode."
             />
           ) : (
             <DocSignaturesView />
@@ -545,7 +527,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Studio settings unavailable"
               domainLabel="Document studio settings"
-              hint="Studio settings are not set up for this institute yet."
+              hint="Studio settings are demo-only and not available in API mode."
             />
           ) : (
             <DocSettingsView />

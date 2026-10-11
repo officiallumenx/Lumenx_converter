@@ -530,14 +530,18 @@ function ClassesPage() {
       )}
 
       {!listView.rowsValid ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {listHint ?? "Loading classes…"}
-        </div>
+        <Card>
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading classes…"}
+          </div>
+        </Card>
       ) : displayItems.length === 0 ? (
-        <EmptyState
-          title="No classes found"
-          hint={listHint ?? "Create a class section to get started."}
-        />
+        <Card>
+          <EmptyState
+            title="No classes found"
+            hint={listHint ?? "Create a class section to get started."}
+          />
+        </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {displayItems.map((classSection) => {

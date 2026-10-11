@@ -316,28 +316,72 @@ export function SubscriptionApiPage() {
         <Card>
           <CardHeader
             title={detail.instituteName}
-            hint={`Lifecycle · ${detail.lifecycleStatus.replace(/_/g, " ")}`}
-            action={<Pill tone="neutral">Live data</Pill>}
+            hint={`Access · ${(detail.accessMode ?? "full").replace(/_/g, " ")} · status is live-derived`}
+            action={
+              <Pill
+                tone={
+                  detail.accessMode === "read_only"
+                    ? "warning"
+                    : detail.accessMode === "grace"
+                      ? "warning"
+                      : "success"
+                }
+              >
+                {(detail.accessMode ?? "full").replace(/_/g, " ")}
+              </Pill>
+            }
           />
-          <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <Detail
-              label="Active students"
+              label="Lifecycle"
+              value={(detail.derivedLifecycleStatus ?? detail.lifecycleStatus).replace(
+                /_/g,
+                " ",
+              )}
+            />
+            <Detail
+              label="Billable students"
               value={detail.activeStudentCount.toLocaleString("en-IN")}
             />
             <Detail
               label="Assigned rate"
               value={`${formatInr(detail.assignedRateInr)} / student`}
             />
+            <Detail
+              label="Trial starts"
+              value={formatDateTime(detail.trialStartAt)}
+            />
+            <Detail
+              label="Trial ends"
+              value={formatDateTime(detail.trialEndAt)}
+            />
+            <Detail
+              label="Grace ends"
+              value={formatDateTime(detail.graceEndsAt)}
+            />
             {detail.currentPeriod ? (
               <Detail
-                label="Current period ends"
+                label="Paid period ends"
                 value={formatDateTime(detail.currentPeriod.endsAt)}
               />
             ) : (
-              <Detail label="Current period" value="None" />
+              <Detail label="Paid period" value="None · renew offline below" />
             )}
-            <Detail label="Status" value={detail.lifecycleStatus.replace(/_/g, " ")} />
+            <Detail
+              label="How to renew"
+              value={
+                detail.pendingOfflinePayment
+                  ? "Payment awaiting Nexus verification"
+                  : "Submit offline payment below · Nexus verifies before activation"
+              }
+            />
           </div>
+          {detail.accessMode === "read_only" ? (
+            <p className="px-5 pb-5 text-sm text-muted-foreground">
+              Edits are blocked until Nexus verifies a payment. You can still view data and
+              submit an offline payment on this page. Contact Nexus if you need help.
+            </p>
+          ) : null}
         </Card>
       ) : null}
 
@@ -376,10 +420,10 @@ export function SubscriptionApiPage() {
                       key={q.durationMonths}
                       type="button"
                       onClick={() => setDuration(q.durationMonths)}
-                      className={`rounded-lg border px-4 py-3 text-left ${
+                      className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                         duration === q.durationMonths
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-muted/30"
+                          ? "border-border bg-muted/40 shadow-xs"
+                          : "border-border hover:bg-surface-hover"
                       }`}
                     >
                       <div className="text-sm font-semibold">{q.durationLabel}</div>
@@ -426,10 +470,10 @@ export function SubscriptionApiPage() {
                       setMethod("offline");
                       setStep("offline_instructions");
                     }}
-                    className={`rounded-lg border px-4 py-3 text-left ${
+                    className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                       method === "offline"
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/30"
+                        ? "border-border bg-muted/40 shadow-xs"
+                        : "border-border hover:bg-surface-hover"
                     }`}
                   >
                     <div className="flex items-center gap-2 text-sm font-semibold">

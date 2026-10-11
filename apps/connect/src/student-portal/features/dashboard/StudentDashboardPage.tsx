@@ -24,6 +24,7 @@ import {
   Progress,
   Avatar,
   AvatarFallback,
+  AvatarImage,
 } from "@lumenx/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
@@ -221,6 +222,13 @@ export function StudentDashboardPage() {
         <div className="student-home-hero__glow pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-white/20 blur-3xl" aria-hidden />
         <div className="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center md:gap-6">
           <Avatar className="size-14 shrink-0 ring-2 ring-white/30 sm:size-16">
+            {snap.profile.photoUrl ? (
+              <AvatarImage
+                src={snap.profile.photoUrl}
+                alt=""
+                className="object-cover"
+              />
+            ) : null}
             <AvatarFallback className="bg-white/20 font-display text-base font-semibold text-white sm:text-lg">
               {getInitials(snap.profile.name, 2)}
             </AvatarFallback>

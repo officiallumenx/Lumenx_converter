@@ -8,7 +8,13 @@ export type {
   StudentListItem,
   StudentStatus,
 } from "./types";
-export { assertApiMode, getStudent, getStudentGuardians, listStudents } from "./api";
+export {
+  assertApiMode,
+  getStudent,
+  getStudentGuardians,
+  listStudents,
+  listStudentsPage,
+} from "./api";
 export {
   createStudent,
   updateStudent,

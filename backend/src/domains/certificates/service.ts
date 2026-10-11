@@ -320,82 +320,115 @@ export async function issueCertificateForActor(
     });
   }
 
-  const sequence = await nextCertificateSequence(admin, instituteId, year);
-  const certificateNumber = (
-    input.certificateNumber?.trim() || formatCertificateNumber(year, sequence)
-  ).trim();
+  const customNumber = input.certificateNumber?.trim() || "";
+  const autoAllocate = !customNumber;
+  const maxAttempts = autoAllocate ? 5 : 1;
+  let lastConflict: AppError | null = null;
 
-  const clash = await findIssuedCertificateByNumber(
-    admin,
-    instituteId,
-    certificateNumber,
-  );
-  if (clash) {
-    throw AppError.conflict("Certificate number already issued");
-  }
+  // Retry auto-allocation when concurrent issuers race on max(sequence)+1.
+  // Unique (institute_id, certificate_number) remains the hard safety net;
+  // existing numbers and formats are never reset.
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const sequence = await nextCertificateSequence(admin, instituteId, year);
+    const certificateNumber = (
+      customNumber || formatCertificateNumber(year, sequence)
+    ).trim();
 
-  const certificateId = crypto.randomUUID();
-  const issuedAt = new Date().toISOString();
-
-  if (!assetPath && !input.metadataOnly) {
-    const pdfBytes = renderDocumentPdf({
-      title,
-      templateName,
-      recipientName,
-      recipientRef,
-      category,
-      certificateNumber,
-      documentType: "certificate",
-      payload,
-      issuedAt,
-    });
-    const safeName = certificateNumber.replace(/[^\w.-]+/g, "-");
-    const file = await persistInstitutePdfAsset(admin, actor, {
+    const clash = await findIssuedCertificateByNumber(
+      admin,
       instituteId,
-      bucket: "certificates",
-      category: "certificate_pdf",
-      fileName: `${safeName}.pdf`,
-      body: pdfBytes,
-      linkedEntityKind: "issued_certificate",
-      linkedEntityId: certificateId,
-    });
-    assetPath = file.objectPath;
-    fileKind = "pdf";
-  } else if (!fileKind && input.metadataOnly) {
-    fileKind = input.fileKind ?? "pptx";
-  } else if (!fileKind) {
-    fileKind = "pdf";
+      certificateNumber,
+    );
+    if (clash) {
+      if (!autoAllocate) {
+        throw AppError.conflict("Certificate number already issued");
+      }
+      lastConflict = AppError.conflict("Certificate number already issued");
+      continue;
+    }
+
+    const certificateId = crypto.randomUUID();
+    const issuedAt = new Date().toISOString();
+    let attemptAssetPath = assetPath;
+    let attemptFileKind = fileKind;
+
+    if (!attemptAssetPath && !input.metadataOnly) {
+      const pdfBytes = renderDocumentPdf({
+        title,
+        templateName,
+        recipientName,
+        recipientRef,
+        category,
+        certificateNumber,
+        documentType: "certificate",
+        payload,
+        issuedAt,
+      });
+      const safeName = certificateNumber.replace(/[^\w.-]+/g, "-");
+      const file = await persistInstitutePdfAsset(admin, actor, {
+        instituteId,
+        bucket: "certificates",
+        category: "certificate_pdf",
+        fileName: `${safeName}.pdf`,
+        body: pdfBytes,
+        linkedEntityKind: "issued_certificate",
+        linkedEntityId: certificateId,
+      });
+      attemptAssetPath = file.objectPath;
+      attemptFileKind = "pdf";
+    } else if (!attemptFileKind && input.metadataOnly) {
+      attemptFileKind = input.fileKind ?? "pptx";
+    } else if (!attemptFileKind) {
+      attemptFileKind = "pdf";
+    }
+
+    try {
+      const row = await insertIssuedCertificate(admin, {
+        id: certificateId,
+        instituteId,
+        generatedDocumentId,
+        templateId: templateId!,
+        studentId,
+        teacherId,
+        certificateNumber,
+        sequence,
+        year,
+        title,
+        category,
+        templateName,
+        templateVersion,
+        recipientName,
+        recipientRef,
+        issuedByUserId: actor.userId,
+        assetPath: attemptAssetPath,
+        fileKind: attemptFileKind,
+        issuedAt,
+      });
+
+      if (generatedDocumentId) {
+        await updateGeneratedDocumentFields(admin, generatedDocumentId, {
+          certificate_number: certificateNumber,
+        });
+      }
+
+      return toIssuedCertificateDto(row);
+    } catch (err) {
+      if (
+        autoAllocate &&
+        err instanceof AppError &&
+        err.code === "CONFLICT"
+      ) {
+        lastConflict = err;
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const row = await insertIssuedCertificate(admin, {
-    id: certificateId,
-    instituteId,
-    generatedDocumentId,
-    templateId: templateId!,
-    studentId,
-    teacherId,
-    certificateNumber,
-    sequence,
-    year,
-    title,
-    category,
-    templateName,
-    templateVersion,
-    recipientName,
-    recipientRef,
-    issuedByUserId: actor.userId,
-    assetPath,
-    fileKind,
-    issuedAt,
-  });
-
-  if (generatedDocumentId) {
-    await updateGeneratedDocumentFields(admin, generatedDocumentId, {
-      certificate_number: certificateNumber,
-    });
-  }
-
-  return toIssuedCertificateDto(row);
+  throw (
+    lastConflict ??
+    AppError.conflict("Could not allocate a unique certificate number — retry")
+  );
 }
 
 export async function revokeIssuedCertificateForActor(

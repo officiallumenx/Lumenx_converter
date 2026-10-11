@@ -77,27 +77,29 @@ export function HomeOperationalLists({
         className="lx-home-section lx-home-panel lx-home-panel--diary"
         style={{ "--lx-home-i": 7 } as CSSProperties}
       >
-        <div className="lx-home-panel__head">
-          <div className="lx-home-ops__title-row">
-            <span className="lx-home-ops__icon lx-home-ops__icon--diary" aria-hidden>
-              <BookMarked className="size-3.5" />
-            </span>
-            <h2 className="lx-home-panel__title">Diary submissions</h2>
+        <div className="lx-home-panel__head lx-home-ops__head">
+          <div className="lx-home-ops__head-main">
+            <div className="lx-home-ops__title-row">
+              <span className="lx-home-ops__icon lx-home-ops__icon--diary" aria-hidden>
+                <BookMarked className="size-3.5" />
+              </span>
+              <h2 className="lx-home-panel__title">Diary submissions</h2>
+            </div>
+            <div className="lx-home-ops__meta">
+              {diaryMissingYesterday > 0 ? (
+                <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
+              ) : null}
+              <Pill tone="info">{diaryRows.length}</Pill>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {diaryMissingYesterday > 0 ? (
-              <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
-            ) : null}
-            <Pill tone="info">{diaryRows.length}</Pill>
-            <Link to="/diary">
-              <Button size="sm" variant="outline" className="gap-1">
-                Open <ArrowUpRight className="size-3.5" />
-              </Button>
-            </Link>
-          </div>
+          <Link to="/diary" className="lx-home-ops__open">
+            <Button size="sm" variant="outline" className="gap-1">
+              Open <ArrowUpRight className="size-3.5" />
+            </Button>
+          </Link>
         </div>
         {diaryRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground px-1 pb-1">
+          <p className="lx-home-ops__empty" role="status">
             No diary submissions yet. Teacher submissions appear here.
           </p>
         ) : (
@@ -122,26 +124,28 @@ export function HomeOperationalLists({
         className="lx-home-section lx-home-panel lx-home-panel--leave"
         style={{ "--lx-home-i": 7.5 } as CSSProperties}
       >
-        <div className="lx-home-panel__head">
-          <div className="lx-home-ops__title-row">
-            <span className="lx-home-ops__icon lx-home-ops__icon--leave" aria-hidden>
-              <CalendarOff className="size-3.5" />
-            </span>
-            <h2 className="lx-home-panel__title">Pending leave</h2>
+        <div className="lx-home-panel__head lx-home-ops__head">
+          <div className="lx-home-ops__head-main">
+            <div className="lx-home-ops__title-row">
+              <span className="lx-home-ops__icon lx-home-ops__icon--leave" aria-hidden>
+                <CalendarOff className="size-3.5" />
+              </span>
+              <h2 className="lx-home-panel__title">Pending leave</h2>
+            </div>
+            <div className="lx-home-ops__meta">
+              <Pill tone={leavePendingCount > 0 ? "warning" : "neutral"}>
+                {leavePendingCount} pending
+              </Pill>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Pill tone={leavePendingCount > 0 ? "warning" : "neutral"}>
-              {leavePendingCount} pending
-            </Pill>
-            <Link to="/leave">
-              <Button size="sm" variant="outline" className="gap-1">
-                Open <ArrowUpRight className="size-3.5" />
-              </Button>
-            </Link>
-          </div>
+          <Link to="/leave" className="lx-home-ops__open">
+            <Button size="sm" variant="outline" className="gap-1">
+              Open <ArrowUpRight className="size-3.5" />
+            </Button>
+          </Link>
         </div>
         {leaveRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground px-1 pb-1">
+          <p className="lx-home-ops__empty" role="status">
             No pending leave requests. Teacher leave for approval appears here.
           </p>
         ) : (

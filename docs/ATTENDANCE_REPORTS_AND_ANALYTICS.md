@@ -1,6 +1,7 @@
 # Attendance Reports & Analytics — Report
 
-Frontend only. No backend. Hub: **Admin → Attendance Insights** (`/attendance`).
+Hub: **Admin → Attendance Insights** (`/attendance`).  
+**Backend CSV generators** for attendance catalog IDs live under `/api/v1/reports` (see `docs/backend/REPORTS_ANALYTICS.md`). The Attendance hub Reports UI builders remain demo/register-store backed for interactive tables; institute-wide CSV export uses Reporting Center.
 
 ## Separation rule
 

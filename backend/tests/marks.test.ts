@@ -385,6 +385,32 @@ const createBody = {
   ],
 };
 
+describe("marks — list pagination", () => {
+  it("returns cursor envelope and pages without duplicates", async () => {
+    const app = appWithDb(baseDb());
+    const first = await app.request(
+      `/api/v1/marks/entries?institute_id=${INST_A}&limit=1`,
+      { headers: auth("token-admin") },
+    );
+    expect(first.status).toBe(200);
+    const firstBody = await json(first);
+    expect(Array.isArray(firstBody.data)).toBe(true);
+    expect(firstBody.data).toHaveLength(1);
+    expect(typeof firstBody.has_more).toBe("boolean");
+    if (!firstBody.has_more) return;
+    expect(typeof firstBody.next_cursor).toBe("string");
+
+    const second = await app.request(
+      `/api/v1/marks/entries?institute_id=${INST_A}&limit=1&cursor=${encodeURIComponent(firstBody.next_cursor)}`,
+      { headers: auth("token-admin") },
+    );
+    expect(second.status).toBe(200);
+    const secondBody = await json(second);
+    expect(secondBody.data).toHaveLength(1);
+    expect(secondBody.data[0].id).not.toBe(firstBody.data[0].id);
+  });
+});
+
 describe("marks — authentication", () => {
   it("returns 401 without JWT", async () => {
     const app = appWithDb(baseDb());

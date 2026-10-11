@@ -1269,7 +1269,7 @@ function SubjectRowMenu({
       ? createPortal(
           <div
             ref={menuRef}
-            className="fixed z-[80] min-w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-pop"
+            className="fixed z-[80] min-w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-sm"
             style={{ top: coords.top, left: coords.left }}
           >
             <button type="button" className={itemClass} onClick={() => run(onView)}>

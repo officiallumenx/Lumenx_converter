@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { writableTrialSubscription } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -362,6 +363,10 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
   ];
+  db.subscription = [
+    writableTrialSubscription(INST_A, "s0111111-1111-4111-8111-111111111111"),
+    writableTrialSubscription(INST_B, "s0222222-2222-4222-8222-222222222222"),
+  ];
   return db;
 }
 
@@ -384,6 +389,51 @@ function appWithDb(db: MockDb) {
 }
 
 describe("documents api", () => {
+  it("keeps Documents template select/insert off PPTX catalog columns", async () => {
+    const { TEMPLATE_COLS, TEMPLATE_PPTX_CATALOG_COLS } = await import(
+      "../src/domains/documents/repository.js"
+    );
+    for (const col of TEMPLATE_PPTX_CATALOG_COLS) {
+      expect(TEMPLATE_COLS.split(",").map((c) => c.trim())).not.toContain(col);
+    }
+
+    const db = baseDb();
+    for (const row of db.template ?? []) {
+      for (const col of TEMPLATE_PPTX_CATALOG_COLS) {
+        expect(row).not.toHaveProperty(col);
+      }
+    }
+    const app = appWithDb(db);
+
+    const created = await app.request("/api/v1/documents/templates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        type: "document",
+        name: "Transfer Certificate — Offline Schema",
+        category: "transfer_certificate",
+        activate_now: true,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const body = await json(created);
+    expect(body.data.type).toBe("document");
+    expect(body.data.layoutMode).toBe("blocks");
+    expect(body.data).not.toHaveProperty("familyId");
+    expect(body.data).not.toHaveProperty("pptxMeta");
+    expect(body.data).not.toHaveProperty("assetPath");
+
+    const stored = (db.template ?? []).find((t) => t.id === body.data.id);
+    expect(stored).toBeTruthy();
+    for (const col of TEMPLATE_PPTX_CATALOG_COLS) {
+      expect(stored).not.toHaveProperty(col);
+    }
+  });
+
   it("lists active templates for staff and hides drafts from teachers", async () => {
     const app = appWithDb(baseDb());
 

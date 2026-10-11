@@ -62,6 +62,10 @@ export function deriveSubscriptionLifecycle(
   if (period?.paymentStatus === "paid") {
     const startMs = new Date(period.startAt).getTime();
     const endMs = new Date(period.endAt).getTime();
+    // Prepaid / stacked renewal: period not started yet still grants paid access.
+    if (nowMs < startMs) {
+      return "active";
+    }
     if (nowMs >= startMs && nowMs <= endMs) {
       return "active";
     }

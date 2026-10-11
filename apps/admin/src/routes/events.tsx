@@ -643,10 +643,10 @@ function EventsPage() {
             </Card>
           ) : (
             displayItems.map((e) => (
-              <Card key={e.id} className="p-5 hover:bg-surface-hover transition-colors">
+              <Card key={e.id} className="p-5 transition-colors hover:border-border-strong">
                 <div className="flex flex-wrap items-start gap-4 justify-between">
                   <div className="flex gap-4">
-                    <div className="size-12 rounded-md bg-accent border border-border flex flex-col items-center justify-center text-center">
+                    <div className="flex size-12 flex-col items-center justify-center rounded-md border border-border bg-muted text-center shadow-xs">
                       <CalendarDays className="size-4 text-primary" />
                     </div>
                     <div>

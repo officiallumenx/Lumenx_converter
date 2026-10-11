@@ -7,19 +7,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
-
 import appCss from "../styles.css?url";
 import logoUrl from "../assets/lumenx-connect-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
-
-const ConnectPortalProviders = lazy(() =>
-  import("@/components/app/ConnectPortalProviders").then((m) => ({
-    default: m.ConnectPortalProviders,
-  })),
-);
+import { ConnectPortalProviders } from "@/components/app/ConnectPortalProviders";
 
 function NotFoundComponent() {
   return (
@@ -135,10 +128,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ConnectProvidersFallback() {
-  return <div className="min-h-screen bg-background" aria-hidden />;
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -152,11 +141,9 @@ function RootComponent() {
           {isolated ? (
             <Outlet />
           ) : (
-            <Suspense fallback={<ConnectProvidersFallback />}>
-              <ConnectPortalProviders>
-                <Outlet />
-              </ConnectPortalProviders>
-            </Suspense>
+            <ConnectPortalProviders>
+              <Outlet />
+            </ConnectPortalProviders>
           )}
         </TypographyProvider>
       </OfflineSyncHost>

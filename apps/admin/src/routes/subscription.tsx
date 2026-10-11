@@ -762,8 +762,8 @@ function SubscriptionDemoPage() {
                       }}
                       className={`rounded-lg border px-3 py-3 text-left transition-colors ${
                         selected
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-background/40 hover:bg-muted/30"
+                          ? "border-border bg-muted/40 shadow-xs"
+                          : "border-border bg-background/40 hover:bg-surface-hover"
                       }`}
                     >
                       <div className="text-sm font-semibold">{q.durationLabel}</div>
@@ -815,10 +815,10 @@ function SubscriptionDemoPage() {
                   type="button"
                   data-admin-allow-readonly
                   onClick={onSelectOnline}
-                  className={`rounded-lg border px-4 py-3 text-left ${
+                  className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                     method === "online"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/30"
+                      ? "border-border bg-muted/40 shadow-xs"
+                      : "border-border hover:bg-surface-hover"
                   }`}
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold">
@@ -834,10 +834,10 @@ function SubscriptionDemoPage() {
                   type="button"
                   data-admin-allow-readonly
                   onClick={onPayOffline}
-                  className={`rounded-lg border px-4 py-3 text-left ${
+                  className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                     method === "offline"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/30"
+                      ? "border-border bg-muted/40 shadow-xs"
+                      : "border-border hover:bg-surface-hover"
                   }`}
                 >
                   <div className="flex items-center gap-2 text-sm font-semibold">

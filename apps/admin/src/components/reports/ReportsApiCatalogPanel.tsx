@@ -9,22 +9,28 @@ import {
   createReportJob,
   downloadReportJob,
   filterCatalogByModule,
+  filterCatalogForStudentCategory,
   formatReportJobWhen,
   latestJobByReportId,
   listReportModules,
   resolveReportsCatalogView,
   saveBlobAsFile,
   sortJobsNewestFirst,
+  STUDENT_REPORT_CATEGORIES,
+  studentCategoryHint,
   type ReportDefinitionDto,
   type ReportJobDto,
   type ReportsLoadStatus,
+  type StudentReportCategoryId,
 } from "@/lib/reports";
-import { Download, FileText, Info, RefreshCw } from "lucide-react";
+import { Download, FileText, Info, RefreshCw, Users } from "lucide-react";
 import {
+  useAcademicYearsListQuery,
   useReportsCatalogQuery,
   adminModulePrefix,
   adminQueryRoots,
 } from "@/lib/admin-queries";
+import { Link } from "@tanstack/react-router";
 
 function statusHint(status: ReportsLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading report catalog…";
@@ -51,6 +57,10 @@ export function ReportsApiCatalogPanel() {
     activeInstituteId: instituteCtx.activeInstituteId,
   });
   const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const [studentCategory, setStudentCategory] = useState<
+    StudentReportCategoryId | "all"
+  >("all");
+  const [academicYearId, setAcademicYearId] = useState<string>("");
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const monthDefaults = defaultMonthRange();
@@ -59,6 +69,12 @@ export function ReportsApiCatalogPanel() {
 
   const reportsEnabled =
     instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+
+  const yearsQuery = useAcademicYearsListQuery(
+    instituteCtx.activeInstituteId,
+    reportsEnabled,
+  );
+  const academicYears = yearsQuery.data?.items ?? [];
 
   const reportsQuery = useReportsCatalogQuery(
     instituteCtx.activeInstituteId,
@@ -112,10 +128,13 @@ export function ReportsApiCatalogPanel() {
 
   const hint = statusHint(view.status, view.errorMessage);
   const modules = useMemo(() => listReportModules(view.catalog), [view.catalog]);
-  const filteredCatalog = useMemo(
-    () => filterCatalogByModule(view.catalog, moduleFilter),
-    [view.catalog, moduleFilter],
-  );
+  const filteredCatalog = useMemo(() => {
+    const byStudent = filterCatalogForStudentCategory(
+      view.catalog,
+      studentCategory,
+    );
+    return filterCatalogByModule(byStudent, moduleFilter);
+  }, [view.catalog, moduleFilter, studentCategory]);
   const latestJobs = useMemo(
     () => latestJobByReportId(sortJobsNewestFirst(view.jobs)),
     [view.jobs],
@@ -143,6 +162,7 @@ export function ReportsApiCatalogPanel() {
         reportId: report.id,
         fromDate: fromDate || null,
         toDate: toDate || null,
+        academicYearId: academicYearId || null,
       });
       if (job.status === "ready") {
         notify(`Report ready · ${report.name}`);
@@ -175,13 +195,71 @@ export function ReportsApiCatalogPanel() {
 
   return (
     <PageStack className="animate-in fade-in duration-300">
-      <Card className="p-4 border-primary/20 bg-primary/5 transition-colors">
+      <Card className="border-border bg-muted/40 p-4">
         <div className="flex gap-3">
-          <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <Info className="size-4 shrink-0 text-muted-foreground mt-0.5" />
           <div className="text-xs text-muted-foreground leading-relaxed">
-            Exports are live CSV snapshots from your institute database. The date
+            Exports are live CSV snapshots from your institute database. Date
             range applies to attendance, audit, leave, events, complaints, and
-            admissions. After export, use Download beside the same report.
+            admissions. Academic year (when set) scopes attendance registers and
+            published marks. After export, use Download beside the same report.
+            Exports remain available while the subscription is read-only.
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Student Reports Home"
+          hint="Focused student export categories · year-scoped enrollment exports live under Academic Management"
+          action={
+            <Link
+              to="/academic-management"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted/60"
+            >
+              <Users className="size-3.5" />
+              Academic years
+            </Link>
+          }
+        />
+        <div className="px-5 pb-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            {studentCategoryHint(studentCategory)}
+          </p>
+          <div className="lx-segmented-scroll">
+            <div className="flex w-max max-w-full flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudentCategory("all");
+                  setModuleFilter("all");
+                }}
+                className={`h-8 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+                  studentCategory === "all"
+                    ? "border-border bg-muted/70 text-foreground shadow-xs"
+                    : "border-border/60 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                }`}
+              >
+                All reports
+              </button>
+              {STUDENT_REPORT_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setStudentCategory(cat.id);
+                    setModuleFilter("all");
+                  }}
+                  className={`h-8 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
+                    studentCategory === cat.id
+                      ? "border-border bg-muted/70 text-foreground shadow-xs"
+                      : "border-border/60 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </Card>
@@ -195,10 +273,10 @@ export function ReportsApiCatalogPanel() {
         </Card>
       ) : null}
 
-      <Card className="transition-shadow duration-200">
+      <Card>
         <CardHeader
-          title="Export period"
-          hint="Applied to attendance, audit, leave, events, complaints & admissions"
+          title="Export filters"
+          hint="Date range + optional academic year for attendance & marks"
           action={
             <Button
               size="sm"
@@ -232,6 +310,21 @@ export function ReportsApiCatalogPanel() {
               className="block h-9 rounded-md border border-border bg-background px-3 text-xs"
             />
           </label>
+          <label className="text-xs space-y-1 min-w-[10rem]">
+            <span className="text-muted-foreground">Academic year</span>
+            <select
+              value={academicYearId}
+              onChange={(e) => setAcademicYearId(e.target.value)}
+              className="block h-9 w-full rounded-md border border-border bg-background px-3 text-xs"
+            >
+              <option value="">All years (where supported)</option>
+              {academicYears.map((year) => (
+                <option key={year.id} value={year.id}>
+                  {year.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button
             size="sm"
             variant="ghost"
@@ -239,14 +332,15 @@ export function ReportsApiCatalogPanel() {
               const next = defaultMonthRange();
               setFromDate(next.fromDate);
               setToDate(next.toDate);
+              setAcademicYearId("");
             }}
           >
-            This month
+            Reset filters
           </Button>
         </div>
       </Card>
 
-      <Card className="transition-shadow duration-200">
+      <Card>
         <CardHeader
           title="Report catalog"
           hint={`${supportedCount} of ${view.catalog.length} reports have CSV generators`}
@@ -258,14 +352,14 @@ export function ReportsApiCatalogPanel() {
           <>
             <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
               <div className="lx-segmented-scroll flex-1 min-w-0">
-                <div className="flex items-center gap-1 p-1 bg-background rounded-md border border-border w-max max-w-full">
+                <div className="flex w-max max-w-full items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
                   <button
                     type="button"
                     onClick={() => setModuleFilter("all")}
-                    className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
+                    className={`h-7 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
                       moduleFilter === "all"
-                        ? "bg-surface text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "border-border bg-muted/70 text-foreground shadow-xs"
+                        : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                     }`}
                   >
                     All
@@ -275,10 +369,10 @@ export function ReportsApiCatalogPanel() {
                       key={moduleName}
                       type="button"
                       onClick={() => setModuleFilter(moduleName)}
-                      className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
+                      className={`h-7 rounded-lg border px-3 text-[11px] font-medium transition-colors ${
                         moduleFilter === moduleName
-                          ? "bg-surface text-foreground"
-                          : "text-muted-foreground hover:text-foreground"
+                          ? "border-border bg-muted/70 text-foreground shadow-xs"
+                          : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                       }`}
                     >
                       {moduleName}

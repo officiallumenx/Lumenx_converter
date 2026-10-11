@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { connectQueryKeys } from "./keys";
+import { scopedConnectKey } from "./scope";
+import { useConnectQueryUserId } from "./use-connect-query-user";
 import { loadTeacherFeeRoster, loadStudentFeePortal } from "@/lib/fees";
 import { loadLearnerTeachers } from "@/lib/teachers";
 import { loadLearnerTimetable, loadTeacherTimetable } from "@/lib/timetable";
@@ -41,9 +43,10 @@ export function useTeacherFeesRosterQuery(
   sectionIds: string[],
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const ids = sectionIds.slice().sort().join(",");
   return useQuery({
-    queryKey: [...connectQueryKeys.feesTeacher(instituteId ?? "_"), ids],
+    queryKey: [...scopedConnectKey(userId, connectQueryKeys.feesTeacher(instituteId ?? "_")), ids],
     queryFn: () =>
       loadTeacherFeeRoster({
         instituteId: instituteId!,
@@ -61,8 +64,9 @@ export function useStudentFeesQuery(
   instituteId: string | null | undefined,
   studentId: string | null | undefined,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.feesStudent(instituteId ?? "_", studentId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.feesStudent(instituteId ?? "_", studentId ?? "_")),
     queryFn: () =>
       loadStudentFeePortal({
         instituteId: instituteId ?? null,
@@ -81,9 +85,10 @@ export function useLearnerTeachersQuery(
   instituteId: string | null | undefined,
   studentId: string | null | undefined,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.teachersLearner(instituteId ?? "_", studentId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.teachersLearner(instituteId ?? "_", studentId ?? "_")),
     queryFn: () =>
       loadLearnerTeachers({ instituteId: instituteId ?? null, studentId: studentId ?? null }),
     enabled:
@@ -95,7 +100,7 @@ export function useLearnerTeachersQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.teachersLearner(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.teachersLearner(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -106,8 +111,9 @@ export function useTeacherTimetableQuery(
   scope: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.timetableTeacher(instituteId ?? "_", scope),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.timetableTeacher(instituteId ?? "_", scope)),
     queryFn: async () => {
       const result = await loadTeacherTimetable({
         instituteId: instituteId!,
@@ -145,9 +151,10 @@ export function useLearnerTimetableQuery(
   studentId: string | null | undefined,
   enabled = true,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.timetableLearner(instituteId ?? "_", studentId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.timetableLearner(instituteId ?? "_", studentId ?? "_")),
     queryFn: () =>
       loadLearnerTimetable({
         instituteId: instituteId ?? null,
@@ -163,7 +170,7 @@ export function useLearnerTimetableQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.timetableLearner(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.timetableLearner(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -174,9 +181,10 @@ export function useTeacherLeaveQuery(
   teacherId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.leaveTeacher(instituteId ?? "_", teacherId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.leaveTeacher(instituteId ?? "_", teacherId ?? "_")),
     queryFn: () =>
       loadTeacherLeavePortal({
         instituteId: instituteId!,
@@ -190,7 +198,7 @@ export function useTeacherLeaveQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.leaveTeacher(instituteId, teacherId ?? "_"),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.leaveTeacher(instituteId, teacherId ?? "_")),
     });
   };
   return { ...query, refresh };
@@ -202,10 +210,11 @@ export function useMessagesThreadsQuery(
   enabled: boolean,
   studentId?: string | null,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: [
-      ...connectQueryKeys.messagesThreads(instituteId ?? "_"),
+      ...scopedConnectKey(userId, connectQueryKeys.messagesThreads(instituteId ?? "_")),
       currentUserId ?? "_",
       studentId ?? "_",
     ],
@@ -224,7 +233,7 @@ export function useMessagesThreadsQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.messagesThreads(instituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.messagesThreads(instituteId)),
     });
   };
   return { ...query, refresh };
@@ -236,8 +245,9 @@ export function useTeacherAttendancePortalQuery(
   date: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.attendanceTeacher(instituteId ?? "_", sectionId, date),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.attendanceTeacher(instituteId ?? "_", sectionId, date)),
     queryFn: () =>
       loadTeacherAttendancePortal({
         instituteId: instituteId!,
@@ -260,13 +270,14 @@ export function useLearnerAttendanceQuery(
   to: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.attendanceLearner(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.attendanceLearner(
       instituteId ?? "_",
       studentId ?? "_",
       from,
       to,
-    ),
+    )),
     queryFn: () =>
       loadLearnerAttendancePortal({
         instituteId: instituteId!,
@@ -288,11 +299,12 @@ export function useTeacherSelfAttendanceQuery(
   teacherId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.attendanceTeacherSelf(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.attendanceTeacherSelf(
       instituteId ?? "_",
       teacherId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadTeacherSelfAttendance({
         instituteId: instituteId!,
@@ -306,8 +318,9 @@ export function useTeacherSelfAttendanceQuery(
 }
 
 export function useHolidaysQuery(instituteId: string | null | undefined, enabled: boolean) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.holidays(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.holidays(instituteId ?? "_")),
     queryFn: () => loadInstituteHolidays({ instituteId: instituteId ?? null }),
     enabled: enabled && Boolean(instituteId) && isInstituteUuid(instituteId ?? ""),
   });
@@ -318,8 +331,9 @@ export function useTeacherHomeworkListQuery(
   teacherId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.homeworkTeacher(instituteId ?? "_", teacherId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.homeworkTeacher(instituteId ?? "_", teacherId ?? "_")),
     queryFn: async () => {
       const [subjects, assignments, list] = await Promise.all([
         listSubjects(instituteId!),
@@ -345,8 +359,9 @@ export function useTeacherMarksCatalogQuery(
   teacherId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: [connectQueryKeys.marksParent(instituteId ?? "_")[0], "catalog", instituteId, teacherId],
+    queryKey: scopedConnectKey(userId, [connectQueryKeys.marksParent(instituteId ?? "_")[0], "catalog", instituteId, teacherId]),
     queryFn: async () => {
       const [examRows, subjectRows, assignments] = await Promise.all([
         listExams({ instituteId: instituteId!, scheduleStatus: "published" }),
@@ -371,14 +386,15 @@ export function useTeacherMarkSheetQuery(
   subjectId: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.marksSheet(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.marksSheet(
       instituteId ?? "_",
       sectionId,
       examId,
       subjectId,
-    ),
+    )),
     queryFn: () =>
       loadTeacherMarkSheet({
         instituteId: instituteId!,
@@ -397,7 +413,7 @@ export function useTeacherMarkSheetQuery(
   const refresh = () => {
     if (!instituteId || !sectionId || !examId || !subjectId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.marksSheet(instituteId, sectionId, examId, subjectId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.marksSheet(instituteId, sectionId, examId, subjectId)),
     });
   };
   return { ...query, refresh };
@@ -407,8 +423,9 @@ export function useConnectEventsQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.events(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.events(instituteId ?? "_")),
     queryFn: () => loadConnectEvents({ instituteId: instituteId! }),
     enabled:
       enabled && isApiAuthMode() && Boolean(instituteId) && isInstituteUuid(instituteId ?? ""),
@@ -419,8 +436,9 @@ export function useTeacherExamsQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.examsTeacher(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.examsTeacher(instituteId ?? "_")),
     queryFn: () => loadTeacherExamPapers({ instituteId: instituteId! }),
     enabled: enabled && Boolean(instituteId) && isInstituteUuid(instituteId ?? ""),
   });
@@ -430,9 +448,10 @@ export function useAnnouncementsListQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.announcements(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.announcements(instituteId ?? "_")),
     queryFn: async () => {
       const rows = await listAnnouncements({ instituteId: instituteId! });
       return rows.filter((row) => row.status === "published");
@@ -445,7 +464,7 @@ export function useAnnouncementsListQuery(
   });
   const refresh = () => {
     if (!instituteId) return;
-    void qc.invalidateQueries({ queryKey: connectQueryKeys.announcements(instituteId) });
+    void qc.invalidateQueries({ queryKey: scopedConnectKey(userId, connectQueryKeys.announcements(instituteId)) });
   };
   return { ...query, refresh };
 }
@@ -455,8 +474,9 @@ export function useAnnouncementDetailQuery(
   id: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.announcement(instituteId ?? "_", id || "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.announcement(instituteId ?? "_", id || "_")),
     queryFn: () => getAnnouncement(id),
     enabled: enabled && isApiAuthMode() && Boolean(id),
   });
@@ -466,9 +486,10 @@ export function useTeacherComplaintsQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.complaintsTeacher(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.complaintsTeacher(instituteId ?? "_")),
     queryFn: () => loadTeacherComplaints({ instituteId: instituteId! }),
     enabled:
       enabled &&
@@ -479,7 +500,7 @@ export function useTeacherComplaintsQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.complaintsTeacher(instituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.complaintsTeacher(instituteId)),
     });
   };
   return { ...query, refresh };
@@ -490,10 +511,11 @@ export function useLearnerComplaintsQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: [
-      ...connectQueryKeys.complaintsLearner(instituteId ?? "_"),
+      ...scopedConnectKey(userId, connectQueryKeys.complaintsLearner(instituteId ?? "_")),
       studentId ?? "_",
     ],
     queryFn: () =>
@@ -510,7 +532,7 @@ export function useLearnerComplaintsQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.complaintsLearner(instituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.complaintsLearner(instituteId)),
     });
   };
   return { ...query, refresh };
@@ -520,9 +542,10 @@ export function useTeacherTransportQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.transportTeacher(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.transportTeacher(instituteId ?? "_")),
     queryFn: () => loadTeacherClassTransport({ instituteId: instituteId! }),
     enabled:
       enabled &&
@@ -533,7 +556,7 @@ export function useTeacherTransportQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportTeacher(instituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportTeacher(instituteId)),
     });
   };
   return { ...query, refresh };
@@ -544,12 +567,13 @@ export function useLearnerTransportQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.transportLearner(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearner(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadLearnerTransport({ instituteId: instituteId!, studentId: studentId! }),
     enabled:
@@ -564,7 +588,7 @@ export function useLearnerTransportQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportLearner(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearner(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -576,13 +600,14 @@ export function useLearnerTransportLiveQuery(
   enabled: boolean,
   options?: { pollMs?: number | false },
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const pollMs = options?.pollMs;
   const query = useQuery({
-    queryKey: connectQueryKeys.transportLearnerLive(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearnerLive(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadLearnerTransportLive({
         instituteId: instituteId!,
@@ -603,7 +628,7 @@ export function useLearnerTransportLiveQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportLearnerLive(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearnerLive(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -614,12 +639,13 @@ export function useLearnerTransportHistoryQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.transportLearnerHistory(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearnerHistory(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: async () => {
       const { getLearnerTransportHistory } = await import("@/lib/transport/api");
       return getLearnerTransportHistory({
@@ -640,7 +666,7 @@ export function useLearnerTransportHistoryQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportLearnerHistory(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearnerHistory(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -651,12 +677,13 @@ export function useRideExceptionQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.transportRideException(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.transportRideException(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       getTransportParticipation({
         instituteId: instituteId!,
@@ -673,10 +700,10 @@ export function useRideExceptionQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportRideException(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportRideException(instituteId, studentId)),
     });
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.transportLearner(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.transportLearner(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -686,9 +713,10 @@ export function useTeacherRemarksQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.remarks(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.remarks(instituteId ?? "_")),
     queryFn: () => teacherRepository.getAllRemarks({ instituteId }),
     enabled:
       enabled &&
@@ -697,7 +725,7 @@ export function useTeacherRemarksQuery(
   });
   const refresh = () => {
     if (!instituteId) return;
-    void qc.invalidateQueries({ queryKey: connectQueryKeys.remarks(instituteId) });
+    void qc.invalidateQueries({ queryKey: scopedConnectKey(userId, connectQueryKeys.remarks(instituteId)) });
   };
   return { ...query, refresh };
 }
@@ -707,12 +735,13 @@ export function useTeacherStudentDetailQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.studentDetail(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.studentDetail(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadTeacherStudentDetail({
         instituteId: instituteId ?? null,
@@ -729,7 +758,7 @@ export function useTeacherStudentDetailQuery(
   const refresh = () => {
     if (!instituteId || !studentId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.studentDetail(instituteId, studentId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.studentDetail(instituteId, studentId)),
     });
   };
   return { ...query, refresh };
@@ -739,9 +768,10 @@ export function useSchoolAlertsQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.schoolAlerts(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.schoolAlerts(instituteId ?? "_")),
     queryFn: () => loadPortalSchoolAlerts({ instituteId: instituteId ?? null }),
     enabled:
       enabled &&
@@ -752,7 +782,7 @@ export function useSchoolAlertsQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.schoolAlerts(instituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.schoolAlerts(instituteId)),
     });
   };
   return { ...query, refresh };
@@ -763,11 +793,12 @@ export function useLearnerCertificatesQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.certificates(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.certificates(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: async () => {
       let studentFilter = studentId ?? null;
       if (studentFilter && !isInstituteUuid(studentFilter)) {
@@ -798,11 +829,12 @@ export function useEnrollmentHistoryQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.enrollmentHistory(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.enrollmentHistory(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadStudentEnrollmentHistory({
         instituteId: instituteId ?? null,
@@ -823,11 +855,12 @@ export function useLearnerActivitiesQuery(
   studentId: string | null | undefined,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.activitiesLearner(
+    queryKey: scopedConnectKey(userId, connectQueryKeys.activitiesLearner(
       instituteId ?? "_",
       studentId ?? "_",
-    ),
+    )),
     queryFn: () =>
       loadLearnerActivities({
         instituteId: instituteId!,
@@ -847,8 +880,9 @@ export function useStudentMarksQuery(
   instituteId: string | null | undefined,
   studentId: string | null | undefined,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.marksStudent(instituteId ?? "_", studentId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.marksStudent(instituteId ?? "_", studentId ?? "_")),
     queryFn: () =>
       loadStudentReportCards({
         instituteId: instituteId!,
@@ -868,8 +902,9 @@ export function useStudentHomeworkQuery(
   studentId: string | null | undefined,
   enabled = true,
 ) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.homeworkStudent(instituteId ?? "_", studentId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.homeworkStudent(instituteId ?? "_", studentId ?? "_")),
     queryFn: () =>
       loadStudentHomeworkItems({
         instituteId: instituteId!,
@@ -886,8 +921,9 @@ export function useStudentHomeworkQuery(
 }
 
 export function useLearnerDiaryQuery(instituteId: string | null | undefined, enabled = true) {
+  const userId = useConnectQueryUserId();
   return useQuery({
-    queryKey: connectQueryKeys.diaryLearner(instituteId ?? "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.diaryLearner(instituteId ?? "_")),
     queryFn: async () => {
       const rows = await listDiaryDays({
         instituteId: instituteId!,
@@ -908,9 +944,10 @@ export function useConnectInboxQuery(
   role: string,
   enabled: boolean,
 ) {
+  const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: connectQueryKeys.inbox(instituteId ?? "_", role || "_"),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.inbox(instituteId ?? "_", role || "_")),
     queryFn: () => loadConnectPortalInbox(instituteId ?? null),
     enabled:
       enabled &&
@@ -921,7 +958,7 @@ export function useConnectInboxQuery(
   const refresh = () => {
     if (!instituteId) return;
     void qc.invalidateQueries({
-      queryKey: connectQueryKeys.inbox(instituteId, role || "_"),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.inbox(instituteId, role || "_")),
     });
   };
   return { ...query, refresh };

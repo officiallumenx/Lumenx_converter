@@ -427,7 +427,7 @@ function ModulesDemoPage() {
 
         {payStep === "pin" ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-[11px] text-muted-foreground">
               For your security, confirm this {formatInr(totalInr)} payment with your 6-digit
               Admin security PIN. Never share your PIN.
             </div>

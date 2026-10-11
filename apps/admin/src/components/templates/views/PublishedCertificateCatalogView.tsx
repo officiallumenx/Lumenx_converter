@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   Th,
 } from "@lumenx/ui-admin";
 import {
+  isDbCertificateCatalogEnabled,
   listPublishedCertificateCategories,
   listPublishedCertificateTemplates,
   subscribeCertificateCatalog,
@@ -30,8 +31,19 @@ import { CertificateStudentPopulatePanel } from "@/components/templates/views/Ce
 import { categoryLabel } from "@/lib/template-management/categories";
 import type { IssuedCertificateHistoryItem } from "@/lib/certificates";
 import type { TemplateRecord, TemplateStatus } from "@/lib/template-management/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { listPublishedPlatformCertificateTemplates } from "@/lib/certificates/platform-templates-api";
+
+type CertificateSection =
+  | "overview"
+  | "templates"
+  | "issue"
+  | "issued"
+  | "verify";
 
 type PublishedCertificateCatalogViewProps = {
+  /** Which hub section to show (defaults to full overview stack). */
+  section?: CertificateSection;
   catalogTemplates?: TemplateRecord[];
   catalogBlocked?: boolean;
   catalogHint?: string | null;
@@ -41,6 +53,7 @@ type PublishedCertificateCatalogViewProps = {
   issuedListBlocked?: boolean;
   issuedListHint?: string | null;
   onRevokeCertificate?: (id: string, reason: string) => void | Promise<void>;
+  verifyPanel?: ReactNode;
 };
 
 const STATUS_TONE: Record<TemplateStatus, "success" | "warning" | "neutral"> = {
@@ -101,6 +114,7 @@ function PublishedTemplatePreview({
 }
 
 export function PublishedCertificateCatalogView({
+  section = "overview",
   catalogTemplates,
   catalogBlocked = false,
   catalogHint = null,
@@ -110,6 +124,7 @@ export function PublishedCertificateCatalogView({
   issuedListBlocked = false,
   issuedListHint = null,
   onRevokeCertificate,
+  verifyPanel,
 }: PublishedCertificateCatalogViewProps) {
   const { instituteProfile, profile } = useDemoProfile();
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
@@ -121,12 +136,39 @@ export function PublishedCertificateCatalogView({
   const apiCatalogMode = catalogTemplates != null;
 
   useEffect(() => {
-    const refresh = () => {
+    let cancelled = false;
+
+    const refreshLocal = () => {
+      if (cancelled) return;
       setTemplates(listPublishedCertificateTemplates());
       setCategories(listPublishedCertificateCategories());
     };
-    refresh();
-    return subscribeCertificateCatalog(refresh);
+
+    /**
+     * Dual-read: when DB catalog flag is ON and API auth is active, prefer
+     * published platform templates from the API; fall back to localStorage
+     * if the API returns empty or errors. localStorage is never wiped.
+     */
+    const refresh = async () => {
+      refreshLocal();
+      if (!isDbCertificateCatalogEnabled() || !isApiAuthMode()) return;
+      try {
+        const remote = await listPublishedPlatformCertificateTemplates();
+        if (cancelled || remote.length === 0) return;
+        const byId = new Map(remote.map((t) => [t.id, t]));
+        for (const local of listPublishedCertificateTemplates()) {
+          if (!byId.has(local.id)) byId.set(local.id, local);
+        }
+        setTemplates([...byId.values()]);
+      } catch {
+        // Keep localStorage catalog on API failure.
+      }
+    };
+
+    void refresh();
+    return subscribeCertificateCatalog(() => {
+      void refresh();
+    });
   }, []);
 
   const apiCategories = useMemo(() => {
@@ -188,7 +230,18 @@ export function PublishedCertificateCatalogView({
       ? categoryNameById.get(selected.categoryId) ?? selected.categoryId
       : "";
 
-  if (catalogBlocked) {
+  const showTemplates = section === "overview" || section === "templates";
+  const showIssue = section === "overview" || section === "issue";
+  const showIssued = section === "overview" || section === "issued";
+  const showVerify = section === "verify";
+  const showIdCards = section === "overview";
+  const showRecommendations = section === "overview" || section === "issue";
+
+  if (showVerify) {
+    return <PageStack>{verifyPanel}</PageStack>;
+  }
+
+  if (catalogBlocked && showTemplates) {
     return (
       <PageStack>
         <Card>
@@ -199,247 +252,275 @@ export function PublishedCertificateCatalogView({
             </div>
           </CardBody>
         </Card>
-      <CertificateHistoryPanel
-        records={issuedRecords}
-        listBlocked={issuedListBlocked}
-        listHint={issuedListHint}
-        writesEnabled={writesEnabled}
-        onRevokeCertificate={onRevokeCertificate}
-      />
-
-      <CertificatesIdCardPanel apiMode={apiCatalogMode} />
-    </PageStack>
-  );
-}
+        {showIssued ? (
+          <CertificateHistoryPanel
+            records={issuedRecords}
+            listBlocked={issuedListBlocked}
+            listHint={issuedListHint}
+            writesEnabled={writesEnabled}
+            onRevokeCertificate={onRevokeCertificate}
+          />
+        ) : null}
+        {showIdCards ? <CertificatesIdCardPanel apiMode={apiCatalogMode} /> : null}
+      </PageStack>
+    );
+  }
 
   return (
     <PageStack>
-      <Card>
-        <CardHeader
-          title="Published templates"
-          hint={
-            apiCatalogMode
-              ? "Active certificate templates from the institute library"
-              : "Nexus publishes these versions · Admin cannot edit templates or mappings"
-          }
-        />
-        <CardBody className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Category">
-              <Select
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
-              >
-                <option value="">All categories</option>
-                {categoryOptions.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Template">
-              <Select
-                value={templateId}
-                onChange={(event) => setTemplateId(event.target.value)}
-                disabled={visibleCatalogCount === 0}
-              >
-                {visibleCatalogCount === 0 ? (
-                  <option value="">No published templates</option>
-                ) : apiCatalogMode ? (
-                  apiFilteredTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))
-                ) : (
-                  filteredDemoTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))
-                )}
-              </Select>
-            </Field>
-          </div>
-          {!apiCatalogMode && writesEnabled ? (
-            <Button
-              variant="primary"
-              onClick={() => setPreviewOpen(true)}
-              disabled={!selected}
-            >
-              <Eye className="size-3.5" /> View preview
-            </Button>
-          ) : null}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Catalog"
-          hint={`${visibleCatalogCount} ${apiCatalogMode ? "active" : "published"}`}
-        />
-        {visibleCatalogCount === 0 ? (
-          <CardBody>
-            <EmptyState
-              icon={<Award className="size-5" />}
-              title="No published certificate templates"
+      {showTemplates ? (
+        <>
+          <Card>
+            <CardHeader
+              title="Published templates"
               hint={
                 apiCatalogMode
-                  ? "No active certificate templates found for this institute."
-                  : "A template must be published before it appears here."
+                  ? "Active certificate templates from the institute library"
+                  : "Nexus publishes these versions · Admin cannot edit templates or mappings"
               }
             />
-          </CardBody>
-        ) : apiCatalogMode ? (
-          <DataTable>
-            <thead>
-              <tr>
-                <Th>Category</Th>
-                <Th>Template Name</Th>
-                <Th>Version</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {apiFilteredTemplates.map((template) => {
-                const active = template.id === templateId;
-                return (
-                  <tr
-                    key={template.id}
-                    className={`cursor-pointer ${active ? "bg-primary/5" : "hover:bg-muted/30"}`}
-                    onClick={() => setTemplateId(template.id)}
+            <CardBody className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Category">
+                  <Select
+                    value={categoryId}
+                    onChange={(event) => setCategoryId(event.target.value)}
                   >
-                    <td className="px-5 py-3 text-sm">
-                      {categoryNameById.get(template.categoryId) ?? template.categoryId}
-                    </td>
-                    <td className="px-5 py-3 text-sm font-medium">{template.name}</td>
-                    <td className="px-5 py-3 font-mono text-xs">v{template.version}</td>
-                    <td className="px-5 py-3">
-                      <Pill tone={STATUS_TONE[template.status]}>{template.status}</Pill>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </DataTable>
-        ) : (
-          <DataTable>
-            <thead>
-              <tr>
-                <Th>Category</Th>
-                <Th>Template Name</Th>
-                <Th>Version</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDemoTemplates.map((template) => {
-                const active = template.id === templateId;
-                return (
-                  <tr
-                    key={template.id}
-                    className={`cursor-pointer ${active ? "bg-primary/5" : "hover:bg-muted/30"}`}
-                    onClick={() => setTemplateId(template.id)}
+                    <option value="">All categories</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Template">
+                  <Select
+                    value={templateId}
+                    onChange={(event) => setTemplateId(event.target.value)}
+                    disabled={visibleCatalogCount === 0}
                   >
-                    <td className="px-5 py-3 text-sm">
-                      {categoryNameById.get(template.categoryId) ?? template.categoryId}
-                    </td>
-                    <td className="px-5 py-3 text-sm font-medium">{template.name}</td>
-                    <td className="px-5 py-3 font-mono text-xs">v{template.version}</td>
-                    <td className="px-5 py-3">
-                      <Pill tone="success">Published</Pill>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </DataTable>
-        )}
-      </Card>
-
-      {!apiCatalogMode && writesEnabled ? <CertificateNumberingConfig /> : null}
-
-      <CertificateRecommendationsPanel instituteId={activeInstituteId} />
-
-      {writesEnabled && nexusSelected && apiCatalogMode ? (
-        <Card>
-          <CardHeader
-            title="Issue from template"
-            hint="Fill the template locally · issued record is saved to the ledger"
-          />
-          <CardBody className="space-y-4">
-            {filteredDemoTemplates.length > 1 ? (
-              <Field label="Nexus template">
-                <Select
-                  value={nexusTemplateId}
-                  onChange={(event) => setNexusTemplateId(event.target.value)}
+                    {visibleCatalogCount === 0 ? (
+                      <option value="">No published templates</option>
+                    ) : apiCatalogMode ? (
+                      apiFilteredTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))
+                    ) : (
+                      filteredDemoTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))
+                    )}
+                  </Select>
+                </Field>
+              </div>
+              {!apiCatalogMode && writesEnabled ? (
+                <Button
+                  variant="primary"
+                  onClick={() => setPreviewOpen(true)}
+                  disabled={!selected}
                 >
-                  {filteredDemoTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} · v{template.version}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
+                  <Eye className="size-3.5" /> View preview
+                </Button>
+              ) : null}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Catalog"
+              hint={`${visibleCatalogCount} ${apiCatalogMode ? "active" : "published"}`}
+            />
+            {visibleCatalogCount === 0 ? (
+              <CardBody>
+                <EmptyState
+                  icon={<Award className="size-5" />}
+                  title="No published certificate templates"
+                  hint={
+                    apiCatalogMode
+                      ? "No active certificate templates found for this institute."
+                      : "A template must be published before it appears here."
+                  }
+                />
+              </CardBody>
+            ) : apiCatalogMode ? (
+              <DataTable>
+                <thead>
+                  <tr>
+                    <Th>Category</Th>
+                    <Th>Template Name</Th>
+                    <Th>Version</Th>
+                    <Th>Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiFilteredTemplates.map((template) => {
+                    const active = template.id === templateId;
+                    return (
+                      <tr
+                        key={template.id}
+                        className={`cursor-pointer ${active ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                        onClick={() => setTemplateId(template.id)}
+                      >
+                        <td className="px-5 py-3 text-sm">
+                          {categoryNameById.get(template.categoryId) ?? template.categoryId}
+                        </td>
+                        <td className="px-5 py-3 text-sm font-medium">{template.name}</td>
+                        <td className="px-5 py-3 font-mono text-xs">v{template.version}</td>
+                        <td className="px-5 py-3">
+                          <Pill tone={STATUS_TONE[template.status]}>{template.status}</Pill>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </DataTable>
+            ) : (
+              <DataTable>
+                <thead>
+                  <tr>
+                    <Th>Category</Th>
+                    <Th>Template Name</Th>
+                    <Th>Version</Th>
+                    <Th>Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDemoTemplates.map((template) => {
+                    const active = template.id === templateId;
+                    return (
+                      <tr
+                        key={template.id}
+                        className={`cursor-pointer ${active ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                        onClick={() => setTemplateId(template.id)}
+                      >
+                        <td className="px-5 py-3 text-sm">
+                          {categoryNameById.get(template.categoryId) ?? template.categoryId}
+                        </td>
+                        <td className="px-5 py-3 text-sm font-medium">{template.name}</td>
+                        <td className="px-5 py-3 font-mono text-xs">v{template.version}</td>
+                        <td className="px-5 py-3">
+                          <Pill tone="success">Published</Pill>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </DataTable>
+            )}
+          </Card>
+
+          {!apiCatalogMode && writesEnabled ? <CertificateNumberingConfig /> : null}
+          {!apiCatalogMode && selected ? (
+            <Card>
+              <CardHeader
+                title="Template preview"
+                hint={`${selected.file.fileName} · read-only`}
+              />
+              <CardBody>
+                <PublishedTemplatePreview
+                  template={selected}
+                  categoryName={selectedCategoryName}
+                />
+              </CardBody>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
+
+      {showRecommendations ? (
+        <CertificateRecommendationsPanel instituteId={activeInstituteId} />
+      ) : null}
+
+      {showIssue ? (
+        <>
+          {writesEnabled && nexusSelected && apiCatalogMode ? (
+            <Card>
+              <CardHeader
+                title="Issue from template"
+                hint="Fill the template locally · issued record is saved to the ledger · Transfer Certificates stay under Documents"
+              />
+              <CardBody className="space-y-4">
+                {filteredDemoTemplates.length > 1 ? (
+                  <Field label="Nexus template">
+                    <Select
+                      value={nexusTemplateId}
+                      onChange={(event) => setNexusTemplateId(event.target.value)}
+                    >
+                      {filteredDemoTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name} · v{template.version}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+                <CertificateStudentPopulatePanel
+                  template={nexusSelected}
+                  institute={instituteProfile}
+                  principalName={profile.admin.principalName}
+                  instituteId={activeInstituteId}
+                />
+              </CardBody>
+            </Card>
+          ) : null}
+
+          {!apiCatalogMode && writesEnabled && selected ? (
             <CertificateStudentPopulatePanel
-              template={nexusSelected}
+              template={selected}
               institute={instituteProfile}
               principalName={profile.admin.principalName}
               instituteId={activeInstituteId}
             />
-          </CardBody>
-        </Card>
+          ) : null}
+
+          {apiCatalogMode && !nexusSelected ? (
+            <Card>
+              <CardHeader title="Generate & issue" />
+              <CardBody className="text-sm text-muted-foreground">
+                Select a certificate template under Templates, then return here to issue.
+                Official Transfer Certificates are created under Documents → Official docs.
+              </CardBody>
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
-      {!apiCatalogMode && writesEnabled && selected ? (
-        <CertificateStudentPopulatePanel
-          template={selected}
-          institute={instituteProfile}
-          principalName={profile.admin.principalName}
-          instituteId={activeInstituteId}
+      {showIssued ? (
+        <CertificateHistoryPanel
+          records={issuedRecords}
+          listBlocked={issuedListBlocked}
+          listHint={issuedListHint}
+          writesEnabled={writesEnabled}
+          onRevokeCertificate={onRevokeCertificate}
         />
       ) : null}
 
-      {!apiCatalogMode && selected ? (
-        <Card>
-          <CardHeader
-            title="Template preview"
-            hint={`${selected.file.fileName} · read-only`}
-          />
-          <CardBody>
+      {showIdCards ? <CertificatesIdCardPanel apiMode={apiCatalogMode} /> : null}
+
+      {!apiCatalogMode ? (
+        <Modal
+          open={previewOpen && Boolean(selected)}
+          onClose={() => setPreviewOpen(false)}
+          title={selected?.name ?? "Template preview"}
+          subtitle={
+            selected
+              ? `${selectedCategoryName} · v${selected.version} · Published`
+              : undefined
+          }
+          size="lg"
+        >
+          {selected ? (
             <PublishedTemplatePreview
               template={selected}
               categoryName={selectedCategoryName}
             />
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <CertificateHistoryPanel
-        records={issuedRecords}
-        listBlocked={issuedListBlocked}
-        listHint={issuedListHint}
-        writesEnabled={writesEnabled}
-        onRevokeCertificate={onRevokeCertificate}
-      />
-
-      {!apiCatalogMode ? (
-      <Modal
-        open={previewOpen && Boolean(selected)}
-        onClose={() => setPreviewOpen(false)}
-        title={selected?.name ?? "Template preview"}
-        subtitle={selected ? `${selectedCategoryName} · v${selected.version} · Published` : undefined}
-        size="lg"
-      >
-        {selected ? (
-          <PublishedTemplatePreview
-            template={selected}
-            categoryName={selectedCategoryName}
-          />
-        ) : null}
-      </Modal>
+          ) : null}
+        </Modal>
       ) : null}
     </PageStack>
   );

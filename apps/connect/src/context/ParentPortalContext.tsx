@@ -4,7 +4,9 @@ import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { fetchParentPortalSnapshot, parentPortalQueryKeys } from "@/api/parent-portal";
-import { connectQueryKeys } from "@/lib/connect-queries";
+import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
+import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import { prefetchParentModuleQueries } from "@/lib/connect-queries/prefetch-parent";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 
@@ -27,27 +29,31 @@ const ParentPortalCtx = createContext<ParentPortalState | undefined>(undefined);
  * active learner changes until the new payload arrives.
  */
 export function ParentPortalRegistry({ children }: { children: ReactNode }) {
-  const { role, activeChildId, activeInstituteId } = useApp();
+  const { role, activeChildId, activeInstituteId, user } = useApp();
   const queryClient = useQueryClient();
+  const isRestoring = useConnectQueryRestoring();
+  const userId = useConnectQueryUserId();
   const isParent = role === "parent";
   const canRun =
     isParent &&
     isApiAuthMode() &&
+    Boolean(user?.id) &&
     Boolean(activeInstituteId) &&
     isInstituteUuid(activeInstituteId ?? "") &&
     Boolean(activeChildId) &&
     isInstituteUuid(activeChildId);
 
-  const queryKey = connectQueryKeys.parentPortal(
-    activeInstituteId ?? "_",
-    activeChildId || "_",
+  const queryKey = scopedConnectKey(
+    userId,
+    connectQueryKeys.parentPortal(activeInstituteId ?? "_", activeChildId || "_"),
   );
 
   const query = useQuery({
     queryKey,
     queryFn: ({ signal }) =>
       fetchParentPortalSnapshot(activeInstituteId!, activeChildId, signal),
-    enabled: canRun,
+    // Wait for IDB hydrate so warm reopen paints from cache, not an empty race.
+    enabled: canRun && !isRestoring,
     placeholderData: (previous) => {
       if (!previous) return undefined;
       if (previous.child.id === activeChildId) return previous;
@@ -75,14 +81,15 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
   const isLoading =
     isParent &&
     canRun &&
+    !isRestoring &&
     ((query.isLoading && !snapshot) || isFetchingNewChild);
 
   // Warm common parent modules once the active child snapshot is ready.
   useEffect(() => {
     if (!isParent || !snapshot || !activeInstituteId || !activeChildId) return;
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(activeChildId)) return;
-    prefetchParentModuleQueries(queryClient, activeInstituteId, activeChildId);
-  }, [isParent, snapshot, activeInstituteId, activeChildId, queryClient]);
+    prefetchParentModuleQueries(queryClient, userId, activeInstituteId, activeChildId);
+  }, [isParent, snapshot, activeInstituteId, activeChildId, queryClient, userId]);
 
   const value = useMemo<ParentPortalState>(() => {
     if (!isParent) {

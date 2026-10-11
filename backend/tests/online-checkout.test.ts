@@ -146,6 +146,8 @@ describe("online subscription checkout (Phase 2 Step 10)", () => {
     expect(db.renewal_record[0]?.status).toBe("paid");
     expect(db.subscription[0]?.lifecycle_status).toBe("active");
     expect(db.subscription_period).toHaveLength(1);
+    // Period must inherit the verified payment channel (online), not hardcode offline.
+    expect(db.subscription_period[0]?.payment_method).toBe("online");
 
     const pendingAfter = await app.request(
       `/api/v1/subscriptions/online-checkout/pending?institute_id=${INST_A}`,

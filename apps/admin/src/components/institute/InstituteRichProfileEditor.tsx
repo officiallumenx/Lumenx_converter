@@ -69,7 +69,7 @@ export function AdminInstituteProfileEditor({ value, onChange }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-primary/25 bg-primary/[0.04] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/40 px-4 py-3">
         <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
           Edit any section below. Use <span className="font-medium text-foreground">Add section</span>{" "}
           for a custom heading and fields (matter, optional year, sub fields).
@@ -476,7 +476,7 @@ function InstituteProfilePhoto({
             className="size-full object-cover"
           />
         ) : (
-          <div className="size-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-muted text-primary px-3">
+          <div className="flex size-full flex-col items-center justify-center bg-muted px-3 text-foreground">
             <span className="text-3xl font-bold tracking-tight">{instituteInitials(name)}</span>
             {logoLabel ? (
               <span className="text-[10px] text-muted-foreground mt-2 text-center line-clamp-2 leading-snug">

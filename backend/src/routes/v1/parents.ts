@@ -14,7 +14,7 @@ import {
   deleteGuardianLinkForActor,
   deleteParentForActor,
   getParentForActor,
-  listParentsForActor,
+  listParentsPageForActor,
   provisionParentAccessForActor,
   updateGuardianLinkForActor,
   updateParentForActor,
@@ -48,6 +48,8 @@ const listQuerySchema = z.object({
   invite_status: inviteSchema.optional(),
   access_status: accessSchema.optional(),
   q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().max(500).optional(),
 });
 
 const createSchema = z.object({
@@ -111,13 +113,19 @@ parents.get("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const query = validateQuery(listQuerySchema, c.req.query());
-  const data = await listParentsForActor(admin, actor, {
+  const page = await listParentsPageForActor(admin, actor, {
     instituteId: query.institute_id,
     inviteStatus: query.invite_status,
     accessStatus: query.access_status,
     q: query.q,
+    limit: query.limit,
+    cursor: query.cursor,
   });
-  return c.json({ data });
+  return c.json({
+    data: page.items,
+    next_cursor: page.nextCursor,
+    has_more: page.hasMore,
+  });
 });
 
 parents.get("/:id", async (c) => {

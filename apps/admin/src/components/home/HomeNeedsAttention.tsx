@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
-import type { AttentionItem, AttentionSeverity } from "@/lib/dashboard";
+import {
+  resolveAttentionDisplayMode,
+  type AttentionItem,
+  type AttentionSeverity,
+} from "@/lib/dashboard";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -62,11 +66,24 @@ function badgeClass(id: string, severity: AttentionSeverity): string {
 export function HomeNeedsAttention({
   items,
   loading,
+  pendingMore,
 }: {
   items: AttentionItem[];
+  /** True while the analytics summary (leave/complaints) is still loading. */
   loading?: boolean;
+  /**
+   * True while secondary widget sources are still loading.
+   * Prevents a confirmed "all clear" empty state and labels the list as partial.
+   */
+  pendingMore?: boolean;
 }) {
-  if (loading && items.length === 0) {
+  const mode = resolveAttentionDisplayMode({
+    summaryLoading: Boolean(loading),
+    widgetsLoading: Boolean(pendingMore),
+    itemCount: items.length,
+  });
+
+  if (mode === "skeleton") {
     return (
       <section className="lx-home-section lx-home-panel lx-home-attention" style={{ "--lx-home-i": 3 } as CSSProperties}>
         <div className="lx-home-attention__head">
@@ -76,13 +93,39 @@ export function HomeNeedsAttention({
         <div className="space-y-2 px-0.5">
           <div className="skeleton h-11 rounded-xl" />
           <div className="skeleton h-11 rounded-xl" />
+        </div>
+      </section>
+    );
+  }
+
+  if (mode === "partial-empty") {
+    return (
+      <section
+        className="lx-home-section lx-home-panel lx-home-attention"
+        style={{ "--lx-home-i": 3 } as CSSProperties}
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <div className="lx-home-attention__head">
+          <div className="lx-home-attention__title-row">
+            <span className="lx-home-attention__warn" aria-hidden>
+              <AlertTriangle className="size-3.5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="lx-home-panel__title">Needs Attention</h2>
+              <p className="lx-home-panel__hint mt-0.5">Checking for items that need your action…</p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2 px-0.5">
+          <div className="skeleton h-11 rounded-xl" />
           <div className="skeleton h-11 rounded-xl" />
         </div>
       </section>
     );
   }
 
-  if (items.length === 0) {
+  if (mode === "ready-empty") {
     return (
       <section
         className="lx-home-section lx-home-healthy"
@@ -111,7 +154,11 @@ export function HomeNeedsAttention({
               <h2 className="lx-home-panel__title">Needs Attention</h2>
               <span className="lx-home-att-badge lx-home-att-badge--red">{total}</span>
             </div>
-            <p className="lx-home-panel__hint mt-0.5">Items that need your action</p>
+            <p className="lx-home-panel__hint mt-0.5">
+              {pendingMore
+                ? "Items that need your action · updating…"
+                : "Items that need your action"}
+            </p>
           </div>
         </div>
       </div>

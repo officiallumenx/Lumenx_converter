@@ -210,7 +210,7 @@ function ParentProfileDemo({ id }: { id: string }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-1">
           <div className="flex flex-col items-center text-center">
-            <div className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 text-lg font-semibold ring-4 ring-border">
+            <div className="flex size-20 items-center justify-center rounded-full border border-border bg-muted text-lg font-semibold text-foreground shadow-xs">
               {initials}
             </div>
             <h2 className="mt-4 text-base font-semibold">{view.name}</h2>

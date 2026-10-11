@@ -17,6 +17,14 @@ export const transportQueryKeys = {
   emergency: (instituteId: string, vehicleId = "_") =>
     ["transport", "emergency", instituteId, vehicleId] as const,
   roster: (instituteId: string) => ["transport", "roster", instituteId] as const,
+  /** Today’s trips + active trip hydration scope. */
+  currentTrip: (
+    instituteId: string,
+    driverId: string,
+    vehicleId: string,
+    tripDate: string,
+  ) =>
+    ["transport", "current-trip", instituteId, driverId, vehicleId, tripDate] as const,
 };
 
 /** Roots invalidated on Transport soft refresh for the active session. */

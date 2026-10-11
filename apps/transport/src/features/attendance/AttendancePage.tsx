@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   Flag,
@@ -32,15 +32,23 @@ import {
 } from "@/lib/transport";
 import {
   buildTripEndSummary,
+  homeActionPrimaryLabel,
   isTripActive,
+  nextStartSlot,
+  tripKindForSlot,
+  tripKindTitle,
   tripRepository,
 } from "@/lib/transport/trip";
 
 import { StudentAttendanceCard } from "./StudentAttendanceCard";
+import {
+  defaultAttendanceTabForSlot,
+  requiresBoardedBeforeDrop,
+  rosterForAttendanceTab,
+  type AttendanceTabId,
+} from "./roster-visibility";
 import { EndTripSummaryGrid } from "../home/ActiveTripPanel";
 import { StartTripReadinessDialog } from "../home/StartTripReadinessDialog";
-
-type TabId = "boarding" | "dropping";
 
 type PendingConfirm =
   | {
@@ -58,10 +66,10 @@ type PendingConfirm =
       label: string;
     };
 
-const TAB_IDS = new Set<TabId>(["boarding", "dropping"]);
+const TAB_IDS = new Set<AttendanceTabId>(["boarding", "dropping"]);
 
-function isTabId(value: string): value is TabId {
-  return TAB_IDS.has(value as TabId);
+function isTabId(value: string): value is AttendanceTabId {
+  return TAB_IDS.has(value as AttendanceTabId);
 }
 
 function countBoarding(students: AttendanceStudentState[], status: BoardingStatus) {
@@ -70,25 +78,6 @@ function countBoarding(students: AttendanceStudentState[], status: BoardingStatu
 
 function countDropping(students: AttendanceStudentState[], status: DroppingStatus) {
   return students.filter((s) => s.dropping === status).length;
-}
-
-function matchesCurrentStop(
-  student: AttendanceStudentState,
-  stop: { id: string; name: string } | null,
-): boolean {
-  if (!stop) return false;
-  const stopId = student.stopId?.trim();
-  // Unassigned students appear at every stop so the driver can still mark them.
-  if (!stopId) return true;
-  if (stopId === stop.id) return true;
-  const studentStop = String(student.stopName ?? "")
-    .trim()
-    .toLowerCase();
-  const current = String(stop.name ?? "")
-    .trim()
-    .toLowerCase();
-  if (!studentStop || studentStop === "stop assignment pending") return true;
-  return studentStop === current;
 }
 
 function StatPill({
@@ -115,25 +104,39 @@ function StatPill({
   );
 }
 
-function AttendanceGate({ completed }: { completed?: boolean }) {
+function AttendanceGate() {
   const [readinessOpen, setReadinessOpen] = useState(false);
+  /** Locked when the sheet opens so Drop confirm cannot flip to Pickup. */
+  const [readinessSlot, setReadinessSlot] = useState<"morning" | "evening">("morning");
   const navigate = useNavigate();
+  const session = useTripSession();
+  const action = session.homeAction;
+  const startSlot = nextStartSlot(action);
+  const upcomingKind =
+    action === "start_drop" || action === "continue_drop"
+      ? "drop"
+      : action === "day_complete"
+        ? tripKindForSlot(session.slot)
+        : "pickup";
+  const upcomingTitle = tripKindTitle(upcomingKind);
 
-  if (completed) {
+  // Pickup completed but Drop ready — show Start Drop, don't trap on completed chrome.
+  if (action !== "start_drop" && (action === "day_complete" || session.phase === "completed")) {
     return (
       <div className="min-w-0 space-y-5">
         <SectionHeader
           as="h1"
           size="page"
-          title="Attendance"
-          subtitle="This trip is already completed"
+          title="Transport Attendance"
+          subtitle={`${upcomingTitle} already completed`}
         />
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="space-y-4 p-5">
-            <p className="font-display text-base font-semibold text-foreground">Trip completed</p>
+            <p className="font-display text-base font-semibold text-foreground">
+              {upcomingTitle} completed
+            </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              You cannot mark attendance on a completed trip. Open Home to review the summary or
-              start a new trip after dismissing it.
+              You cannot mark attendance on a completed trip. Open Home for the next action.
             </p>
             <Button
               type="button"
@@ -150,35 +153,64 @@ function AttendanceGate({ completed }: { completed?: boolean }) {
     );
   }
 
+  const canStart = action === "start_pickup" || action === "start_drop";
+  const startLabel = homeActionPrimaryLabel(action);
+
   return (
     <div className="min-w-0 space-y-5">
       <SectionHeader
         as="h1"
         size="page"
-        title="Attendance"
-        subtitle="Start the trip before marking students"
+        title="Transport Attendance"
+        subtitle="Upcoming trip"
       />
       <Card className="border-primary/20 bg-gradient-to-br from-primary/[0.06] via-card to-transport/[0.05]">
         <CardContent className="space-y-4 p-5">
-          <p className="font-display text-base font-semibold text-foreground">Trip not started</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Pass readiness checks (GPS, Internet, Notifications, bus, route, and approved stops),
-            then confirm Start Trip.
+          <p className="font-display text-xs font-semibold uppercase tracking-wide text-transport">
+            {upcomingTitle}
           </p>
-          <Button
-            type="button"
-            variant="transport"
-            size="lg"
-            expanded
-            onClick={() => setReadinessOpen(true)}
-          >
-            <Play className="size-5" aria-hidden />
-            Start Trip
-          </Button>
+          <p className="font-display text-base font-semibold text-foreground">Attendance</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {canStart
+              ? `Start the ${upcomingKind === "drop" ? "Drop" : "Pickup"} trip, then mark students here.`
+              : "Trip is not ready yet. Open Home to continue."}
+          </p>
+          {canStart ? (
+            <Button
+              type="button"
+              variant="transport"
+              size="lg"
+              expanded
+              className="min-h-12"
+              onClick={() => {
+                setReadinessSlot(
+                  startSlot ?? (action === "start_drop" ? "evening" : "morning"),
+                );
+                setReadinessOpen(true);
+              }}
+            >
+              <Play className="size-5" aria-hidden />
+              {startLabel}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="transport"
+              size="lg"
+              expanded
+              onClick={() => void navigate({ to: ROUTES.home })}
+            >
+              Back to Home
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      <StartTripReadinessDialog open={readinessOpen} onOpenChange={setReadinessOpen} />
+      <StartTripReadinessDialog
+        open={readinessOpen}
+        onOpenChange={setReadinessOpen}
+        tripSlot={readinessSlot}
+      />
     </div>
   );
 }
@@ -189,7 +221,9 @@ export function AttendancePage() {
   const session = useTripSession();
   const locationTrack = useLocationTrack();
   const students = useAttendanceStudents();
-  const [tab, setTab] = useState<TabId>("boarding");
+  const [tab, setTab] = useState<AttendanceTabId>(() =>
+    defaultAttendanceTabForSlot(session.slot),
+  );
   const [query, setQuery] = useState("");
   const [liveMessage, setLiveMessage] = useState("");
   const [endTripOpen, setEndTripOpen] = useState(false);
@@ -199,22 +233,35 @@ export function AttendancePage() {
   const [confirming, setConfirming] = useState(false);
   const locationBlocked = locationTrack.status === "off";
 
+  // Keep Dropping selected for evening trips when the trip identity/slot changes.
+  // Do not depend on phase — tab changes also PATCH phase and would fight the driver.
+  useEffect(() => {
+    const next = defaultAttendanceTabForSlot(session.slot);
+    setTab(next);
+    if (isTripActive(session.phase)) {
+      void tripRepository.setLifecyclePhase(
+        next === "boarding" ? "boarding" : "dropping",
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on trip/slot
+  }, [session.slot, session.tripId]);
+
   const routeStops = session.assignment?.route?.stops ?? [];
   const currentStop = routeStops[session.currentStopIndex] ?? null;
   const destinationStop =
     routeStops[routeStops.length - 1] ?? currentStop;
 
-  const atCurrentStop = useMemo(
-    () => students.filter((s) => matchesCurrentStop(s, currentStop)),
-    [students, currentStop],
+  // Full assigned roster for both legs (evening Drop must not depend on boarding marks).
+  const boardingRoster = useMemo(
+    () => rosterForAttendanceTab(students, "boarding"),
+    [students],
   );
-
   const droppingRoster = useMemo(
-    () => students.filter((s) => s.boarding === "boarded"),
+    () => rosterForAttendanceTab(students, "dropping"),
     [students],
   );
 
-  const tabStudents = tab === "boarding" ? atCurrentStop : droppingRoster;
+  const tabStudents = tab === "boarding" ? boardingRoster : droppingRoster;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -235,12 +282,12 @@ export function AttendancePage() {
 
   const boardingStats = useMemo(
     () => ({
-      total: atCurrentStop.length,
-      boarded: countBoarding(atCurrentStop, "boarded"),
-      notBoarded: countBoarding(atCurrentStop, "not_boarded"),
-      pending: countBoarding(atCurrentStop, "pending"),
+      total: boardingRoster.length,
+      boarded: countBoarding(boardingRoster, "boarded"),
+      notBoarded: countBoarding(boardingRoster, "not_boarded"),
+      pending: countBoarding(boardingRoster, "pending"),
     }),
-    [atCurrentStop],
+    [boardingRoster],
   );
 
   const droppingStats = useMemo(
@@ -262,12 +309,15 @@ export function AttendancePage() {
   if (!isTripActive(session.phase)) {
     return (
       <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
-        <AttendanceGate completed={session.phase === "completed"} />
+        <AttendanceGate />
       </DriverAssignmentGate>
     );
   }
 
-  const syncPhaseFromTab = (nextTab: TabId) => {
+  const activeKind = tripKindForSlot(session.slot);
+  const activeTitle = tripKindTitle(activeKind);
+
+  const syncPhaseFromTab = (nextTab: AttendanceTabId) => {
     void tripRepository.setLifecyclePhase(nextTab === "boarding" ? "boarding" : "dropping");
   };
 
@@ -285,12 +335,12 @@ export function AttendancePage() {
             studentId: id,
             studentName: student?.name ?? "Student",
             next: status,
-            label: result.reason,
+            label: result.reason ?? "Confirm boarding change",
           });
           return;
         }
-        toast.error(result.reason);
-        setLiveMessage(result.reason);
+        toast.error(result.reason ?? "Could not update boarding");
+        setLiveMessage(result.reason ?? "Could not update boarding");
         return;
       }
       const name = result.student?.name ?? "Student";
@@ -321,12 +371,12 @@ export function AttendancePage() {
             studentId: id,
             studentName: student?.name ?? "Student",
             next: status,
-            label: result.reason,
+            label: result.reason ?? "Confirm dropping change",
           });
           return;
         }
-        toast.error(result.reason);
-        setLiveMessage(result.reason);
+        toast.error(result.reason ?? "Could not update dropping");
+        setLiveMessage(result.reason ?? "Could not update dropping");
         return;
       }
       const name = result.student?.name ?? "Student";
@@ -402,7 +452,10 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
-    if (student.boarding !== "boarded") {
+    if (
+      requiresBoardedBeforeDrop(session.slot) &&
+      student.boarding !== "boarded"
+    ) {
       toast.error("Board first", {
         description: `${student.name} must be boarded before dropping.`,
       });
@@ -430,7 +483,10 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
-    if (student.boarding !== "boarded") {
+    if (
+      requiresBoardedBeforeDrop(session.slot) &&
+      student.boarding !== "boarded"
+    ) {
       toast.error("Board first", {
         description: `${student.name} must be boarded before dropping.`,
       });
@@ -540,7 +596,7 @@ export function AttendancePage() {
   );
 
   const renderStudentList = (
-    mode: TabId,
+    mode: AttendanceTabId,
     onTap: (id: string) => void,
     onLongPress: (id: string) => void,
   ) => {
@@ -549,15 +605,13 @@ export function AttendancePage() {
         <EmptyState
           icon={SearchX}
           compact
-          title={mode === "boarding" ? "No students at this stop" : "No boarded students"}
+          title={
+            mode === "boarding" ? "No assigned students" : "No students for Drop"
+          }
           description={
             query.trim()
               ? `Nothing matches “${query.trim()}”.`
-              : mode === "boarding"
-                ? currentStop
-                  ? `No students assigned to ${currentStop.name}.`
-                  : "No current stop."
-                : "Board students first, then drop them at the destination."
+              : "No students are assigned to this bus for today."
           }
         />
       );
@@ -597,6 +651,9 @@ export function AttendancePage() {
 
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-transport">
+              {activeTitle}
+            </p>
             <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
               Attendance
             </h1>

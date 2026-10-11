@@ -203,7 +203,7 @@ function WorkflowOption({
       onClick={onSelect}
       className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
         selected
-          ? "border-primary/40 bg-primary/[0.06] ring-1 ring-primary/20"
+          ? "border-primary/40 bg-primary/[0.06] shadow-xs"
           : "border-border bg-card hover:bg-muted/30"
       }`}
     >

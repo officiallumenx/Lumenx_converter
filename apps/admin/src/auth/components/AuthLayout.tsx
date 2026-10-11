@@ -72,9 +72,9 @@ function StepRail({
                       ? "border-white/25 bg-white/10"
                       : "border-white/12 bg-white/[0.04] opacity-75"
                   : active
-                    ? "border-primary/35 bg-primary/[0.08] shadow-sm"
+                    ? "border-border bg-muted/40 shadow-xs"
                     : done
-                      ? "border-emerald-500/25 bg-emerald-500/[0.06]"
+                      ? "border-border bg-muted/20"
                       : "border-border/60 bg-card/50 opacity-70",
               ].join(" ")}
             >
@@ -88,9 +88,9 @@ function StepRail({
                         ? "border-white bg-white text-primary"
                         : "border-white/35 bg-transparent text-white/80"
                     : done
-                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      ? "border-success bg-success text-white"
                       : active
-                        ? "border-primary bg-primary text-primary-foreground"
+                        ? "border-border bg-muted/70 text-foreground"
                         : "border-border bg-muted text-muted-foreground",
                 ].join(" ")}
               >
@@ -103,11 +103,9 @@ function StepRail({
                     ? active || done
                       ? "text-white"
                       : "text-white/70"
-                    : active
-                      ? "text-primary"
-                      : done
-                        ? "text-foreground"
-                        : "text-muted-foreground",
+                    : active || done
+                      ? "text-foreground"
+                      : "text-muted-foreground",
                 ].join(" ")}
               >
                 {s.label}
@@ -169,15 +167,9 @@ export function AuthLayout({
   return (
     <div className="flex min-h-screen-dvh bg-background text-foreground">
       {showAside ? (
-        <aside className="relative hidden shrink-0 flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-primary to-[oklch(0.38_0.16_280)] p-10 text-primary-foreground lg:flex lg:w-[40%] xl:w-[38%]">
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
-            <div className="absolute -top-20 -left-12 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
-            <div className="absolute bottom-0 right-[-20%] h-80 w-80 rounded-full bg-[oklch(0.55_0.18_305)]/35 blur-3xl" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.14),transparent_55%)]" />
-          </div>
-
+        <aside className="relative hidden shrink-0 flex-col justify-between overflow-hidden border-r border-primary/20 bg-primary p-10 text-primary-foreground lg:flex lg:w-[40%] xl:w-[38%]">
           <div className="relative z-10">
-            <LumenXAdminLogo size="lg" className="mb-8 h-12 drop-shadow-md" />
+            <LumenXAdminLogo size="lg" className="mb-8 h-12" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">
               Institute admin
             </p>
@@ -209,17 +201,9 @@ export function AuthLayout({
       ) : null}
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <div
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-          aria-hidden
-        >
-          <div className="absolute top-[-10%] left-1/2 h-[320px] w-[640px] -translate-x-1/2 rounded-full bg-primary/[0.07] blur-3xl lg:left-auto lg:right-[-10%] lg:translate-x-0" />
-          <div className="absolute bottom-[-12%] left-[-8%] h-[240px] w-[240px] rounded-full bg-chart-5/[0.06] blur-3xl" />
-        </div>
-
         <header
           className={[
-            "relative z-20 flex shrink-0 items-center gap-3 border-b border-border/60 bg-background/85 px-4 py-2.5 backdrop-blur-md",
+            "relative z-20 flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-2.5",
             showAside ? "lg:hidden" : "",
           ].join(" ")}
         >
@@ -286,7 +270,7 @@ export function AuthLayout({
             ) : null}
 
             <div
-              className={`rounded-3xl border border-border/80 bg-card/90 p-5 shadow-elevated backdrop-blur-sm sm:p-7 ${AUTH_CARD_ENTER}`}
+              className={`rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7 ${AUTH_CARD_ENTER}`}
             >
               <div className="mb-5 text-center lg:text-left">
                 <h1 className="text-xl font-bold tracking-tight sm:text-[1.45rem]">

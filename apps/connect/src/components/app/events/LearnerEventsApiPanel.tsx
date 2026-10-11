@@ -7,6 +7,8 @@ import { useApp } from "@/lib/app-state";
 import type { ConnectEventItem } from "@/lib/events";
 import { useConnectEventsQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { cn } from "@lumenx/ui";
 import {
   CountdownBanner,
@@ -19,6 +21,7 @@ import {
 const FILTERS = ["all", ...Object.keys(KIND_META)] as const;
 
 export function LearnerEventsApiPanel() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId } = useApp();
   const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as { id?: string };
@@ -61,7 +64,7 @@ export function LearnerEventsApiPanel() {
   const retry = () => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.events(activeInstituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.events(activeInstituteId)),
     });
   };
 

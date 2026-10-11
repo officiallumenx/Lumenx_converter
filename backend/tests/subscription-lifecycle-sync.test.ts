@@ -321,6 +321,110 @@ describe("subscription lifecycle sync", () => {
     });
     expect(result.transitions[0]?.to).toBe("grace_period");
   });
+
+  it("keeps prepaid (future-dated) paid period as active", async () => {
+    const db = emptyMockDb();
+    const periodId = PERIOD_B;
+    db.subscription = [
+      {
+        id: SUB_B,
+        institute_id: INST_B,
+        lifecycle_status: "trial_active",
+        assigned_rate_inr: 12,
+        active_student_count: 20,
+        trial_start_at: "2026-01-01T00:00:00.000Z",
+        trial_end_at: "2026-03-01T00:00:00.000Z",
+        grace_ends_at: "2026-03-08T00:00:00.000Z",
+        current_period_id: periodId,
+        deleted_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    db.subscription_period = [
+      {
+        id: periodId,
+        institute_id: INST_B,
+        subscription_id: SUB_B,
+        duration_months: 12,
+        active_student_count: 20,
+        assigned_rate_inr: 12,
+        monthly_price_inr: 8000,
+        regular_amount_inr: 96000,
+        discount_amount_inr: 16000,
+        payable_amount_inr: 80000,
+        free_months: 2,
+        starts_at: "2026-10-01T00:00:00.000Z",
+        ends_at: "2027-10-01T00:00:00.000Z",
+        payment_method: "offline",
+        payment_status: "paid",
+        payment_ref: "PREPAID-1",
+        amount_paid_inr: 80000,
+        paid_at: "2026-09-01T00:00:00.000Z",
+        is_current: true,
+        deleted_at: null,
+        created_at: "2026-09-01T00:00:00.000Z",
+        updated_at: "2026-09-01T00:00:00.000Z",
+      },
+    ];
+    const clients = createMockSupabaseClients({ db, tokens: {} });
+    const result = await syncSubscriptionLifecycles(clients.admin, {
+      now: new Date("2026-09-15T00:00:00.000Z"),
+    });
+    expect(result.transitions[0]?.to).toBe("active");
+    expect(db.subscription[0]?.lifecycle_status).toBe("active");
+  });
+
+  it("does not mark pending renewals overdue (awaiting verification)", async () => {
+    const db = emptyMockDb();
+    db.subscription = [
+      {
+        id: SUB_A,
+        institute_id: INST_A,
+        lifecycle_status: "read_only",
+        assigned_rate_inr: 12,
+        active_student_count: 10,
+        trial_start_at: "2026-01-01T00:00:00.000Z",
+        trial_end_at: "2026-03-01T00:00:00.000Z",
+        grace_ends_at: "2026-03-08T00:00:00.000Z",
+        current_period_id: null,
+        deleted_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+    db.renewal_record = [
+      {
+        id: RENEWAL_A,
+        institute_id: INST_A,
+        subscription_id: SUB_A,
+        subscription_period_id: null,
+        invoice_number: "INV-PENDING-1",
+        status: "pending",
+        period_starts_at: "2026-03-01T00:00:00.000Z",
+        period_ends_at: "2027-03-01T00:00:00.000Z",
+        due_at: "2026-03-15T00:00:00.000Z",
+        issued_at: "2026-03-01T00:00:00.000Z",
+        active_student_count: 10,
+        assigned_rate_inr: 12,
+        regular_amount_inr: 5760,
+        discount_amount_inr: 0,
+        payable_amount_inr: 8000,
+        amount_paid_inr: 0,
+        notes: null,
+        created_by_user_id: USER_BILLING,
+        deleted_at: null,
+        created_at: "2026-03-01T00:00:00.000Z",
+        updated_at: "2026-03-01T00:00:00.000Z",
+      },
+    ];
+    const clients = createMockSupabaseClients({ db, tokens: {} });
+    const result = await syncSubscriptionLifecycles(clients.admin, {
+      now: new Date("2026-09-03T00:00:00.000Z"),
+    });
+    expect(result.renewalsMarkedOverdue).toBe(0);
+    expect(db.renewal_record[0]?.status).toBe("pending");
+  });
 });
 
 describe("SUBSCRIPTION_LIFECYCLE_SYNC_MS env", () => {

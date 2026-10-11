@@ -35,7 +35,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
@@ -48,12 +48,14 @@ import {
   type StudentListItem,
 } from "@/lib/students";
 import {
-  useStudentsListQuery,
+  useStudentsDirectoryInfiniteQuery,
   useCatalogClassesQuery,
   useCatalogYearsQuery,
   adminModulePrefix, adminQueryRoots,
 } from "@/lib/admin-queries";
+import { VirtualizedDirectoryList } from "@/components/people/VirtualizedDirectoryList";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { RouteChunkFallback } from "@/components/RouteChunkFallback";
 import { syncSubscriptionHeadcountAfterStudentChange } from "@/lib/subscription-headcount";
 import { useAuth } from "@/auth/AuthContext";
 import { softDeleteToRecycleBin } from "@lumenx/utils";
@@ -76,8 +78,13 @@ import {
   StudentCreateDialog,
   type StudentClassOption,
 } from "@/components/students/StudentCreateDialog";
-import { StudentBulkImportDialog } from "@/components/students/StudentBulkImportDialog";
 import { listClassesCatalog } from "@/lib/classes";
+
+const StudentBulkImportDialog = lazy(() =>
+  import("@/components/students/StudentBulkImportDialog").then((m) => ({
+    default: m.StudentBulkImportDialog,
+  })),
+);
 import { createEnrollment } from "@/lib/enrollments";
 import {
   mapImportGender,
@@ -176,7 +183,7 @@ function StudentsPage() {
     classLabel: classFilter !== "all" ? classFilter : undefined,
     sectionLabel: sectionFilter !== "all" ? sectionFilter : undefined,
   };
-  const studentsQuery = useStudentsListQuery(
+  const studentsQuery = useStudentsDirectoryInfiniteQuery(
     instituteCtx.activeInstituteId,
     listFilters,
     listEnabled,
@@ -191,13 +198,30 @@ function StudentsPage() {
     catalogEnabled,
   );
 
-  const apiItems = studentsQuery.data?.items ?? [];
-  const listStatus = studentsQuery.data?.status ?? (listEnabled ? "loading" : "needs_institute");
-  const listError = studentsQuery.data?.errorMessage ?? null;
+  const apiItems = useMemo(
+    () => studentsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [studentsQuery.data?.pages],
+  );
+  const listStatus = !listEnabled
+    ? "needs_institute"
+    : studentsQuery.isError
+      ? "error"
+      : studentsQuery.isLoading
+        ? "loading"
+        : apiItems.length === 0
+          ? "empty"
+          : "ready";
+  const listError =
+    studentsQuery.error instanceof Error
+      ? studentsQuery.error.message
+      : studentsQuery.isError
+        ? "Failed to load students"
+        : null;
   const resolvedForInstituteId =
     studentsQuery.data && instituteCtx.activeInstituteId
       ? instituteCtx.activeInstituteId
       : null;
+  const hasMoreStudents = Boolean(studentsQuery.hasNextPage);
 
   const bumpStudentsReload = () => {
     invalidateStudentsListCache(instituteCtx.activeInstituteId ?? undefined);
@@ -252,6 +276,21 @@ function StudentsPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
   const displayItems: StudentRow[] = apiMode ? listView.items : rows;
+
+  useEffect(() => {
+    if (!apiMode || !hasMoreStudents) return;
+    const nearEnd = page >= Math.max(0, Math.ceil(apiItems.length / PAGE_SIZE) - 2);
+    if (nearEnd && !studentsQuery.isFetchingNextPage) {
+      void studentsQuery.fetchNextPage();
+    }
+  }, [
+    apiMode,
+    hasMoreStudents,
+    page,
+    apiItems.length,
+    studentsQuery.isFetchingNextPage,
+    studentsQuery.fetchNextPage,
+  ]);
 
   const persist = (next: StudentDirectoryRecord[]) => {
     setRows(next);
@@ -364,6 +403,9 @@ function StudentsPage() {
         filtered = filtered.filter((s) => s.attendance >= minAttendancePct);
       }
     }
+    // Cursor pages are already ordered by the API; client re-sort only covers
+    // the loaded window and misleads operators — keep server order in API mode.
+    if (apiMode) return filtered;
     return sortAdminStudents(
       filtered as StudentDirectoryRecord[],
       sort.key,
@@ -997,7 +1039,8 @@ function StudentsPage() {
                     onChange: (v) => setFilter(v as typeof filter),
                     options: statusOptions,
                   },
-                  ...(college
+                  // Department filter is demo/client-only; API list endpoints omit it.
+                  ...(college && !apiMode
                     ? [
                         {
                           id: "dept",
@@ -1080,49 +1123,94 @@ function StudentsPage() {
         ) : (
           <>
             <div className="lx-people-list sm:hidden">
-              {paged.map((s) => (
-                <PeopleDirectoryCard
-                  key={s.id}
-                  name={s.name}
-                  personId={s.id}
-                  subtitle={studentListSubtitle(s)}
-                  photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
-                  photoKind="student"
-                  status={<StudentStatusPill student={s} />}
-                  meta={
-                    <>
-                      <span>{formatStudentGradeDisplay(s.grade)}</span>
-                      {!apiMode ? (
-                        <>
-                          <span>{s.attendance}% att.</span>
-                          <span>GPA {s.gpa.toFixed(1)}</span>
-                          {s.parent ? <span>{s.parent}</span> : null}
-                        </>
-                      ) : null}
-                    </>
-                  }
-                  menu={
-                    writesEnabled ? (
-                      <StudentRowMenu
-                        student={s as StudentDirectoryRecord}
-                        onView={() => openStudentDetail(s.id)}
-                        onHold={() => setAccessStatus(s.id, "hold")}
-                        onSuspend={() => setAccessStatus(s.id, "suspended")}
-                        onReactivate={() => setAccessStatus(s.id, "active")}
-                        onDelete={() => setPendingDelete(s as StudentDirectoryRecord)}
-                      />
+              {apiMode ? (
+                <VirtualizedDirectoryList
+                  items={list}
+                  estimateRowHeight={88}
+                  getKey={(s) => s.id}
+                  footer={
+                    hasMoreStudents ? (
+                      <div className="px-3 py-2 text-center text-xs text-muted-foreground">
+                        {studentsQuery.isFetchingNextPage
+                          ? "Loading more…"
+                          : "Scroll or open next page to load more"}
+                      </div>
                     ) : null
                   }
-                  onOpen={() => openStudentDetail(s.id)}
+                  renderRow={(s) => (
+                    <PeopleDirectoryCard
+                      name={s.name}
+                      personId={s.id}
+                      subtitle={studentListSubtitle(s)}
+                      photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
+                      photoKind="student"
+                      status={<StudentStatusPill student={s} />}
+                      meta={<span>{formatStudentGradeDisplay(s.grade)}</span>}
+                      menu={
+                        writesEnabled ? (
+                          <StudentRowMenu
+                            student={s as StudentDirectoryRecord}
+                            onView={() => openStudentDetail(s.id)}
+                            onHold={() => setAccessStatus(s.id, "hold")}
+                            onSuspend={() => setAccessStatus(s.id, "suspended")}
+                            onReactivate={() => setAccessStatus(s.id, "active")}
+                            onDelete={() => setPendingDelete(s as StudentDirectoryRecord)}
+                          />
+                        ) : null
+                      }
+                      onOpen={() => openStudentDetail(s.id)}
+                    />
+                  )}
                 />
-              ))}
+              ) : (
+                paged.map((s) => (
+                  <PeopleDirectoryCard
+                    key={s.id}
+                    name={s.name}
+                    personId={s.id}
+                    subtitle={studentListSubtitle(s)}
+                    photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
+                    photoKind="student"
+                    status={<StudentStatusPill student={s} />}
+                    meta={
+                      <>
+                        <span>{formatStudentGradeDisplay(s.grade)}</span>
+                        <span>{s.attendance}% att.</span>
+                        <span>GPA {s.gpa.toFixed(1)}</span>
+                        {s.parent ? <span>{s.parent}</span> : null}
+                      </>
+                    }
+                    menu={
+                      writesEnabled ? (
+                        <StudentRowMenu
+                          student={s as StudentDirectoryRecord}
+                          onView={() => openStudentDetail(s.id)}
+                          onHold={() => setAccessStatus(s.id, "hold")}
+                          onSuspend={() => setAccessStatus(s.id, "suspended")}
+                          onReactivate={() => setAccessStatus(s.id, "active")}
+                          onDelete={() => setPendingDelete(s as StudentDirectoryRecord)}
+                        />
+                      ) : null
+                    }
+                    onOpen={() => openStudentDetail(s.id)}
+                  />
+                ))
+              )}
             </div>
             <div className="hidden sm:block">
           <DataTable>
             <thead>
               <tr>
-                <SortTh k="name" label="Student" />
-                <SortTh k="grade" label={college ? "Dept / Year / Sec" : "Class"} />
+                {apiMode ? (
+                  <TableTh>Student</TableTh>
+                ) : (
+                  <SortTh k="name" label="Student" />
+                )}
+                {apiMode ? (
+                  <TableTh>{college ? "Dept / Year / Sec" : "Class"}</TableTh>
+                ) : (
+                  <SortTh k="grade" label={college ? "Dept / Year / Sec" : "Class"} />
+                )}
                 {!apiMode ? <SortTh k="attendance" label="Attendance" /> : null}
                 {!apiMode ? <SortTh k="gpa" label="GPA" /> : null}
                 {!apiMode ? <TableTh>Guardian</TableTh> : null}
@@ -1291,24 +1379,26 @@ function StudentsPage() {
       />
       ) : null}
 
-      {writesEnabled ? (
-      <StudentBulkImportDialog
-        open={bulkImportOpen}
-        onClose={() => {
-          if (!bulkImporting) setBulkImportOpen(false);
-        }}
-        onImport={importStudents}
-        importing={bulkImporting}
-        instituteName={
-          instituteCtx.displayLabel ||
-          instituteCtx.activeInstitute?.name ||
-          undefined
-        }
-        classOptions={apiStudentClassOptions.map((item) => ({
-          classLabel: item.label,
-          sectionLabels: item.sections.map((section) => section.label),
-        }))}
-      />
+      {writesEnabled && bulkImportOpen ? (
+        <Suspense fallback={<RouteChunkFallback label="Loading import…" />}>
+          <StudentBulkImportDialog
+            open={bulkImportOpen}
+            onClose={() => {
+              if (!bulkImporting) setBulkImportOpen(false);
+            }}
+            onImport={importStudents}
+            importing={bulkImporting}
+            instituteName={
+              instituteCtx.displayLabel ||
+              instituteCtx.activeInstitute?.name ||
+              undefined
+            }
+            classOptions={apiStudentClassOptions.map((item) => ({
+              classLabel: item.label,
+              sectionLabels: item.sections.map((section) => section.label),
+            }))}
+          />
+        </Suspense>
       ) : null}
     </AppShell>
   );

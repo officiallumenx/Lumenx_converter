@@ -14,11 +14,14 @@ import {
   useAnnouncementsListQuery,
 } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 
 export function useConnectAnnouncementsList(
   instituteId: string | null,
   role: ConnectAnnouncementPortalRole,
 ) {
+  const userId = useConnectQueryUserId();
   const apiMode = isApiAuthMode();
   const query = useAnnouncementsListQuery(instituteId, apiMode);
 

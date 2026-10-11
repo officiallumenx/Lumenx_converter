@@ -8,6 +8,8 @@ export type ApiRequestOptions = {
   signal?: AbortSignal;
   /** Internal: already retried once after session refresh. */
   _authRetried?: boolean;
+  /** Return full JSON including pagination siblings instead of unwrapping data. */
+  envelope?: boolean;
 };
 
 export type ApiClientConfig = {
@@ -131,7 +133,12 @@ export function createApiClient(config: ApiClientConfig) {
       throw err;
     }
 
-    if (json && typeof json === "object" && "data" in json) {
+    if (
+      !options.envelope &&
+      json &&
+      typeof json === "object" &&
+      "data" in json
+    ) {
       return (json as { data: T }).data;
     }
 

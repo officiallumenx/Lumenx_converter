@@ -58,4 +58,9 @@ export type IssuedCertificateHistoryItem = {
   fileKind: IssuedCertificateFileKind | null;
   bundleFileName?: string;
   status: IssuedCertificateStatus;
+  /**
+   * False for hybrid metadata-only ledger rows (`asset_path` null).
+   * True only when a Storage-backed file path exists for signed download.
+   */
+  hasServerFile: boolean;
 };

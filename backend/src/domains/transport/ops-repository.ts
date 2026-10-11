@@ -79,6 +79,49 @@ export async function findActiveTripForVehicle(
   return (result.data as TransportTripRow | null) ?? null;
 }
 
+/** Completed trip for vehicle + date + slot (Pickup before Drop enforcement). */
+export async function findCompletedTripForVehicleSlotDate(
+  admin: SupabaseClient,
+  vehicleId: string,
+  tripDate: string,
+  slot: "morning" | "evening",
+): Promise<TransportTripRow | null> {
+  const result = await admin
+    .from("transport_trip")
+    .select(TRIP_COLS)
+    .eq("vehicle_id", vehicleId)
+    .eq("trip_date", tripDate)
+    .eq("slot", slot)
+    .eq("phase", "completed")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportTripRow | null) ?? null;
+}
+
+/** Any trip for vehicle + date + slot (one Pickup / one Drop per day). */
+export async function findTripForVehicleSlotDate(
+  admin: SupabaseClient,
+  vehicleId: string,
+  tripDate: string,
+  slot: "morning" | "evening",
+): Promise<TransportTripRow | null> {
+  const result = await admin
+    .from("transport_trip")
+    .select(TRIP_COLS)
+    .eq("vehicle_id", vehicleId)
+    .eq("trip_date", tripDate)
+    .eq("slot", slot)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportTripRow | null) ?? null;
+}
+
 export async function insertTrip(
   admin: SupabaseClient,
   input: StartTripInput,

@@ -74,6 +74,7 @@ describe("students api repository", () => {
     expect(result).toEqual(payload);
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain(`institute_id=${INST}`);
+    expect(url).toContain("limit=100");
     expect(url).not.toContain("status=");
     expect(url).not.toContain("access_status=");
     expect(url).not.toContain("class_label=");

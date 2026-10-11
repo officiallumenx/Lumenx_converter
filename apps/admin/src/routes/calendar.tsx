@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import {
   Button,
+  Card,
   Kpi,
   Field,
   TextInput,
@@ -440,14 +441,17 @@ function CalendarPage() {
       </div>
 
       <div className="mt-4 mb-3 flex flex-wrap items-center gap-3">
-        <div className="flex w-fit gap-1 rounded-md border border-border bg-background p-1">
+        <div className="flex w-fit gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
           {(["year", "month"] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`h-8 rounded px-4 text-[11px] font-medium capitalize transition-colors ${
-                view === v ? "bg-surface text-foreground" : "text-muted-foreground"
+              aria-pressed={view === v}
+              className={`h-8 rounded-lg border px-4 text-[11px] font-medium capitalize transition-colors ${
+                view === v
+                  ? "border-border bg-muted/70 text-foreground shadow-xs"
+                  : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
               }`}
             >
               {v}ly view
@@ -481,9 +485,9 @@ function CalendarPage() {
       </div>
 
       {apiMode && !rowsValid ? (
-        <div className="rounded-lg border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
-          {listHint}
-        </div>
+        <Card>
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">{listHint}</div>
+        </Card>
       ) : (
         <>
           {view === "year" ? (

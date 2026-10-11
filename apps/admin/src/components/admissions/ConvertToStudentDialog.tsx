@@ -294,7 +294,7 @@ export function ConvertToStudentDialog({
       </label>
 
       {draft.createParentAccount && (
-        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-primary/20 bg-primary/[0.03] p-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/40 p-4 sm:grid-cols-2">
           <Field
             label="Login mobile"
             required

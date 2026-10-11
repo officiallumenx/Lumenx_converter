@@ -167,6 +167,9 @@ class QueryBuilder {
   private pendingError: PendingError = null;
   private rangeFrom: number | null = null;
   private rangeTo: number | null = null;
+  private orderColumn: string | null = null;
+  private orderAscending = true;
+  private limitCount: number | null = null;
 
   constructor(
     private readonly table: string,
@@ -230,11 +233,29 @@ class QueryBuilder {
     return this;
   }
 
+  gt(column: string, value: unknown) {
+    this.filters.push((r) => {
+      const cell = r[column];
+      if (cell == null || value == null) return false;
+      return String(cell) > String(value);
+    });
+    return this;
+  }
+
   gte(column: string, value: unknown) {
     this.filters.push((r) => {
       const cell = r[column];
       if (cell == null || value == null) return false;
       return String(cell) >= String(value);
+    });
+    return this;
+  }
+
+  lt(column: string, value: unknown) {
+    this.filters.push((r) => {
+      const cell = r[column];
+      if (cell == null || value == null) return false;
+      return String(cell) < String(value);
     });
     return this;
   }
@@ -257,17 +278,23 @@ class QueryBuilder {
     return this;
   }
 
-  /** Best-effort PostgREST `or` for phone lookup tests. */
+  /** Best-effort PostgREST `or` for phone lookup / student q search. */
   or(expression: string) {
     const parts = expression.split(",").map((p) => p.trim());
     this.filters.push((r) =>
       parts.some((part) => {
-        const ilike = part.match(/^(\w+)\.ilike\.%(.+)%$/);
+        // Supports ilike.%x% and quoted ilike."%x%" (PostgREST special-char form).
+        const ilike = part.match(/^(\w+)\.ilike\.(.+)$/);
         if (ilike) {
-          const [, col, needle] = ilike;
+          const [, col, rawPattern] = ilike;
+          const needleMatch = String(rawPattern).match(/%(.+)%/);
+          const needle = (needleMatch?.[1] ?? String(rawPattern)).replace(
+            /^"|"$/g,
+            "",
+          );
           return String(r[col!] ?? "")
             .toLowerCase()
-            .includes(String(needle).toLowerCase());
+            .includes(needle.toLowerCase());
         }
         const eq = part.match(/^(\w+)\.eq\.(.+)$/);
         if (eq) {
@@ -280,11 +307,14 @@ class QueryBuilder {
     return this;
   }
 
-  order(_column: string, _opts?: { ascending?: boolean }) {
+  order(column: string, opts?: { ascending?: boolean }) {
+    this.orderColumn = column;
+    this.orderAscending = opts?.ascending !== false;
     return this;
   }
 
-  limit(_count: number) {
+  limit(count: number) {
+    this.limitCount = count;
     return this;
   }
 
@@ -369,6 +399,47 @@ class QueryBuilder {
           }
         }
       }
+      if (this.table === "transport_trip") {
+        for (const row of this.insertRows) {
+          const live = (r: Row) =>
+            r.deleted_at == null || r.deleted_at === undefined;
+          if (row.client_event_id != null && row.client_event_id !== "") {
+            const byEvent = rows.find(
+              (r) =>
+                live(r) &&
+                r.institute_id === row.institute_id &&
+                r.client_event_id === row.client_event_id,
+            );
+            if (byEvent) {
+              return {
+                data: [],
+                error: {
+                  code: "23505",
+                  message:
+                    'duplicate key value violates unique constraint "transport_trip_client_event_uidx"',
+                },
+              };
+            }
+          }
+          const bySlot = rows.find(
+            (r) =>
+              live(r) &&
+              r.vehicle_id === row.vehicle_id &&
+              r.trip_date === row.trip_date &&
+              r.slot === row.slot,
+          );
+          if (bySlot) {
+            return {
+              data: [],
+              error: {
+                code: "23505",
+                message:
+                  'duplicate key value violates unique constraint "transport_trip_vehicle_date_slot_live_uidx"',
+              },
+            };
+          }
+        }
+      }
       const created = this.insertRows.map((row) => {
         const now = new Date().toISOString();
         const next: Row = {
@@ -427,8 +498,22 @@ class QueryBuilder {
     }
 
     let data = applyFilters(rows, this.filters).map((r) => ({ ...r }));
+    if (this.orderColumn) {
+      const col = this.orderColumn;
+      const asc = this.orderAscending;
+      data.sort((a, b) => {
+        const av = String(a[col] ?? "");
+        const bv = String(b[col] ?? "");
+        if (av === bv) return 0;
+        const cmp = av < bv ? -1 : 1;
+        return asc ? cmp : -cmp;
+      });
+    }
     if (this.rangeFrom != null && this.rangeTo != null) {
       data = data.slice(this.rangeFrom, this.rangeTo + 1);
+    }
+    if (this.limitCount != null) {
+      data = data.slice(0, this.limitCount);
     }
     return { data, error: null };
   }

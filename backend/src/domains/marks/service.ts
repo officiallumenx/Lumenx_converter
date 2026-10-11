@@ -26,6 +26,7 @@ import {
   insertScores,
   listGuardianStudentIds,
   listMarkEntries,
+  listMarkEntriesPage,
   listMarkPublications,
   listScoresForEntry,
   listScoresForEntryIds,
@@ -34,6 +35,8 @@ import {
   transitionMarkEntryStatus,
   updateMarkEntryFields,
 } from "./repository.js";
+import { fillAuthorizedPage } from "../../lib/fill-authorized-page.js";
+import { clampListLimit } from "../../lib/name-id-cursor.js";
 import type {
   CreateMarkEntryInput,
   ListMarkEntriesFilter,
@@ -443,24 +446,13 @@ async function validateEntryGraph(
   }
 }
 
-export async function listMarkEntriesForActor(
+async function authorizeMarkEntryRowsForLearner(
   admin: SupabaseClient,
-  actor: Actor,
-  filter: ListMarkEntriesFilter,
+  rows: MarkEntryRow[],
+  accessibleStudentIds: Set<string>,
 ): Promise<MarkEntryDto[]> {
-  const instituteId = requireInstituteId(actor, filter.instituteId);
-  const rows = await listMarkEntries(admin, { ...filter, instituteId });
-
-  if (isStaffReader(actor, instituteId)) {
-    return rows.map((r) => toEntryDto(r));
-  }
-
-  const accessible = await resolveAccessibleStudentIds(admin, actor, instituteId);
-  if (accessible.size === 0) {
-    throw AppError.forbidden("Insufficient permissions");
-  }
-
   const published = rows.filter((r) => r.status === "published");
+  if (published.length === 0) return [];
   const scores = await listScoresForEntryIds(
     admin,
     published.map((r) => r.id),
@@ -471,13 +463,80 @@ export async function listMarkEntriesForActor(
     list.push(s);
     byEntry.set(s.mark_entry_id, list);
   }
-
   return published
     .filter((r) => {
       const entryScores = byEntry.get(r.id) ?? [];
-      return entryScores.some((s) => accessible.has(s.student_id));
+      return entryScores.some((s) => accessibleStudentIds.has(s.student_id));
     })
     .map((r) => toEntryDto(r));
+}
+
+export async function listMarkEntriesPageForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListMarkEntriesFilter,
+): Promise<{ items: MarkEntryDto[]; nextCursor: string | null; hasMore: boolean }> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+
+  if (isStaffReader(actor, instituteId)) {
+    const page = await listMarkEntriesPage(admin, { ...filter, instituteId });
+    return {
+      items: page.items.map((r) => toEntryDto(r)),
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+    };
+  }
+
+  const accessible = await resolveAccessibleStudentIds(admin, actor, instituteId);
+  if (accessible.size === 0) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const limit = clampListLimit(filter.limit);
+  return fillAuthorizedPage({
+    limit,
+    cursor: filter.cursor,
+    fetchPage: async (cursor) => {
+      const next = await listMarkEntriesPage(admin, {
+        ...filter,
+        instituteId,
+        cursor,
+        limit,
+      });
+      return {
+        rows: next.items,
+        nextCursor: next.nextCursor,
+        hasMore: next.hasMore,
+      };
+    },
+    mapAuthorized: (rows) =>
+      authorizeMarkEntryRowsForLearner(admin, rows, accessible),
+  });
+}
+
+/** Full filtered set for internal/report callers (walks cursor pages). */
+export async function listMarkEntriesForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListMarkEntriesFilter,
+): Promise<MarkEntryDto[]> {
+  const items: MarkEntryDto[] = [];
+  let cursor: string | null = filter.cursor ?? null;
+  let guard = 0;
+  for (;;) {
+    const page = await listMarkEntriesPageForActor(admin, actor, {
+      ...filter,
+      cursor,
+    });
+    items.push(...page.items);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+    guard += 1;
+    if (guard > 500) {
+      throw new Error("Mark entry actor pagination exceeded safety page limit");
+    }
+  }
+  return items;
 }
 
 export async function getMarkEntryForActor(

@@ -16,6 +16,8 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
   createGeneratedDocument,
+  filterDocumentsHubTemplates,
+  isDocumentsHubTemplateType,
   loadDocumentsTemplatesList,
   shouldCommitDocumentsTemplatesLoad,
 } from "@/lib/documents";
@@ -87,14 +89,9 @@ export function DocGenerateApiPanel() {
         setLoadHint(tplState.errorMessage ?? "Failed to load templates");
         return;
       }
-      const active = tplState.items.filter(
-        (t) =>
-          t.status === "active" &&
-          (t.kind === "document" ||
-            t.kind === "certificate" ||
-            t.kind === "report" ||
-            t.kind === "id_card"),
-      );
+      const active = filterDocumentsHubTemplates(tplState.items, {
+        activeOnly: true,
+      });
       setTemplates(active);
       setStudents(studentRows);
       setLoadHint(
@@ -142,18 +139,22 @@ export function DocGenerateApiPanel() {
     }
 
     const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl || !isDocumentsHubTemplateType(tpl.kind)) {
+      notify("Select a document or report template");
+      return;
+    }
     setSubmitting(true);
     void createGeneratedDocument({
       instituteId,
       templateId,
-      title: title.trim() || tpl?.name || "Document",
+      title: title.trim() || tpl.name || "Document",
       studentId: studentId || null,
       recipientName: recipientName.trim(),
       recipientRef: recipientRef.trim() || null,
     })
       .then(() => {
         notify("Document generated as draft");
-        void navigate({ to: "/documents", search: { view: "generated" } });
+        void navigate({ to: "/documents", search: { view: "archive" } });
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to generate document");

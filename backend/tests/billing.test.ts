@@ -366,6 +366,61 @@ describe("nexus billing api", () => {
     expect(dup.status).toBe(409);
   });
 
+  it("freezes commercial amounts on issued renewals", async () => {
+    const app = appWithDb(baseDb());
+    const created = await app.request("/api/nexus/billing/renewals", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-billing",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(renewalBody),
+    });
+    const renewal = (await json(created)).data;
+    await app.request(`/api/nexus/billing/renewals/${renewal.id}/issue`, {
+      method: "POST",
+      headers: { Authorization: "Bearer token-billing" },
+    });
+
+    const patch = await app.request(`/api/nexus/billing/renewals/${renewal.id}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-billing",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ payable_amount_inr: 9999 }),
+    });
+    expect(patch.status).toBe(409);
+  });
+
+  it("rejects PATCH paid without a linked subscription period", async () => {
+    const app = appWithDb(baseDb());
+    const created = await app.request("/api/nexus/billing/renewals", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-billing",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(renewalBody),
+    });
+    const renewal = (await json(created)).data;
+
+    const patch = await app.request(`/api/nexus/billing/renewals/${renewal.id}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-billing",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status: "paid",
+        amount_paid_inr: 1000,
+      }),
+    });
+    expect(patch.status).toBe(409);
+    const body = await json(patch);
+    expect(String(body.error?.message ?? body.message ?? "")).toMatch(/verify/i);
+  });
+
   it("rejects payment without renewal or adjustment", async () => {
     const app = appWithDb(baseDb());
     const res = await app.request("/api/nexus/billing/payments", {

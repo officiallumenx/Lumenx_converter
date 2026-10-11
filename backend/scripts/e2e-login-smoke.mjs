@@ -12,12 +12,14 @@
  * Exit 0 only when every required step is PASS (BLOCKED counts as fail unless
  * E2E_ALLOW_BLOCKED=1).
  */
-import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { assertRemoteWriteAck } from "./assert-remote-write-ack.mjs";
+import { assertStagingEnv } from "./assert-staging-env.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
 
-loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+loadLumenxDotenv();
+assertStagingEnv(process.env);
+assertRemoteWriteAck(process.env, { purpose: "smoke:login (may create Auth users / fixtures)" });
 
 const API =
   process.env.E2E_API_BASE_URL?.trim() ||
@@ -258,14 +260,50 @@ async function ensureStudent(admin, userId, instituteId) {
 }
 
 async function ensureDriver(admin, userId, instituteId) {
+  // Transport pin-login requires app PIN + assigned vehicle. Seed a known QA PIN
+  // (E2E_SMOKE_DRIVER_PIN, default 1234) so API-mode Transport login works after smoke:login.
+  const { randomBytes, scryptSync } = await import("node:crypto");
+  const pin = (process.env.E2E_SMOKE_DRIVER_PIN ?? "1234").trim();
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(pin, salt, 64).toString("hex");
+
   const { data: existing } = await admin
     .from("driver")
-    .select("id")
+    .select("id, assigned_vehicle_id, app_pin_hash")
     .eq("institute_id", instituteId)
     .eq("user_profile_id", userId)
     .is("deleted_at", null)
     .maybeSingle();
-  if (existing) return existing.id;
+  if (existing) {
+    const patch = {
+      app_pin_hash: hash,
+      app_pin_salt: salt,
+      phone: "9000000093",
+      status: "active",
+      deleted_at: null,
+      updated_at: new Date().toISOString(),
+    };
+    if (!existing.assigned_vehicle_id) {
+      const { data: vehicle } = await admin
+        .from("vehicle")
+        .select("id")
+        .eq("institute_id", instituteId)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+      if (vehicle?.id) patch.assigned_vehicle_id = vehicle.id;
+    }
+    const { error: updErr } = await admin.from("driver").update(patch).eq("id", existing.id);
+    if (updErr) throw new Error(`driver pin/vehicle: ${updErr.message}`);
+    return existing.id;
+  }
+  const { data: vehicle } = await admin
+    .from("vehicle")
+    .select("id")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
   const { data, error } = await admin
     .from("driver")
     .insert({
@@ -275,6 +313,9 @@ async function ensureDriver(admin, userId, instituteId) {
       phone: "9000000093",
       license_number: "SMOKE-DL-0093",
       status: "active",
+      app_pin_hash: hash,
+      app_pin_salt: salt,
+      assigned_vehicle_id: vehicle?.id ?? null,
     })
     .select("id")
     .single();

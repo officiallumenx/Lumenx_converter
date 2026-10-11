@@ -12,9 +12,15 @@ import {
   type ClassDto,
   type SectionDto,
 } from "./api";
-import { assignmentsToTeacherClasses, enrollmentsToTeacherStudents } from "./map";
+import { listSectionStudentPhotos } from "@/lib/photos/api";
+import {
+  applyStudentPhotoUrls,
+  assignmentsToTeacherClasses,
+  enrollmentsToTeacherStudents,
+} from "./map";
 
 export type TeacherPortalApiData = {
+  instituteId: string;
   teacherId: string;
   classes: TeacherClass[];
   studentsBySection: Map<string, TeacherStudent[]>;
@@ -205,8 +211,49 @@ export async function loadTeacherPortalApiData(
     );
   }
 
-  const allStudents = enrollmentsToTeacherStudents(enrollments, sections, classes);
-  cached = { teacherId, classes: teacherClasses, studentsBySection, allStudents };
+  // One photos/students request per section (batched), never N signed-url calls.
+  const photoResults = await Promise.allSettled(
+    sectionIds.map(async (sectionId) => {
+      const section = sections.find((s) => s.id === sectionId);
+      const classId = section?.classId;
+      if (!classId || !isInstituteUuid(classId)) return { sectionId, map: new Map<string, string>() };
+      const rows = await listSectionStudentPhotos({
+        instituteId,
+        classId,
+        sectionId,
+      });
+      const map = new Map<string, string>();
+      for (const row of rows) {
+        if (row.photoSignedUrl?.trim()) map.set(row.id, row.photoSignedUrl.trim());
+      }
+      return { sectionId, map };
+    }),
+  );
+  for (const result of photoResults) {
+    if (result.status !== "fulfilled") continue;
+    const { sectionId, map } = result.value;
+    const current = studentsBySection.get(sectionId);
+    if (!current) continue;
+    studentsBySection.set(sectionId, applyStudentPhotoUrls(current, map));
+  }
+
+  const photoByStudent = new Map<string, string>();
+  for (const list of studentsBySection.values()) {
+    for (const s of list) {
+      if (s.photoUrl) photoByStudent.set(s.id, s.photoUrl);
+    }
+  }
+  const allStudents = applyStudentPhotoUrls(
+    enrollmentsToTeacherStudents(enrollments, sections, classes),
+    photoByStudent,
+  );
+  cached = {
+    instituteId,
+    teacherId,
+    classes: teacherClasses,
+    studentsBySection,
+    allStudents,
+  };
   return cached;
 }
 

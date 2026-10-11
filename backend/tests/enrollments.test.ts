@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { writableTrialSubscription } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -29,6 +30,8 @@ const SECTION_B = "ce222222-2222-4222-8222-222222222222";
 const YEAR_A_NEXT = "cc333333-3333-4333-8333-333333333333";
 const CLASS_A_NEXT = "cd333333-3333-4333-8333-333333333333";
 const SECTION_A_NEXT = "ce333333-3333-4333-8333-333333333333";
+const SUB_A = "s0111111-1111-4111-8111-111111111111";
+const SUB_B = "s0222222-2222-4222-8222-222222222222";
 
 beforeEach(() => {
   resetEnvCache();
@@ -189,6 +192,9 @@ function baseDb(): MockDb {
       first_name: "Ada",
       surname: "Lovelace",
       display_name: "Ada Lovelace",
+      class_label: "Grade 10",
+      section_label: "A",
+      roll_no: "1",
       status: "active",
       deleted_at: null,
     },
@@ -198,6 +204,9 @@ function baseDb(): MockDb {
       first_name: "Other",
       surname: "Student",
       display_name: "Other Student",
+      class_label: "Grade 10",
+      section_label: "A",
+      roll_no: "1",
       status: "active",
       deleted_at: null,
     },
@@ -233,6 +242,10 @@ function baseDb(): MockDb {
       updated_at: "2026-01-01T00:00:00Z",
       deleted_at: null,
     },
+  ];
+  db.subscription = [
+    writableTrialSubscription(INST_A, SUB_A),
+    writableTrialSubscription(INST_B, SUB_B),
   ];
   return db;
 }
@@ -376,7 +389,8 @@ describe("enrollments API", () => {
   });
 
   it("promote creates target enrollment and completes source", async () => {
-    const app = appWithDb(baseDb());
+    const db = baseDb();
+    const app = appWithDb(db);
     const res = await app.request("/api/v1/enrollments/promote", {
       method: "POST",
       headers: jsonHeaders("token-admin"),
@@ -410,10 +424,24 @@ describe("enrollments API", () => {
     expect(item.targetEnrollment.studentId).toBe(STUDENT_A);
     expect(item.targetEnrollment.rollNo).toBe("5");
     expect(item.targetEnrollment.status).toBe("active");
+
+    // Previous-year enrollment row remains (history) with original class/year.
+    const sourceRow = db.enrollment.find((e) => e.id === ENROLL_A);
+    expect(sourceRow?.academic_year_id).toBe(YEAR_A);
+    expect(sourceRow?.class_id).toBe(CLASS_A);
+    expect(sourceRow?.status).toBe("completed");
+
+    // Current denormalized placement follows the new active enrollment.
+    const student = db.student.find((s) => s.id === STUDENT_A);
+    expect(student?.class_label).toBe("Grade 11");
+    expect(student?.section_label).toBe("A");
+    expect(student?.roll_no).toBe("5");
+    expect(student?.status).toBe("active");
   });
 
-  it("graduate sets graduated status", async () => {
-    const app = appWithDb(baseDb());
+  it("graduate sets enrollment + student graduated without erasing history", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
     const res = await app.request("/api/v1/enrollments/graduate", {
       method: "POST",
       headers: jsonHeaders("token-admin"),
@@ -429,5 +457,67 @@ describe("enrollments API", () => {
     expect(body.data[0].id).toBe(ENROLL_A);
     expect(body.data[0].status).toBe("graduated");
     expect(body.data[0].withdrawnOn).toBeTruthy();
+
+    const enrollment = db.enrollment.find((e) => e.id === ENROLL_A);
+    expect(enrollment?.academic_year_id).toBe(YEAR_A);
+    expect(enrollment?.class_id).toBe(CLASS_A);
+    expect(enrollment?.deleted_at).toBeNull();
+
+    const student = db.student.find((s) => s.id === STUDENT_A);
+    expect(student?.status).toBe("graduated");
+    expect(student?.deleted_at).toBeNull();
+    // Last placement labels retained for directory; history is the enrollment row.
+    expect(student?.class_label).toBe("Grade 10");
+  });
+
+  it("create enrollment syncs student class/section/roll labels", async () => {
+    const db = baseDb();
+    db.enrollment = [];
+    db.student[0] = {
+      ...db.student[0]!,
+      class_label: null,
+      section_label: null,
+      roll_no: null,
+    };
+    const app = appWithDb(db);
+    const res = await app.request("/api/v1/enrollments", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        student_id: STUDENT_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        roll_no: "12",
+        enrolled_on: "2026-04-15",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const student = db.student.find((s) => s.id === STUDENT_A);
+    expect(student?.class_label).toBe("Grade 10");
+    expect(student?.section_label).toBe("A");
+    expect(student?.roll_no).toBe("12");
+  });
+
+  it("transfer sets student inactive and keeps enrollment history", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const res = await app.request("/api/v1/enrollments/promote", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        source_academic_year_id: YEAR_A,
+        target_academic_year_id: YEAR_A_NEXT,
+        items: [{ enrollment_id: ENROLL_A, action: "transfer" }],
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(db.enrollment.find((e) => e.id === ENROLL_A)?.status).toBe(
+      "transferred",
+    );
+    expect(db.enrollment.find((e) => e.id === ENROLL_A)?.deleted_at).toBeNull();
+    expect(db.student.find((s) => s.id === STUDENT_A)?.status).toBe("inactive");
   });
 });

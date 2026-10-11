@@ -7,6 +7,8 @@ import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { listEnrollments } from "@/lib/teacher-classes";
 import { useTeacherAttendancePortalQuery, useTeacherSelfAttendanceQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { formatStaffCheckTime } from "@/lib/staff-attendance";
 import type { TeacherSelfAttendanceSummary } from "@/lib/staff-attendance";
 import {
@@ -123,6 +125,7 @@ function Field({
 }
 
 export function TeacherAttendanceApiPanel() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId } = useApp();
   const portal = useTeacherPortal();
   const queryClient = useQueryClient();
@@ -192,7 +195,7 @@ export function TeacherAttendanceApiPanel() {
   const refreshPortal = useCallback(() => {
     if (!activeInstituteId || !sectionId || !date) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.attendanceTeacher(activeInstituteId, sectionId, date),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.attendanceTeacher(activeInstituteId, sectionId, date)),
     });
     setRosterReloadKey((k) => k + 1);
   }, [activeInstituteId, sectionId, date, queryClient]);
@@ -607,10 +610,10 @@ export function TeacherAttendanceApiPanel() {
                 className="text-sm text-primary underline"
                 onClick={() =>
                   void queryClient.invalidateQueries({
-                    queryKey: connectQueryKeys.attendanceTeacherSelf(
+                    queryKey: scopedConnectKey(userId, connectQueryKeys.attendanceTeacherSelf(
                       activeInstituteId ?? "_",
                       portal.teacherId ?? "_",
-                    ),
+                    )),
                   })
                 }
               >

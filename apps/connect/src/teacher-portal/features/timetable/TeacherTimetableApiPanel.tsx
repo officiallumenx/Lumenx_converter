@@ -8,6 +8,8 @@ import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useTeacherTimetableQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import {
   getCurrentAndNextPeriod,
   getDefaultTimetableDay,
@@ -29,6 +31,7 @@ import type { WeeklyTimetable } from "@/lib/timetable";
 type TimetablePeriod = WeeklyTimetable[string][number];
 
 export function TeacherTimetableApiPanel() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId, hydrated } = useApp();
   const portal = useTeacherPortal();
   const queryClient = useQueryClient();
@@ -60,7 +63,7 @@ export function TeacherTimetableApiPanel() {
   // Drop sticky auth-error cache from early prefetch before the session token was ready.
   useEffect(() => {
     if (!queryEnabled || !activeInstituteId) return;
-    const key = connectQueryKeys.timetableTeacher(activeInstituteId, scope);
+    const key = scopedConnectKey(userId, connectQueryKeys.timetableTeacher(activeInstituteId, scope));
     const cached = queryClient.getQueryData<{
       status?: string;
       errorMessage?: string | null;
@@ -168,7 +171,7 @@ export function TeacherTimetableApiPanel() {
   const retry = () => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.timetableTeacher(activeInstituteId, scope),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.timetableTeacher(activeInstituteId, scope)),
     });
   };
 

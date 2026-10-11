@@ -16,7 +16,7 @@ export function AccessLevelToggle({
     <div
       role="group"
       aria-label={ariaLabel ?? "Access level"}
-      className="inline-flex shrink-0 rounded-md border border-border bg-muted/40 p-0.5"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 shadow-xs"
     >
       {(
         [
@@ -31,10 +31,10 @@ export function AccessLevelToggle({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(opt.id)}
-            className={`h-6 min-w-[2.75rem] rounded px-2 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+            className={`h-6 min-w-[2.75rem] rounded-md border px-2 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
               selected
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             {opt.label}

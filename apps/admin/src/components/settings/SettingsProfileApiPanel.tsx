@@ -160,7 +160,7 @@ export function SettingsProfileApiPanel() {
           ) : (
             <>
               <div className="flex items-center gap-5 py-4 border-b border-border mb-1">
-                <div className="size-16 rounded-full bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center text-xl font-bold text-primary-foreground select-none">
+                <div className="flex size-16 select-none items-center justify-center rounded-full border border-border bg-muted text-xl font-bold text-foreground">
                   {initials}
                 </div>
                 <div>

@@ -38,6 +38,8 @@ import {
   finalizeBoardingForTrip,
   findActiveTripForStudent,
   findActiveTripForVehicle,
+  findCompletedTripForVehicleSlotDate,
+  findTripForVehicleSlotDate,
   findBoardingEvent,
   findEmergencyByClientEventId,
   findEmergencyById,
@@ -91,6 +93,8 @@ import {
 import { TRANSPORT_EVENT } from "./transport-events.js";
 import { isBusWithinStopRadius } from "./approach.js";
 import { getEffectiveTripParticipants } from "./effective-participants.js";
+import { resolveInstituteServiceDate } from "./daily-exception-service.js";
+import { applyAttendanceFinalizeForTripEnd } from "./attendance-finalize.js";
 import type {
   BoardingStatus,
   CreateEmergencyInput,
@@ -549,11 +553,87 @@ export async function startTripForActor(
     throw AppError.conflict("Vehicle already has an active trip");
   }
 
-  const trip = await insertTrip(admin, {
-    ...input,
-    instituteId,
-    clientEventId: input.clientEventId?.trim() || null,
-  });
+  const slot = input.slot ?? "morning";
+  const tripDate =
+    input.tripDate?.trim() ||
+    (await resolveInstituteServiceDate(admin, input.instituteId));
+  // Product rule: Drop (evening) requires a completed Pickup (morning) the same day.
+  // Single-trip morning→dropping after school arrival remains a phase PATCH path.
+  if (slot === "evening") {
+    const morningDone = await findCompletedTripForVehicleSlotDate(
+      admin,
+      input.vehicleId,
+      tripDate,
+      "morning",
+    );
+    if (!morningDone) {
+      throw AppError.conflict(
+        "Pickup trip must be completed before starting Drop",
+      );
+    }
+  }
+
+  // One trip per vehicle + date + slot (client day flags are not enough alone).
+  const priorSameSlot = await findTripForVehicleSlotDate(
+    admin,
+    input.vehicleId,
+    tripDate,
+    slot,
+  );
+  if (priorSameSlot) {
+    if (
+      input.clientEventId?.trim() &&
+      priorSameSlot.client_event_id === input.clientEventId.trim()
+    ) {
+      return enrichTrip(admin, priorSameSlot);
+    }
+    throw AppError.conflict(
+      slot === "evening"
+        ? "Drop trip already exists for today"
+        : "Pickup trip already exists for today",
+    );
+  }
+
+  const slotConflictMessage =
+    slot === "evening"
+      ? "Drop trip already exists for today"
+      : "Pickup trip already exists for today";
+
+  let trip;
+  try {
+    trip = await insertTrip(admin, {
+      ...input,
+      instituteId,
+      slot,
+      tripDate,
+      clientEventId: input.clientEventId?.trim() || null,
+    });
+  } catch (err) {
+    // Concurrent starts: DB unique index is authoritative. Same client_event_id is idempotent.
+    if (!(err instanceof AppError) || err.status !== 409) throw err;
+    if (input.clientEventId?.trim()) {
+      const byEvent = await findTripByClientEventId(
+        admin,
+        instituteId,
+        input.clientEventId.trim(),
+      );
+      if (byEvent) return enrichTrip(admin, byEvent);
+    }
+    const raced = await findTripForVehicleSlotDate(
+      admin,
+      input.vehicleId,
+      tripDate,
+      slot,
+    );
+    if (
+      raced &&
+      input.clientEventId?.trim() &&
+      raced.client_event_id === input.clientEventId.trim()
+    ) {
+      return enrichTrip(admin, raced);
+    }
+    throw AppError.conflict(slotConflictMessage);
+  }
   await notifyTripStarted(admin, trip, actor.userId);
   return enrichTrip(admin, trip);
 }
@@ -670,6 +750,17 @@ export async function endTripForActor(
   }
 
   assertValidTripPhaseTransition(trip.phase, "completed");
+
+  // Persist absent marks for unset students before locking the trip.
+  // Only runs on confirmed end (not offline client chrome / paused trips).
+  const participants = await getEffectiveTripParticipants(admin, tripId);
+  const boardingEvents = await listBoardingEventsForTrip(admin, tripId);
+  await applyAttendanceFinalizeForTripEnd(
+    admin,
+    trip,
+    participants.expectedOnboard,
+    boardingEvents,
+  );
 
   await finalizeBoardingForTrip(admin, tripId);
   const now = new Date().toISOString();
@@ -1307,7 +1398,8 @@ export async function getLearnerTransportLiveForActor(
   }
 
   const serviceDate =
-    tripRow?.trip_date ?? new Date().toISOString().slice(0, 10);
+    tripRow?.trip_date ??
+    (await resolveInstituteServiceDate(admin, instituteId));
   const { listNotRidingStudentIds } = await import(
     "./daily-exception-repository.js"
   );
@@ -1459,7 +1551,8 @@ export async function getTransportAnalyticsForActor(
   if (!isElevatedTransportReader(actor, id)) {
     throw AppError.forbidden("Insufficient permissions");
   }
-  const date = tripDate?.trim() || new Date().toISOString().slice(0, 10);
+  const date =
+    tripDate?.trim() || (await resolveInstituteServiceDate(admin, id));
 
   const [vehicles, drivers, routes, enrollments, trips, emergencies, stops] =
     await Promise.all([

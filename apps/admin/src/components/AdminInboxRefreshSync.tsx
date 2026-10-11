@@ -2,10 +2,8 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
-import {
-  adminQueryRoots,
-  invalidateAdminModule,
-} from "@/lib/admin-queries";
+import { invalidateAdminModule } from "@/lib/admin-queries/invalidate";
+import { adminQueryRoots } from "@/lib/admin-queries/keys";
 import { subscribeInAppAlerts } from "@lumenx/notifications";
 
 /** Keep inbox unread counts fresh while Admin is open (mirror Connect). */

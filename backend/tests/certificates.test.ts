@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { writableTrialSubscription } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -25,10 +26,13 @@ const STUDENT_A = "ac111111-1111-4111-8111-111111111111";
 const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
 const TPL_CERT = "ae111111-1111-4111-8111-111111111111";
 const TPL_OTHER = "ae222222-2222-4222-8222-222222222222";
+const TPL_TRANSFER = "ae333333-3333-4333-8333-333333333333";
 const GEN_PUBLISHED = "af111111-1111-4111-8111-111111111111";
 const GEN_DRAFT = "af222222-2222-4222-8222-222222222222";
+const GEN_TRANSFER = "af333333-3333-4333-8333-333333333333";
 const ISSUED_A = "b0111111-1111-4111-8111-111111111111";
 const ISSUED_OTHER = "b0222222-2222-4222-8222-222222222222";
+const ISSUED_COLLISION = "b0333333-3333-4333-8333-333333333333";
 
 beforeEach(() => {
   resetEnvCache();
@@ -130,6 +134,28 @@ function baseDb(): MockDb {
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
     },
+    {
+      id: TPL_TRANSFER,
+      owner_scope: "institute",
+      institute_id: INST_A,
+      type: "document",
+      name: "Transfer Certificate — Board Format",
+      description: null,
+      category: "transfer_certificate",
+      status: "active",
+      source: "system",
+      version: 1,
+      preview_aspect: "a4",
+      layout_mode: "blocks",
+      blocks: [],
+      visual_theme: null,
+      visual_fields: null,
+      tags: [],
+      created_by_user_id: USER_ADMIN,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    },
   ];
   db.generated_document = [
     {
@@ -180,6 +206,31 @@ function baseDb(): MockDb {
       published_at: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+    {
+      id: GEN_TRANSFER,
+      institute_id: INST_A,
+      template_id: TPL_TRANSFER,
+      type: "document",
+      title: "Transfer Certificate — Student A",
+      student_id: STUDENT_A,
+      teacher_id: null,
+      recipient_name: "Student A",
+      recipient_ref: "STU-A",
+      status: "ready",
+      workflow_state: "published",
+      certificate_number: null,
+      portal_student: true,
+      portal_parent: true,
+      portal_teacher: false,
+      rejection_reason: null,
+      payload: {},
+      asset_path: null,
+      generated_by_user_id: USER_ADMIN,
+      published_at: "2026-08-02T00:00:00.000Z",
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-02T00:00:00.000Z",
       deleted_at: null,
     },
   ];
@@ -241,6 +292,10 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
   ];
+  db.subscription = [
+    writableTrialSubscription(INST_A, "s0111111-1111-4111-8111-111111111111"),
+    writableTrialSubscription(INST_B, "s0222222-2222-4222-8222-222222222222"),
+  ];
   return db;
 }
 
@@ -280,6 +335,48 @@ describe("certificates api", () => {
     const parentBody = await json(parent);
     expect(parentBody.data).toHaveLength(1);
     expect(parentBody.data[0].id).toBe(ISSUED_A);
+  });
+
+  it("issues certificates when template rows lack PPTX catalog columns", async () => {
+    const db = baseDb();
+    const pptxCols = [
+      "family_id",
+      "asset_path",
+      "file_name",
+      "file_byte_size",
+      "file_content_type",
+      "pptx_meta",
+    ] as const;
+    for (const row of db.template ?? []) {
+      for (const col of pptxCols) {
+        expect(row).not.toHaveProperty(col);
+      }
+    }
+    const app = appWithDb(db);
+    const beforeCount = db.issued_certificate.length;
+
+    const issued = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_CERT,
+        student_id: STUDENT_B,
+        recipient_name: "Student B",
+        title: "Pre-migration schema issue",
+        year: 2026,
+        metadata_only: true,
+      }),
+    });
+    expect(issued.status).toBe(201);
+    const body = await json(issued);
+    expect(body.data.status).toBe("issued");
+    expect(body.data.certificateNumber).toMatch(/^CERT\/2026\/\d{4}$/);
+    expect(body.data.templateId).toBe(TPL_CERT);
+    expect(db.issued_certificate).toHaveLength(beforeCount + 1);
   });
 
   it("issues from published generated document and blocks draft", async () => {
@@ -463,6 +560,142 @@ describe("certificates api", () => {
     const body = await json(res);
     expect(body.data.fileKind).toBe("pptx");
     expect(body.data.assetPath).toBeNull();
+  });
+
+  it("rejects Transfer Certificate / document types from the issued ledger with 409", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const beforeCount = db.issued_certificate.length;
+
+    const fromGenerated = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        generated_document_id: GEN_TRANSFER,
+      }),
+    });
+    expect(fromGenerated.status).toBe(409);
+    const generatedBody = await json(fromGenerated);
+    expect(generatedBody.error.code).toBe("CONFLICT");
+    expect(generatedBody.error.message).toMatch(
+      /Only certificate documents can be issued/i,
+    );
+
+    const fromTemplate = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_TRANSFER,
+        student_id: STUDENT_A,
+        recipient_name: "Student A",
+        title: "Transfer Certificate",
+        metadata_only: true,
+      }),
+    });
+    expect(fromTemplate.status).toBe(409);
+    const templateBody = await json(fromTemplate);
+    expect(templateBody.error.code).toBe("CONFLICT");
+    expect(templateBody.error.message).toMatch(
+      /Only certificate templates can be issued/i,
+    );
+
+    expect(db.issued_certificate).toHaveLength(beforeCount);
+  });
+
+  it("rejects custom certificate numbers that are already issued", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const beforeCount = db.issued_certificate.length;
+
+    const res = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_CERT,
+        student_id: STUDENT_B,
+        recipient_name: "Student B",
+        title: "Custom number clash",
+        certificate_number: "CERT/2026/0001",
+        year: 2026,
+        metadata_only: true,
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await json(res);
+    expect(body.error.code).toBe("CONFLICT");
+    expect(body.error.message).toMatch(/Certificate number already issued/i);
+    expect(db.issued_certificate).toHaveLength(beforeCount);
+  });
+
+  it("exhausts auto-number retries when the next formatted number stays taken", async () => {
+    const db = baseDb();
+    // Sequence max remains 1, so auto-allocate always proposes CERT/2026/0002.
+    db.issued_certificate.push({
+      id: ISSUED_COLLISION,
+      institute_id: INST_A,
+      generated_document_id: null,
+      template_id: TPL_CERT,
+      student_id: null,
+      teacher_id: null,
+      certificate_number: "CERT/2026/0002",
+      sequence: 1,
+      year: 2026,
+      title: "Collision holder",
+      category: "Academic",
+      template_name: "Bonafide Certificate",
+      template_version: 1,
+      recipient_name: "Other",
+      recipient_ref: null,
+      status: "issued",
+      issued_at: "2026-08-01T00:00:00.000Z",
+      issued_by_user_id: USER_ADMIN,
+      revoked_at: null,
+      revoked_by_user_id: null,
+      revoke_reason: null,
+      asset_path: null,
+      file_kind: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+    const beforeCount = db.issued_certificate.length;
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_CERT,
+        student_id: STUDENT_B,
+        recipient_name: "Student B",
+        title: "Auto retry exhaustion",
+        year: 2026,
+        metadata_only: true,
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await json(res);
+    expect(body.error.code).toBe("CONFLICT");
+    expect(body.error.message).toMatch(
+      /Certificate number already issued|Could not allocate a unique certificate number/i,
+    );
+    expect(db.issued_certificate).toHaveLength(beforeCount);
   });
 
   it("creates and lists certificate recommendations", async () => {

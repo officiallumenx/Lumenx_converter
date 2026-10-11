@@ -12,10 +12,13 @@ import {
   findTeacherByPhoneInInstitute,
   insertTeacher,
   listTeachers,
+  listTeachersPage,
   softDeleteTeacher,
   toTeacherUpdatePatch,
   updateTeacherFields,
 } from "./repository.js";
+import { fillAuthorizedPage } from "../../lib/fill-authorized-page.js";
+import { clampListLimit } from "../../lib/name-id-cursor.js";
 import {
   findClassById,
   findSectionById,
@@ -123,6 +126,55 @@ async function assertCanReadTeacher(
 
   // Learners/parents: no teacher directory access.
   throw AppError.forbidden("Insufficient permissions");
+}
+
+export type TeacherDtoPage = {
+  items: TeacherDto[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export async function listTeachersPageForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListTeachersFilter,
+): Promise<TeacherDtoPage> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+
+  if (isStaffReader(actor, instituteId)) {
+    const page = await listTeachersPage(admin, { ...filter, instituteId });
+    return {
+      items: page.rows.map(toTeacherDto),
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+    };
+  }
+
+  const own = resolveOwnTeacherIds(actor, instituteId);
+  if (own.size === 0) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const limit = clampListLimit(filter.limit);
+  return fillAuthorizedPage({
+    limit,
+    cursor: filter.cursor,
+    fetchPage: async (cursor) => {
+      const next = await listTeachersPage(admin, {
+        ...filter,
+        instituteId,
+        cursor,
+        limit,
+      });
+      return {
+        rows: next.rows,
+        nextCursor: next.nextCursor,
+        hasMore: next.hasMore,
+      };
+    },
+    mapAuthorized: (rows) =>
+      rows.filter((r) => own.has(r.id)).map(toTeacherDto),
+  });
 }
 
 export async function listTeachersForActor(

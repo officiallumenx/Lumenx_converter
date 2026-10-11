@@ -1,11 +1,8 @@
 /**
- * Admin Home — Pending Reviews aggregation.
- * Actionable items requiring Admin review/decision (not operational alerts).
+ * Admin Home — Pending Reviews aggregation (API product mode).
+ * Demo localStorage stores are not imported here so Home startup stays light.
  */
 
-import { ADMISSION_APPLICATIONS, CAREER_CANDIDATES } from "@/lib/admin-module-data";
-import { peekAdminSyncRows, subscribeAdmissionsSync } from "@/lib/admissions-sync";
-import { DEMO_COMPLAINTS_SEED } from "@/lib/complaints-data";
 import {
   getAdminComplaintsPendingCount,
   refreshAdminComplaintsPendingCount,
@@ -18,29 +15,9 @@ import {
   syncPendingReviewsApi,
 } from "@/lib/pending-reviews-api-store";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import {
-  readAdminCareerSyncRows,
-  subscribeCareersSync,
-  type AdminCareerStage,
-  type AdminCareerSyncRow,
-} from "@/lib/careers-sync";
-import { getInitialTeacherLeave, type TeacherLeave } from "@/lib/leave-data";
-import {
-  getMarkEntriesSnapshot,
-  subscribeMarkEntries,
-  type MarkEntry,
-} from "@/lib/marks-entry-store";
-import {
-  loadPendingAssignments,
-  loadPendingStops,
-  TRANSPORT_APPROVAL_CHANGED_EVENT,
-} from "@/lib/transport-approval-store";
-import {
-  listenDemoSync,
-  loadDemoComplaints,
-  loadTeacherLeaveSnapshot,
-  type DemoComplaint,
-} from "@lumenx/utils";
+import type { TeacherLeave } from "@/lib/leave-data";
+import type { MarkEntry } from "@/lib/marks-entry-store";
+import type { DemoComplaint } from "@lumenx/utils";
 
 export type PendingReviewItem = {
   id: string;
@@ -50,8 +27,6 @@ export type PendingReviewItem = {
   search?: Record<string, string>;
   count: number;
 };
-
-const ROUTE_SETUP_KEY = "lumenx.transport.route-setup.v1";
 
 export function countSubmittedMarks(entries: MarkEntry[]): number {
   return entries.filter((e) => e.status === "submitted").length;
@@ -68,23 +43,6 @@ export function countAdminComplaints(complaints: DemoComplaint[]): number {
       c.destination === "principal_admin" &&
       (c.status === "pending" || c.status === "review"),
   ).length;
-}
-
-export function countPendingAdmissionConverts(): number {
-  return peekAdminSyncRows(ADMISSION_APPLICATIONS).filter((row) => row.stage === "approved").length;
-}
-
-export function countPendingCareerHires(): number {
-  return readAdminCareerSyncRows(
-    CAREER_CANDIDATES.map((row) => ({
-      id: row.id,
-      name: row.name,
-      role: row.role,
-      stage: row.stage as AdminCareerStage,
-      applied: row.applied,
-      docs: row.docs,
-    })) as AdminCareerSyncRow[],
-  ).filter((row) => row.stage === "approved").length;
 }
 
 export function buildPendingReviews(input: {
@@ -182,28 +140,15 @@ function invalidatePendingReviewsSnapshot(): void {
 }
 
 function readPendingReviewInputs() {
-  const teacherLeave = loadTeacherLeaveSnapshot(getInitialTeacherLeave());
-  const complaints = loadDemoComplaints(DEMO_COMPLAINTS_SEED);
-  if (isApiAuthMode()) {
-    const apiCounts = getPendingReviewsApiCounts();
-    return {
-      submittedMarks: apiCounts.submittedMarks,
-      pendingTeacherLeave: apiCounts.pendingTeacherLeave,
-      adminComplaints: getAdminComplaintsPendingCount(),
-      pendingAdmissionConverts: apiCounts.pendingAdmissionConverts,
-      pendingCareerHires: apiCounts.pendingCareerHires,
-      pendingTransportStops: apiCounts.pendingTransportStops,
-      pendingTransportAssignments: apiCounts.pendingTransportAssignments,
-    };
-  }
+  const apiCounts = getPendingReviewsApiCounts();
   return {
-    submittedMarks: countSubmittedMarks(getMarkEntriesSnapshot()),
-    pendingTeacherLeave: countPendingTeacherLeave(teacherLeave),
-    adminComplaints: countAdminComplaints(complaints),
-    pendingAdmissionConverts: countPendingAdmissionConverts(),
-    pendingCareerHires: countPendingCareerHires(),
-    pendingTransportStops: loadPendingStops().length,
-    pendingTransportAssignments: loadPendingAssignments().length,
+    submittedMarks: apiCounts.submittedMarks,
+    pendingTeacherLeave: apiCounts.pendingTeacherLeave,
+    adminComplaints: getAdminComplaintsPendingCount(),
+    pendingAdmissionConverts: apiCounts.pendingAdmissionConverts,
+    pendingCareerHires: apiCounts.pendingCareerHires,
+    pendingTransportStops: apiCounts.pendingTransportStops,
+    pendingTransportAssignments: apiCounts.pendingTransportAssignments,
   };
 }
 
@@ -236,35 +181,20 @@ export function subscribePendingReviews(listener: () => void): () => void {
     listener();
   };
 
-  const onStorage = (event: StorageEvent) => {
-    if (
-      event.key === ROUTE_SETUP_KEY ||
-      event.key === "lumenx.demo.complaints.v1" ||
-      event.key === "lumenx.demo.teacher-leave.v1" ||
-      event.key === null
-    ) {
-      notify();
-    }
-  };
-
-  const onTransportApproval = () => notify();
-
-  window.addEventListener("storage", onStorage);
-  window.addEventListener(TRANSPORT_APPROVAL_CHANGED_EVENT, onTransportApproval);
-
   const unsubs = [
-    subscribeMarkEntries(notify),
-    subscribeAdmissionsSync(notify),
-    subscribeCareersSync(notify),
-    listenDemoSync("leave", notify),
-    listenDemoSync("complaints", notify),
     subscribeAdminComplaintsPendingCount(notify),
     subscribePendingReviewsApi(notify),
   ];
 
   return () => {
-    window.removeEventListener("storage", onStorage);
-    window.removeEventListener(TRANSPORT_APPROVAL_CHANGED_EVENT, onTransportApproval);
     for (const unsub of unsubs) unsub();
   };
+}
+
+/** @deprecated kept for tests that call refresh explicitly */
+export function refreshPendingReviewsForTests(
+  instituteId: string | null,
+  pendingLeaveFromAnalytics = 0,
+): Promise<void> {
+  return refreshPendingReviewsApi(instituteId, pendingLeaveFromAnalytics);
 }

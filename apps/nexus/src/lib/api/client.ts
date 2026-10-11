@@ -37,7 +37,9 @@ export function createApiClient(config: ApiClientConfig) {
       : `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (options.body !== undefined) {
+    const isForm =
+      typeof FormData !== "undefined" && options.body instanceof FormData;
+    if (options.body !== undefined && !isForm) {
       headers["Content-Type"] = "application/json";
     }
 
@@ -61,7 +63,12 @@ export function createApiClient(config: ApiClientConfig) {
       response = await fetchImpl(url, {
         method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body:
+          options.body === undefined
+            ? undefined
+            : isForm
+              ? (options.body as FormData)
+              : JSON.stringify(options.body),
         signal: options.signal,
       });
     } catch (cause) {
@@ -111,6 +118,12 @@ export function createApiClient(config: ApiClientConfig) {
       request<T>(path, { ...options, method: "GET" }),
     post: <T>(path: string, body?: unknown, options?: Omit<ApiRequestOptions, "method" | "body">) =>
       request<T>(path, { ...options, method: "POST", body }),
+    /** Multipart upload — browser sets multipart boundary automatically. */
+    postForm: <T>(
+      path: string,
+      form: FormData,
+      options?: Omit<ApiRequestOptions, "method" | "body">,
+    ) => request<T>(path, { ...options, method: "POST", body: form }),
   };
 }
 

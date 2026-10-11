@@ -6,6 +6,7 @@ import {
 } from "../ops-outbox";
 import type { BoardingStatus, DroppingStatus } from "../types";
 import { getTripSessionSnapshot } from "../trip/store";
+import { resolveDropStopIdForMark } from "./drop-stop";
 import {
   applyLocalBoarding,
   applyLocalDropping,
@@ -35,6 +36,14 @@ function ensureAttendanceOutboxBridge() {
   window.addEventListener("lumenx-transport-ops-confirmed", ((ev: CustomEvent) => {
     const studentId = ev.detail?.studentId as string | undefined;
     const eventType = ev.detail?.eventType as string | undefined;
+    if (
+      eventType === "trip_start" ||
+      eventType === "trip_end" ||
+      eventType === "trip_phase"
+    ) {
+      void import("../trip/api-ops").then((m) => m.hydrateActiveTripFromApi());
+      return;
+    }
     if (!studentId) return;
     if (
       eventType === "boarding" ||
@@ -54,6 +63,14 @@ function ensureAttendanceOutboxBridge() {
     const studentId = ev.detail?.studentId as string | undefined;
     const message = ev.detail?.message as string | undefined;
     const eventType = ev.detail?.eventType as string | undefined;
+    if (
+      eventType === "trip_start" ||
+      eventType === "trip_end" ||
+      eventType === "trip_phase"
+    ) {
+      void import("../trip/api-ops").then((m) => m.hydrateActiveTripFromApi());
+      return;
+    }
     if (studentId) {
       setStudentSyncStatus(studentId, "confirmed");
       void hydrateAttendanceFromApi();
@@ -157,11 +174,18 @@ export const attendanceRepository = {
       return { ok: false, reason: "No active trip or student.", code: "invalid" };
     }
     const stops = trip.assignment.route.stops;
-    const dropStopId =
-      previous.dropStopId?.trim() ||
-      (previous.stopId ? previous.stopId : null) ||
-      stops[stops.length - 1]?.id ||
-      "";
+    const dropStopId = resolveDropStopIdForMark({
+      dropStopId: previous.dropStopId,
+      pickupStopId: previous.stopId,
+      routeStopIds: stops.map((s) => s.id),
+    });
+    if (!dropStopId) {
+      return {
+        ok: false,
+        reason: "No drop stop assigned for this student.",
+        code: "invalid",
+      };
+    }
 
     const local = applyLocalDropping(id, status);
     if (!local.ok) return local;

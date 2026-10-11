@@ -656,4 +656,29 @@ describe("ops-outbox Phase 8", () => {
     const gpsKept = kept.filter((e) => e.eventType === "gps");
     expect(gpsKept[gpsKept.length - 1]?.clientEventId).toBe("gps-499");
   });
+
+  it("dispatches trip_start with evening slot from payload", async () => {
+    startTransportTrip.mockResolvedValueOnce({ id: "trip-evening-1" });
+    enqueueOpsEvent({
+      eventType: "trip_start",
+      clientEventId: "start-evening-1",
+      payload: {
+        instituteId: "inst-1",
+        routeId: "route-1",
+        vehicleId: "vehicle-1",
+        driverId: "driver-1",
+        tripDate: "2026-08-21",
+        slot: "evening",
+      },
+    });
+    await flushOpsOutbox();
+    expect(startTransportTrip).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instituteId: "inst-1",
+        vehicleId: "vehicle-1",
+        slot: "evening",
+        clientEventId: "start-evening-1",
+      }),
+    );
+  });
 });

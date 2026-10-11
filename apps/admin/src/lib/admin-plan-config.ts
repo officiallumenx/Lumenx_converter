@@ -153,7 +153,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
     route: "/accounts",
     minPlan: "core",
     group: "Core",
-    description: "Login accounts for portals",
+    description: "Login accounts for portals · Nexus opt-in",
   },
   {
     id: "classes",
@@ -241,7 +241,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
     route: "/homework",
     minPlan: "plus",
     group: "Operations",
-    description: "View-only teacher homework activity logs",
+    description: "View-only teacher homework activity logs · Nexus opt-in",
   },
   {
     id: "teacher-diary",

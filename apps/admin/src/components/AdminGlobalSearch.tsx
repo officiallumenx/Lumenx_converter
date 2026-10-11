@@ -20,11 +20,14 @@ import {
   type AdminSearchItem,
 } from "@/lib/admin-search-data";
 import { useAuth } from "@/auth/AuthContext";
+import { useEnabledModules } from "@/lib/admin-plan-config";
 import { getRolePermission, useRolesAccessRevision } from "@/lib/roles-access";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
-import { listStudents } from "@/lib/students/api";
-import { listTeachers } from "@/lib/teachers/api";
+import {
+  listStudentsCached,
+  listTeachersCached,
+} from "@/lib/directory-lists-cache";
 import { isInstituteUuid } from "@/lib/active-institute";
 
 interface AdminGlobalSearchProps {
@@ -40,6 +43,7 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
   const navigate = useNavigate();
   const { user } = useAuth();
   const rolesRevision = useRolesAccessRevision();
+  const moduleEnabled = useEnabledModules();
   const instituteCtx = useInstituteContext();
   const instituteId = isApiAuthMode()
     ? instituteCtx.activeInstituteId || ""
@@ -51,8 +55,9 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
     return buildAdminSearchIndex({
       instituteId,
       accessRoleId: user?.accessRoleId,
+      moduleEnabled,
     });
-  }, [instituteId, user?.accessRoleId, rolesRevision]);
+  }, [instituteId, user?.accessRoleId, rolesRevision, moduleEnabled]);
 
   useEffect(() => {
     if (!open || !instituteId || !isInstituteUuid(instituteId)) {
@@ -63,8 +68,8 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
     void (async () => {
       try {
         const [students, teachers] = await Promise.all([
-          listStudents({ instituteId }),
-          listTeachers({ instituteId }),
+          listStudentsCached(instituteId),
+          listTeachersCached(instituteId),
         ]);
         if (cancelled) return;
         setPeopleItems(

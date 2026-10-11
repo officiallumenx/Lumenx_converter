@@ -616,12 +616,14 @@ async function dispatchEvent(event: OpsOutboxEvent): Promise<void> {
       return;
     }
     case "trip_start": {
+      const slotRaw = p.slot === "evening" || p.slot === "morning" ? p.slot : undefined;
       await startTransportTrip({
         instituteId: String(p.instituteId),
         routeId: String(p.routeId),
         vehicleId: String(p.vehicleId),
         driverId: String(p.driverId),
         tripDate: p.tripDate ? String(p.tripDate) : undefined,
+        slot: slotRaw,
         clientEventId: event.clientEventId,
       });
       return;

@@ -249,6 +249,23 @@ export async function assertBoardingTargetAllowed(
   if (participant.notRidingToday && input.kind === "boarding") {
     throw AppError.conflict("Student is marked not riding today");
   }
+
+  // When enrollment has an assigned stop, boarding/dropping must use that stop.
+  // Unassigned stops (null) keep route-level flexibility for incomplete enrollments.
+  if (
+    input.kind === "boarding" &&
+    participant.pickupStopId &&
+    participant.pickupStopId !== input.stopId
+  ) {
+    throw AppError.validation("Student must be boarded at their assigned pickup stop");
+  }
+  if (
+    input.kind === "dropping" &&
+    participant.dropStopId &&
+    participant.dropStopId !== input.stopId
+  ) {
+    throw AppError.validation("Student must be dropped at their assigned drop stop");
+  }
 }
 
 export async function listDriverOwnedRouteIds(

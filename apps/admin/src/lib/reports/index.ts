@@ -30,3 +30,9 @@ export {
   resolveReportName,
   sortJobsNewestFirst,
 } from "./map";
+export {
+  STUDENT_REPORT_CATEGORIES,
+  filterCatalogForStudentCategory,
+  studentCategoryHint,
+  type StudentReportCategoryId,
+} from "./student-reports-home";

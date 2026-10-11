@@ -1,8 +1,9 @@
 /**
  * Institute-aware Excel template for student bulk import.
  * Dropdowns for class, section, and gender come from the active institute catalog.
+ * ExcelJS is loaded on demand so Home / directory browse never pay for it.
  */
-import ExcelJS from "exceljs";
+import type { Worksheet } from "exceljs";
 
 import {
   STUDENT_CSV_HEADERS,
@@ -40,7 +41,7 @@ function colLetter(index1Based: number): string {
 }
 
 function applyListValidation(
-  sheet: ExcelJS.Worksheet,
+  sheet: Worksheet,
   columnIndex: number,
   startRow: number,
   endRow: number,
@@ -91,6 +92,7 @@ export async function downloadStudentBulkImportTemplate(
   const dataRows = Math.max(options.dataRows ?? 500, 20);
   const endRow = 1 + dataRows;
 
+  const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "LumenX Admin";
   workbook.created = new Date();

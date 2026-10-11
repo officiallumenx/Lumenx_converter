@@ -11,10 +11,13 @@ import {
   insertStudent,
   listGuardianStudentIds,
   listStudents,
+  listStudentsPage,
   softDeleteStudent,
   toStudentUpdatePatch,
   updateStudentFields,
 } from "./repository.js";
+import { fillAuthorizedPage } from "../../lib/fill-authorized-page.js";
+import { clampListLimit } from "../../lib/name-id-cursor.js";
 import type {
   CreateStudentInput,
   CreateStudentResult,
@@ -35,6 +38,7 @@ import {
   listLinksForStudent,
   updateParentFields,
 } from "../parents/repository.js";
+import { syncSubscriptionActiveStudentCountSafe } from "../subscriptions/headcount.js";
 import type { GuardianRelationship } from "../parents/types.js";
 
 export const STUDENT_STAFF_WRITE_ROLES = [
@@ -137,6 +141,55 @@ async function assertCanReadStudent(
   if (accessible.has(row.id)) return;
 
   throw AppError.forbidden("Insufficient permissions");
+}
+
+export type StudentDtoPage = {
+  items: StudentDto[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export async function listStudentsPageForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListStudentsFilter,
+): Promise<StudentDtoPage> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+
+  if (isStaffReader(actor, instituteId)) {
+    const page = await listStudentsPage(admin, { ...filter, instituteId });
+    return {
+      items: page.rows.map(toStudentDto),
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+    };
+  }
+
+  const accessible = await resolveAccessibleStudentIds(admin, actor, instituteId);
+  if (accessible.size === 0) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const limit = clampListLimit(filter.limit);
+  return fillAuthorizedPage({
+    limit,
+    cursor: filter.cursor,
+    fetchPage: async (cursor) => {
+      const next = await listStudentsPage(admin, {
+        ...filter,
+        instituteId,
+        cursor,
+        limit,
+      });
+      return {
+        rows: next.rows,
+        nextCursor: next.nextCursor,
+        hasMore: next.hasMore,
+      };
+    },
+    mapAuthorized: (rows) =>
+      rows.filter((r) => accessible.has(r.id)).map(toStudentDto),
+  });
 }
 
 export async function listStudentsForActor(
@@ -324,6 +377,17 @@ export async function updateStudentForActor(
 
   const updated = await updateStudentFields(admin, studentId, fieldPatch);
   if (!updated) throw AppError.notFound("Student not found");
+
+  if (
+    fieldPatch.status !== undefined &&
+    fieldPatch.status !== existing.status
+  ) {
+    await syncSubscriptionActiveStudentCountSafe(
+      admin,
+      existing.institute_id,
+    );
+  }
+
   return toStudentDto(updated);
 }
 
@@ -356,6 +420,8 @@ export async function deleteStudentForActor(
       "Student",
     subtitle: existing.admission_number,
   });
+
+  await syncSubscriptionActiveStudentCountSafe(admin, existing.institute_id);
 }
 
 export async function getStudentGuardiansForActor(

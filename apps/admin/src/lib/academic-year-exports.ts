@@ -1,6 +1,4 @@
 import { downloadTextToDevice } from "@lumenx/utils";
-import { utils, writeFile } from "xlsx";
-import { getClassesStudiedByStudent } from "@/lib/academic-management-data";
 
 function escapeHtml(value: string) {
   return value
@@ -16,19 +14,32 @@ type YearRecordExportRow = {
   classLabel: string;
   section: string;
   status: string;
+  /** Optional historical path; defaults to the year-scoped class label. */
+  classesStudied?: string;
 };
 
-export function downloadAcademicYearRecordsExcel(
+function classesStudiedForRow(row: YearRecordExportRow): string {
+  const explicit = row.classesStudied?.trim();
+  if (explicit) return explicit;
+  // Use the enrollment class/section for the selected academic year — never
+  // substitute unrelated demo "classes studied" history.
+  const section = row.section.trim();
+  return section ? `${row.classLabel} · ${section}` : row.classLabel;
+}
+
+/** Spreadsheet export — loads SheetJS only when the user downloads Excel. */
+export async function downloadAcademicYearRecordsExcel(
   yearLabel: string,
   rows: YearRecordExportRow[],
 ) {
+  const { utils, writeFile } = await import("xlsx");
   const sheetRows = rows.map((r) => ({
     Student: r.name,
     "Roll No": r.rollNo,
     Class: r.classLabel,
     Section: r.section,
     Status: r.status,
-    "Classes studied": getClassesStudiedByStudent(r.name),
+    "Class / section (year)": classesStudiedForRow(r),
     "Academic year": yearLabel,
   }));
   const workbook = utils.book_new();
@@ -53,11 +64,12 @@ export function downloadAcademicYearRecordsPdf(
         <td>${escapeHtml(r.classLabel)}</td>
         <td>${escapeHtml(r.section)}</td>
         <td>${escapeHtml(r.status)}</td>
-        <td>${escapeHtml(getClassesStudiedByStudent(r.name))}</td>
+        <td>${escapeHtml(classesStudiedForRow(r))}</td>
       </tr>`,
     )
     .join("");
 
+  const generatedAt = new Date().toISOString().slice(0, 10);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -75,7 +87,7 @@ export function downloadAcademicYearRecordsPdf(
 </head>
 <body>
   <h1>Academic year records — ${escapeHtml(yearLabel)}</h1>
-  <p class="meta">${escapeHtml(filtersSummary)} · ${rows.length} row(s) · LumenX Admin demo</p>
+  <p class="meta">${escapeHtml(filtersSummary)} · ${rows.length} row(s) · Generated ${escapeHtml(generatedAt)} · LumenX</p>
   <table>
     <thead>
       <tr>
@@ -84,7 +96,7 @@ export function downloadAcademicYearRecordsPdf(
         <th>Class</th>
         <th>Section</th>
         <th>Status</th>
-        <th>Classes studied</th>
+        <th>Class / section (year)</th>
       </tr>
     </thead>
     <tbody>

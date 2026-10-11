@@ -12,7 +12,9 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { loadStudentPortalSnapshot } from "@/lib/students";
 import { studentRepository } from "@/lib/student/repositories";
-import { connectQueryKeys } from "@/lib/connect-queries";
+import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
+import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import { prefetchStudentModuleQueries } from "@/lib/connect-queries/prefetch-student";
 import type { StudentSnapshot } from "@/lib/student/types";
 
@@ -29,14 +31,20 @@ const StudentPortalCtx = createContext<StudentPortalState | undefined>(undefined
 export function StudentPortalRegistry({ children }: { children: ReactNode }) {
   const { role, activeInstituteId, user } = useApp();
   const queryClient = useQueryClient();
+  const isRestoring = useConnectQueryRestoring();
+  const userId = useConnectQueryUserId();
   const isStudent = role === "student";
   const canRun =
     isStudent &&
+    Boolean(user?.id) &&
     Boolean(activeInstituteId) &&
     (isApiAuthMode() ? isInstituteUuid(activeInstituteId ?? "") : true);
 
   const query = useQuery({
-    queryKey: connectQueryKeys.studentPortal(activeInstituteId ?? "_"),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.studentPortal(activeInstituteId ?? "_"),
+    ),
     queryFn: async () => {
       if (isApiAuthMode()) {
         const result = await loadStudentPortalSnapshot({
@@ -48,7 +56,7 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
       }
       return studentRepository.getSnapshot();
     },
-    enabled: canRun,
+    enabled: canRun && !isRestoring,
   });
 
   useEffect(() => {
@@ -59,19 +67,23 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.studentPortal(activeInstituteId),
+      queryKey: scopedConnectKey(
+        userId,
+        connectQueryKeys.studentPortal(activeInstituteId),
+      ),
     });
-  }, [activeInstituteId, queryClient]);
+  }, [activeInstituteId, queryClient, userId]);
 
   const snapshot = query.data ?? null;
-  const isLoading = isStudent && canRun && query.isLoading && !snapshot;
+  const isLoading =
+    isStudent && canRun && !isRestoring && query.isLoading && !snapshot;
 
   useEffect(() => {
     if (!isStudent || !snapshot || !activeInstituteId) return;
     const studentId = snapshot.profile.id;
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(studentId)) return;
-    prefetchStudentModuleQueries(queryClient, activeInstituteId, studentId);
-  }, [isStudent, snapshot, activeInstituteId, queryClient]);
+    prefetchStudentModuleQueries(queryClient, userId, activeInstituteId, studentId);
+  }, [isStudent, snapshot, activeInstituteId, queryClient, userId]);
 
   const value = useMemo<StudentPortalState>(() => {
     if (!isStudent) {

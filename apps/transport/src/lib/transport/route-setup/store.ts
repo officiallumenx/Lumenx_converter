@@ -30,6 +30,8 @@ export type RouteSetupDriverScope = {
   employeeId: string;
   licenseNumber: string;
   instituteId?: string;
+  /** Institute wall-clock zone for trip service dates. */
+  timezone?: string;
 };
 
 const listeners = new Set<() => void>();
@@ -210,7 +212,8 @@ export function setRouteSetupDriverScope(next: RouteSetupDriverScope): void {
     scope.driverPhone === next.driverPhone &&
     scope.employeeId === next.employeeId &&
     scope.licenseNumber === next.licenseNumber &&
-    scope.instituteId === next.instituteId;
+    scope.instituteId === next.instituteId &&
+    scope.timezone === next.timezone;
   if (same) return;
 
   scope = next;

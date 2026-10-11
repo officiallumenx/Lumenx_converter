@@ -160,8 +160,8 @@ export function DocSettingsView() {
 
         {/* Info banner */}
         <div className="col-span-12">
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex gap-3">
-            <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-4">
+            <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <p className="text-xs text-muted-foreground leading-relaxed">
               <span className="text-foreground font-medium">Generation workflow</span> is not yet active in this demo. Settings here will be applied once the generation pipeline is connected.
             </p>

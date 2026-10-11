@@ -7,6 +7,8 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { ROUTES } from "@/constants";
 import {
   isTripActive,
+  tripKindTitle,
+  tripKindForSlot,
   tripPhaseLabel,
   type TripEndSummary,
   type TripSession,
@@ -57,7 +59,9 @@ export function ActiveTripPanel({
       <CardContent className="space-y-3 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="font-display text-base font-semibold text-foreground">Active trip</p>
+            <p className="font-display text-base font-semibold text-foreground">
+              {tripKindTitle(tripKindForSlot(session.slot))} · In progress
+            </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Started {formatStartTime(session.startedAt)} · {session.assignment.bus.busNumber} ·{" "}
               {session.assignment.route.code}

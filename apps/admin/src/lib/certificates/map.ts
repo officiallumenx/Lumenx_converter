@@ -5,12 +5,18 @@ function shortRef(id: string, prefix: string): string {
   return `${prefix} · ${token}`;
 }
 
-function fileNameFromDto(dto: IssuedCertificateDto): string {
+/**
+ * Display label for history. When `assetPath` is null (hybrid metadata-only
+ * issue), do not invent a downloadable filename like `certificate.pptx`.
+ */
+export function fileNameFromDto(dto: IssuedCertificateDto): string {
   if (dto.assetPath?.trim()) {
     const parts = dto.assetPath.split("/");
     return parts[parts.length - 1] || dto.assetPath;
   }
-  if (dto.fileKind) return `certificate.${dto.fileKind}`;
+  if (dto.fileKind === "pptx" || dto.fileKind === "html") {
+    return "Ledger only (no server file)";
+  }
   return "—";
 }
 
@@ -38,6 +44,7 @@ export function issuedCertificateDtoToHistoryItem(
     fileName: fileNameFromDto(dto),
     fileKind: dto.fileKind,
     status: dto.status,
+    hasServerFile: Boolean(dto.assetPath?.trim()),
   };
 }
 

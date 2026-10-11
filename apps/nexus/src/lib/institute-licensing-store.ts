@@ -160,6 +160,7 @@ export const NEXUS_MODULE_CATALOG: NexusModuleDef[] = [
   { id: "students", label: "Students", description: "Directory, admissions, 360 profiles", group: "Core", minPlan: "core" },
   { id: "teachers", label: "Teachers", description: "Faculty records, workload, ratings", group: "Core", minPlan: "core" },
   { id: "parents", label: "Parents", description: "Parent portal access (managed in Admin)", group: "Core", minPlan: "core" },
+  { id: "accounts", label: "Accounts", description: "Login accounts for portals · Nexus opt-in", group: "Core", minPlan: "core" },
   { id: "classes", label: "Classes & Sections", description: "Class structure and section assignments", group: "Core", minPlan: "core" },
   { id: "academic-management", label: "Academic Management", description: "Years, promotion, graduation", group: "Core", minPlan: "core" },
   { id: "subjects", label: "Subjects", description: "Subject catalog and assignment", group: "Core", minPlan: "core" },
@@ -169,7 +170,7 @@ export const NEXUS_MODULE_CATALOG: NexusModuleDef[] = [
   { id: "timetable", label: "Timetable", description: "Conflict-aware schedule builder", group: "Operations", minPlan: "plus" },
   { id: "exams", label: "Exams", description: "Exam scheduling", group: "Operations", minPlan: "plus" },
   { id: "marks", label: "Marks", description: "Marks entry and publication", group: "Operations", minPlan: "plus" },
-  { id: "homework", label: "Homework", description: "Homework workflows", group: "Operations", minPlan: "plus" },
+  { id: "homework", label: "Homework", description: "Homework workflows · Nexus opt-in", group: "Operations", minPlan: "plus" },
   { id: "diary", label: "Diary", description: "Class diary", group: "Operations", minPlan: "plus" },
   { id: "complaints", label: "Complaints", description: "Case management with SLAs", group: "Operations", minPlan: "plus" },
   { id: "notifications", label: "Notifications", description: "Push/email/SMS triggered messages", group: "Communications", minPlan: "core" },
@@ -237,9 +238,14 @@ export function getPlanDef(plan: PlanTier): PlanDef {
 
 /**
  * Modules that stay off until Nexus explicitly enables them on approve / license edit.
- * (Storage + Attendance Reports are opt-in, not plan defaults.)
+ * Storage, Attendance Reports, Accounts, and Homework are opt-in (not plan defaults).
  */
-export const NEXUS_OPT_IN_ADMIN_MODULES = ["storage", "attendance"] as const;
+export const NEXUS_OPT_IN_ADMIN_MODULES = [
+  "storage",
+  "attendance",
+  "accounts",
+  "homework",
+] as const;
 
 /** Default entitlements for a plan (all modules at or below the tier on). */
 export function defaultModulesForPlan(plan: PlanTier): Record<string, boolean> {

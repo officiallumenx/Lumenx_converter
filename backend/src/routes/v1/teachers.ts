@@ -12,7 +12,7 @@ import {
   createTeacherForActor,
   deleteTeacherForActor,
   getTeacherForActor,
-  listTeachersForActor,
+  listTeachersPageForActor,
   resetTeacherCredentialsForActor,
   updateTeacherForActor,
 } from "../../domains/teachers/service.js";
@@ -64,6 +64,8 @@ const listQuerySchema = z.object({
   status: statusSchema.optional(),
   teaching_scope: teachingScopeSchema.optional(),
   q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().max(500).optional(),
 });
 
 const stringArray = z.array(z.string().min(1).max(100)).max(50).nullable().optional();
@@ -123,13 +125,19 @@ teachers.get("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const query = validateQuery(listQuerySchema, c.req.query());
-  const data = await listTeachersForActor(admin, actor, {
+  const page = await listTeachersPageForActor(admin, actor, {
     instituteId: query.institute_id,
     status: query.status,
     teachingScope: query.teaching_scope,
     q: query.q,
+    limit: query.limit,
+    cursor: query.cursor,
   });
-  return c.json({ data });
+  return c.json({
+    data: page.items,
+    next_cursor: page.nextCursor,
+    has_more: page.hasMore,
+  });
 });
 
 const portalStudentParamsSchema = z.object({

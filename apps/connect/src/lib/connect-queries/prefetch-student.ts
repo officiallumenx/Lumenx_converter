@@ -10,6 +10,7 @@ import { listDiaryDays } from "@/lib/diary/api";
 import { loadLearnerActivities } from "@/lib/activity/learner-load";
 import { loadStudentFeePortal } from "@/lib/fees";
 import { connectQueryKeys } from "./keys";
+import { scopedConnectKey } from "./scope";
 
 /**
  * Warm common student module caches after the portal snapshot is ready so
@@ -17,46 +18,62 @@ import { connectQueryKeys } from "./keys";
  */
 export function prefetchStudentModuleQueries(
   queryClient: QueryClient,
+  userId: string,
   instituteId: string,
   studentId: string,
 ): void {
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.teachersLearner(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.teachersLearner(instituteId, studentId),
+    ),
     queryFn: () => loadLearnerTeachers({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.timetableLearner(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.timetableLearner(instituteId, studentId),
+    ),
     queryFn: () => loadLearnerTimetable({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.events(instituteId),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.events(instituteId)),
     queryFn: () => loadConnectEvents({ instituteId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.schoolAlerts(instituteId),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.schoolAlerts(instituteId)),
     queryFn: () => loadPortalSchoolAlerts({ instituteId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.transportLearner(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.transportLearner(instituteId, studentId),
+    ),
     queryFn: () => loadLearnerTransport({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.marksStudent(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.marksStudent(instituteId, studentId),
+    ),
     queryFn: () => loadStudentReportCards({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.homeworkStudent(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.homeworkStudent(instituteId, studentId),
+    ),
     queryFn: () => loadStudentHomeworkItems({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.diaryLearner(instituteId),
+    queryKey: scopedConnectKey(userId, connectQueryKeys.diaryLearner(instituteId)),
     queryFn: async () => {
       const rows = await listDiaryDays({ instituteId, submitted: true });
       return rows.slice().sort((a, b) => b.diaryDate.localeCompare(a.diaryDate));
@@ -64,12 +81,18 @@ export function prefetchStudentModuleQueries(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.activitiesLearner(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.activitiesLearner(instituteId, studentId),
+    ),
     queryFn: () => loadLearnerActivities({ instituteId, studentId }),
   });
 
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.feesStudent(instituteId, studentId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.feesStudent(instituteId, studentId),
+    ),
     queryFn: () => loadStudentFeePortal({ instituteId, studentId }),
   });
 }

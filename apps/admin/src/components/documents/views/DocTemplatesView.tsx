@@ -105,7 +105,7 @@ export function DocTemplatesView({
 
   return (
     <PageStack>
-      <Card className="border-primary/20 bg-primary/5">
+      <Card className="border-border bg-muted/40">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Managed in Certificates</p>

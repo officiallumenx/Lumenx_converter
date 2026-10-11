@@ -59,6 +59,8 @@ import {
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useTeacherHomeworkListQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import type { SubjectDto, TeacherAssignmentDto } from "@/lib/teacher-classes/api";
 
 const newAssignmentSchema = z.object({
@@ -83,6 +85,7 @@ type EditDraftForm = z.infer<typeof editDraftSchema>;
 type BrowseMode = "item" | "class";
 
 export function ApiTeacherAssignmentsPage() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId } = useApp();
   const portal = useTeacherPortal();
   const queryClient = useQueryClient();
@@ -107,7 +110,7 @@ export function ApiTeacherAssignmentsPage() {
   const refresh = useCallback(() => {
     if (!activeInstituteId || !teacherId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.homeworkTeacher(activeInstituteId, teacherId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.homeworkTeacher(activeInstituteId, teacherId)),
     });
     setOverviewReloadKey((k) => k + 1);
   }, [activeInstituteId, teacherId, queryClient]);

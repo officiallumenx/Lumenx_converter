@@ -7,6 +7,8 @@ import {
   adminCacheKey,
   cachedAdminFetch,
 } from "@/lib/admin-resource-cache";
+import { listMarkEntries } from "@/lib/marks/api";
+import type { MarkEntryDto } from "@/lib/marks/types";
 import { listStudents } from "@/lib/students/api";
 import type { StudentDto } from "@/lib/students/types";
 import { listTeachers } from "@/lib/teachers/api";
@@ -58,6 +60,23 @@ export function listStudentsCached(instituteId: string): Promise<StudentDto[]> {
   return cachedAdminFetch(
     adminCacheKey("students-dir", instituteId),
     () => withRateLimitRetry(() => listStudents({ instituteId })),
+    { ttlMs: ADMIN_CACHE_TTL_MS },
+  );
+}
+
+/**
+ * Submitted mark entries for Home widgets + pending-reviews badge.
+ * One walk is shared across concurrent Home loaders (TTL + inflight coalesce).
+ */
+export function listSubmittedMarkEntriesCached(
+  instituteId: string,
+): Promise<MarkEntryDto[]> {
+  return cachedAdminFetch(
+    adminCacheKey("marks-submitted", instituteId),
+    () =>
+      withRateLimitRetry(() =>
+        listMarkEntries({ instituteId, status: "submitted" }),
+      ),
     { ttlMs: ADMIN_CACHE_TTL_MS },
   );
 }

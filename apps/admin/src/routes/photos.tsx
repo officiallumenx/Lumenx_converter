@@ -7,8 +7,8 @@ import {
   Button,
   Card,
   PageStack,
-  Pill,
   SearchInput,
+  SegmentedControl,
   Select,
 } from "@lumenx/ui-admin";
 import { AppShell } from "@/components/AppShell";
@@ -461,53 +461,25 @@ function PhotosPage() {
           title={M.photos}
           subtitle="Assign staff, student, and driver profile photos"
         />
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Pill tone="neutral">{M.photos}</Pill>
-          <Pill tone="info">
-            {mode === "staff" ? "Staff / Teacher" : mode === "driver" ? "Driver" : "Student"}
-          </Pill>
-        </div>
 
         <Card>
           <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={mode === "staff" ? "primary" : "outline"}
-                onClick={() => {
-                  setMode("staff");
-                  setSelectedStudentId(null);
-                  setSelectedDriverId(null);
-                  setStatusMsg(null);
-                }}
-              >
-                Staff / Teacher
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === "student" ? "primary" : "outline"}
-                onClick={() => {
-                  setMode("student");
-                  setSelectedTeacherId(null);
-                  setSelectedDriverId(null);
-                  setStatusMsg(null);
-                }}
-              >
-                Student
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === "driver" ? "primary" : "outline"}
-                onClick={() => {
-                  setMode("driver");
-                  setSelectedTeacherId(null);
-                  setSelectedStudentId(null);
-                  setStatusMsg(null);
-                }}
-              >
-                Drivers
-              </Button>
-            </div>
+            <SegmentedControl
+              value={mode}
+              onChange={(value) => {
+                const next = value as Mode;
+                setMode(next);
+                setStatusMsg(null);
+                if (next !== "staff") setSelectedTeacherId(null);
+                if (next !== "student") setSelectedStudentId(null);
+                if (next !== "driver") setSelectedDriverId(null);
+              }}
+              options={[
+                { value: "staff", label: "Staff / Teacher" },
+                { value: "student", label: "Student" },
+                { value: "driver", label: "Drivers" },
+              ]}
+            />
 
             {mode === "student" ? (
               <div className="grid grid-cols-2 gap-2">

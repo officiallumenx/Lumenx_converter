@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllPagedRows } from "../../db/fetch-all-pages.js";
 import type { AttendanceMarkRow, AttendanceRegisterRow } from "../attendance/types.js";
+import { reportFileStamp, toCsv } from "./csv.js";
 import type { GeneratedReportFile, ReportDateRange } from "./types.js";
 
 const REGISTER_COLS =
@@ -12,29 +13,16 @@ const REGISTER_COLS =
 const MARK_COLS =
   "id, institute_id, register_id, student_id, enrollment_id, status, created_at, updated_at, deleted_at";
 
-function esc(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function toCsv(
-  headers: string[],
-  rows: Array<Array<string | null | undefined>>,
-): string {
-  const lines = [
-    headers.map(esc).join(","),
-    ...rows.map((row) =>
-      row.map((cell) => esc(cell == null ? "" : String(cell))).join(","),
-    ),
-  ];
-  return `${lines.join("\n")}\n`;
-}
-
 function stamp(reportId: string, range?: ReportDateRange): string {
-  const d = new Date().toISOString().slice(0, 10);
-  if (range?.fromDate || range?.toDate) {
-    return `${reportId}-${range.fromDate ?? "start"}_${range.toDate ?? "end"}.csv`;
+  if (range?.fromDate || range?.toDate || range?.academicYearId) {
+    const parts = [
+      range.fromDate ?? "start",
+      range.toDate ?? "end",
+      range.academicYearId ? `y${range.academicYearId.slice(0, 8)}` : null,
+    ].filter(Boolean);
+    return reportFileStamp(reportId, parts.join("_"));
   }
-  return `${reportId}-${d}.csv`;
+  return reportFileStamp(reportId);
 }
 
 function weekStart(isoDate: string): string {
@@ -83,6 +71,9 @@ async function loadAttendanceContext(
       .order("id", { ascending: true });
     if (range?.fromDate) query = query.gte("attendance_date", range.fromDate);
     if (range?.toDate) query = query.lte("attendance_date", range.toDate);
+    if (range?.academicYearId) {
+      query = query.eq("academic_year_id", range.academicYearId);
+    }
     return query.range(from, to);
   });
   const registers = registersPage.rows;

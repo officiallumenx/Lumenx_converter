@@ -1,7 +1,11 @@
-import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { cert, deleteApp, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { assertStagingEnv } from "./assert-staging-env.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
+
+loadLumenxDotenv();
+assertStagingEnv(process.env);
 
 const enabled = process.env.LIVE_AUTH_VERIFY === "1";
 const smsReportRequested = process.argv.includes("--sms-prerequisites");

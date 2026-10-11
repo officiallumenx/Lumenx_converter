@@ -132,3 +132,10 @@ export {
   listPublishedCertificateCategories,
   listPublishedCertificateTemplates,
 } from "./admin-catalog";
+
+export { isDbCertificateCatalogEnabled } from "./db-catalog-flag";
+
+export {
+  mapPlatformDtoToCertificateTemplate,
+  type PlatformCertificateTemplateApiDto,
+} from "./platform-dto-map";

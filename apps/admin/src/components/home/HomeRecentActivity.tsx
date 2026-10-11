@@ -24,7 +24,7 @@ export function HomeRecentActivity({
   markingReadId: string | null;
   onOpen: (id: string) => void;
 }) {
-  if (items.length === 0) return null;
+  const unreadCount = items.filter((n) => n.unread).length;
 
   return (
     <section
@@ -34,16 +34,19 @@ export function HomeRecentActivity({
       <div className="lx-home-panel__head">
         <h2 className="lx-home-panel__title">Notifications</h2>
         <div className="flex items-center gap-2">
-          {items.some((n) => n.unread) ? (
-            <Pill tone="info">{items.filter((n) => n.unread).length} unread</Pill>
-          ) : null}
+          {unreadCount > 0 ? <Pill tone="info">{unreadCount} unread</Pill> : null}
           <Link to="/notifications" search={{ tab: "inbox" }} className="lx-home-panel__link">
             View all →
           </Link>
         </div>
       </div>
+      {items.length === 0 ? (
+        <p className="lx-home-activity__empty" role="status">
+          No notifications yet. Inbox updates appear here.
+        </p>
+      ) : null}
       <ul className="lx-home-activity__list">
-        {items.slice(0, 5).map((row) => {
+        {items.slice(0, 8).map((row) => {
           const busy = markingReadId === row.id;
           const isAlert = isNotificationAlertRow(row);
           const Icon = notificationTypeIcon(row.type, row.category);
@@ -61,40 +64,42 @@ export function HomeRecentActivity({
                 >
                   <Icon className="size-3.5" />
                 </span>
-                <span className="min-w-0 flex-1 text-left">
-                  <span className="flex flex-wrap items-center gap-1.5">
+                <span className="lx-home-activity__body">
+                  <span className="lx-home-activity__title-line">
                     {row.unread ? (
                       <span
-                        className={`size-1.5 rounded-full shrink-0 ${
+                        className={`lx-home-activity__unread ${
                           isAlert ? "bg-destructive" : "bg-primary"
                         }`}
                         aria-label="Unread"
                       />
                     ) : null}
                     <span
-                      className={`block text-sm truncate ${
+                      className={`lx-home-activity__title ${
                         row.unread ? "font-semibold" : "font-medium"
                       } ${isAlert ? "text-destructive" : "text-foreground"}`}
                     >
                       {row.title}
                     </span>
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  {row.desc ? (
+                    <span className="lx-home-activity__desc">{row.desc}</span>
+                  ) : null}
+                  <span className="lx-home-activity__tags">
                     <Pill tone={notificationPillTone(row)}>
                       {isAlert ? "Alert" : notificationCategoryLabel(row.category)}
                     </Pill>
                     {row.priority === "high" && !isAlert ? (
                       <Pill tone="warning">High</Pill>
                     ) : null}
-                    <span className="text-[11px] text-muted-foreground truncate">
-                      {row.desc}
-                    </span>
                   </span>
                 </span>
-                <span className="lx-home-activity__time">{row.time}</span>
-                {row.unread ? (
-                  <Pill tone={isAlert ? "danger" : "info"}>New</Pill>
-                ) : null}
+                <span className="lx-home-activity__aside">
+                  <span className="lx-home-activity__time">{row.time}</span>
+                  {row.unread ? (
+                    <Pill tone={isAlert ? "danger" : "info"}>New</Pill>
+                  ) : null}
+                </span>
               </button>
             </li>
           );

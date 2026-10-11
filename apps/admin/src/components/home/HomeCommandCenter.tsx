@@ -13,19 +13,18 @@ import {
 } from "@/lib/dashboard";
 import { SetupChecklistBanner } from "@/components/setup/SetupChecklistPanel";
 import { useSetupChecklist } from "@/lib/institute-setup-checklist";
+import { invalidateAdminModule } from "@/lib/admin-queries/invalidate";
+import { adminQueryRoots } from "@/lib/admin-queries/keys";
 import {
-  adminQueryRoots,
-  invalidateAdminModule,
   useAcademicYearsListQuery,
   useHomeBirthdaysQuery,
   useHomeSummaryQuery,
   useHomeWidgetsQuery,
   useInstituteProfileQuery,
   useNotificationsListQuery,
-} from "@/lib/admin-queries";
+} from "@/lib/admin-queries/hooks-shell";
 import { updateInboxItem } from "@/lib/notification-inbox/mutations";
 import { optimisticMarkNotificationRead } from "@/lib/notification-inbox";
-import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import {
   loadPendingReviews,
   subscribePendingReviews,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/pending-reviews";
 import { getPendingReviewsApiCounts } from "@/lib/pending-reviews-api-store";
 import { getAdminComplaintsPendingCount } from "@/lib/complaints/pending-count-store";
+import type { TransportEmergencyDto } from "@/lib/transport/types";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
 import { useDemoProfile } from "@/lib/demo-profile-context";
@@ -42,6 +42,7 @@ import { HomeHero } from "./HomeHero";
 import { HomeYearCallout } from "./HomeYearCallout";
 import { HomeNeedsAttention } from "./HomeNeedsAttention";
 import { HomeOverview } from "./HomeOverview";
+import { HomeInsightCards } from "./HomeInsightCards";
 import { HomeBirthdays } from "./HomeBirthdays";
 import { HomeRecentActivity } from "./HomeRecentActivity";
 import { HomeOperationalLists } from "./HomeOperationalLists";
@@ -114,7 +115,7 @@ export function HomeCommandCenter() {
   );
 
   const [transportEmergencies, setTransportEmergencies] = useState<
-    Awaited<ReturnType<typeof listTransportEmergencies>>
+    TransportEmergencyDto[]
   >([]);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
 
@@ -163,11 +164,14 @@ export function HomeCommandCenter() {
     }
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    void listTransportEmergencies({
-      instituteId: requestInstituteId,
-      status: "active",
-    })
-      .catch(() => [])
+    void import("@/lib/transport/ops-api")
+      .then(({ listTransportEmergencies }) =>
+        listTransportEmergencies({
+          instituteId: requestInstituteId,
+          status: "active",
+        }),
+      )
+      .catch(() => [] as TransportEmergencyDto[])
       .then((emergencies) => {
         if (cancelled) return;
         if (instituteCtx.activeInstituteId !== requestInstituteId) return;
@@ -192,7 +196,7 @@ export function HomeCommandCenter() {
   ]);
 
   const view = resolveDashboardSummaryView({
-    apiMode: true,
+    apiMode,
     instituteStatus: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
@@ -229,18 +233,19 @@ export function HomeCommandCenter() {
       pendingTransportAssignments:
         reviewById.get("transport-assignments") ??
         apiCounts.pendingTransportAssignments,
+      // Omit widget-derived counts until widgets settle — never treat "unknown" as 0.
       attendanceDraftCount:
         widgetsValid && widgets.attendanceDrafts.status !== "error"
           ? widgets.attendanceDrafts.rows.length
-          : 0,
+          : undefined,
       diaryMissingYesterdayCount:
         widgetsValid && widgets.diary.status !== "error"
           ? widgets.diary.missingYesterdayCount
-          : 0,
+          : undefined,
       marksPendingWidgetCount:
         widgetsValid && widgets.marksPending.status !== "error"
           ? widgets.marksPending.rows.length
-          : 0,
+          : undefined,
       transportEmergencyCount: transportEmergencies.length,
     });
   }, [
@@ -361,67 +366,87 @@ export function HomeCommandCenter() {
             : null
         }
         loading={summaryLoading}
+        status={view.status}
+        errorMessage={view.errorMessage}
         activeYearLabel={yearLabel}
       />
 
-      <HomeBirthdays
-        rows={birthdayRows}
-        loading={birthdaysLoading}
-        status={birthdayStatus}
-        errorMessage={birthdayErrorMessage}
-        warningMessage={birthdayWarningMessage}
-        instituteName={instituteName}
-        principalName={principalName}
+      <HomeInsightCards
+        instituteId={instituteCtx.activeInstituteId}
+        queriesEnabled={queriesEnabled}
+        academicYearId={activeYear?.id ?? null}
+        pendingLeave={view.summary ? view.summary.pendingLeave : null}
+        summaryLoading={summaryLoading}
+        widgets={widgets}
+        widgetsValid={widgetsValid}
+        widgetsLoading={widgetsLoading}
       />
 
-      <div className="lx-home-mid-grid">
-        <HomeNeedsAttention
-          items={attentionItems}
-          loading={summaryLoading || widgetsLoading}
-        />
-      </div>
+      <div className="lx-home-board">
+        <div className="lx-home-board__main">
+          <HomeBirthdays
+            rows={birthdayRows}
+            loading={birthdaysLoading}
+            status={birthdayStatus}
+            errorMessage={birthdayErrorMessage}
+            warningMessage={birthdayWarningMessage}
+            instituteName={instituteName}
+            principalName={principalName}
+          />
 
-      <div className="lx-home-bottom-grid">
-        <div className="lx-home-section lx-home-bottom-grid__qa" style={{ "--lx-home-i": 5 } as CSSProperties}>
-          <HomeQuickActionsCard />
+          <HomeNeedsAttention
+            items={attentionItems}
+            loading={summaryLoading}
+            pendingMore={widgetsLoading}
+          />
+
+          <div
+            className="lx-home-section lx-home-board__qa"
+            style={{ "--lx-home-i": 5 } as CSSProperties}
+          >
+            <HomeQuickActionsCard />
+          </div>
+
+          <HomeOperationalLists
+            diaryRows={widgets.diary.status !== "error" ? widgets.diary.rows : []}
+            diaryMissingYesterday={
+              widgets.diary.status !== "error"
+                ? widgets.diary.missingYesterdayCount
+                : 0
+            }
+            leaveRows={leaveWidget.status !== "error" ? leaveWidget.rows : []}
+            leavePendingCount={
+              leaveWidget.status !== "error"
+                ? leaveWidget.pendingCount
+                : (view.summary?.pendingLeave ?? 0)
+            }
+            attendanceDrafts={
+              widgets.attendanceDrafts.status !== "error"
+                ? widgets.attendanceDrafts.rows
+                : []
+            }
+            marksPending={
+              widgets.marksPending.status !== "error"
+                ? widgets.marksPending.rows
+                : []
+            }
+            transportEmergencies={transportEmergencies}
+            transportInstituteId={
+              queriesEnabled ? instituteCtx.activeInstituteId : null
+            }
+            transportWritesEnabled={writesAllowed}
+            onTransportNotify={notify}
+          />
         </div>
-        <HomeRecentActivity
-          items={activityItems}
-          markingReadId={markingReadId}
-          onOpen={(id) => void openUnreadNotification(id)}
-        />
-      </div>
 
-      <HomeOperationalLists
-          diaryRows={widgets.diary.status !== "error" ? widgets.diary.rows : []}
-          diaryMissingYesterday={
-            widgets.diary.status !== "error"
-              ? widgets.diary.missingYesterdayCount
-              : 0
-          }
-          leaveRows={leaveWidget.status !== "error" ? leaveWidget.rows : []}
-          leavePendingCount={
-            leaveWidget.status !== "error"
-              ? leaveWidget.pendingCount
-              : (view.summary?.pendingLeave ?? 0)
-          }
-          attendanceDrafts={
-            widgets.attendanceDrafts.status !== "error"
-              ? widgets.attendanceDrafts.rows
-              : []
-          }
-          marksPending={
-            widgets.marksPending.status !== "error"
-              ? widgets.marksPending.rows
-              : []
-          }
-          transportEmergencies={transportEmergencies}
-          transportInstituteId={
-            queriesEnabled ? instituteCtx.activeInstituteId : null
-          }
-          transportWritesEnabled={writesAllowed}
-          onTransportNotify={notify}
-        />
+        <aside className="lx-home-board__aside">
+          <HomeRecentActivity
+            items={activityItems}
+            markingReadId={markingReadId}
+            onOpen={(id) => void openUnreadNotification(id)}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

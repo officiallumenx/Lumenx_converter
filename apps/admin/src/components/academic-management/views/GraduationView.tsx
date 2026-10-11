@@ -316,7 +316,7 @@ function GraduationDemoView() {
                     <Td>
                       <Select
                         fieldSize="compact"
-                        className={`min-w-[10rem] ${dirty ? "ring-1 ring-primary/40" : ""}`}
+                        className={`min-w-[10rem] ${dirty ? "border-primary/50" : ""}`}
                         value={draft}
                         onChange={(e) =>
                           setDraftStatus(row.id, e.target.value as GraduationResult)

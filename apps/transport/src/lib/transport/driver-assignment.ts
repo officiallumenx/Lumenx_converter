@@ -35,4 +35,6 @@ export type DriverAssignment = {
   lockedByAdmin: boolean;
   tripAssignment: TripAssignment | null;
   message: string | null;
+  /** Institute IANA timezone for trip service dates. */
+  timezone?: string | null;
 };

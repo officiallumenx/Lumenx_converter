@@ -155,7 +155,7 @@ export function TeacherPerformanceApiPanel() {
       </div>
 
       <div className="grid grid-cols-12 gap-4">
-        <Card className="col-span-12 lg:col-span-8 transition-shadow duration-200">
+        <Card className="col-span-12 lg:col-span-8">
           <CardHeader
             title="Faculty rankings"
             hint="Tap a row for component metrics · fair OPI (active signals only)"
@@ -278,7 +278,7 @@ export function TeacherPerformanceApiPanel() {
           )}
         </Card>
 
-        <Card className="col-span-12 lg:col-span-4 transition-shadow duration-200">
+        <Card className="col-span-12 lg:col-span-4">
           <CardHeader title="Subject rankings" hint="Average OPI by subject" />
           <div className="px-5 pb-5 space-y-3">
             {subjectRankings.length === 0 ? (
@@ -310,7 +310,7 @@ export function TeacherPerformanceApiPanel() {
         </Card>
       </div>
 
-      <Card className="transition-shadow duration-200">
+      <Card>
         <CardHeader
           title="Performance trends"
           hint="Continuous last 7 months · institute average OPI"

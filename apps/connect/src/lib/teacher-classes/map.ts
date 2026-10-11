@@ -108,6 +108,20 @@ export function enrollmentsToTeacherStudents(
       avgScore: 0,
       grade: className,
       avatarInitials: initials || "?",
+      photoUrl: null,
     };
+  });
+}
+
+/** Merge section-batched signed photo URLs onto roster rows (no per-student API). */
+export function applyStudentPhotoUrls(
+  students: TeacherStudent[],
+  photosByStudentId: Map<string, string | null | undefined>,
+): TeacherStudent[] {
+  if (photosByStudentId.size === 0) return students;
+  return students.map((s) => {
+    const url = photosByStudentId.get(s.id);
+    if (!url) return s;
+    return { ...s, photoUrl: url };
   });
 }

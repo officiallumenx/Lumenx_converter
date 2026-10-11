@@ -42,7 +42,7 @@ export function TemplateHubNav({
 
   return (
     <div className={`${compact ? "mb-2" : "mb-3 sm:mb-6"} -mx-1 px-1 overflow-x-auto lx-sidebar-scroll`}>
-      <div className="lx-module-hub-nav flex gap-1 p-1 min-w-max bg-background rounded-lg border border-border">
+      <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max rounded-xl border border-border bg-card">
         {NAV.map(({ view, label, short, icon: Icon }) => {
           const isActive = activeNav === view;
           return (
@@ -51,17 +51,18 @@ export function TemplateHubNav({
               to="/templates"
               search={{ view }}
               title={label}
-              className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors ${
+              aria-current={isActive ? "page" : undefined}
+              className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors duration-150 ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+                  ? "bg-muted/70 text-foreground border border-border shadow-xs"
+                  : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-surface-hover"
               }`}
             >
               <IconChip
                 icon={Icon}
                 size="xs"
+                variant={isActive ? "brand" : "soft"}
                 active={isActive}
-                className={isActive ? "bg-primary-foreground/15 text-primary-foreground" : undefined}
               />
               <span className="hidden sm:inline">{label}</span>
               <span className="sm:hidden">{short}</span>

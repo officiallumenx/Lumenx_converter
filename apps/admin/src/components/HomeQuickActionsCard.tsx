@@ -9,6 +9,10 @@ import {
 } from "@/lib/admin-module-colors";
 import { adminNav, type AdminNavItem } from "@/lib/admin-nav";
 import {
+  isAdminRouteModuleEnabled,
+  useEnabledModules,
+} from "@/lib/admin-plan-config";
+import {
   loadQuickActionUsage,
   rankTopQuickActions,
   recordQuickActionUse,
@@ -16,30 +20,32 @@ import {
 
 const TOP_TAB = "top";
 
-function sectionModules(label: string): AdminNavItem[] {
+function sectionModules(
+  label: string,
+  enabled: Record<string, boolean>,
+): AdminNavItem[] {
   const group = adminNav.find((item) => item.label === label);
-  return (group?.items ?? []).filter((item) => item.to !== "/");
+  return (group?.items ?? []).filter(
+    (item) => item.to !== "/" && isAdminRouteModuleEnabled(item.to, enabled),
+  );
 }
 
-function allModules(): AdminNavItem[] {
-  return adminNav.flatMap((group) => group.items.filter((item) => item.to !== "/"));
+function allModules(enabled: Record<string, boolean>): AdminNavItem[] {
+  return adminNav.flatMap((group) =>
+    group.items.filter(
+      (item) => item.to !== "/" && isAdminRouteModuleEnabled(item.to, enabled),
+    ),
+  );
 }
-
-const SECTION_TABS = adminNav
-  .filter((group) => sectionModules(group.label).length > 0)
-  .map((group) => ({
-    value: group.label,
-    label: group.label === "Communications" ? "Comms" : group.label,
-  }));
-
-const TABS = [{ value: TOP_TAB, label: "Top" }, ...SECTION_TABS];
 
 function QuickActionSectionTabs({
   value,
   onChange,
+  tabs,
 }: {
   value: string;
   onChange: (next: string) => void;
+  tabs: { value: string; label: string }[];
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState({ left: false, right: false });
@@ -74,27 +80,27 @@ function QuickActionSectionTabs({
       el.removeEventListener("scroll", syncOverflow);
       observer.disconnect();
     };
-  }, [syncOverflow, value]);
+  }, [syncOverflow, value, tabs]);
 
   const scrollTabs = (direction: -1 | 1) => {
     scrollerRef.current?.scrollBy({ left: direction * 140, behavior: "smooth" });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const index = TABS.findIndex((tab) => tab.value === value);
+    const index = tabs.findIndex((tab) => tab.value === value);
     if (index < 0) return;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
-      onChange(TABS[Math.min(index + 1, TABS.length - 1)]!.value);
+      onChange(tabs[Math.min(index + 1, tabs.length - 1)]!.value);
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
-      onChange(TABS[Math.max(index - 1, 0)]!.value);
+      onChange(tabs[Math.max(index - 1, 0)]!.value);
     } else if (event.key === "Home") {
       event.preventDefault();
-      onChange(TABS[0]!.value);
+      onChange(tabs[0]!.value);
     } else if (event.key === "End") {
       event.preventDefault();
-      onChange(TABS[TABS.length - 1]!.value);
+      onChange(tabs[tabs.length - 1]!.value);
     }
   };
 
@@ -119,7 +125,7 @@ function QuickActionSectionTabs({
         aria-orientation="horizontal"
         onKeyDown={onKeyDown}
       >
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const selected = tab.value === value;
           return (
             <button
@@ -156,13 +162,35 @@ function QuickActionSectionTabs({
 export function HomeQuickActionsCard() {
   const [tab, setTab] = useState(TOP_TAB);
   const [usage, setUsage] = useState(loadQuickActionUsage);
+  const moduleEnabled = useEnabledModules();
+
+  const sectionTabs = useMemo(
+    () =>
+      adminNav
+        .filter((group) => sectionModules(group.label, moduleEnabled).length > 0)
+        .map((group) => ({
+          value: group.label,
+          label: group.label === "Communications" ? "Comms" : group.label,
+        })),
+    [moduleEnabled],
+  );
+  const tabs = useMemo(
+    () => [{ value: TOP_TAB, label: "Top" }, ...sectionTabs],
+    [sectionTabs],
+  );
+
+  useEffect(() => {
+    if (tab !== TOP_TAB && !sectionTabs.some((t) => t.value === tab)) {
+      setTab(TOP_TAB);
+    }
+  }, [tab, sectionTabs]);
 
   const actions = useMemo(() => {
-    if (tab === TOP_TAB) return rankTopQuickActions(allModules(), usage);
-    return sectionModules(tab);
-  }, [tab, usage]);
+    if (tab === TOP_TAB) return rankTopQuickActions(allModules(moduleEnabled), usage);
+    return sectionModules(tab, moduleEnabled);
+  }, [tab, usage, moduleEnabled]);
 
-  const moduleCount = allModules().length;
+  const moduleCount = allModules(moduleEnabled).length;
   const hint =
     tab === TOP_TAB
       ? `${actions.length} most-used`
@@ -184,7 +212,7 @@ export function HomeQuickActionsCard() {
         <p className="lx-home-panel__hint mt-0.5">{hint}</p>
       </div>
       <div className="lx-quick-actions-body">
-        <QuickActionSectionTabs value={tab} onChange={setTab} />
+        <QuickActionSectionTabs value={tab} onChange={setTab} tabs={tabs} />
         <div
           id="qa-panel"
           role="tabpanel"
@@ -208,9 +236,7 @@ export function HomeQuickActionsCard() {
                 <span className="lx-quick-action-icon" style={adminMobileNavIconStyle(accent, false)}>
                   <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
                 </span>
-                <span className="w-full px-0.5 text-[10px] font-medium leading-snug line-clamp-2">
-                  {action.label}
-                </span>
+                <span className="lx-quick-action-label">{action.label}</span>
               </Link>
             );
           })}

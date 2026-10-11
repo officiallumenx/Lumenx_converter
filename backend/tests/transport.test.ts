@@ -2124,6 +2124,73 @@ describe("transport api", () => {
     ).toBe(true);
   });
 
+  it("concurrent trip starts: only one live trip per vehicle/date/slot", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const startBody = (clientEventId: string) =>
+      JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        vehicle_id: VEHICLE_A,
+        driver_id: DRIVER_A,
+        trip_date: today,
+        slot: "morning",
+        client_event_id: clientEventId,
+      });
+
+    const headers = {
+      Authorization: "Bearer token-driver",
+      "Content-Type": "application/json",
+    };
+
+    const [a, b] = await Promise.all([
+      app.request("/api/v1/transport/trips", {
+        method: "POST",
+        headers,
+        body: startBody("race-evt-a"),
+      }),
+      app.request("/api/v1/transport/trips", {
+        method: "POST",
+        headers,
+        body: startBody("race-evt-b"),
+      }),
+    ]);
+
+    const live = (db.transport_trip ?? []).filter(
+      (t) =>
+        t.vehicle_id === VEHICLE_A &&
+        t.trip_date === today &&
+        t.slot === "morning" &&
+        (t.deleted_at == null || t.deleted_at === undefined),
+    );
+    expect(live).toHaveLength(1);
+    // Either insert unique-violation (409) or post-insert active-trip reconcile (201).
+    expect([a.status, b.status].every((s) => s === 201 || s === 409)).toBe(true);
+    expect([a.status, b.status].includes(201)).toBe(true);
+
+    // Same client_event_id retry remains idempotent after the winner exists.
+    const winner = live[0]!;
+    const retry = await app.request("/api/v1/transport/trips", {
+      method: "POST",
+      headers,
+      body: startBody(String(winner.client_event_id)),
+    });
+    expect(retry.status).toBe(201);
+    expect((await json(retry)).data.id).toBe(winner.id);
+    expect(
+      (db.transport_trip ?? []).filter(
+        (t) =>
+          t.vehicle_id === VEHICLE_A &&
+          t.trip_date === today &&
+          t.slot === "morning" &&
+          (t.deleted_at == null || t.deleted_at === undefined),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("phase5: repeated GPS → one arrival push; boarding/drop dedupe; not-riding suppresses reminder", async () => {
     const db = baseDb();
     db.route[0] = { ...db.route[0], driver_id: DRIVER_A };

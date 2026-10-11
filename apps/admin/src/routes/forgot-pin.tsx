@@ -19,8 +19,8 @@ function ForgotPinPage() {
       backTo="/login"
     >
       <div className="space-y-5">
-        <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5">
-          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/40 p-3.5">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <p className="text-sm leading-relaxed text-muted-foreground">
             Go to Login, select your institute and account, then choose Forgotten PIN? to use
             the secure staff API recovery flow.

@@ -147,6 +147,10 @@ export type ListStudentsFilter = {
   classLabel?: string;
   sectionLabel?: string;
   q?: string;
+  /** Page size (default/max enforced in repository). */
+  limit?: number;
+  /** Opaque (display_name, id) cursor from a prior page. */
+  cursor?: string;
 };
 
 export type StudentGuardianDto = {

@@ -6,6 +6,8 @@ import { useApp } from "@/lib/app-state";
 import type { TeacherExamPaperItem } from "@/lib/exams";
 import { useTeacherExamsQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import {
@@ -65,6 +67,7 @@ function groupPapersByExam(papers: TeacherExamPaperItem[]): TeacherExamGroup[] {
 }
 
 export function TeacherExamsApiPanel() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId } = useApp();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<TeacherExamGroup | null>(null);
@@ -90,7 +93,7 @@ export function TeacherExamsApiPanel() {
   const retry = () => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.examsTeacher(activeInstituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.examsTeacher(activeInstituteId)),
     });
   };
 

@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import {
+  clampListLimit,
+  decodeNameIdCursor,
+  nameIdCursorOrFilter,
+  nextNameIdCursorFromRows,
+} from "../../lib/name-id-cursor.js";
 import type {
   CreateTeacherInput,
   ListTeachersFilter,
@@ -10,10 +16,26 @@ import type {
 const TEACHER_COLS =
   "id, institute_id, user_profile_id, legacy_code, employee_id, display_name, phone, email, department, qualification, date_of_birth, joined_on, teaching_scope, portal_access_level, status, subjects, assigned_section_labels, source_career_application_id, photo_asset_path, created_at, updated_at, deleted_at";
 
-export async function listTeachers(
+export type TeacherListPage = {
+  rows: TeacherRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export const TEACHERS_LIST_DEFAULT_LIMIT = 100;
+export const TEACHERS_LIST_MAX_LIMIT = 200;
+
+function sanitizeIlikeTerm(raw: string): string {
+  return raw.replace(/[%_,]/g, " ").trim().slice(0, 200);
+}
+
+export async function listTeachersPage(
   admin: SupabaseClient,
   filter: ListTeachersFilter,
-): Promise<TeacherRow[]> {
+): Promise<TeacherListPage> {
+  const limit = clampListLimit(filter.limit);
+  const cursor = decodeNameIdCursor(filter.cursor);
+
   let query = admin
     .from("teacher")
     .select(TEACHER_COLS)
@@ -23,29 +45,54 @@ export async function listTeachers(
   if (filter.status) query = query.eq("status", filter.status);
   if (filter.teachingScope) query = query.eq("teaching_scope", filter.teachingScope);
 
-  const result = await query;
-  let rows = ensureDbOk(result) as TeacherRow[];
-
-  if (filter.q) {
-    const q = filter.q.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((r) => {
-        const hay = [
-          r.display_name,
-          r.phone,
-          r.email,
-          r.employee_id,
-          r.legacy_code,
-          r.department,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
+  const q = filter.q ? sanitizeIlikeTerm(filter.q) : "";
+  if (q) {
+    const pattern = `"%${q.replace(/"/g, "")}%"`;
+    query = query.or(
+      [
+        `display_name.ilike.${pattern}`,
+        `phone.ilike.${pattern}`,
+        `email.ilike.${pattern}`,
+        `employee_id.ilike.${pattern}`,
+        `legacy_code.ilike.${pattern}`,
+        `department.ilike.${pattern}`,
+      ].join(","),
+    );
   }
 
+  if (cursor) {
+    query = query.or(nameIdCursorOrFilter(cursor, "display_name"));
+  }
+
+  const result = await query
+    .order("display_name", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(limit + 1);
+  const fetched = ensureDbOk(result) as TeacherRow[];
+  const page = nextNameIdCursorFromRows(fetched, limit, (r) => r.display_name);
+  return {
+    rows: page.items,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  };
+}
+
+export async function listTeachers(
+  admin: SupabaseClient,
+  filter: ListTeachersFilter,
+): Promise<TeacherRow[]> {
+  const rows: TeacherRow[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await listTeachersPage(admin, {
+      ...filter,
+      cursor,
+      limit: TEACHERS_LIST_MAX_LIMIT,
+    });
+    rows.push(...page.rows);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
   return rows;
 }
 

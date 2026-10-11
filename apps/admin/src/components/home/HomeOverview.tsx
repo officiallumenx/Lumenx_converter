@@ -93,6 +93,8 @@ const CELLS: Array<{
 export function HomeOverview({
   summary,
   loading,
+  status = "loading",
+  errorMessage = null,
   activeYearLabel,
 }: {
   summary: {
@@ -102,10 +104,19 @@ export function HomeOverview({
     pendingLeave: number;
   } | null;
   loading?: boolean;
+  /** Load status — zeros only render when status is ready with a real summary. */
+  status?:
+    | "demo"
+    | "loading"
+    | "ready"
+    | "needs_institute"
+    | "forbidden"
+    | "error";
+  errorMessage?: string | null;
   /** Real active academic year label — only used when present. */
   activeYearLabel?: string | null;
 }) {
-  if (loading && !summary) {
+  if ((loading || status === "loading") && !summary) {
     return (
       <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>
         <div className="lx-home-panel__head">
@@ -120,12 +131,25 @@ export function HomeOverview({
     );
   }
 
-  if (!summary) {
+  if (!summary || status !== "ready") {
+    const unavailableCopy =
+      status === "demo"
+        ? "Demo mode — institute KPIs load from the live API when signed in."
+        : status === "needs_institute"
+          ? "Select an institute to load overview counts."
+          : status === "forbidden"
+            ? errorMessage?.trim() || "Overview counts are not available for your access level."
+            : status === "error"
+              ? errorMessage?.trim() || "Could not load overview counts."
+              : "Overview counts are not available yet.";
     return (
       <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>
         <div className="lx-home-panel__head">
           <h2 className="lx-home-panel__title">Institute Overview</h2>
         </div>
+        <p className="px-1 pb-1 text-sm text-muted-foreground" role="status">
+          {unavailableCopy}
+        </p>
         <div className="lx-home-kpi-grid">
           {CELLS.map((cell) => {
             const Icon = cell.icon;
@@ -133,7 +157,7 @@ export function HomeOverview({
               <Link
                 key={cell.key}
                 to={cell.to}
-                className={`lx-home-kpi ${cell.accent}`}
+                className={`lx-home-kpi ${cell.accent} opacity-80`}
                 aria-label={`Open ${cell.label}`}
               >
                 <div className="lx-home-kpi__top">
@@ -143,7 +167,9 @@ export function HomeOverview({
                   <span className="lx-home-kpi__label">{cell.label}</span>
                   <ChevronRight className="lx-home-kpi__chevron size-3.5 shrink-0" aria-hidden />
                 </div>
-                <p className="lx-home-kpi__value">0</p>
+                <p className="lx-home-kpi__value text-muted-foreground text-base font-medium">
+                  —
+                </p>
               </Link>
             );
           })}

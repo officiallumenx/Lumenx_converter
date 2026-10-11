@@ -1,28 +1,35 @@
-import { keepPreviousData, useQuery, useQueryClient, type UseQueryOptions, type QueryKey } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  type UseQueryOptions,
+} from "@tanstack/react-query";
+import { instituteEnabled, useAdminQuery } from "./hooks-shared";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
   ADMIN_QUERY_CATALOG_STALE_TIME_MS,
   ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
 } from "./constants";
-import { asAdminQueryResult } from "./query-result";
-import {
-  adminModulePrefix,
-  adminQueryKeys,
-  adminQueryRoots,
-  adminScopePrefix,
-  type AdminQueryEntity,
-} from "./keys";
+import { adminQueryKeys } from "./keys";
 
 import {
   loadStudentDetail,
   loadStudentGuardians,
   loadStudentsList,
+  listStudentsPage,
+  studentDtosToListItems,
   type ListStudentsParams,
 } from "@/lib/students";
 import {
   loadTeachersList,
+  listTeachersPage,
+  teacherDtosToListItems,
   type ListTeachersParams,
 } from "@/lib/teachers";
+import {
+  listParentsPage,
+  parentDtosToListItems,
+  type ListParentsParams,
+} from "@/lib/parents";
 import { loadClassesList } from "@/lib/classes";
 import { listClassesCatalog } from "@/lib/classes/api";
 import { loadSubjectsList } from "@/lib/subjects";
@@ -34,7 +41,19 @@ import {
   loadStaffAttendanceSubmittedRange,
 } from "@/lib/staff-attendance";
 import { loadTimetableReadBundle } from "@/lib/timetable";
-import { loadMarksList } from "@/lib/marks";
+import {
+  listMarkEntriesPage,
+  loadMarksList,
+  markEntryDtosToListItems,
+  type MarksLookupMaps,
+} from "@/lib/marks";
+import { listExams } from "@/lib/exams/api";
+import { listTeachersCached } from "@/lib/directory-lists-cache";
+import {
+  ADMIN_CACHE_TTL_MS,
+  adminCacheKey,
+  cachedAdminFetch,
+} from "@/lib/admin-resource-cache";
 import { loadExamsList } from "@/lib/exams";
 import { loadHomeworkList } from "@/lib/homework";
 import { loadParentsList } from "@/lib/parents";
@@ -64,7 +83,6 @@ import {
 import { loadEventsList } from "@/lib/events";
 import { loadAnnouncementsList } from "@/lib/announcements";
 import { loadComplaintsList } from "@/lib/complaints";
-import { loadNotificationInboxList } from "@/lib/notification-inbox";
 import { loadDiaryDaysList } from "@/lib/diary";
 import { loadLeaveRequestsList } from "@/lib/leave";
 import { loadMessagesThreadList } from "@/lib/messages";
@@ -75,8 +93,6 @@ import {
   loadAdmissionsOpeningsList,
 } from "@/lib/admissions";
 import { loadCareersList, loadCareerJobsList } from "@/lib/careers";
-import { loadAcademicYearsList } from "@/lib/academic-years";
-import { loadDashboardSummary, loadDashboardWidgets, loadHomeBirthdaysToday, localYmd } from "@/lib/dashboard";
 import { loadSectionDetail } from "@/lib/classes";
 import { loadSubjectDetail } from "@/lib/subjects";
 import { loadEnrollmentsList } from "@/lib/enrollments";
@@ -92,43 +108,10 @@ import { listTeachers } from "@/lib/teachers/api";
 import { listStaffAccounts } from "@/lib/staff/api";
 import { loadMembershipsList } from "@/lib/identity";
 import type { MembershipStatus } from "@/lib/identity";
-import { loadInstituteProfile } from "@/lib/institutes";
 import { loadStorageUsage } from "@/lib/assets";
 import { loadReportsCatalog } from "@/lib/reports";
 import { loadTeacherPerformanceList } from "@/lib/teacher-performance";
 import { loadAlertRules } from "@/lib/alert-rules-api";
-
-function instituteEnabled(
-  instituteId: string | null | undefined,
-  enabled: boolean,
-): boolean {
-  return (
-    enabled && Boolean(instituteId) && isInstituteUuid(instituteId ?? "")
-  );
-}
-
-/** useQuery wrapper: convert loader `{ status: "error" }` payloads into thrown errors. */
-function useAdminQuery<
-  TQueryFnData,
-  TError = Error,
-  TData = TQueryFnData,
-  TQueryKey extends QueryKey = QueryKey,
->(
-  options: UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
-) {
-  const { queryFn, ...rest } = options;
-  return useQuery({
-    placeholderData: keepPreviousData,
-    ...rest,
-    queryFn: queryFn
-      ? async (ctx) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const raw = await (queryFn as any)(ctx);
-          return asAdminQueryResult(raw) as TQueryFnData;
-        }
-      : undefined,
-  });
-}
 
 function studentFiltersKey(
   filters: Omit<ListStudentsParams, "instituteId">,
@@ -151,24 +134,14 @@ function teacherFiltersKey(
   };
 }
 
-/** Invalidate a module root (all filters) for the active institute. */
-export function useInvalidateAdminQuery() {
-  const qc = useQueryClient();
-  return (root: AdminQueryEntity, instituteId?: string | null) => {
-    if (instituteId) {
-      void qc.invalidateQueries({
-        queryKey: adminModulePrefix(instituteId, root),
-      });
-      return;
-    }
-    void qc.invalidateQueries({ queryKey: adminScopePrefix() });
-  };
-}
-
 export function useStudentsListQuery(
   instituteId: string | null | undefined,
   filters: Omit<ListStudentsParams, "instituteId"> = {},
   enabled = true,
+  options?: {
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  },
 ) {
   const id = instituteId ?? "_";
   const filterKey = studentFiltersKey(filters);
@@ -177,6 +150,97 @@ export function useStudentsListQuery(
     queryFn: () => loadStudentsList(instituteId!, filters),
     enabled: instituteEnabled(instituteId, enabled),
     placeholderData: keepPreviousData,
+    ...options,
+  });
+}
+
+/** Cursor-paged directory feed — does not auto-fetch every page into memory. */
+export function useStudentsDirectoryInfiniteQuery(
+  instituteId: string | null | undefined,
+  filters: Omit<ListStudentsParams, "instituteId"> = {},
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  const filterKey = studentFiltersKey(filters);
+  return useInfiniteQuery({
+    queryKey: [...adminQueryKeys.students(id, filterKey), "infinite"] as const,
+    enabled: instituteEnabled(instituteId, enabled),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const page = await listStudentsPage({
+        instituteId: instituteId!,
+        ...filters,
+        cursor: pageParam,
+      });
+      return {
+        items: studentDtosToListItems(page.items),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      };
+    },
+    getNextPageParam: (last) =>
+      last.hasMore && last.nextCursor ? last.nextCursor : undefined,
+  });
+}
+
+export function useTeachersDirectoryInfiniteQuery(
+  instituteId: string | null | undefined,
+  filters: Pick<ListTeachersParams, "status" | "teachingScope" | "q"> = {},
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  const filterKey = teacherFiltersKey(filters);
+  return useInfiniteQuery({
+    queryKey: [...adminQueryKeys.teachers(id, filterKey), "infinite"] as const,
+    enabled: instituteEnabled(instituteId, enabled),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const page = await listTeachersPage({
+        instituteId: instituteId!,
+        ...filters,
+        cursor: pageParam,
+      });
+      return {
+        items: teacherDtosToListItems(page.items),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      };
+    },
+    getNextPageParam: (last) =>
+      last.hasMore && last.nextCursor ? last.nextCursor : undefined,
+  });
+}
+
+export function useParentsDirectoryInfiniteQuery(
+  instituteId: string | null | undefined,
+  filters: Omit<ListParentsParams, "instituteId"> = {},
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useInfiniteQuery({
+    queryKey: [
+      ...adminQueryKeys.parents(id),
+      "infinite",
+      filters.q ?? null,
+      filters.inviteStatus ?? null,
+      filters.accessStatus ?? null,
+    ] as const,
+    enabled: instituteEnabled(instituteId, enabled),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const page = await listParentsPage({
+        instituteId: instituteId!,
+        ...filters,
+        cursor: pageParam,
+      });
+      return {
+        items: parentDtosToListItems(page.items),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      };
+    },
+    getNextPageParam: (last) =>
+      last.hasMore && last.nextCursor ? last.nextCursor : undefined,
   });
 }
 
@@ -258,6 +322,10 @@ export function useFeesSnapshotQuery(
   instituteId: string | null | undefined,
   academicYearId?: string | null,
   enabled = true,
+  options?: {
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  },
 ) {
   const id = instituteId ?? "_";
   const yearKey = academicYearId ?? "_";
@@ -267,6 +335,7 @@ export function useFeesSnapshotQuery(
     enabled:
       instituteEnabled(instituteId, enabled) &&
       (academicYearId === undefined || Boolean(academicYearId)),
+    ...options,
   });
 }
 
@@ -346,6 +415,67 @@ export function useMarksListQuery(
     queryKey: adminQueryKeys.marks(id),
     queryFn: () => loadMarksList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+  });
+}
+
+/** Catalog maps for marks rows — cached so each infinite page does not re-list exams/subjects/teachers. */
+async function loadMarksLookupsForPage(
+  instituteId: string,
+): Promise<MarksLookupMaps> {
+  return cachedAdminFetch(
+    adminCacheKey("marks-lookups", instituteId),
+    async () => {
+      const [exams, subjects, teacherDtos, catalog] = await Promise.all([
+        listExams({ instituteId }).catch(() => []),
+        listSubjects({ instituteId }).catch(() => []),
+        listTeachersCached(instituteId).catch(() => []),
+        listClassesCatalog({ instituteId }).catch(() => ({
+          classes: [],
+          sections: [],
+        })),
+      ]);
+      const teachers = teacherDtosToListItems(teacherDtos);
+      return {
+        examsById: new Map(exams.map((exam) => [exam.id, exam])),
+        subjectsById: new Map(subjects.map((subject) => [subject.id, subject])),
+        teachersById: new Map(teachers.map((teacher) => [teacher.id, teacher])),
+        classesById: new Map(catalog.classes.map((cls) => [cls.id, cls])),
+        sectionsById: new Map(
+          catalog.sections.map((section) => [section.id, section]),
+        ),
+      };
+    },
+    { ttlMs: ADMIN_CACHE_TTL_MS },
+  );
+}
+
+/** Incremental marks entries for the review screen (reports keep listMarkEntries full walk). */
+export function useMarksEntriesInfiniteQuery(
+  instituteId: string | null | undefined,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useInfiniteQuery({
+    queryKey: [...adminQueryKeys.marks(id), "infinite"] as const,
+    enabled: instituteEnabled(instituteId, enabled),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      // Lookups resolve from cache after the first page; only entries page hits the network.
+      const [page, lookups] = await Promise.all([
+        listMarkEntriesPage({
+          instituteId: instituteId!,
+          cursor: pageParam,
+        }),
+        loadMarksLookupsForPage(instituteId!),
+      ]);
+      return {
+        items: markEntryDtosToListItems(page.items, lookups),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      };
+    },
+    getNextPageParam: (last) =>
+      last.hasMore && last.nextCursor ? last.nextCursor : undefined,
   });
 }
 
@@ -572,12 +702,17 @@ export function useTransportReviewQueueQuery(
 export function useDocumentsHubQuery(
   instituteId: string | null | undefined,
   enabled = true,
+  options?: {
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  },
 ) {
   const id = instituteId ?? "_";
   return useAdminQuery({
     queryKey: adminQueryKeys.documents(id, "hub"),
     queryFn: () => loadDocumentsHubSummary(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+    ...options,
   });
 }
 
@@ -641,21 +776,6 @@ export function useComplaintsListQuery(
   });
 }
 
-export function useNotificationsListQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.notifications(id),
-    queryFn: () => loadNotificationInboxList(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
-    refetchOnWindowFocus: true,
-    refetchInterval: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
-  });
-}
-
 export function useDiaryDaysQuery(
   instituteId: string | null | undefined,
   enabled = true,
@@ -712,12 +832,17 @@ export function useCalendarListQuery(
 export function useAdmissionsListQuery(
   instituteId: string | null | undefined,
   enabled = true,
+  options?: {
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  },
 ) {
   const id = instituteId ?? "_";
   return useAdminQuery({
     queryKey: adminQueryKeys.admissions(id, "list"),
     queryFn: () => loadAdmissionsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+    ...options,
   });
 }
 
@@ -766,117 +891,6 @@ export function useCareerJobsQuery(
     queryKey: adminQueryKeys.careers(id, "jobs"),
     queryFn: () => loadCareerJobsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
-  });
-}
-
-export function useCatalogClassesQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.catalogClasses(id),
-    queryFn: () => listClassesCatalog({ instituteId: instituteId! }),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
-  });
-}
-
-export function useCatalogSubjectsQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.catalogSubjects(id),
-    queryFn: () => listSubjects({ instituteId: instituteId! }),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
-  });
-}
-
-export function useCatalogYearsQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  // Share the academic-years list cache — one GET for Home, lock sync, and catalogs.
-  return useAdminQuery({
-    queryKey: adminQueryKeys.academicYears(id),
-    queryFn: () => loadAcademicYearsList(instituteId!),
-    select: (data) => data.items,
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
-  });
-}
-
-export function useAcademicYearsListQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.academicYears(id),
-    queryFn: () => loadAcademicYearsList(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
-  });
-}
-
-export function useHomeSummaryQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.homeSummary(id),
-    queryFn: () => loadDashboardSummary(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
-  });
-}
-
-export function useHomeWidgetsQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  // Local calendar day in the key so yesterday's empty birthday board cannot
-  // stick under the 7-day default stale window / IndexedDB restore.
-  const dayYmd = localYmd();
-  return useAdminQuery({
-    queryKey: adminQueryKeys.homeWidgets(id, dayYmd),
-    queryFn: () => loadDashboardWidgets(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
-  });
-}
-
-/** Today's student/teacher birthdays — month+day match, fresh each calendar day. */
-export function useHomeBirthdaysQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  const dayYmd = localYmd();
-  return useAdminQuery({
-    queryKey: adminQueryKeys.homeBirthdays(id, dayYmd),
-    queryFn: () => loadHomeBirthdaysToday(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
-    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
-    // Share directory cache with widgets/setup — don't force a second burst on every mount.
-    refetchOnMount: true,
-    retry: (failureCount, error) => {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as { code: string }).code === "RATE_LIMITED"
-      ) {
-        return failureCount < 2;
-      }
-      return failureCount < 1;
-    },
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 }
 
@@ -1051,18 +1065,6 @@ export function useAccountsMembershipsQuery(
       ),
     enabled: instituteEnabled(instituteId, enabled),
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useInstituteProfileQuery(
-  instituteId: string | null | undefined,
-  enabled = true,
-) {
-  const id = instituteId ?? "_";
-  return useAdminQuery({
-    queryKey: adminQueryKeys.instituteProfile(id),
-    queryFn: () => loadInstituteProfile(instituteId!),
-    enabled: instituteEnabled(instituteId, enabled),
   });
 }
 

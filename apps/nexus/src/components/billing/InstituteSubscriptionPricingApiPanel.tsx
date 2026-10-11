@@ -150,12 +150,35 @@ export function InstituteSubscriptionPricingApiPanel({
           </Field>
         </FormGrid>
 
-        {sub?.currentPeriod ? (
-          <p className="text-xs text-muted-foreground">
-            Current period {sub.currentPeriod.startsAt.slice(0, 10)} →{" "}
-            {sub.currentPeriod.endsAt.slice(0, 10)} · payable{" "}
-            {formatInr(sub.currentPeriod.payableAmountInr)}
-          </p>
+        {sub ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
+            <div>
+              <div className="font-medium text-foreground">Trial starts</div>
+              {sub.trialStartAt ? sub.trialStartAt.slice(0, 10) : "—"}
+            </div>
+            <div>
+              <div className="font-medium text-foreground">Trial ends</div>
+              {sub.trialEndAt ? sub.trialEndAt.slice(0, 10) : "—"}
+            </div>
+            <div>
+              <div className="font-medium text-foreground">Grace ends</div>
+              {sub.graceEndsAt ? sub.graceEndsAt.slice(0, 10) : "—"}
+            </div>
+            {sub.currentPeriod ? (
+              <div className="col-span-2 sm:col-span-3">
+                <div className="font-medium text-foreground">Paid period</div>
+                {sub.currentPeriod.startsAt.slice(0, 10)} →{" "}
+                {sub.currentPeriod.endsAt.slice(0, 10)} · payable{" "}
+                {formatInr(sub.currentPeriod.payableAmountInr)} · payment verified
+                offline by Nexus
+              </div>
+            ) : (
+              <div className="col-span-2 sm:col-span-3">
+                No paid period · institute renews via Admin offline payment; Nexus
+                verifies before activation.
+              </div>
+            )}
+          </div>
         ) : null}
 
         <Button disabled={saving} onClick={() => void onSave()}>

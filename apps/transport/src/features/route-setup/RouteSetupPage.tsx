@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Lock, Plus } from "lucide-react";
+import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { DriverAssignmentGate } from "@/components/app/driver-assignment-state";

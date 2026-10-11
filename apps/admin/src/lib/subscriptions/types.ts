@@ -54,6 +54,8 @@ export type InstituteSubscriptionDetailDto = {
   instituteName: string;
   subscriptionId: string | null;
   lifecycleStatus: string;
+  derivedLifecycleStatus: string;
+  accessMode: "full" | "grace" | "read_only";
   assignedRateInr: number;
   activeStudentCount: number;
   trialStartAt: string | null;

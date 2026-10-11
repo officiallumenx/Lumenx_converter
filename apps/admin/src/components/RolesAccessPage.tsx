@@ -143,7 +143,7 @@ function RolesAccessDemoPage() {
         subtitle="Create institute roles, assign users, and control which Admin modules they can open"
       />
       {message && (
-        <div className="mb-5 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3 text-xs">
+        <div className="mb-5 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs">
           <span>{message}</span>
           <button onClick={() => setMessage(null)} className="text-muted-foreground hover:text-foreground">
             Dismiss
@@ -242,7 +242,7 @@ function RolesAccessDemoPage() {
                     type="button"
                     title="Manage assigned teachers"
                     onClick={() => setManagingRole(role)}
-                    className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20"
+                    className="flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                   >
                     <UserPlus className="size-3.5" />
                   </button>
@@ -440,7 +440,7 @@ function RoleTeacherManager({
               key={assignee.id}
               className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-3"
             >
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-foreground">
                 {assignee.name
                   .split(/\s+/)
                   .map((part) => part[0])

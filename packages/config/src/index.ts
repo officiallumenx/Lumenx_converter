@@ -39,6 +39,7 @@ export {
   readNexusConnectEntitlements,
   readNexusAppEntitlements,
   applyNexusEntitlementCeiling,
+  isNexusModuleGranted,
   NEXUS_OPT_IN_ADMIN_MODULES,
   subscribeNexusLicenseChanges,
 } from "./nexus-entitlement";

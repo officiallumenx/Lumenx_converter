@@ -900,7 +900,7 @@ function InstituteProfilePhoto({
 
   return (
     <div className="flex flex-col items-center gap-3 pb-1">
-      <div className="relative size-32 rounded-2xl border-2 border-border bg-muted/20 overflow-hidden shadow-elevated">
+      <div className="relative size-32 overflow-hidden rounded-2xl border-2 border-border bg-muted/20 shadow-xs">
         {photoUrl ? (
           <img
             src={photoUrl}
@@ -908,7 +908,7 @@ function InstituteProfilePhoto({
             className="size-full object-cover"
           />
         ) : (
-          <div className="size-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-muted text-primary px-3">
+          <div className="flex size-full flex-col items-center justify-center bg-muted px-3 text-foreground">
             <span className="text-3xl font-bold tracking-tight">{instituteInitials(name)}</span>
             {logoLabel ? (
               <span className="text-[10px] text-muted-foreground mt-2 text-center line-clamp-2 leading-snug">

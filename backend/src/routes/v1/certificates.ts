@@ -21,6 +21,11 @@ import {
   listCertificateRecommendationsForActor,
   updateCertificateRecommendationForActor,
 } from "../../domains/certificates/recommendations-service.js";
+import {
+  getPlatformCertificateTemplateForActor,
+  getPlatformCertificateTemplateSignedUrlForActor,
+  listPublishedPlatformCertificateTemplatesForAdmin,
+} from "../../domains/platform-certificate-templates/service.js";
 import certificatesPublic from "./certificates-public.js";
 
 const certificates = new Hono<AppBindings>();
@@ -147,6 +152,44 @@ certificates.get("/lookup", async (c) => {
     actor,
     query.institute_id,
     query.certificate_number,
+  );
+  return c.json({ data });
+});
+
+/** Published platform PPTX templates for Admin (drafts/archived excluded). */
+certificates.get("/platform-templates", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const data = await listPublishedPlatformCertificateTemplatesForAdmin(
+    admin,
+    actor,
+  );
+  return c.json({ data });
+});
+
+certificates.get("/platform-templates/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getPlatformCertificateTemplateForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+certificates.get("/platform-templates/:id/signed-url", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const query = validateQuery(
+    z.object({
+      expires_in: z.coerce.number().int().min(60).max(86_400).optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await getPlatformCertificateTemplateSignedUrlForActor(
+    admin,
+    actor,
+    id,
+    query.expires_in,
   );
   return c.json({ data });
 });

@@ -24,9 +24,11 @@ export {
   buildNeedsAttentionItems,
   attentionTotalCount,
   attentionSeverityClass,
+  resolveAttentionDisplayMode,
   type AttentionItem,
   type AttentionSeverity,
   type AttentionInput,
+  type AttentionDisplayMode,
 } from "./attention";
 export {
   loadDashboardWidgets,
@@ -37,3 +39,16 @@ export {
   type MarksPendingRow,
   type WidgetSlice,
 } from "./load-widgets";
+export {
+  ATTENDANCE_TODAY_UNAVAILABLE_REASON,
+  buildAttendanceTodayMetrics,
+  buildFeeCollectionMetrics,
+  compactInrAmount,
+  countAdmissionApplicationsRequiringAction,
+  countPendingAdmissionApplications,
+  FEE_OVERDUE_UNAVAILABLE_REASON,
+  insightMetricFromHub,
+  insightMetricFromWidgetCount,
+  PENDING_ADMISSION_STATUSES,
+  type InsightMetricState,
+} from "./insight-metrics";

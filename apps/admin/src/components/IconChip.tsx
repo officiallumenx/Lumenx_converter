@@ -1,6 +1,6 @@
 /** ─────────────────────────────────────────────────────────────
  *  LumenX Admin — IconChip
- *  Module-colored chip with a light gloss highlight.
+ *  Solid module-accent chips (readable in light and dark).
  * ───────────────────────────────────────────────────────────── */
 
 import type { CSSProperties } from "react";
@@ -50,9 +50,11 @@ export function IconChip({
       : variantClass[variant];
 
   const style: CSSProperties | undefined = accent
-    ? active
-      ? { backgroundColor: accent.primary, color: "#FFFFFF" }
-      : { backgroundColor: accent.iconBackground, color: accent.primary }
+    ? {
+        // Active uses brand blue; inactive keeps the module accent solid (no pastel wash).
+        backgroundColor: active ? "#2563EB" : accent.primary,
+        color: "#FFFFFF",
+      }
     : undefined;
 
   return (

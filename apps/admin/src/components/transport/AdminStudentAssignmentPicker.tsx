@@ -85,8 +85,10 @@ export function AdminStudentAssignmentPicker({ selectedIds, onChange, disabled }
               type="button"
               disabled={disabled}
               onClick={() => toggle(s.id)}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
-                on ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/50"
+              className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs ${
+                on
+                  ? "border-primary/40 bg-primary/[0.06] shadow-xs"
+                  : "border-transparent hover:bg-muted/50"
               }`}
             >
               <span

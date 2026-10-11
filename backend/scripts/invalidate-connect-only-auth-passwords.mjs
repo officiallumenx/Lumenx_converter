@@ -50,13 +50,12 @@
  * Never prints passwords or secrets.
  */
 
-import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { assertRemoteWriteAck } from "./assert-remote-write-ack.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
 
-loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+loadLumenxDotenv();
 
 function requireEnv(name) {
   const v = process.env[name]?.trim();
@@ -65,6 +64,11 @@ function requireEnv(name) {
 }
 
 const APPLY = process.argv.includes("--apply");
+if (APPLY) {
+  assertRemoteWriteAck(process.env, {
+    purpose: "auth:invalidate-connect-passwords --apply",
+  });
+}
 const SUPABASE_URL = requireEnv("SUPABASE_URL");
 const SUPABASE_SERVICE = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 

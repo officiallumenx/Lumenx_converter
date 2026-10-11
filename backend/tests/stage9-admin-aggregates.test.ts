@@ -374,7 +374,8 @@ describe("stage 9 admin aggregates", () => {
     const body = await json(res);
     expect(body.data.plan).toBe("plus");
     expect(body.data.status).toBe("active");
-    expect(body.data.studentLimit).toBe(250);
+    // studentLimit is server-synced billable headcount (no active enrollments in fixture → 0)
+    expect(body.data.studentLimit).toBe(0);
     expect(body.data.modules.analytics).toBe(true);
     expect(body.data.modules.fees).toBe(false);
   });

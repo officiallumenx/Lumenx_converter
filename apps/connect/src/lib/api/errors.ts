@@ -1,5 +1,10 @@
 /** Normalized API client errors (backend envelope fields only). */
 
+import {
+  formatSubscriptionWriteBlockedMessage,
+  isSubscriptionWriteBlockedError,
+} from "@lumenx/utils";
+
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHENTICATED"
@@ -64,3 +69,19 @@ export function normalizeApiError(
     details: parsed?.error?.details,
   });
 }
+
+/** Prefer server subscription write-gate copy when present. */
+export function formatApiClientError(err: unknown, fallback: string): string {
+  if (isSubscriptionWriteBlockedError(err)) {
+    return formatSubscriptionWriteBlockedMessage(err, fallback);
+  }
+  if (err instanceof ApiClientError && err.message.trim()) {
+    return err.message;
+  }
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+  return fallback;
+}
+
+export { isSubscriptionWriteBlockedError, formatSubscriptionWriteBlockedMessage };

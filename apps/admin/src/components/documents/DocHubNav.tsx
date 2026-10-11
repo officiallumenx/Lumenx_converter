@@ -1,38 +1,52 @@
 import { Link } from "@tanstack/react-router";
 import { IconChip } from "@/components/IconChip";
-import type { DocHubView } from "@/routes/documents";
 import {
-  LayoutDashboard,
-  Inbox,
-  Package,
+  DOC_HUB_DEMO_EXTRA_NAV,
+  DOC_HUB_PRIMARY_NAV,
+  type DocHubView,
+} from "@/lib/documents/doc-hub-views";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  Archive,
   FileText,
-  FolderCheck,
-  Globe,
+  FolderOpen,
+  LayoutDashboard,
+  Package,
   PenLine,
-  Tags,
+  Inbox,
   Settings,
+  Tags,
   Wand2,
+  Users,
 } from "lucide-react";
 
-const NAV: { view: DocHubView; label: string; short: string; icon: typeof LayoutDashboard; highlight?: boolean }[] = [
-  { view: "dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard },
-  { view: "requests", label: "Requests", short: "Requests", icon: Inbox },
-  { view: "packages", label: "Packages", short: "Packages", icon: Package },
-  { view: "templates", label: "Templates", short: "Templates", icon: FileText },
-  { view: "generate", label: "Generate", short: "Generate", icon: Wand2, highlight: true },
-  { view: "generated", label: "Generated", short: "Generated", icon: FolderCheck },
-  { view: "published", label: "Published", short: "Published", icon: Globe },
-  { view: "signatures", label: "Signatures", short: "Sigs", icon: PenLine },
-  { view: "categories", label: "Categories", short: "Cats", icon: Tags },
-  { view: "settings", label: "Settings", short: "Settings", icon: Settings },
-];
+const ICONS: Record<DocHubView, typeof LayoutDashboard> = {
+  overview: LayoutDashboard,
+  official: Wand2,
+  "student-docs": Users,
+  templates: FileText,
+  archive: Archive,
+  requests: Inbox,
+  packages: Package,
+  signatures: PenLine,
+  categories: Tags,
+  settings: Settings,
+};
 
 export function DocHubNav({ active }: { active: DocHubView }) {
+  const apiMode = isApiAuthMode();
+  const items = apiMode
+    ? DOC_HUB_PRIMARY_NAV
+    : [...DOC_HUB_PRIMARY_NAV, ...DOC_HUB_DEMO_EXTRA_NAV];
+
   return (
     <div className="mb-3 sm:mb-6 relative">
       <div className="-mx-1 px-1 overflow-x-auto lx-sidebar-scroll">
-        <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max bg-muted/40 rounded-xl border border-border/60">
-          {NAV.map(({ view, label, short, icon: Icon, highlight }) => {
+        <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max rounded-xl border border-border bg-card">
+          {items.map((item) => {
+            const { view, label, short } = item;
+            const highlight = "highlight" in item ? item.highlight : false;
+            const Icon = ICONS[view] ?? FolderOpen;
             const isActive = active === view;
             return (
               <Link
@@ -40,12 +54,13 @@ export function DocHubNav({ active }: { active: DocHubView }) {
                 to="/documents"
                 search={{ view }}
                 title={label}
-                className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all duration-150 ${
+                aria-current={isActive ? "page" : undefined}
+                className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors duration-150 ${
                   isActive
-                    ? "bg-background text-foreground shadow-sm border border-border/50 ring-1 ring-border/20"
+                    ? "bg-muted/70 text-foreground border border-border shadow-xs"
                     : highlight
-                      ? "text-primary hover:text-primary hover:bg-primary/8 font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/70"
+                      ? "border border-transparent text-primary hover:text-primary hover:bg-primary/8 font-semibold"
+                      : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-surface-hover"
                 }`}
               >
                 <IconChip
@@ -56,17 +71,14 @@ export function DocHubNav({ active }: { active: DocHubView }) {
                 />
                 <span className="hidden lg:inline">{label}</span>
                 <span className="lg:hidden text-[10px]">{short}</span>
-                {highlight && !isActive && (
+                {highlight && !isActive ? (
                   <span className="hidden sm:inline-block size-1.5 rounded-full bg-primary/60 ml-0.5" />
-                )}
+                ) : null}
               </Link>
             );
           })}
         </div>
       </div>
-      {/* Scroll fade indicators */}
-      <div className="absolute left-0 top-1 bottom-1 w-6 bg-gradient-to-r from-background to-transparent pointer-events-none rounded-l-xl" aria-hidden />
-      <div className="absolute right-0 top-1 bottom-1 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none rounded-r-xl" aria-hidden />
     </div>
   );
 }

@@ -33,7 +33,12 @@ export type InstituteSubscriptionDetailDto = {
   instituteId: string;
   instituteName: string;
   subscriptionId: string | null;
+  /** Stored lifecycle_status column (may lag until worker sync). */
   lifecycleStatus: string;
+  /** Live derived lifecycle from dates + current period. */
+  derivedLifecycleStatus: string;
+  /** full | grace | read_only — write permission mode. */
+  accessMode: "full" | "grace" | "read_only";
   assignedRateInr: number;
   activeStudentCount: number;
   trialStartAt: string | null;

@@ -455,7 +455,7 @@ function CareersPage() {
     >
       <ModuleHero eyebrow="Services" title="Careers" subtitle={pageSubtitle} />
       <div className="space-y-4">
-        <Card className="overflow-hidden border-primary/20 bg-primary/[0.03]">
+        <Card className="overflow-hidden border-border bg-muted/40">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 space-y-1.5">
               <div className="text-xs font-semibold text-foreground">
@@ -551,9 +551,11 @@ function CareersPage() {
         ) : null}
 
         {!listView.rowsValid ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            {listHint ?? "Loading career applications…"}
-          </div>
+          <Card>
+            <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+              {listHint ?? "Loading career applications…"}
+            </div>
+          </Card>
         ) : (
         <>
         <KpiGrid cols={4}>

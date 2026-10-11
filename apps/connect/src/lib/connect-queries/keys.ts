@@ -1,6 +1,8 @@
 /**
  * Canonical Connect TanStack Query keys.
  * Always include instituteId (and child/teacher/section where scoped).
+ * Callers must wrap with scopedConnectKey(userId, key) so the authenticated
+ * user id sits after the root — see scope.ts.
  */
 
 export const connectQueryRoots = {

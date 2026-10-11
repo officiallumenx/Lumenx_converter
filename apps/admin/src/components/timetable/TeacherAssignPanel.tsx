@@ -94,8 +94,8 @@ export function TeacherAssignPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
-        <Users className="size-4 text-primary shrink-0 mt-0.5" />
+      <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+        <Users className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="text-[11px] text-muted-foreground leading-relaxed">
           <span className="font-medium text-foreground">Subject plan</span> — pick a teacher for
           each subject (full staff list). Saving applies those teachers to periods already on the

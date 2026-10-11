@@ -17,28 +17,11 @@ import {
   listEmergencies,
   listTrips,
 } from "../transport/ops-repository.js";
+import { reportFileStamp, toCsv } from "./csv.js";
 import type { GeneratedReportFile } from "./types.js";
 
-function esc(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function toCsv(
-  headers: string[],
-  rows: Array<Array<string | null | undefined>>,
-): string {
-  const lines = [
-    headers.map(esc).join(","),
-    ...rows.map((row) =>
-      row.map((cell) => esc(cell == null ? "" : String(cell))).join(","),
-    ),
-  ];
-  return `${lines.join("\n")}\n`;
-}
-
 function stamp(reportId: string): string {
-  const d = new Date().toISOString().slice(0, 10);
-  return `${reportId}-${d}.csv`;
+  return reportFileStamp(reportId);
 }
 
 export async function generateTransportOpsReportCsv(

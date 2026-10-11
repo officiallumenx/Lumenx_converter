@@ -213,7 +213,7 @@ export function finalizeAttendanceForActiveTrip() {
 
 export async function hydrateAttendanceFromApi(): Promise<void> {
   const trip = getTripSessionSnapshot();
-  if (!trip.tripId) {
+  if (!trip?.tripId) {
     students = createRosterBase();
     emit();
     return;

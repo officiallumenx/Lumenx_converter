@@ -174,6 +174,26 @@ export async function syncParkingStopToApi(
   })) as StopDto;
 }
 
+/**
+ * Allocate a free API route_order. Local UI uses 1..n for waypoints and 10000 for
+ * school; subtracting 1 collided with Admin school stops that already occupy
+ * route_order 1 in the API (409 CONFLICT).
+ */
+async function nextFreeRouteOrder(
+  routeId: string,
+  excludeStopId?: string | null,
+): Promise<number> {
+  const existing = await listTransportStops({ routeId });
+  let maxOrder = -1;
+  for (const row of existing) {
+    if (excludeStopId && row.id === excludeStopId) continue;
+    if (typeof row.routeOrder === "number" && Number.isFinite(row.routeOrder)) {
+      maxOrder = Math.max(maxOrder, row.routeOrder);
+    }
+  }
+  return maxOrder + 1;
+}
+
 /** Push a pending stop and its student enrollments to the transport API. */
 export async function syncStopAndEnrollmentsToApi(
   scope: RouteSetupDriverScope,
@@ -192,6 +212,7 @@ export async function syncStopAndEnrollmentsToApi(
 
   let apiStopId = stop.apiStopId ?? null;
   if (!apiStopId) {
+    const routeOrder = await nextFreeRouteOrder(scope.routeId);
     const created = (await submitTransportStop({
       instituteId: scope.instituteId,
       routeId: scope.routeId,
@@ -199,17 +220,24 @@ export async function syncStopAndEnrollmentsToApi(
       locationLabel: stop.locationLabel,
       latitude: stop.latitude,
       longitude: stop.longitude,
-      routeOrder: Math.max(0, stop.routeOrder - 1),
+      routeOrder,
       notificationRadiusM: stop.notificationRadiusM,
     })) as StopDto;
     apiStopId = created.id;
   } else if (isUuid(apiStopId)) {
+    // Keep the persisted API order on edit/resubmit — do not remap from local index.
+    const existingRows = await listTransportStops({ routeId: scope.routeId });
+    const existingOrder = existingRows.find((s) => s.id === apiStopId)?.routeOrder;
+    const routeOrder =
+      typeof existingOrder === "number" && Number.isFinite(existingOrder)
+        ? existingOrder
+        : await nextFreeRouteOrder(scope.routeId, apiStopId);
     await updateTransportStop(apiStopId, {
       name: stop.name,
       locationLabel: stop.locationLabel,
       latitude: stop.latitude,
       longitude: stop.longitude,
-      routeOrder: Math.max(0, stop.routeOrder - 1),
+      routeOrder,
       notificationRadiusM: stop.notificationRadiusM,
     });
   }

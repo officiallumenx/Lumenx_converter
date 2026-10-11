@@ -14,6 +14,7 @@ export type TemplateSource = "system" | "custom" | "imported";
 
 export type TemplatePreviewAspect = "a4" | "id_card" | "letter";
 
+/** Documents templates use blocks/visual only; PPTX lives in platform-certificate-templates. */
 export type TemplateLayoutMode = "blocks" | "visual";
 
 export type GeneratedDocumentStatus = "ready" | "archived";

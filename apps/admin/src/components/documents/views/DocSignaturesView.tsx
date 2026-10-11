@@ -142,7 +142,7 @@ function SignaturePreview({
 
 function DigitalSignaturePanel() {
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-background p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
       <div className="flex items-center gap-2">
         <IconChip icon={ShieldCheck} size="xs" />
         <div>

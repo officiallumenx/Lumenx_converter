@@ -28,6 +28,8 @@ build/
 .env.*
 !.env.example
 !.env.production
+!.env.staging.example
+!backend/.env.staging.example
 *.local
 
 # Firebase Android client configs (drop in locally / CI secrets — do not commit)
@@ -67,6 +69,12 @@ coverage/
 .nyc_output/
 playwright-report/
 test-results/
+e2e/transport/.fixture.json
+qa-artifacts/pw-*.png
+qa-artifacts/pending-hold/
+
+# Local theme / screenshot verification dumps (do not commit binaries)
+apps/admin/.theme-verify-*/
 
 # ─── Temp ───────────────────────────────────────────────────────────────────
 tmp/

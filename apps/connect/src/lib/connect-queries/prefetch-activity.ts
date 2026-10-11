@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { activityRepository } from "@/lib/activity/repositories";
 import { warmActivityApiSession } from "@/hooks/use-activity-api-session";
 import { connectQueryKeys } from "./keys";
+import { scopedConnectKey } from "./scope";
 
 /**
  * Warm Activity Workspace dashboard + hierarchy/session caches when activity
@@ -9,10 +10,14 @@ import { connectQueryKeys } from "./keys";
  */
 export function prefetchActivityModuleQueries(
   queryClient: QueryClient,
+  userId: string,
   instituteId: string,
 ): void {
   void queryClient.prefetchQuery({
-    queryKey: connectQueryKeys.activityWorkspace(instituteId),
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.activityWorkspace(instituteId),
+    ),
     queryFn: () => activityRepository.getDashboard(),
   });
 

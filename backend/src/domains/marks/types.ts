@@ -104,6 +104,10 @@ export type ListMarkEntriesFilter = {
   subjectId?: string;
   teacherId?: string;
   status?: MarkEntryStatus;
+  /** Page size (default 100, max 200). */
+  limit?: number;
+  /** Opaque id cursor from a prior page (`next_cursor`). */
+  cursor?: string | null;
 };
 
 export type WorkflowNoteInput = {

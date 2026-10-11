@@ -12,10 +12,15 @@ function queryKeyLooksLikeSignedUrl(queryKey: readonly unknown[]): boolean {
   );
 }
 
+function queryKeyLooksLikeInfinite(queryKey: readonly unknown[]): boolean {
+  return queryKey.some((part) => part === "infinite");
+}
+
 /**
  * Soft refresh: invalidate active Admin queries for the institute (or whole
  * Admin scope when institute unknown). Skips signed-url photo keys so resume
- * does not force mass re-sign + image re-download.
+ * does not force mass re-sign + image re-download. Skips infinite directory
+ * pages so app-resume does not re-walk students/teachers/parents/marks lists.
  */
 export function invalidateAdminSoftRefresh(
   queryClient: QueryClient,
@@ -29,7 +34,9 @@ export function invalidateAdminSoftRefresh(
     .invalidateQueries({
       queryKey: baseKey,
       refetchType: "active",
-      predicate: (query) => !queryKeyLooksLikeSignedUrl(query.queryKey),
+      predicate: (query) =>
+        !queryKeyLooksLikeSignedUrl(query.queryKey) &&
+        !queryKeyLooksLikeInfinite(query.queryKey),
     })
     .then(() => undefined);
 }

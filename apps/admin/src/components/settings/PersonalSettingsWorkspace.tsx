@@ -168,7 +168,7 @@ function ProfileTabDemo() {
         <div className="px-5 pb-5">
           <div className="flex items-center gap-5 py-4 border-b border-border mb-1">
             <div className="relative group">
-              <div className="size-16 rounded-full bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center text-xl font-bold text-primary-foreground select-none">
+              <div className="flex size-16 select-none items-center justify-center rounded-full border border-border bg-muted text-xl font-bold text-foreground">
                 {initials}
               </div>
               <button
@@ -281,15 +281,15 @@ function AppearanceTab() {
                   key={id}
                   type="button"
                   onClick={() => set(id)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-colors ${
                     active
-                      ? "border-primary bg-primary/8"
-                      : "border-border hover:border-border-strong bg-surface"
+                      ? "border-border bg-muted/40 shadow-xs"
+                      : "border-border bg-surface hover:bg-surface-hover"
                   }`}
                 >
-                  <IconChip icon={Icon} size="sm" variant="brand" active={active} />
+                  <IconChip icon={Icon} size="sm" variant="soft" active={active} />
                   <span className="text-xs font-medium">{label}</span>
-                  {active ? <span className="size-1.5 rounded-full bg-primary" /> : null}
+                  {active ? <span className="size-1.5 rounded-full bg-foreground" /> : null}
                 </button>
               );
             })}
@@ -307,10 +307,10 @@ function AppearanceTab() {
                 type="button"
                 onClick={() => setColorScheme(c.id)}
                 title={c.label}
-                className={`size-8 rounded-full border-2 transition-all ${
+                className={`size-8 rounded-full border-2 transition-colors ${
                   colorScheme === c.id
-                    ? "border-foreground scale-110"
-                    : "border-transparent hover:scale-105"
+                    ? "border-foreground"
+                    : "border-transparent hover:border-border-strong"
                 }`}
                 style={{ backgroundColor: c.hex }}
               >
@@ -333,14 +333,17 @@ function AppearanceTab() {
             label="Interface density"
             hint="Compact fits more; comfortable gives more breathing room"
           >
-            <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            <div className="flex w-fit items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs text-xs">
               {(["compact", "default", "comfortable"] as const).map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => setDensity(d)}
-                  className={`px-3 py-1.5 capitalize transition-colors ${
-                    density === d ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover"
+                  aria-pressed={density === d}
+                  className={`rounded-lg border px-3 py-1.5 capitalize transition-colors ${
+                    density === d
+                      ? "border-border bg-muted/70 text-foreground shadow-xs"
+                      : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
                   }`}
                 >
                   {d}
@@ -484,22 +487,25 @@ export function PersonalSettingsWorkspace() {
 
   return (
     <PageStack>
-      <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-              tab === id
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
-            }`}
-          >
-            <IconChip icon={Icon} size="xs" variant="soft" active={tab === id} />
-            {label}
-          </button>
-        ))}
+      <div className="lx-segmented-scroll overflow-x-auto pb-1 -mb-1">
+        <div className="flex w-max max-w-full items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              aria-pressed={tab === id}
+              className={`group flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                tab === id
+                  ? "border-border bg-muted/70 text-foreground shadow-xs"
+                  : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+              }`}
+            >
+              <IconChip icon={Icon} size="xs" variant="soft" active={tab === id} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>

@@ -123,8 +123,8 @@ export function ExamTimetableTable({
     : slots;
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden bg-surface shadow-sm">
-      <div className="relative border-b border-border bg-gradient-to-b from-primary/8 to-transparent px-6 py-5 text-center">
+    <div className="rounded-xl border border-border overflow-hidden bg-card shadow-xs">
+      <div className="relative border-b border-border bg-card px-6 py-5 text-center">
         {!readOnly && onQuickEdit && !editing ? (
           <div className="absolute right-4 top-4">
             <Button size="sm" variant="outline" onClick={beginEdit}>

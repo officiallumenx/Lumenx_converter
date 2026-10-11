@@ -98,7 +98,7 @@ function LogoUpload({
       </label>
 
       {preview ? (
-        <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/25 bg-primary/[0.03]">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
           <div className="size-14 rounded-xl border border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
             <img src={preview} alt="Institute logo" className="size-full object-cover" />
           </div>
@@ -121,12 +121,12 @@ function LogoUpload({
           onClick={() => fileRef.current?.click()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
           onDragOver={(e) => e.preventDefault()}
-          className="w-full flex flex-col items-center gap-2 py-5 px-4 rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/[0.02] transition-all group"
+          className="group flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-5 transition-colors hover:border-border-strong hover:bg-muted/30"
         >
           <IconChip icon={ImageIcon} size="md" variant="soft" />
           <div className="text-center">
-            <div className="text-xs font-medium group-hover:text-primary transition-colors">
-              Click to upload <span className="text-primary underline">or drag &amp; drop</span>
+            <div className="text-xs font-medium transition-colors group-hover:text-foreground">
+              Click to upload <span className="underline">or drag &amp; drop</span>
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, SVG up to 2 MB</div>
           </div>
@@ -434,7 +434,7 @@ function ReviewSection({
         <button
           type="button"
           onClick={() => onEdit(step)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors shrink-0"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border-strong hover:bg-surface-hover hover:text-foreground"
         >
           <Pencil className="size-3" />
           Edit
@@ -467,7 +467,7 @@ function StepReview({
       />
 
       {form.logoPreview && (
-        <div className="flex items-center gap-4 p-4 rounded-xl border border-primary/20 bg-primary/[0.03]">
+        <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 p-4">
           <div className="size-16 rounded-xl border border-border bg-background overflow-hidden shrink-0">
             <img src={form.logoPreview} alt="Institute logo" className="size-full object-cover" />
           </div>
@@ -546,15 +546,10 @@ function RegistrationSuccessScreen({
   }, [onContinue]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/3 w-72 h-72 bg-emerald-500/[0.07] rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/3 w-64 h-64 bg-primary/[0.06] rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-md text-center animate-in fade-in zoom-in-95 duration-300">
-        <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 ring-4 ring-emerald-100/80 dark:ring-emerald-900/40">
-          <CheckCircle2 className="size-10 text-emerald-600 dark:text-emerald-400" />
+    <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 text-center duration-300">
+        <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full border border-border bg-muted">
+          <CheckCircle2 className="size-10 text-success" />
         </div>
 
         <h1 className="text-2xl font-bold tracking-tight">Registration complete</h1>
@@ -570,8 +565,8 @@ function RegistrationSuccessScreen({
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Status</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-700 dark:text-amber-400 font-medium">
-              <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
+              <span className="size-1.5 rounded-full bg-amber-500" />
               Pending verification
             </span>
           </div>
@@ -796,7 +791,7 @@ function InstituteSetupDemoPage() {
   if (isLoading || !isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="size-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+        <div className="size-8 animate-spin rounded-full border-2 border-border border-t-foreground" />
       </div>
     );
   }
@@ -804,16 +799,7 @@ function InstituteSetupDemoPage() {
   return (
     <div className="min-h-screen-dvh flex bg-background text-foreground">
       {/* ── Left brand panel ───────────────────────────── */}
-      <aside className="hidden xl:flex xl:w-[36%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-
+      <aside className="relative hidden shrink-0 flex-col justify-between overflow-hidden border-r border-border bg-muted/20 p-10 xl:flex xl:w-[36%]">
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-10">
             <LumenXAdminLogo size="md" className="max-h-10" />
@@ -836,22 +822,22 @@ function InstituteSetupDemoPage() {
                 <div
                   key={n}
                   className={[
-                    "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
+                    "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
                     active
-                      ? "border-primary/30 bg-primary/[0.04]"
+                      ? "border-border bg-muted/40 shadow-xs"
                       : done
-                        ? "border-emerald-500/20 bg-emerald-500/[0.03]"
+                        ? "border-border bg-muted/20"
                         : "border-border/50 bg-transparent opacity-60",
                   ].join(" ")}
                 >
                   <div
                     className={[
-                      "size-6 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
+                      "flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
                       active
-                        ? "bg-primary border-primary text-primary-foreground"
+                        ? "border-border bg-muted/70 text-foreground"
                         : done
-                          ? "bg-emerald-500 border-emerald-500 text-white"
-                          : "bg-muted border-border text-muted-foreground",
+                          ? "border-success bg-success text-white"
+                          : "border-border bg-muted text-muted-foreground",
                     ].join(" ")}
                   >
                     {done ? <Check className="size-3" /> : n}
@@ -859,15 +845,15 @@ function InstituteSetupDemoPage() {
                   <div className="min-w-0">
                     <div
                       className={`text-xs font-medium ${
-                        active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"
+                        active ? "text-foreground" : done ? "text-foreground" : "text-muted-foreground"
                       }`}
                     >
                       {s.label}
                     </div>
-                    <div className="text-[10px] text-muted-foreground truncate">{STEP_HINTS[i]}</div>
+                    <div className="truncate text-[10px] text-muted-foreground">{STEP_HINTS[i]}</div>
                   </div>
-                  {active && <div className="ml-auto size-1.5 rounded-full bg-primary animate-pulse shrink-0" />}
-                  {done && <Check className="ml-auto size-3.5 text-emerald-500 shrink-0" />}
+                  {active ? <div className="ml-auto size-1.5 shrink-0 rounded-full bg-foreground" /> : null}
+                  {done ? <Check className="ml-auto size-3.5 shrink-0 text-success" /> : null}
                 </div>
               );
             })}

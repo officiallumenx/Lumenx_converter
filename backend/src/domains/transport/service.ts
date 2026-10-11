@@ -260,7 +260,10 @@ function assertCanSubmitTransport(actor: Actor, instituteId: string): void {
   throw AppError.forbidden("Insufficient permissions");
 }
 
-/** Admin writers, or the driver who submitted a still-pending item. */
+/**
+ * Admin writers, or the driver who submitted a pending/rejected item.
+ * Rejected must be editable so the driver can fix and resubmit (returns to pending).
+ */
 function assertCanEditTransportSubmission(
   actor: Actor,
   row: {
@@ -272,7 +275,7 @@ function assertCanEditTransportSubmission(
   if (isTransportWriter(actor, row.institute_id)) return;
   if (
     isDriverForInstitute(actor, row.institute_id) &&
-    row.approval_status === "pending" &&
+    (row.approval_status === "pending" || row.approval_status === "rejected") &&
     row.submitted_by_user_id === actor.userId
   ) {
     return;
@@ -1129,6 +1132,17 @@ export async function updateStopForActor(
   ) {
     throw AppError.validation("route_order must be an integer >= 0");
   }
+  // Driver resubmit of a rejected stop: return to Admin review queue even when
+  // field values are unchanged (empty patch). Keep rejection_reason for audit.
+  if (
+    existing.approval_status === "rejected" &&
+    !isTransportWriter(actor, existing.institute_id)
+  ) {
+    fieldPatch.approval_status = "pending";
+    fieldPatch.reviewed_by_user_id = null;
+    fieldPatch.reviewed_at = null;
+  }
+
   // Omitted notification_radius_m must preserve the stored value (toStopUpdatePatch).
   if (Object.keys(fieldPatch).length === 0) return toStopDto(existing);
 

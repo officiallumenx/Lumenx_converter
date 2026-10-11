@@ -1,5 +1,6 @@
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { ConnectApiClient } from "@/lib/api";
+import { fetchAllListPages } from "@/lib/api/list-pages";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type { ListStudentsParams, StudentDto, StudentGuardianDto } from "./types";
@@ -19,14 +20,17 @@ export async function listStudents(
     throw new Error("institute_id must be a valid UUID");
   }
 
-  const query = new URLSearchParams();
-  query.set("institute_id", params.instituteId.trim());
-  if (params.status) query.set("status", params.status);
-  if (params.classLabel?.trim()) query.set("class_label", params.classLabel.trim());
-  if (params.sectionLabel?.trim()) query.set("section_label", params.sectionLabel.trim());
-  if (params.q?.trim()) query.set("q", params.q.trim());
-
-  return client.get<StudentDto[]>(`/api/v1/students?${query.toString()}`);
+  return fetchAllListPages<StudentDto>(client, (cursor) => {
+    const query = new URLSearchParams();
+    query.set("institute_id", params.instituteId.trim());
+    query.set("limit", "100");
+    if (params.status) query.set("status", params.status);
+    if (params.classLabel?.trim()) query.set("class_label", params.classLabel.trim());
+    if (params.sectionLabel?.trim()) query.set("section_label", params.sectionLabel.trim());
+    if (params.q?.trim()) query.set("q", params.q.trim());
+    if (cursor) query.set("cursor", cursor);
+    return `/api/v1/students?${query.toString()}`;
+  });
 }
 
 export async function getStudent(

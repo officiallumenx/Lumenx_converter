@@ -10,6 +10,13 @@ export function mapDbError(error: { code?: string; message?: string; details?: s
   // unique_violation / exclusion — prefer actionable copy over generic "Resource conflict"
   if (code === "23505" || code === "23P01") {
     const hay = `${message} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+    if (/transport_trip_vehicle_date_slot/.test(hay)) {
+      // Slot is not always in the PG message — callers may refine Pickup vs Drop copy.
+      throw AppError.conflict("Trip already exists for this vehicle, date, and slot");
+    }
+    if (/transport_trip_client_event/.test(hay)) {
+      throw AppError.conflict("Trip start already recorded for this client event");
+    }
     if (/class|section|classes|sections/.test(hay)) {
       throw AppError.conflict("This class or section already exists — change the name");
     }

@@ -88,6 +88,32 @@ describe("marks api repository", () => {
     expect(url).toContain("/api/v1/marks/entries?");
   });
 
+  it("listMarkEntriesPage returns a single cursor page", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listMarkEntriesPage } = await import("./api");
+    const payload = [dto()];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          data: payload,
+          next_cursor: "cursor-2",
+          has_more: true,
+        }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const page = await listMarkEntriesPage({ instituteId: INST }, client);
+    expect(page.items).toEqual(payload);
+    expect(page.nextCursor).toBe("cursor-2");
+    expect(page.hasMore).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("gets a mark entry by id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { getMarkEntry } = await import("./api");

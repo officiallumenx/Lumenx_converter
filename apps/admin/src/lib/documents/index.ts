@@ -6,6 +6,7 @@ export {
 } from "./api";
 export {
   createDocumentTemplate,
+  createDocumentsHubTemplate,
   updateDocumentTemplate,
   activateDocumentTemplate,
   archiveDocumentTemplate,
@@ -14,10 +15,17 @@ export {
   transitionGeneratedDocument,
   deleteGeneratedDocument,
   type CreateDocumentTemplateInput,
+  type CreateDocumentsHubTemplateInput,
   type UpdateDocumentTemplateInput,
   type CreateGeneratedDocumentInput,
   type TransitionGeneratedDocumentInput,
 } from "./mutations";
+export {
+  DOCUMENTS_HUB_TEMPLATE_TYPES,
+  isDocumentsHubTemplateType,
+  filterDocumentsHubTemplates,
+  type DocumentsHubTemplateType,
+} from "./doc-hub-views";
 export {
   loadDocumentsGeneratedList,
   loadDocumentsPublishedList,

@@ -57,6 +57,12 @@ describe("runtime access permissions", () => {
     expect(getApiRolePermission("/anything")).toBe("full");
   });
 
+  it("does not grant full access before permissions hydrate", () => {
+    clearApiAccessState();
+    expect(getApiRolePermission("/students")).toBe("none");
+    expect(getApiRolePermission("/unknown-module")).toBe("none");
+  });
+
   it("clears state when institute is null", async () => {
     await syncApiAccessPermissions("inst-a");
     clearApiAccessState();

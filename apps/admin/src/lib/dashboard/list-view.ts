@@ -26,9 +26,25 @@ export function resolveDashboardSummaryView(input: {
   if (!input.apiMode) {
     return {
       status: "demo",
-      summary: input.storedSummary,
+      summary: null,
       errorMessage: null,
-      rowsValid: true,
+      rowsValid: false,
+    };
+  }
+  if (input.instituteStatus === "forbidden") {
+    return {
+      status: "forbidden",
+      summary: null,
+      errorMessage: input.instituteErrorMessage,
+      rowsValid: false,
+    };
+  }
+  if (input.instituteStatus === "error") {
+    return {
+      status: "error",
+      summary: null,
+      errorMessage: input.instituteErrorMessage,
+      rowsValid: false,
     };
   }
   if (input.instituteStatus === "loading") {

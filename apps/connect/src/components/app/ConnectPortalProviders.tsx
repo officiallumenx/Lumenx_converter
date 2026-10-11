@@ -13,6 +13,7 @@ import { TeacherSessionRegistry } from "@/context/TeacherSessionContext";
 import { ActivityWorkspaceRegistry } from "@/context/ActivityWorkspaceContext";
 import { ConnectFeedbackTransportBridge } from "@/components/app/ConnectFeedbackTransportBridge";
 import { ConnectPersistQueryProvider } from "@/lib/connect-queries/PersistProvider";
+import { AppLockGate } from "@/components/app/AppLockGate";
 
 /**
  * Connect session + portal registries for all non-isolated routes.
@@ -28,25 +29,27 @@ export function ConnectPortalProviders({
   return (
     <AppProvider>
       <ConnectPersistQueryProvider client={queryClient}>
-        <ParentPortalRegistry>
-          <TeacherPortalRegistry>
-            <TeacherSessionRegistry>
-              <StudentPortalRegistry>
-                <ActivityWorkspaceRegistry>
-                  <ConnectFeedbackTransportBridge />
-                  <InAppAlertListener />
-                  <FirebaseClientServices enabled />
-                  <PushDeviceTokenRegistration enabled />
-                  <div className="px-3 pt-2">
-                    <PushPermissionRecoveryBanner />
-                  </div>
-                  <ConnectSchoolAlertsSync />
-                  {children}
-                </ActivityWorkspaceRegistry>
-              </StudentPortalRegistry>
-            </TeacherSessionRegistry>
-          </TeacherPortalRegistry>
-        </ParentPortalRegistry>
+        <AppLockGate>
+          <ParentPortalRegistry>
+            <TeacherPortalRegistry>
+              <TeacherSessionRegistry>
+                <StudentPortalRegistry>
+                  <ActivityWorkspaceRegistry>
+                    <ConnectFeedbackTransportBridge />
+                    <InAppAlertListener />
+                    <FirebaseClientServices enabled />
+                    <PushDeviceTokenRegistration enabled />
+                    <div className="px-3 pt-2">
+                      <PushPermissionRecoveryBanner />
+                    </div>
+                    <ConnectSchoolAlertsSync />
+                    {children}
+                  </ActivityWorkspaceRegistry>
+                </StudentPortalRegistry>
+              </TeacherSessionRegistry>
+            </TeacherPortalRegistry>
+          </ParentPortalRegistry>
+        </AppLockGate>
       </ConnectPersistQueryProvider>
     </AppProvider>
   );

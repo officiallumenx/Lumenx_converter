@@ -18,7 +18,7 @@ export function AttendanceHubNav({ active }: { active: AttendanceHubView }) {
   return (
     <div className="mb-3 sm:mb-6 relative">
       <div className="-mx-1 px-1 overflow-x-auto lx-sidebar-scroll">
-        <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max bg-muted/40 rounded-xl border border-border/60">
+        <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max rounded-xl border border-border bg-card">
           {NAV.map(({ view, label, short, icon: Icon }) => {
             const isActive = active === view;
             return (
@@ -27,10 +27,11 @@ export function AttendanceHubNav({ active }: { active: AttendanceHubView }) {
                 to="/attendance"
                 search={{ view }}
                 title={label}
-                className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all duration-150 ${
+                aria-current={isActive ? "page" : undefined}
+                className={`group inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-8 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors duration-150 ${
                   isActive
-                    ? "bg-background text-foreground shadow-sm border border-border/50 ring-1 ring-border/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/70"
+                    ? "bg-muted/70 text-foreground border border-border shadow-xs"
+                    : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-surface-hover"
                 }`}
               >
                 <IconChip

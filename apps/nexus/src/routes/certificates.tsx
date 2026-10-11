@@ -32,6 +32,7 @@ import {
   detectCertificateTemplateTargets,
   listCertificateCategories,
   listCertificateTemplateVersions,
+  isDbCertificateCatalogEnabled,
   listCertificateTemplates,
   parseCertificateUpload,
   publishCertificateTemplate,
@@ -43,6 +44,10 @@ import {
 } from "@lumenx/module-certificates";
 import { CertificateFieldMappingPanel } from "@/components/certificates/CertificateFieldMappingPanel";
 import { appendAuditEvent } from "@/lib/audit-log-store";
+import {
+  listNexusPlatformCertificateTemplates,
+  mirrorLocalTemplateToPlatformCatalog,
+} from "@/lib/certificate-templates/api";
 import { Award, FolderPlus, GitBranch, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 
@@ -102,6 +107,19 @@ function CertificateTemplateLibraryPage() {
   const refresh = useCallback(() => {
     setCategories(listCertificateCategories());
     setTemplates(listCertificateTemplates());
+
+    // Dual-read only: DB catalog merges in when flag is on. Writes stay localStorage.
+    if (!isDbCertificateCatalogEnabled()) return;
+    void listNexusPlatformCertificateTemplates()
+      .then((remote) => {
+        if (remote.length === 0) return;
+        const byId = new Map(listCertificateTemplates().map((t) => [t.id, t]));
+        for (const row of remote) byId.set(row.id, row);
+        setTemplates([...byId.values()]);
+      })
+      .catch(() => {
+        /* keep localStorage catalog */
+      });
   }, []);
 
   useEffect(() => {
@@ -174,6 +192,17 @@ function CertificateTemplateLibraryPage() {
       flash(
         `Published v${published.version}. Only this version is available to Admin for new issues. Prior issued certificates stay on their original version.`,
       );
+      // Best-effort dual-write when DB catalog flag is ON. localStorage stays SoT
+      // if the API/migration/bucket is unavailable (never blocks publish UX).
+      if (isDbCertificateCatalogEnabled()) {
+        void mirrorLocalTemplateToPlatformCatalog(published).then((result) => {
+          if (result.ok) {
+            flash(
+              `Published v${published.version}. Mirrored to platform catalog (${result.platformId.slice(0, 8)}…).`,
+            );
+          }
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not publish template");
     }

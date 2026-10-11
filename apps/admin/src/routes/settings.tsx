@@ -290,7 +290,7 @@ function ContactTab({ onOpenHelp }: { onOpenHelp: () => void }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {channels.map(({ icon: Icon, title, value, hint, action, href, onAction }) => (
           <Card key={title} className="p-5">
-            <IconChip icon={Icon} size="md" variant="brand" className="mb-3" />
+            <IconChip icon={Icon} size="md" variant="soft" className="mb-3" />
             <div className="text-sm font-semibold mb-0.5">{title}</div>
             {href ? (
               <a
@@ -486,22 +486,25 @@ function SettingsTabRow({
   onChange: (id: SettingsTab) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
-      {tabs.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => onChange(id)}
-          className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-            active === id
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
-          }`}
-        >
-          <IconChip icon={Icon} size="xs" variant="soft" active={active === id} />
-          {label}
-        </button>
-      ))}
+    <div className="lx-segmented-scroll overflow-x-auto pb-1 -mb-1">
+      <div className="flex w-max max-w-full items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-xs">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={active === id}
+            className={`group flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              active === id
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+            }`}
+          >
+            <IconChip icon={Icon} size="xs" variant="soft" active={active === id} />
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

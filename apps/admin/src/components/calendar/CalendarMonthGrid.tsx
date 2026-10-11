@@ -115,10 +115,10 @@ export function CalendarMonthGrid({
                   onClick={() => onSelectDate(iso)}
                   className={`min-h-[4.5rem] rounded-md border p-1.5 text-left transition-colors ${
                     isSelected
-                      ? "border-primary bg-primary/[0.08]"
+                      ? "border-primary/45 bg-primary/[0.06] shadow-xs"
                       : isToday
-                        ? "border-primary/50 bg-primary/[0.04]"
-                        : "border-border bg-background/50 hover:bg-surface-hover"
+                        ? "border-primary/40 bg-primary/[0.04]"
+                        : "border-border bg-card hover:bg-surface-hover"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1">

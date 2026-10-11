@@ -46,7 +46,11 @@ import {
   updateSubjectFields,
 } from "./repository.js";
 import { findTeacherById } from "../teachers/repository.js";
-import { findStudentById } from "../students/repository.js";
+import {
+  findStudentById,
+  updateStudentFields,
+} from "../students/repository.js";
+import { syncSubscriptionActiveStudentCountSafe } from "../subscriptions/headcount.js";
 import type {
   AcademicYearDto,
   AcademicYearRow,
@@ -917,6 +921,9 @@ export async function createEnrollmentForActor(
     status: input.status ?? "active",
   });
 
+  await syncStudentFromEnrollment(admin, row);
+  await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
+
   const name =
     student.display_name?.trim() ||
     `${student.first_name} ${student.surname}`.trim() ||
@@ -933,6 +940,59 @@ const TERMINAL_ENROLLMENT_STATUSES = new Set([
 
 function todayDateOnly(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Keep denormalized student.class_label / section_label / roll_no aligned with
+ * the student's current active enrollment. Enrollment rows remain the year-scoped
+ * history; these fields are directory/filter convenience only.
+ *
+ * - active: refresh placement labels from class/section names + roll
+ * - graduated: set student.status = graduated (billable headcount rule)
+ * - transferred / dropped_out: set student.status = inactive
+ * - completed: no student mutation (promotion creates a new active enrollment)
+ */
+async function syncStudentFromEnrollment(
+  admin: SupabaseClient,
+  enrollment: EnrollmentRow,
+): Promise<void> {
+  if (enrollment.status === "completed") return;
+
+  const patch: Record<string, unknown> = {};
+
+  if (enrollment.status === "active") {
+    const [klass, section] = await Promise.all([
+      findClassById(admin, enrollment.class_id),
+      findSectionById(admin, enrollment.section_id),
+    ]);
+    patch.class_label =
+      klass?.name?.trim() || klass?.code?.trim() || null;
+    patch.section_label =
+      section?.name?.trim() || section?.code?.trim() || null;
+    patch.roll_no = enrollment.roll_no;
+    // Do not force student.status = active — at-risk / watch remain billable
+    // under the Phase 0 headcount rule while the enrollment is active.
+    // If the profile was previously graduated/inactive (terminal enrollment),
+    // restore to active so directory + headcount stay consistent.
+    const student = await findStudentById(admin, enrollment.student_id);
+    if (
+      student &&
+      (student.status === "graduated" || student.status === "inactive")
+    ) {
+      patch.status = "active";
+    }
+  } else if (enrollment.status === "graduated") {
+    patch.status = "graduated";
+  } else if (
+    enrollment.status === "transferred" ||
+    enrollment.status === "dropped_out"
+  ) {
+    patch.status = "inactive";
+  } else {
+    return;
+  }
+
+  await updateStudentFields(admin, enrollment.student_id, patch);
 }
 
 export async function updateEnrollmentForActor(
@@ -994,6 +1054,22 @@ export async function updateEnrollmentForActor(
 
   const updated = await updateEnrollmentFields(admin, enrollmentId, fieldPatch);
   if (!updated) throw AppError.notFound("Enrollment not found");
+
+  const placementTouched =
+    fieldPatch.classId !== undefined ||
+    fieldPatch.sectionId !== undefined ||
+    fieldPatch.rollNo !== undefined ||
+    fieldPatch.status !== undefined;
+  if (placementTouched) {
+    await syncStudentFromEnrollment(admin, updated);
+  }
+
+  if (
+    fieldPatch.status !== undefined ||
+    existing.status !== updated.status
+  ) {
+    await syncSubscriptionActiveStudentCountSafe(admin, existing.institute_id);
+  }
 
   const names = await studentNamesByIds(admin, [updated.student_id]);
   return toEnrollmentDto(updated, names.get(updated.student_id));

@@ -6,18 +6,13 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
-  listStudentsCached,
+  listSubmittedMarkEntriesCached,
   listTeachersCached,
 } from "@/lib/directory-lists-cache";
 import { listDiaryDays } from "@/lib/diary/api";
 import { listLeaveRequests } from "@/lib/leave/api";
 import { listAttendanceRegisters } from "@/lib/attendance/api";
-import { listMarkEntries } from "@/lib/marks/api";
-import {
-  collectBirthdaysToday,
-  localYmd,
-  type BirthdayRow,
-} from "./birthdays";
+import { localYmd, type BirthdayRow } from "./birthdays";
 import type { DashboardLoadStatus } from "./load";
 
 export type DiaryWidgetRow = {
@@ -149,32 +144,11 @@ function daysAgoYmd(days: number, from: Date = new Date()): string {
 }
 
 async function loadBirthdaysSlice(
-  instituteId: string,
-  onDate: Date,
+  _instituteId: string,
+  _onDate: Date,
 ): Promise<SliceResult<BirthdayRow[]>> {
-  // Load directories independently so a students list failure still shows teacher birthdays.
-  const [studentsResult, teachersResult] = await Promise.allSettled([
-    listStudentsCached(instituteId),
-    listTeachersCached(instituteId),
-  ]);
-
-  if (studentsResult.status === "rejected" && teachersResult.status === "rejected") {
-    const err = studentsResult.reason;
-    const { message, forbidden } = apiErrorMessage(err, "Failed to load birthdays");
-    return { status: "error", rows: [], errorMessage: message, forbidden };
-  }
-
-  const students =
-    studentsResult.status === "fulfilled" ? studentsResult.value : [];
-  const teachers =
-    teachersResult.status === "fulfilled" ? teachersResult.value : [];
-
-  const rows = collectBirthdaysToday({ students, teachers, onDate });
-  return {
-    status: rows.length === 0 ? "empty" : "ready",
-    rows,
-    errorMessage: null,
-  };
+  // HomeBirthdays uses useHomeBirthdaysQuery — skip a second full directory walk here.
+  return { status: "empty", rows: [], errorMessage: null };
 }
 
 async function loadDiarySlice(
@@ -268,10 +242,7 @@ async function loadMarksPendingSlice(
   instituteId: string,
 ): Promise<SliceResult<MarksPendingRow[]>> {
   try {
-    const entries = await listMarkEntries({
-      instituteId,
-      status: "submitted",
-    });
+    const entries = await listSubmittedMarkEntriesCached(instituteId);
     const rows: MarksPendingRow[] = entries.map((e) => ({
       id: e.id,
       teacherId: e.teacherId,
@@ -359,9 +330,9 @@ export async function loadDashboardWidgets(
     Boolean(attendanceDrafts.forbidden) ||
     Boolean(marksPending.forbidden);
 
-  // Prefer slice-level errors; overall ready so widgets that succeeded still render.
+  // Birthdays are loaded by a dedicated query — this slice is intentionally empty
+  // and must not prevent detecting all-failed secondary widgets.
   const allFailed =
-    birthdays.status === "error" &&
     diary.status === "error" &&
     leave.status === "error" &&
     attendanceDrafts.status === "error" &&
@@ -374,7 +345,6 @@ export async function loadDashboardWidgets(
 
   if (allFailed) {
     const first =
-      birthdays.errorMessage ??
       diary.errorMessage ??
       leave.errorMessage ??
       attendanceDrafts.errorMessage ??

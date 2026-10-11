@@ -74,7 +74,7 @@ function KeypadButton({
         "flex items-center justify-center rounded-2xl font-semibold transition-all",
         "active:scale-95 disabled:opacity-40 disabled:pointer-events-none",
         variant === "digit"
-          ? "h-14 sm:h-16 text-xl bg-card border border-border shadow-sm hover:bg-muted/50 hover:border-primary/25"
+          ? "h-14 sm:h-16 border border-border bg-card text-xl shadow-xs hover:border-border-strong hover:bg-muted/50"
           : "h-14 sm:h-16 text-sm bg-muted/40 border border-border hover:bg-muted/70",
       ].join(" ")}
     >
@@ -96,8 +96,8 @@ function InstituteLogo({ name, logo }: { name: string; logo: string }) {
 
   if (logo) {
     return (
-      <div className="size-16 rounded-2xl border border-primary/20 bg-primary flex items-center justify-center shadow-sm">
-        <span className="text-[10px] font-bold text-primary-foreground text-center px-2 leading-tight">
+      <div className="flex size-16 items-center justify-center rounded-2xl border border-border bg-muted shadow-xs">
+        <span className="px-2 text-center text-[10px] font-bold leading-tight text-foreground">
           {logo.slice(0, 12)}
         </span>
       </div>
@@ -105,7 +105,7 @@ function InstituteLogo({ name, logo }: { name: string; logo: string }) {
   }
 
   return (
-    <IconChip icon={Building2} size="lg" className="!size-16 !rounded-2xl shadow-sm border border-primary/20" />
+    <IconChip icon={Building2} size="lg" className="!size-16 !rounded-2xl border border-border shadow-xs" />
   );
 }
 
@@ -216,31 +216,26 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
   }, [lockedOut, verifying, appendDigit, deleteDigit]);
 
   return (
-    <div className="min-h-screen-dvh flex flex-col bg-gradient-to-b from-background via-background to-muted/30 text-foreground">
-      {/* Ambient */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/[0.04] rounded-full blur-3xl" />
-      </div>
-
-      <header className="lx-auth-top-bar relative z-10 flex items-center justify-center border-b border-border/40">
+    <div className="flex min-h-screen-dvh flex-col bg-background text-foreground">
+      <header className="lx-auth-top-bar relative z-10 flex items-center justify-center border-b border-border">
         <LumenXAdminLogo size="sm" className="max-h-8" />
       </header>
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 sm:py-12">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-8 sm:py-12">
         <div className="w-full max-w-[22rem]">
 
           {/* Institute + user */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
+          <div className="mb-8 text-center">
+            <div className="mb-4 flex justify-center">
               <InstituteLogo name={instituteName} logo={logo} />
             </div>
-            <h1 className="text-base font-bold tracking-tight truncate px-2">{instituteName}</h1>
-            <p className="text-[11px] text-muted-foreground mt-0.5 uppercase tracking-wide">
+            <h1 className="truncate px-2 text-base font-bold tracking-tight">{instituteName}</h1>
+            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
               Secure session
             </p>
 
-            <div className="mt-6 inline-flex items-center gap-3 rounded-2xl border border-border bg-card/80 backdrop-blur-sm px-4 py-3 shadow-sm">
-              <div className="size-11 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+            <div className="mt-6 inline-flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-xs">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-sm font-bold text-foreground">
                 {initials}
               </div>
               <div className="text-left min-w-0">
@@ -253,16 +248,16 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
           </div>
 
           {/* PIN card */}
-          <div className="rounded-3xl border border-border bg-card shadow-elevated p-6 sm:p-7">
-            <div className="flex items-center justify-center gap-2 mb-1">
+          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-7">
+            <div className="mb-1 flex items-center justify-center gap-2">
               <IconChip icon={Lock} size="xs" />
               <h2 className="text-sm font-semibold">Enter 6-Digit Security PIN</h2>
             </div>
-            <p className="text-[11px] text-muted-foreground text-center mb-6">
+            <p className="mb-6 text-center text-[11px] text-muted-foreground">
               Use the 6-digit Security PIN from signup (not your login password)
             </p>
 
-            <div className="mb-6 min-h-[20px] flex justify-center">
+            <div className="mb-6 flex min-h-[20px] justify-center">
               <PinDots
                 length={PIN_LENGTH}
                 filled={pin.length}
@@ -271,7 +266,7 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
             </div>
 
             {verifying && (
-              <p className="text-center text-[11px] text-muted-foreground mb-4 animate-pulse">
+              <p className="mb-4 text-center text-[11px] text-muted-foreground">
                 Verifying…
               </p>
             )}

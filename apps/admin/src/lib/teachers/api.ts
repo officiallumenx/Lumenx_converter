@@ -4,6 +4,11 @@
  */
 import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
+import {
+  fetchAllListPages,
+  fetchListPage,
+  type ListPageResult,
+} from "@/lib/api/list-pages";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
 import type { ListTeachersParams, TeacherDto } from "./types";
@@ -16,6 +21,34 @@ function assertApiMode(): void {
 
 export { assertApiMode };
 
+function teachersListPath(
+  params: ListTeachersParams,
+  cursor?: string,
+): string {
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  query.set("limit", "100");
+  if (params.status) query.set("status", params.status);
+  if (params.teachingScope) query.set("teaching_scope", params.teachingScope);
+  if (params.q?.trim()) query.set("q", params.q.trim());
+  if (cursor) query.set("cursor", cursor);
+  return `/api/v1/teachers?${query.toString()}`;
+}
+
+export async function listTeachersPage(
+  params: ListTeachersParams & { cursor?: string },
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ListPageResult<TeacherDto>> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return fetchListPage<TeacherDto>(
+    client,
+    teachersListPath(params, params.cursor),
+  );
+}
+
 export async function listTeachers(
   params: ListTeachersParams,
   client: AdminApiClient = getAdminApiClient(),
@@ -25,13 +58,9 @@ export async function listTeachers(
     throw new Error("institute_id must be a valid UUID");
   }
 
-  const query = new URLSearchParams();
-  query.set("institute_id", params.instituteId.trim());
-  if (params.status) query.set("status", params.status);
-  if (params.teachingScope) query.set("teaching_scope", params.teachingScope);
-  if (params.q?.trim()) query.set("q", params.q.trim());
-
-  return client.get<TeacherDto[]>(`/api/v1/teachers?${query.toString()}`);
+  return fetchAllListPages<TeacherDto>(client, (cursor) =>
+    teachersListPath(params, cursor),
+  );
 }
 
 export async function getTeacher(

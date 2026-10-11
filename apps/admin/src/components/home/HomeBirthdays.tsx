@@ -160,7 +160,7 @@ export function HomeBirthdays({
       {isEmpty && !isError ? (
         <div className="lx-home-birthdays__empty" role="status">
           <span className="lx-home-birthdays__empty-icon" aria-hidden>
-            <Cake className="size-5" />
+            <Cake className="size-3.5" />
           </span>
           <p className="lx-home-birthdays__empty-title">No one&apos;s birthday today</p>
           <p className="lx-home-birthdays__empty-hint">

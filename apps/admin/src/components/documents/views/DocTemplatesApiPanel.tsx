@@ -26,8 +26,9 @@ import type { TemplateRecord, TemplateStatus } from "@/lib/template-management/t
 import {
   activateDocumentTemplate,
   archiveDocumentTemplate,
-  createDocumentTemplate,
+  createDocumentsHubTemplate,
   deleteDocumentTemplate,
+  type DocumentsHubTemplateType,
   updateDocumentTemplate,
 } from "@/lib/documents";
 import { useInstituteContext } from "@/lib/institutes";
@@ -63,7 +64,7 @@ export function DocTemplatesApiPanel({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("official");
-  const [docType, setDocType] = useState<"document" | "certificate" | "report">("document");
+  const [docType, setDocType] = useState<DocumentsHubTemplateType>("document");
   const [busy, setBusy] = useState(false);
 
   const filtered = useMemo(() => {
@@ -103,7 +104,7 @@ export function DocTemplatesApiPanel({
     setName(t.name);
     setDescription("");
     setCategory(t.categoryId || "official");
-    setDocType(t.kind === "certificate" || t.kind === "report" ? t.kind : "document");
+    setDocType(t.kind === "report" ? "report" : "document");
   };
 
   const instituteId = instituteCtx.activeInstituteId;
@@ -115,7 +116,7 @@ export function DocTemplatesApiPanel({
       return;
     }
     setBusy(true);
-    void createDocumentTemplate({
+    void createDocumentsHubTemplate({
       instituteId,
       type: docType,
       name: name.trim(),
@@ -181,7 +182,7 @@ export function DocTemplatesApiPanel({
 
   return (
     <PageStack>
-      <Card className="border-primary/20 bg-primary/5">
+      <Card className="border-border bg-muted/40">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Documents API templates</p>
@@ -194,7 +195,7 @@ export function DocTemplatesApiPanel({
               <Button size="sm" variant="primary" onClick={openCreate}>
                 <Plus className="size-3.5" /> New template
               </Button>
-              <Link to="/documents" search={{ view: "generate" }}>
+              <Link to="/documents" search={{ view: "official" }}>
                 <Button size="sm">
                   <FileCheck className="size-3.5" /> Generate
                 </Button>
@@ -280,7 +281,7 @@ export function DocTemplatesApiPanel({
                           </Button>
                         ) : null}
                         {t.status === "active" ? (
-                          <Link to="/documents" search={{ view: "generate" }}>
+                          <Link to="/documents" search={{ view: "official" }}>
                             <Button size="sm" variant="primary">
                               <FileCheck className="size-3" /> Generate
                             </Button>
@@ -352,9 +353,13 @@ export function DocTemplatesApiPanel({
             <TextInput value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label="Type">
-            <Select value={docType} onChange={(e) => setDocType(e.target.value as typeof docType)}>
-              <option value="document">Document</option>
-              <option value="certificate">Certificate</option>
+            <Select
+              value={docType}
+              onChange={(e) =>
+                setDocType(e.target.value as DocumentsHubTemplateType)
+              }
+            >
+              <option value="document">Document (incl. Transfer Certificate)</option>
               <option value="report">Report</option>
             </Select>
           </Field>

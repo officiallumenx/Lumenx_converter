@@ -1,7 +1,13 @@
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { Avatar, AvatarFallback, Badge } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge, PersonPhotoPreview } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  clearPhotoRefreshAttempts,
+  refreshPhotoSignedUrlOnFailure,
+} from "@/lib/photos/refreshable-photo";
 import type { StudentReturnContext, TeacherStudent } from "@/lib/teacher/types";
 
 export function StudentCard({
@@ -15,6 +21,12 @@ export function StudentCard({
 }) {
   const tone =
     student.avgScore >= 75 ? "success" : student.avgScore >= 50 ? "warning" : "destructive";
+  const [photoUrl, setPhotoUrl] = useState<string | null>(student.photoUrl ?? null);
+
+  useEffect(() => {
+    setPhotoUrl(student.photoUrl ?? null);
+    clearPhotoRefreshAttempts("student", student.id);
+  }, [student.id, student.photoUrl]);
 
   const search =
     returnTo?.from === "classes" && returnTo.classId
@@ -22,6 +34,16 @@ export function StudentCard({
       : returnTo?.from === "students"
         ? { from: "students" as const }
         : undefined;
+
+  const onPhotoError = () => {
+    if (!isApiAuthMode()) {
+      setPhotoUrl(null);
+      return;
+    }
+    void refreshPhotoSignedUrlOnFailure("student", student.id).then((next) => {
+      setPhotoUrl(next);
+    });
+  };
 
   return (
     <Link
@@ -33,9 +55,25 @@ export function StudentCard({
         className,
       )}
     >
-      <Avatar className="size-11 shrink-0">
-        <AvatarFallback className="text-xs font-medium">{student.avatarInitials}</AvatarFallback>
-      </Avatar>
+      <PersonPhotoPreview
+        src={photoUrl}
+        title={student.name}
+        alt={student.name}
+        className="shrink-0"
+      >
+        <Avatar className="size-11 shrink-0 pointer-events-none">
+          {photoUrl ? (
+            <AvatarImage
+              src={photoUrl}
+              alt=""
+              className="object-cover"
+              loading="lazy"
+              onError={onPhotoError}
+            />
+          ) : null}
+          <AvatarFallback className="text-xs font-medium">{student.avatarInitials}</AvatarFallback>
+        </Avatar>
+      </PersonPhotoPreview>
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{student.name}</div>
         <div className="text-xs text-muted-foreground">

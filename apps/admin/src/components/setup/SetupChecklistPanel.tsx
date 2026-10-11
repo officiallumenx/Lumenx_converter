@@ -25,7 +25,7 @@ function StepRow({ step, current }: { step: SetupStepProgress; current: boolean 
     <div
       className={`flex items-start gap-3 rounded-lg border px-3 py-3 ${
         current
-          ? "border-primary/40 bg-primary/5"
+          ? "border-border bg-muted/40 shadow-xs"
           : step.state === "done"
             ? "border-border bg-muted/20"
             : "border-border"

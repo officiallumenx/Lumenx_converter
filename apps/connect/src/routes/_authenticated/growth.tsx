@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { ConnectRoleGate } from "@/components/app/ConnectRoleGate";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
@@ -44,7 +45,9 @@ import { Skeleton, cn } from "@lumenx/ui";
 export const Route = createFileRoute("/_authenticated/growth")({
   head: () => ({ meta: [{ title: "Growth — LumenX Connect" }] }),
   component: () => (
-    <GrowthPage />
+    <ConnectRoleGate allow={["parent", "student"]}>
+      <GrowthPage />
+    </ConnectRoleGate>
   ),
 });
 

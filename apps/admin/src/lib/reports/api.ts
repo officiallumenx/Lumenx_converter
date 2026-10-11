@@ -49,6 +49,7 @@ export async function createReportJob(
     reportId: string;
     fromDate?: string | null;
     toDate?: string | null;
+    academicYearId?: string | null;
   },
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<ReportJobDto> {
@@ -56,11 +57,19 @@ export async function createReportJob(
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
+  if (
+    input.academicYearId != null &&
+    String(input.academicYearId).trim() !== "" &&
+    !isInstituteUuid(input.academicYearId)
+  ) {
+    throw new Error("academic_year_id must be a valid UUID");
+  }
   return client.post<ReportJobDto>("/api/v1/reports/jobs", {
     institute_id: input.instituteId.trim(),
     report_id: input.reportId,
     from_date: input.fromDate?.trim() || null,
     to_date: input.toDate?.trim() || null,
+    academic_year_id: input.academicYearId?.trim() || null,
   });
 }
 

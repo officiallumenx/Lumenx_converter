@@ -38,5 +38,42 @@ describe("certificates map", () => {
     expect(row.templateVersion).toBe(2);
     expect(row.status).toBe("revoked");
     expect(row.fileName).toBe("cert.pdf");
+    expect(row.hasServerFile).toBe(true);
+  });
+
+  it("does not invent a PPTX filename when assetPath is missing (hybrid ledger)", () => {
+    const dto: IssuedCertificateDto = {
+      id: "ee222222-2222-4222-8222-222222222222",
+      instituteId: INST,
+      generatedDocumentId: null,
+      templateId: "cc111111-1111-4111-8111-111111111111",
+      studentId: null,
+      teacherId: null,
+      certificateNumber: "CERT/2026/0009",
+      sequence: 9,
+      year: 2026,
+      title: "Sports Day",
+      category: "Awards",
+      templateName: "Sports Day Award",
+      templateVersion: 1,
+      recipientName: "Ada",
+      recipientRef: null,
+      status: "issued",
+      issuedAt: "2026-06-01T10:00:00Z",
+      issuedByUserId: "bb111111-1111-4111-8111-111111111111",
+      revokedAt: null,
+      revokedByUserId: null,
+      revokeReason: null,
+      assetPath: null,
+      fileKind: "pptx",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-01T10:00:00Z",
+    };
+    const row = issuedCertificateDtoToHistoryItem(dto);
+    expect(row.fileName).toBe("Ledger only (no server file)");
+    expect(row.fileName).not.toMatch(/\.pptx$/i);
+    expect(row.hasServerFile).toBe(false);
+    expect(row.templateId).toBe(dto.templateId);
+    expect(row.certificateNumber).toBe("CERT/2026/0009");
   });
 });

@@ -41,7 +41,7 @@ export function AuthStepBar({ steps, current }: AuthStepBarProps) {
                 className={[
                   "relative z-10 size-7 rounded-full flex items-center justify-center text-[11px] font-semibold border-2 transition-all duration-200",
                   done ? "bg-primary border-primary text-primary-foreground" : "",
-                  active ? "bg-primary border-primary text-primary-foreground shadow-glow scale-105" : "",
+                  active ? "border-border bg-muted/70 text-foreground shadow-xs" : "",
                   !done && !active ? "bg-background border-border text-muted-foreground" : "",
                 ].join(" ")}
                 aria-current={active ? "step" : undefined}
@@ -51,15 +51,15 @@ export function AuthStepBar({ steps, current }: AuthStepBarProps) {
               <span
                 className={[
                   "mt-1.5 text-[10px] font-medium text-center leading-tight hidden sm:block",
-                  active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground",
+                  active || done ? "text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
                 {s.label}
               </span>
               <span
                 className={[
-                  "mt-1.5 text-[10px] font-medium text-center leading-tight sm:hidden",
-                  active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground",
+                  "mt-1.5 text-center text-[10px] font-medium leading-tight sm:hidden",
+                  active || done ? "text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
                 {s.short}

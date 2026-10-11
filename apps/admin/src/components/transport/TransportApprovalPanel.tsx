@@ -162,10 +162,10 @@ export function TransportApprovalPanel({
           <button
             type="button"
             onClick={() => setTab("stops")}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               tab === "stops"
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             Pending stops ({stops.length})
@@ -173,10 +173,10 @@ export function TransportApprovalPanel({
           <button
             type="button"
             onClick={() => setTab("assignments")}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               tab === "assignments"
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-border bg-muted/70 text-foreground shadow-xs"
+                : "border-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             Pending assignments ({assignments.length})

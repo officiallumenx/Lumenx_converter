@@ -24,7 +24,7 @@ export const PLATFORM_READONLY_COPY: Record<
 > = {
   subscription_expired: {
     title: "Subscription expired",
-    body: "Your institute licence has expired. The platform is read-only until payment is completed. Viewing data is allowed; creating or editing is blocked.",
+    body: "Your trial and grace period have ended. Data is preserved — viewing, search, and reports remain available. Create, edit, delete, publish, and submit are blocked until Nexus verifies an offline payment. Open Subscription to submit payment details or contact Nexus.",
   },
   academic_year_locked: {
     title: "Academic year required",
@@ -110,7 +110,7 @@ export function syncSubscriptionReadOnlyFromLifecycle(
   return savePlatformReadOnlyState({
     subscriptionExpired: enforce,
     subscriptionMessage: enforce
-      ? "Your subscription or trial has ended. Viewing is allowed; create/edit is blocked until payment is verified."
+      ? PLATFORM_READONLY_COPY.subscription_expired.body
       : undefined,
   });
 }

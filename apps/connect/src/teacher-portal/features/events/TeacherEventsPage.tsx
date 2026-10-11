@@ -14,6 +14,8 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import type { ConnectEventItem } from "@/lib/events";
 import { useConnectEventsQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
+import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
@@ -43,6 +45,7 @@ export function TeacherEventsPage() {
 }
 
 function TeacherEventsApiPanel() {
+  const userId = useConnectQueryUserId();
   const { activeInstituteId } = useApp();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
@@ -82,7 +85,7 @@ function TeacherEventsApiPanel() {
   const retry = () => {
     if (!activeInstituteId) return;
     void queryClient.invalidateQueries({
-      queryKey: connectQueryKeys.events(activeInstituteId),
+      queryKey: scopedConnectKey(userId, connectQueryKeys.events(activeInstituteId)),
     });
   };
 

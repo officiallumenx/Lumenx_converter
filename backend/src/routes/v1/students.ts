@@ -13,7 +13,7 @@ import {
   deleteStudentForActor,
   getStudentForActor,
   getStudentGuardiansForActor,
-  listStudentsForActor,
+  listStudentsPageForActor,
   updateStudentForActor,
 } from "../../domains/students/service.js";
 
@@ -62,6 +62,8 @@ const listQuerySchema = z.object({
   class_label: z.string().min(1).max(50).optional(),
   section_label: z.string().min(1).max(50).optional(),
   q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().max(500).optional(),
 });
 
 const parentRelationshipSchema = z.enum(["mother", "father", "guardian"]);
@@ -134,15 +136,21 @@ students.get("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const query = validateQuery(listQuerySchema, c.req.query());
-  const data = await listStudentsForActor(admin, actor, {
+  const page = await listStudentsPageForActor(admin, actor, {
     instituteId: query.institute_id,
     status: query.status,
     accessStatus: query.access_status,
     classLabel: query.class_label,
     sectionLabel: query.section_label,
     q: query.q,
+    limit: query.limit,
+    cursor: query.cursor,
   });
-  return c.json({ data });
+  return c.json({
+    data: page.items,
+    next_cursor: page.nextCursor,
+    has_more: page.hasMore,
+  });
 });
 
 students.get("/:id/guardians", async (c) => {

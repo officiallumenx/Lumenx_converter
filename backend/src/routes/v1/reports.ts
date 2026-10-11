@@ -67,6 +67,7 @@ reports.post("/jobs", async (c) => {
         report_id: z.string().min(1).max(100),
         from_date: isoDate,
         to_date: isoDate,
+        academic_year_id: uuid.optional().nullable(),
       })
       .superRefine((value, ctx) => {
         if (
@@ -88,6 +89,7 @@ reports.post("/jobs", async (c) => {
     reportId: body.report_id,
     fromDate: body.from_date ?? null,
     toDate: body.to_date ?? null,
+    academicYearId: body.academic_year_id ?? null,
   });
   return c.json({ data }, 201);
 });

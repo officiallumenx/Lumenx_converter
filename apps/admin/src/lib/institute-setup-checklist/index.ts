@@ -12,9 +12,19 @@ export {
   peekSetupChecklistCache,
   invalidateSetupChecklistCache,
   readVerifiedSetupCoreComplete,
+  readVerifiedSetupCoreSnapshot,
+  isVerifiedSetupCoreCompleteFresh,
   writeVerifiedSetupCoreComplete,
   clearVerifiedSetupCoreComplete,
+  type VerifiedSetupCoreSnapshot,
 } from "./load";
+export {
+  shouldDeferSetupChecklistNetwork,
+  scheduleDeferredSetupRefresh,
+  verifiedCompletePlaceholderState,
+  SETUP_VERIFIED_FRESH_MS,
+  SETUP_DEFER_IDLE_TIMEOUT_MS,
+} from "./defer";
 export {
   buildSetupNavGate,
   resolveSidebarNavTarget,

@@ -19,6 +19,12 @@ import {
   insertSubscription,
 } from "../nexus/repository.js";
 import {
+  addUtcDays,
+  DEFAULT_GRACE_DAYS,
+  DEFAULT_PER_STUDENT_RATE_INR,
+  DEFAULT_TRIAL_DAYS,
+} from "../subscriptions/pricing.js";
+import {
   beginRegistrationApproval,
   findActiveMembershipForUserInstitute,
   findRegistrationById,
@@ -92,17 +98,6 @@ function resolveInstituteCode(
   const requested = (payload.instituteCode ?? "").trim();
   if (requested) return requested.slice(0, 50);
   return deriveInstituteCode(payload.instituteName, registrationId);
-}
-
-/** Match demo Nexus — 60-day trial at ₹12/student on approval. */
-const DEFAULT_TRIAL_DAYS = 60;
-const DEFAULT_GRACE_DAYS = 7;
-const DEFAULT_PER_STUDENT_RATE_INR = 12;
-
-function addUtcDays(iso: string, days: number): string {
-  const d = new Date(iso);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
 }
 
 async function ensureTrialSubscriptionOnApproval(

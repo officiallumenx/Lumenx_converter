@@ -351,11 +351,17 @@ export function AcademicYearsView() {
       notify("No records to download");
       return;
     }
-    const { filename, rowCount } = downloadAcademicYearRecordsExcel(
-      viewYearLabel,
-      filteredRecords,
-    );
-    notify(`Saved to Downloads · ${filename} · ${rowCount} rows (Excel)`);
+    void (async () => {
+      try {
+        const { filename, rowCount } = await downloadAcademicYearRecordsExcel(
+          viewYearLabel,
+          filteredRecords,
+        );
+        notify(`Saved to Downloads · ${filename} · ${rowCount} rows (Excel)`);
+      } catch {
+        notify("Could not build the Excel export. Try again.");
+      }
+    })();
   };
 
   const downloadPdf = () => {

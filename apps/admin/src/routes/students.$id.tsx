@@ -870,7 +870,7 @@ function StudentPhotoBlock({
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative size-20 overflow-hidden rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 text-lg font-semibold ring-4 ring-border">
+      <div className="relative size-20 overflow-hidden rounded-full border border-border bg-muted text-lg font-semibold text-foreground ring-4 ring-border">
         {photoDataUrl ? (
           <img src={photoDataUrl} alt={`${name} photo`} className="size-full object-cover" />
         ) : (

@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { writableTrialSubscription } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -159,6 +160,10 @@ function baseDb(): MockDb {
       display_name: "Gone Student",
       deleted_at: "2026-08-10T00:00:00.000Z",
     }),
+  ];
+  db.subscription = [
+    writableTrialSubscription(INST_A, "s0111111-1111-4111-8111-111111111111"),
+    writableTrialSubscription(INST_B, "s0222222-2222-4222-8222-222222222222"),
   ];
   return db;
 }

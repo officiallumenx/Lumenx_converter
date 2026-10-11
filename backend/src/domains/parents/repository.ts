@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import {
+  clampListLimit,
+  decodeNameIdCursor,
+  nameIdCursorOrFilter,
+  nextNameIdCursorFromRows,
+} from "../../lib/name-id-cursor.js";
 import type {
   CreateGuardianLinkInput,
   CreateParentInput,
@@ -32,10 +38,25 @@ export async function findStudentInInstitute(
   return (result.data as { id: string } | null) ?? null;
 }
 
-export async function listParents(
+export type ParentListPage = {
+  rows: ParentRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export const PARENTS_LIST_MAX_LIMIT = 200;
+
+function sanitizeIlikeTerm(raw: string): string {
+  return raw.replace(/[%_,]/g, " ").trim().slice(0, 200);
+}
+
+export async function listParentsPage(
   admin: SupabaseClient,
   filter: ListParentsFilter,
-): Promise<ParentRow[]> {
+): Promise<ParentListPage> {
+  const limit = clampListLimit(filter.limit);
+  const cursor = decodeNameIdCursor(filter.cursor);
+
   let query = admin
     .from("parent")
     .select(PARENT_COLS)
@@ -45,22 +66,52 @@ export async function listParents(
   if (filter.inviteStatus) query = query.eq("invite_status", filter.inviteStatus);
   if (filter.accessStatus) query = query.eq("access_status", filter.accessStatus);
 
-  const result = await query;
-  let rows = ensureDbOk(result) as ParentRow[];
-
-  if (filter.q) {
-    const q = filter.q.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((r) => {
-        const hay = [r.name, r.phone, r.email, r.legacy_code]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
+  const q = filter.q ? sanitizeIlikeTerm(filter.q) : "";
+  if (q) {
+    const pattern = `"%${q.replace(/"/g, "")}%"`;
+    query = query.or(
+      [
+        `name.ilike.${pattern}`,
+        `phone.ilike.${pattern}`,
+        `email.ilike.${pattern}`,
+        `legacy_code.ilike.${pattern}`,
+      ].join(","),
+    );
   }
 
+  if (cursor) {
+    query = query.or(nameIdCursorOrFilter(cursor, "name"));
+  }
+
+  const result = await query
+    .order("name", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(limit + 1);
+  const fetched = ensureDbOk(result) as ParentRow[];
+  const page = nextNameIdCursorFromRows(fetched, limit, (r) => r.name);
+  return {
+    rows: page.items,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  };
+}
+
+export async function listParents(
+  admin: SupabaseClient,
+  filter: ListParentsFilter,
+): Promise<ParentRow[]> {
+  const rows: ParentRow[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await listParentsPage(admin, {
+      ...filter,
+      cursor,
+      limit: PARENTS_LIST_MAX_LIMIT,
+    });
+    rows.push(...page.rows);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
   return rows;
 }
 

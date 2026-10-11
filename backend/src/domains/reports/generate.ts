@@ -40,28 +40,11 @@ import {
   generateTransportOpsReportCsv,
   isTransportOpsReportId,
 } from "./generate-transport.js";
+import { reportFileStamp, toCsv } from "./csv.js";
 import type { GeneratedReportFile, ReportDateRange } from "./types.js";
 
-function esc(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function toCsv(
-  headers: string[],
-  rows: Array<Array<string | null | undefined>>,
-): string {
-  const lines = [
-    headers.map(esc).join(","),
-    ...rows.map((row) =>
-      row.map((cell) => esc(cell == null ? "" : String(cell))).join(","),
-    ),
-  ];
-  return `${lines.join("\n")}\n`;
-}
-
 function stamp(reportId: string): string {
-  const d = new Date().toISOString().slice(0, 10);
-  return `${reportId}-${d}.csv`;
+  return reportFileStamp(reportId);
 }
 
 const SUPPORTED = new Set([
@@ -239,7 +222,11 @@ export async function generateReportCsv(
       };
     }
     case "marks": {
-      const entries = await listMarkEntries(admin, { instituteId });
+      const yearId = range?.academicYearId?.trim() || null;
+      const allEntries = await listMarkEntries(admin, { instituteId });
+      const entries = yearId
+        ? allEntries.filter((e) => e.academic_year_id === yearId)
+        : allEntries;
       const exams = await listExams(admin, { instituteId });
       const examName = new Map(exams.map((e) => [e.id, e.name]));
       const scores = (

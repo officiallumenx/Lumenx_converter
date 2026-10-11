@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import {
+  clampListLimit,
+  decodeNameIdCursor,
+  nameIdCursorOrFilter,
+  nextNameIdCursorFromRows,
+} from "../../lib/name-id-cursor.js";
 import type {
   CreateStudentInput,
   ListStudentsFilter,
@@ -26,10 +32,26 @@ export async function listGuardianStudentIds(
   return rows.map((r) => r.student_id);
 }
 
-export async function listStudents(
+export type StudentListPage = {
+  rows: StudentRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export const STUDENTS_LIST_DEFAULT_LIMIT = 100;
+export const STUDENTS_LIST_MAX_LIMIT = 200;
+
+function sanitizeIlikeTerm(raw: string): string {
+  return raw.replace(/[%_,]/g, " ").trim().slice(0, 200);
+}
+
+export async function listStudentsPage(
   admin: SupabaseClient,
   filter: ListStudentsFilter,
-): Promise<StudentRow[]> {
+): Promise<StudentListPage> {
+  const limit = clampListLimit(filter.limit);
+  const cursor = decodeNameIdCursor(filter.cursor);
+
   let query = admin
     .from("student")
     .select(STUDENT_COLS)
@@ -41,29 +63,55 @@ export async function listStudents(
   if (filter.classLabel) query = query.eq("class_label", filter.classLabel);
   if (filter.sectionLabel) query = query.eq("section_label", filter.sectionLabel);
 
-  const result = await query;
-  let rows = ensureDbOk(result) as StudentRow[];
-
-  if (filter.q) {
-    const q = filter.q.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((r) => {
-        const hay = [
-          r.display_name,
-          r.first_name,
-          r.surname,
-          r.admission_number,
-          r.legacy_code,
-          r.roll_no,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
+  const q = filter.q ? sanitizeIlikeTerm(filter.q) : "";
+  if (q) {
+    const pattern = `"%${q.replace(/"/g, "")}%"`;
+    query = query.or(
+      [
+        `display_name.ilike.${pattern}`,
+        `first_name.ilike.${pattern}`,
+        `surname.ilike.${pattern}`,
+        `admission_number.ilike.${pattern}`,
+        `legacy_code.ilike.${pattern}`,
+        `roll_no.ilike.${pattern}`,
+      ].join(","),
+    );
   }
 
+  if (cursor) {
+    query = query.or(nameIdCursorOrFilter(cursor, "display_name"));
+  }
+
+  const result = await query
+    .order("display_name", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(limit + 1);
+  const fetched = ensureDbOk(result) as StudentRow[];
+  const page = nextNameIdCursorFromRows(fetched, limit, (r) => r.display_name);
+  return {
+    rows: page.items,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  };
+}
+
+/** Internal/full fetch — pages until exhausted (no silent max-rows truncation). */
+export async function listStudents(
+  admin: SupabaseClient,
+  filter: ListStudentsFilter,
+): Promise<StudentRow[]> {
+  const rows: StudentRow[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await listStudentsPage(admin, {
+      ...filter,
+      cursor,
+      limit: STUDENTS_LIST_MAX_LIMIT,
+    });
+    rows.push(...page.rows);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
   return rows;
 }
 

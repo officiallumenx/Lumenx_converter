@@ -52,12 +52,14 @@ const REPORT_CATALOG: Array<Omit<ReportDefinitionDto, "generationSupported">> = 
   { id: "audit", name: "Admin activity audit export", module: "Audit" },
 ];
 
+/** Roles that may queue export jobs (read-oriented; includes finance for fee CSVs). */
 const WRITE_ROLES = [
   "institute_admin",
   "principal",
   "vice_principal",
   "coordinator",
   "it_admin",
+  "accountant",
 ] as const;
 
 function assertReportsReader(actor: Actor, instituteId: string): void {
@@ -146,6 +148,7 @@ export async function createReportJobForActor(
     const file = await generateReportCsv(admin, instituteId, report.id, {
       fromDate: input.fromDate ?? null,
       toDate: input.toDate ?? null,
+      academicYearId: input.academicYearId ?? null,
     });
     const completedAt = new Date().toISOString();
     const ready = await updateReportJobFields(admin, row.id, {

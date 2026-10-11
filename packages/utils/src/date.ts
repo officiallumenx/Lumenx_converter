@@ -1,5 +1,33 @@
 /** Local-calendar date helpers (avoid UTC shift from `toISOString()`). */
 
+/** Default institute wall-clock zone when settings are missing (matches backend identity). */
+export const DEFAULT_INSTITUTE_TIMEZONE = "Asia/Kolkata";
+
+/**
+ * Calendar date YYYY-MM-DD in an IANA timezone (institute-local service day).
+ * Uses `en-CA` so the formatter returns ISO-like `YYYY-MM-DD`.
+ */
+export function toIsoDateInTimeZone(
+  date: Date,
+  timeZone: string = DEFAULT_INSTITUTE_TIMEZONE,
+): string {
+  const zone = timeZone.trim() || DEFAULT_INSTITUTE_TIMEZONE;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Today as YYYY-MM-DD in an institute timezone. */
+export function todayInTimeZone(
+  timeZone: string = DEFAULT_INSTITUTE_TIMEZONE,
+  now: Date = new Date(),
+): string {
+  return toIsoDateInTimeZone(now, timeZone);
+}
+
 /** Local calendar date as YYYY-MM-DD. */
 export function toLocalIsoDate(d = new Date()): string {
   const y = d.getFullYear();

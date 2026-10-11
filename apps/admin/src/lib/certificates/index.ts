@@ -3,7 +3,14 @@ export {
   assertApiMode as assertCertificatesApiMode,
   getIssuedCertificateSignedUrl,
 } from "./api";
-export { syncIssuedRecordsToApi, ensureIssueTemplateId } from "./api-sync";
+export {
+  syncIssuedRecordsToApi,
+  ensureIssueTemplateId,
+  resetIssueTemplateCacheForTests,
+  HYBRID_SHADOW_TEMPLATE_TAG,
+  HYBRID_SHADOW_DESCRIPTION_PREFIX,
+  type HybridLedgerSyncResult,
+} from "./api-sync";
 export {
   listCertificateRecommendations,
   updateCertificateRecommendation,

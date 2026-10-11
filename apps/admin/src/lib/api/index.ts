@@ -2,8 +2,10 @@ export { createApiClient, type AdminApiClient, type ApiClientConfig, type ApiReq
 export {
   ApiClientError,
   formatApiClientError,
+  formatSubscriptionWriteBlockedMessage,
   isConflictError,
   isQueuedOfflineError,
+  isSubscriptionWriteBlockedError,
   normalizeApiError,
   type ApiErrorCode,
 } from "./errors";

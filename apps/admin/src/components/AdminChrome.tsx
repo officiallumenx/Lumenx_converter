@@ -30,7 +30,7 @@ import { RouteOutletErrorBoundary } from "@/components/RouteOutletErrorBoundary"
 import { PullToRefresh, DataRefreshStatusBar } from "@/components/PullToRefresh";
 import { DataRefreshHost } from "@/components/DataRefreshHost";
 import { loadAcademicYears } from "@/lib/academic-management-data";
-import { useAcademicYearsListQuery } from "@/lib/admin-queries";
+import { useAcademicYearsListQuery } from "@/lib/admin-queries/hooks-shell";
 import {
   adminWriteBlockReason,
   canAdminMutate,
@@ -97,7 +97,7 @@ import {
 import { AdminAlertsNavBadgeSync } from "@/components/AdminAlertsNavBadgeSync";
 import { AdminInboxRefreshSync } from "@/components/AdminInboxRefreshSync";
 import { useAdminAlertsNavBadge } from "@/lib/use-admin-alerts-nav-badge";
-import { useNotificationsListQuery } from "@/lib/admin-queries";
+import { useNotificationsListQuery } from "@/lib/admin-queries/hooks-shell";
 
 function AdminNotificationBellButton({
   onModuleLinkClick,
@@ -307,6 +307,18 @@ export function AdminChrome() {
     if (!firstAllowed || firstAllowed === path) return;
     void navigate({ to: firstAllowed as never, replace: true });
   }, [user?.accessRoleId, path, visibleNav, navigate, rolesRevision]);
+
+  // Module entitlement: block direct URLs for modules Nexus has not enabled
+  // (or Admin has turned off under the Nexus ceiling).
+  useEffect(() => {
+    if (isAdminRouteModuleEnabled(path, moduleEnabled)) return;
+    const fallback =
+      visibleNav.flatMap((group) => group.items).find((item) => item.to === "/")?.to ??
+      visibleNav.flatMap((group) => group.items)[0]?.to ??
+      "/";
+    if (fallback === path) return;
+    void navigate({ to: fallback as never, replace: true });
+  }, [path, moduleEnabled, visibleNav, navigate]);
 
   const sectionForPath = useMemo(() => {
     return getAdminSectionForPath(path, visibleNav);
@@ -590,7 +602,7 @@ export function AdminChrome() {
             {/* User info header */}
             <div className="px-4 py-3 border-b border-border bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-full bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center text-[11px] font-semibold text-primary-foreground shrink-0">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-[11px] font-semibold text-foreground">
                   {displayInitials}
                 </div>
                 <div className="min-w-0">
@@ -658,7 +670,7 @@ export function AdminChrome() {
           onClick={() => setProfileOpen((v) => !v)}
           className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg transition-colors hover:bg-sidebar-accent ${profileOpen ? "bg-sidebar-accent" : ""}`}
         >
-          <div className="size-8 rounded-full bg-gradient-to-br from-primary to-chart-5 ring-2 ring-sidebar-border flex items-center justify-center text-[10px] font-semibold text-primary-foreground shrink-0">
+          <div className="size-8 rounded-full bg-primary ring-2 ring-sidebar-border flex items-center justify-center text-[10px] font-semibold text-primary-foreground shrink-0">
             {displayInitials}
           </div>
           <div className="flex-1 min-w-0 text-left">

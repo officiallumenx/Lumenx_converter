@@ -27,11 +27,17 @@ import type { PaymentRow, RenewalRecordRow } from "../billing/types.js";
 import {
   addUtcDays,
   calculateSubscriptionQuote,
+  MIN_MONTHLY_CHARGE_INR,
   parseSubscriptionDuration,
   quoteAllDurations,
   type SubscriptionDurationMonths,
   type SubscriptionQuoteDto,
 } from "./pricing.js";
+import { syncSubscriptionActiveStudentCountSafe } from "./headcount.js";
+import {
+  accessModeForLifecycle,
+  deriveSubscriptionLifecycle,
+} from "./lifecycle.js";
 import type {
   InstituteSubscriptionCurrentDto,
   InstituteSubscriptionDetailDto,
@@ -103,7 +109,7 @@ function deriveDurationMonths(renewal: RenewalRecordRow): SubscriptionDurationMo
   const monthlyPrice =
     renewal.active_student_count > 0
       ? Math.max(
-          8_000,
+          MIN_MONTHLY_CHARGE_INR,
           Math.round(renewal.active_student_count * num(renewal.assigned_rate_inr)),
         )
       : num(renewal.regular_amount_inr);
@@ -128,7 +134,7 @@ function toOfflineSubmission(
   const monthlyPrice =
     renewal.active_student_count > 0
       ? Math.max(
-          8_000,
+          MIN_MONTHLY_CHARGE_INR,
           Math.round(renewal.active_student_count * num(renewal.assigned_rate_inr)),
         )
       : num(renewal.regular_amount_inr);
@@ -198,6 +204,7 @@ export async function getCurrentSubscriptionForActor(
   assertSubscriptionReader(actor, instituteId);
 
   try {
+    await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
     const [sub, license] = await Promise.all([
       findSubscriptionByInstituteId(admin, instituteId),
       findLicenseByInstituteId(admin, instituteId),
@@ -242,13 +249,15 @@ export async function getSubscriptionDetailForActor(
   const institute = await findInstituteById(admin, instituteId);
   if (!institute) throw AppError.notFound("Institute not found");
 
-  const sub = await findSubscriptionByInstituteId(admin, instituteId);
+  let sub = await findSubscriptionByInstituteId(admin, instituteId);
   if (!sub) {
     return {
       instituteId,
       instituteName: institute.name,
       subscriptionId: null,
       lifecycleStatus: "registered",
+      derivedLifecycleStatus: "registered",
+      accessMode: "read_only",
       assignedRateInr: 12,
       activeStudentCount: 0,
       trialStartAt: null,
@@ -259,6 +268,10 @@ export async function getSubscriptionDetailForActor(
     };
   }
 
+  // Self-heal live headcount from enrollments before returning quotes/UI.
+  await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
+  sub = (await findSubscriptionByInstituteId(admin, instituteId)) ?? sub;
+
   const [currentPeriodRow, renewals, payments] = await Promise.all([
     sub.current_period_id
       ? findPeriodById(admin, sub.current_period_id)
@@ -268,12 +281,30 @@ export async function getSubscriptionDetailForActor(
   ]);
 
   const pendingPair = findPendingOfflinePair(renewals, payments);
+  const derivedLifecycleStatus = deriveSubscriptionLifecycle(
+    {
+      lifecycleStatus: sub.lifecycle_status,
+      trialStartAt: sub.trial_start_at,
+      trialEndAt: sub.trial_end_at,
+      graceEndsAt: sub.grace_ends_at,
+      currentPeriod: currentPeriodRow
+        ? {
+            startsAt: currentPeriodRow.starts_at,
+            endsAt: currentPeriodRow.ends_at,
+            paymentStatus: currentPeriodRow.payment_status,
+          }
+        : null,
+    },
+    new Date(),
+  );
 
   return {
     instituteId,
     instituteName: institute.name,
     subscriptionId: sub.id,
     lifecycleStatus: sub.lifecycle_status,
+    derivedLifecycleStatus,
+    accessMode: accessModeForLifecycle(derivedLifecycleStatus),
     assignedRateInr: num(sub.assigned_rate_inr),
     activeStudentCount: sub.active_student_count,
     trialStartAt: sub.trial_start_at,
@@ -295,10 +326,13 @@ export async function getSubscriptionQuoteForActor(
   const instituteId = requireInstituteId(actor, instituteIdRaw);
   assertSubscriptionReader(actor, instituteId);
 
-  const sub = await findSubscriptionByInstituteId(admin, instituteId);
+  let sub = await findSubscriptionByInstituteId(admin, instituteId);
   if (!sub) {
     throw AppError.notFound("Subscription not found for institute");
   }
+
+  await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
+  sub = (await findSubscriptionByInstituteId(admin, instituteId)) ?? sub;
 
   const base = {
     activeStudentCount: sub.active_student_count,
@@ -388,8 +422,11 @@ export async function submitOfflinePaymentForActor(
   const institute = await findInstituteById(admin, instituteId);
   if (!institute) throw AppError.notFound("Institute not found");
 
-  const sub = await findSubscriptionByInstituteId(admin, instituteId);
+  let sub = await findSubscriptionByInstituteId(admin, instituteId);
   if (!sub) throw AppError.notFound("Subscription not found for institute");
+
+  await syncSubscriptionActiveStudentCountSafe(admin, instituteId);
+  sub = (await findSubscriptionByInstituteId(admin, instituteId)) ?? sub;
 
   const [renewals, payments] = await Promise.all([
     listRenewalsByInstitute(admin, instituteId),

@@ -101,8 +101,9 @@ export function getApiRolePermission(pathname: string): AccessPermission {
   if (state.instituteWide) return "full";
   const module = matchPermissionRoute(pathname, Object.keys(state.permissions));
   if (!module) {
-    // Unknown route — role-scoped accounts stay closed; institute admins stay open.
-    return state.accessRoleId ? "none" : "full";
+    // Unknown / unsynced route: stay closed. Institute-wide admins already returned above.
+    // Never default to "full" before permissions hydrate (avoids a privilege flash).
+    return "none";
   }
   return state.permissions[module] ?? "none";
 }

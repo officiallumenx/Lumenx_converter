@@ -19,13 +19,15 @@
  *
  * Never prints secrets.
  */
-import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, scryptSync } from "node:crypto";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { assertRemoteWriteAck } from "./assert-remote-write-ack.mjs";
+import { loadLumenxDotenv } from "./load-lumenx-dotenv.mjs";
 
-loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+loadLumenxDotenv();
+assertRemoteWriteAck(process.env, {
+  purpose: "bootstrap-nexus-operator (creates/updates Auth + platform_operator)",
+});
 
 function requireEnv(name) {
   const v = process.env[name]?.trim();

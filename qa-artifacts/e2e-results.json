@@ -1,0 +1,183 @@
+{
+  "results": [
+    {
+      "id": "W1_login_home",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\n\nGood afternoon · srinu\n\nToday's trip\n\nPICKUP TRIP\n\nReady to start\n\nREADY TO START\nBUS-01\nBUS\nStart Pickup Trip\nHome\nAttendance\n2\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W1_more_hub",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\nMore\n\nBus info, route setup, profile, settings, and support\n\nBus Information\n\nYour bus, route, and stops\n\nRoute Setup\n\nAdd stops, assign students, wait for Admin\n\nProfile\n\nDriver photo and account details\n\nSettings\n\nTheme and notification preferences\n\nSupport\n\nHelp, FAQ, and contacts\n\nHome\nAttendance\n2\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W2_route_setup",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\nMore\nRoute Setup\n\nCapture stops by driving the route once\n\nBUS\n\nbus-01 route\n\nCONFIGURED\nSetup\nMy Stops\nMy Assignments\n\nbus-01 · srinu\n\nWaiting for Admin = sent, not approved yet · Active = ready for trips · Declined = fix and resubmit.\n\nRoute setup\n\n1 pickup stop(s) configured · 0 need pickup · 0 in Admin review\n\nSchool endpoint\n\nSchool is set by Admin in Transport Settings. Trip ends after the last student drop.\n\nSCHOOL (BOARDING END)\n\nSchool\n\nSAVED\n\nSchool · 16.76259, 81.67940\n\n16.76259, 81.67940\n\nRadius ±150m · from API\n\nAdd Stop\nDone adding stops\nPickup stops on this route\n\nWaiting, active, and declined stay here\n\n1\n\n4road center\n\nACTIVE\n\n16.76200, 81.68188\n\n16.76200, 81.68188 · 100 m\n\nloki vella\n\nRequest Change\nHome\nAttendance\n2\nAlerts\nEmergency\nMore\nbuttons=|2|S|More|Setup|My Stops|My Assignments|Add Stop|Done adding stops|Request Change|||Hom"
+    },
+    {
+      "id": "W2_assignments",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\nMore\nRoute Setup\n\nCapture stops by driving the route once\n\nBUS\n\nbus-01 route\n\nCONFIGURED\nSetup\nMy Stops\nMy Assignments\nWaiting for Admin\nActive\nDeclined\nMy Student Assignments\n\nWaiting for Admin student ↔ stop links\n\nNo waiting for admin assignments yet.\n\nHome\nAttendance\n2\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W2_submit_request",
+      "status": "BLOCKED",
+      "evidence": "No submit CTA (may already be approved). buttons=|2|S|More|Setup|My Stops|My Assignments|Add Stop|Done adding stops|Request Change|||Home|Attendance|2Alerts|Emergency|More"
+    },
+    {
+      "id": "W5_readiness",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\n\nGood afternoon · srinu\n\nToday's trip\n\nPICKUP TRIP\n\nReady to start\n\nREADY TO START\nBUS-01\nBUS\nStart Pickup Trip\nHome\nAttendance\n2\nAlerts\nEmergency\nMore\nBefore you start Pickup\n\nAll services and assignment checks must be Ready.\n\nSERVICES\n\nInternet\n\nREADY\n\nInternet is connected.\n\nNotifications\n\nREADY\n\nNotifications are allowed.\n\nGPS\n\nREADY\n\nGPS location is available.\n\nASSIGNMENT\n\nAssigned Bus\n\nREADY\n\nBus bus-01 is assigned.\n\nAssigned Route\n\nREADY\n\nRoute BUS is assigned.\n\nStops ready\n\nREADY\n\n2 stops ready.\n\nStudents on Bus\n\nREADY\n\n1 student on this bus.\n\nAll checks Ready. Confirm to start the trip.\n\nStart Pickup Trip\nCancel"
+    },
+    {
+      "id": "W5_start_pickup",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\n\nUploading GPS…\n\n1 GPS point syncing to server…\n\nPICKUP TRIP · In progress\n\nStarted 13:45 · bus-01 · BUS\n\nRUNNING\n\nCURRENT STOP\n\n4road center\n\nNEXT STOP\n\nSchool\n\nTRIP PROGRESS\n\n18%\n\nStop 1 of 2\n\n1\n\nSTUDENTS\n\n0\n\nBOARDED\n\n0\n\nDROPPED\n\nSOS\nContinue trip\n\nGood afternoon · srinu\n\nToday's trip\n\nPICKUP TRIP\n\nIn progress\n\nIN PROGRESS\nBUS-01\nBUS\nOpen current trip\nHome\nAttendance\n2\nAlerts\nEmergency\nMore\nPickup trip started\nOpening Attendance…\nStart Pickup trip?\n\nGPS tr; tripWrites=201 POST /api/v1/transport/trips,200 PATCH /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/phase"
+    },
+    {
+      "id": "W5_attendance_ui",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\n\nPICKUP TRIP\n\nAttendance\n\n4road center\n\nNext stop\nBoarding\nDropping\n\nBOARDED\n\n0\n\nNOT BOARDED\n\n0\n\nNOT MARKED\n\n1\n\nLV\n\nloki vella\n\nClass 8 · 01\n\nNOT MARKED\n\n4road center\n\nTap = Boarded · Hold = Not boarded\n\nEnd Trip\nHome\nAttendance\n2\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W5_mark_boarded",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\nloki vella boarded\n\nPICKUP TRIP\n\nAttendance\n\n4road center\n\nNext stop\nBoarding\nDropping\n\nBOARDED\n\n0\n\nNOT BOARDED\n\n0\n\nNOT MARKED\n\n1\n\nLV\n\nloki vella\n\nClass 8 · 01\n\nNOT MARKED\n\n4road center\n\nTap = Boarded · Hold = Not boarded\n\nEnd Trip\nHome\nAttendance\n2\nAlerts\nEmergency\nMore\nloki vella boarded"
+    },
+    {
+      "id": "W7_sos_ui",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\nEmergency\n\nSends a help request to school Admin with your bus and location.\n\nSOS\nTAP FOR HELP\nActive(0)\nHistory(0)\n\nNo active emergencies\n\nTap SOS and confirm to create one for Admin.\n\nHome\nAttendance\n2\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W8_offline",
+      "status": "PASS",
+      "evidence": "You're offline.\n\nChanges will sync automatically when internet is available.\n\nSkip to content\nD\n\nsrinu\n\nDriver\n\n2\nS\n\nOffline\n\nOffline — changes will sync when connection returns. 4 events queued.\n\nConnection lost\n\n3 GPS points queued — will retry when online.\n\nPICKUP TRIP · In progress\n\nStarted 13:45 · bus-01 · BUS\n\nBOARDING\n\nCURRENT STOP\n\n4road center\n\nNEXT STOP\n\nSchool\n\nTRIP PROGRESS\n\n18%\n\nStop 1 of 2\n\n1\n\nSTUDENTS\n\n0\n\nBOARDED\n\n0\n\nDROPPED\n\nSOS\nContinue trip\n\nGood afternoon · srinu\n\nToday's trip"
+    },
+    {
+      "id": "W8_recovery",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n4\nS\n\nUploading GPS…\n\n4 GPS points syncing to server…\n\nPICKUP TRIP · In progress\n\nStarted 13:45 · bus-01 · BUS\n\nBOARDING\n\nCURRENT STOP\n\n4road center\n\nNEXT STOP\n\nSchool\n\nTRIP PROGRESS\n\n18%\n\nStop 1 of 2\n\n1\n\nSTUDENTS\n\n1\n\nBOARDED\n\n0\n\nDROPPED\n\nSOS\nContinue trip\n\nGood afternoon · srinu\n\nToday's trip\n\nPICKUP TRIP\n\nIn progress\n\nIN PROGRESS\nBUS-01\nBUS\nOpen current trip\nHome"
+    },
+    {
+      "id": "W9_reopen",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n4\nS\n\nUploading GPS…\n\n1 GPS point syncing to server…\n\nPICKUP TRIP · In progress\n\nStarted 13:45 · bus-01 · BUS\n\nBOARDING\n\nCURRENT STOP\n\n4road center\n\nNEXT STOP\n\nSchool\n\nTRIP PROGRESS\n\n18%\n\nStop 1 of 2\n\n1\n\nSTUDENTS\n\n0\n\nBOARDED\n\n0\n\nDROPPED\n\nSOS\nContinue trip\n\nGood afternoon · srinu\n\nToday's trip\n\nPICKUP TRIP\n\nIn progress\n\nIN PROGRESS\nBUS-01\nBUS\nOpen current trip\nHome\nAttendance\n4\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W10_alerts",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n4\nS\nAlerts\n\n4 unread · Urgent transport notices, route updates, and school alerts\n\n4 NEW\nMark all as read\nTRANSPORT\nNew\n\nTrip started\n\nYour trip is running. GPS tracking is active.\n\n9 Oct, 13:41\n\nTRANSPORT\n\nArrived at school\n\nSchool geofence reached. Mark boarding if needed, then continue or end the trip.\n\n8 Oct, 21:23\n\nREMINDER\nAttention\n\nTomorrow is leave(10/10/2026)\n\n10/102026 due to the normal day and more over joy full family day. Please spent with your children.\n\n8 Oct, 15:47\n\nTRANSPORT\n\nTrip started\n\nYour trip is running. GPS tracking is active.\n\n8 Oct, 15:49\n\nTRANSPORT\nNew\n\nTrip started\n\nYour trip is running. GPS tracking is active.\n\nJust now\n\nREMINDER\nAttention\n\nLeave on 20/10/2026\n\nDue to flood reasons the oct 20 2026 is leave. Keep thebchildrren safe and have safe\n\n25 Sept, 16:09\n\nREMINDER\n\nEvent\n\nWe are conducting an event on October 5th for "
+    },
+    {
+      "id": "W1_bus_info",
+      "status": "PASS",
+      "evidence": "Skip to content\nD\n\nsrinu\n\nDriver\n\n4\nS\nMore\nBus Information\n\nAssigned vehicle and route details\n\nROUTE READY\n\nbus-01\n\nDriver · srinu\n\nCAPACITY\n\n40\n\nBUS NUMBER\n\nbus-01\n\nDRIVER\n\nsrinu\n\nASSIGNED ROUTE\n\nBUS\n\nbus-01 route\n\nCAPACITY\n\n40 seats\n\nFrom vehicle record\n\nSTOPS\n\n2 stops\n\nbus-01 route\n\nStops\n\nConfigured pickup sequence with GPS\n\nRoute stop list\n1\n\n4road center\n\n16.76200, 81.68188\n\nloki vella\n\nFirst stop\n\n10000\n\nSchool\n\n16.76259, 81.67940\n\nNo students assigned\n\nLast stop\n\nHome\nAttendance\n4\nAlerts\nEmergency\nMore"
+    },
+    {
+      "id": "W3_admin_approve",
+      "status": "BLOCKED",
+      "evidence": "No usable Admin staff password for lokeshvella111@gmail.com / operator; institute_admin exists but credentials unknown"
+    },
+    {
+      "id": "W4_admin_decline",
+      "status": "BLOCKED",
+      "evidence": "Admin credentials unavailable for live decline/resubmit UI"
+    },
+    {
+      "id": "W6_drop_trip",
+      "status": "NOT RUN",
+      "evidence": "Deferred: requires completed pickup boarding cycle + evening slot start on live institute data"
+    },
+    {
+      "id": "W7_admin_resolve_sos",
+      "status": "BLOCKED",
+      "evidence": "Admin credentials unavailable; SOS not fired against live institute to avoid false emergency"
+    },
+    {
+      "id": "W10_connect_parent",
+      "status": "BLOCKED",
+      "evidence": "Connect up on :4183 but parent smoke password unknown; no verified parent login for shared status"
+    }
+  ],
+  "api": [
+    "200 POST /api/v1/auth/transport/pin-login",
+    "200 GET /api/v1/me",
+    "200 GET /api/v1/notifications?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/drivers/me?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/routes?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "201 POST /api/v1/transport/trips",
+    "200 PATCH /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/phase",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "201 POST /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/location",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "201 POST /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/location",
+    "200 GET /api/v1/transport/emergencies?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 PATCH /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/phase",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/open-emergency",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/notifications?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 POST /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/notifications?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/me",
+    "200 GET /api/v1/transport/drivers/me?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/drivers/me?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/routes?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "201 POST /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/location",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "201 POST /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/location",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding",
+    "200 GET /api/v1/transport/vehicles/6058e78e-8a95-488d-8b41-d189c2399149/active-trip",
+    "200 GET /api/v1/transport/trips?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d&trip_date=2026-10-10",
+    "200 GET /api/v1/transport/portal/driver-route-roster?institute_id=107dc3de-2d23-4400-aef4-f22fc9dd179d",
+    "200 GET /api/v1/transport/trips/959266bb-13f0-4461-9567-d6cc1debede8/boarding"
+  ]
+}

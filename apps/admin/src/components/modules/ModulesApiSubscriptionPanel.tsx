@@ -153,32 +153,32 @@ export function ModulesApiSubscriptionPanel() {
         ) : view.subscription ? (
           <div className="px-5 pb-5 space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 dark:bg-sky-500/15">
-                <div className="text-[10px] uppercase tracking-wider text-sky-700 dark:text-sky-300">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Plan
                 </div>
-                <div className="mt-1 text-sm font-semibold text-sky-950 dark:text-sky-50">
+                <div className="mt-1 text-sm font-semibold text-foreground">
                   {planLabel}
                 </div>
               </div>
-              <div className="rounded-lg border border-success/35 bg-success/10 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-success">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Status
                 </div>
                 <div className="mt-1 text-sm font-semibold capitalize text-foreground">
                   {(detail?.lifecycleStatus ?? view.subscription.status).replace(/_/g, " ")}
                 </div>
               </div>
-              <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 dark:bg-amber-500/15">
-                <div className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Student limit
                 </div>
-                <div className="mt-1 text-sm font-semibold text-amber-950 dark:text-amber-50">
+                <div className="mt-1 text-sm font-semibold text-foreground">
                   {view.subscription.studentLimit.toLocaleString("en-IN")}
                 </div>
               </div>
-              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-primary">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Modules
                 </div>
                 <div className="mt-1 text-sm font-semibold text-foreground">
@@ -209,7 +209,7 @@ export function ModulesApiSubscriptionPanel() {
                 key={id}
                 className={`rounded-lg border p-4 ${
                   enabled
-                    ? "border-primary/30 bg-primary/[0.04]"
+                    ? "border-border bg-muted/20"
                     : "border-border bg-background/40 opacity-80"
                 }`}
               >

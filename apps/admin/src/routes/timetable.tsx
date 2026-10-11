@@ -1230,7 +1230,7 @@ function TimetableDemoPage() {
                 <button
                   key={peer.id}
                   type="button"
-                  className={`lx-timetable-filter-current ${peer.id === current.id ? "ring-1 ring-primary" : ""}`}
+                  className={`lx-timetable-filter-current${peer.id === current.id ? " lx-timetable-filter-current--active" : ""}`}
                   onClick={() => openDetail(peer.id)}
                 >
                   Sec {peer.section}

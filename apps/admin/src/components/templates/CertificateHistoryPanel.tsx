@@ -46,6 +46,9 @@ function formatIssuedDate(iso: string): string {
 }
 
 function fileReference(row: HistoryRow): string {
+  if ("hasServerFile" in row && row.hasServerFile === false) {
+    return row.fileName || "Ledger only (no server file)";
+  }
   if ("bundleFileName" in row && row.bundleFileName && row.fileName) {
     return `${row.fileName} · ${row.bundleFileName}`;
   }
@@ -101,6 +104,13 @@ export function CertificateHistoryPanel({
     return subscribeCertificateNumbering(refresh);
   }, [records]);
 
+  // Must stay above any listBlocked early return — flipping listBlocked must not
+  // change the hook call count (React hooks-order crash).
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => matchesQuery(row, q));
+  }, [rows, query]);
+
   if (listBlocked) {
     return (
       <Card>
@@ -113,11 +123,6 @@ export function CertificateHistoryPanel({
       </Card>
     );
   }
-
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((row) => matchesQuery(row, q));
-  }, [rows, query]);
 
   return (
     <Card>

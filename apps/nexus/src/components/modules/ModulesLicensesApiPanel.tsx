@@ -22,11 +22,13 @@ const ADMIN_MODULE_OPTIONS = [
   "students",
   "teachers",
   "parents",
+  "accounts",
   "classes",
   "attendance",
   "timetable",
   "exams",
   "marks",
+  "homework-logs",
   "fees",
   "transport",
   "notifications",
@@ -40,7 +42,12 @@ const ADMIN_MODULE_OPTIONS = [
 ] as const;
 
 /** Stay off on new licenses until Nexus explicitly enables them. */
-const NEXUS_OPT_IN_MODULES = new Set(["storage", "attendance"]);
+const NEXUS_OPT_IN_MODULES = new Set([
+  "storage",
+  "attendance",
+  "accounts",
+  "homework-logs",
+]);
 
 function defaultEnabledModulesForNewLicense(): Set<string> {
   return new Set(ADMIN_MODULE_OPTIONS.filter((id) => !NEXUS_OPT_IN_MODULES.has(id)));

@@ -133,10 +133,10 @@ function NewRequestModal({ open, onClose }: { open: boolean; onClose: () => void
                 key={t}
                 type="button"
                 onClick={() => setType(t)}
-                className={`rounded-lg border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   type === t
-                    ? "border-primary bg-primary/5 shadow-glow"
-                    : "border-border bg-surface hover:bg-surface-hover hover:border-border-strong"
+                    ? "border-primary/40 bg-primary/[0.06] shadow-xs"
+                    : "border-border bg-card hover:bg-surface-hover hover:border-border-strong"
                 }`}
               >
                 <div className="mb-2">

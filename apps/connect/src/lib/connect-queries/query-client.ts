@@ -6,7 +6,7 @@ export const CONNECT_QUERY_STALE_TIME_MS = 30 * 60_000;
 export const CONNECT_QUERY_GC_TIME_MS = 24 * 60 * 60_000;
 export const CONNECT_QUERY_PERSIST_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
 /** Bump when persisted shapes become incompatible. */
-export const CONNECT_QUERY_CACHE_BUSTER = 1;
+export const CONNECT_QUERY_CACHE_BUSTER = 3;
 
 let connectQueryClient: QueryClient | null = null;
 

@@ -10,7 +10,7 @@ export type {
   ParentListItem,
   ParentRelationshipLabel,
 } from "./types";
-export { assertApiMode, getParent, listParents } from "./api";
+export { assertApiMode, getParent, listParents, listParentsPage } from "./api";
 export {
   createParent,
   updateParent,

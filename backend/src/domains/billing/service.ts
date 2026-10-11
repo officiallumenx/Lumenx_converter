@@ -10,6 +10,7 @@ import {
 import { findInstituteById } from "../identity/repository.js";
 import {
   clearCurrentPeriods,
+  findPeriodById,
   findSubscriptionById,
   findSubscriptionByInstituteId,
   insertPeriod,
@@ -17,12 +18,20 @@ import {
   updateSubscriptionFields,
 } from "../nexus/repository.js";
 import { NEXUS_COMMERCIAL_WRITE_ROLES } from "../nexus/service.js";
-import { addUtcDays, DEFAULT_GRACE_DAYS } from "../subscriptions/pricing.js";
+import {
+  addUtcDays,
+  calculateSubscriptionQuote,
+  DEFAULT_GRACE_DAYS,
+  MIN_MONTHLY_CHARGE_INR,
+  parseSubscriptionDuration,
+  type SubscriptionDurationMonths,
+} from "../subscriptions/pricing.js";
 import {
   deriveDurationMonths,
   deriveFreeMonths,
   toOfflineSubmission,
 } from "../subscriptions/service.js";
+import type { OfflinePaymentSubmissionDto } from "../subscriptions/types.js";
 import {
   findAdjustmentById,
   findPaymentById,
@@ -39,12 +48,6 @@ import {
   updatePaymentFields,
   updateRenewalFields,
 } from "./repository.js";
-import type { OfflinePaymentSubmissionDto } from "../subscriptions/types.js";
-import {
-  calculateSubscriptionQuote,
-  parseSubscriptionDuration,
-  type SubscriptionDurationMonths,
-} from "../subscriptions/pricing.js";
 import { persistInstitutePdfAsset } from "../documents/persist-file.js";
 import { listAssets } from "../assets/repository.js";
 import { getAssetSignedUrlForActor } from "../assets/service.js";
@@ -59,6 +62,7 @@ import type {
   IssueInvoiceFromSubscriptionInput,
   IssueInvoiceResultDto,
   PaymentDto,
+  PaymentMethod,
   PaymentRow,
   RenewalRecordDto,
   RenewalRecordRow,
@@ -235,6 +239,13 @@ async function ensureRenewalInvoicePdf(
   };
 }
 
+/** Period rows only store online|offline; map other payment channels to offline. */
+function periodPaymentMethodFromPayment(
+  method: PaymentMethod,
+): "online" | "offline" {
+  return method === "online" ? "online" : "offline";
+}
+
 async function activateSubscriptionFromPaidRenewal(
   admin: SupabaseClient,
   renewal: RenewalRecordRow,
@@ -249,7 +260,7 @@ async function activateSubscriptionFromPaidRenewal(
   const monthlyPriceInr =
     renewal.active_student_count > 0
       ? Math.max(
-          8_000,
+          MIN_MONTHLY_CHARGE_INR,
           Math.round(
             renewal.active_student_count * num(renewal.assigned_rate_inr),
           ),
@@ -257,7 +268,18 @@ async function activateSubscriptionFromPaidRenewal(
       : num(renewal.regular_amount_inr);
   const freeMonths = deriveFreeMonths(renewal, monthlyPriceInr);
 
-  const startAt = new Date().toISOString();
+  // Stack renewals: if a paid current period is still running, start the new
+  // period when it ends so early verification does not discard remaining days.
+  let startAt = new Date().toISOString();
+  if (sub.current_period_id) {
+    const current = await findPeriodById(admin, sub.current_period_id);
+    if (current?.payment_status === "paid") {
+      const currentEndMs = new Date(current.ends_at).getTime();
+      if (currentEndMs > Date.now()) {
+        startAt = current.ends_at;
+      }
+    }
+  }
   const endAt = addUtcDays(startAt, durationMonths * 30);
   const graceEndsAt = addUtcDays(endAt, DEFAULT_GRACE_DAYS);
 
@@ -274,7 +296,7 @@ async function activateSubscriptionFromPaidRenewal(
     freeMonths,
     startsAt: startAt,
     endsAt: endAt,
-    paymentMethod: "offline",
+    paymentMethod: periodPaymentMethodFromPayment(payment.method),
     paymentStatus: "paid",
     paymentRef: payment.provider_ref,
     amountPaidInr: num(payment.amount_inr),
@@ -379,6 +401,11 @@ export async function updateRenewalForActor(
     if (!RENEWAL_STATUSES.includes(patch.status)) {
       throw AppError.validation("Invalid renewal status");
     }
+    if (patch.status === "paid" && !existing.subscription_period_id) {
+      throw AppError.conflict(
+        "Cannot mark a renewal paid via PATCH. Verify the payment (POST /api/nexus/billing/payments/:id/verify) so a subscription period is created.",
+      );
+    }
     if (patch.status === "paid") {
       const amountPaid =
         patch.amountPaidInr !== undefined
@@ -397,6 +424,28 @@ export async function updateRenewalForActor(
     fields.status = patch.status;
   }
   if (patch.dueAt !== undefined) fields.due_at = patch.dueAt;
+
+  // Freeze commercial snapshot once a renewal leaves draft (issued invoice /
+  // pending verification / paid / overdue / cancelled). Create a new invoice to reprice.
+  const commercialFrozen = new Set([
+    "issued",
+    "pending",
+    "paid",
+    "cancelled",
+    "overdue",
+  ]);
+  const wantsCommercialChange =
+    patch.activeStudentCount !== undefined ||
+    patch.assignedRateInr !== undefined ||
+    patch.regularAmountInr !== undefined ||
+    patch.discountAmountInr !== undefined ||
+    patch.payableAmountInr !== undefined;
+  if (wantsCommercialChange && commercialFrozen.has(existing.status)) {
+    throw AppError.conflict(
+      "Commercial amounts on this renewal are frozen. Create a new invoice if pricing must change.",
+    );
+  }
+
   if (patch.activeStudentCount !== undefined) {
     fields.active_student_count = patch.activeStudentCount;
   }

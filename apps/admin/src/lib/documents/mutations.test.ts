@@ -24,8 +24,9 @@ describe("documents mutations", () => {
     const client = { post } as never;
     const { createDocumentTemplate, transitionGeneratedDocument } =
       await import("./mutations");
+    // Low-level API remains available for Certificates hybrid sync.
     await createDocumentTemplate(
-      { instituteId: INST, type: "certificate", name: "Bonafide" },
+      { instituteId: INST, type: "certificate", name: "Award shadow" },
       client,
     );
     expect(post).toHaveBeenCalledWith(
@@ -33,7 +34,7 @@ describe("documents mutations", () => {
       expect.objectContaining({
         institute_id: INST,
         type: "certificate",
-        name: "Bonafide",
+        name: "Award shadow",
       }),
     );
     await transitionGeneratedDocument(
@@ -45,6 +46,53 @@ describe("documents mutations", () => {
       `/api/v1/documents/generated/${ID}/transition`,
       expect.objectContaining({ workflow_state: "published" }),
     );
+  });
+
+  it("Documents hub create allows document/report and rejects certificate", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: ID });
+    const client = { post } as never;
+    const { createDocumentsHubTemplate } = await import("./mutations");
+
+    await createDocumentsHubTemplate(
+      {
+        instituteId: INST,
+        type: "document",
+        name: "Transfer Certificate — Board Format",
+        category: "transfer_certificate",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/documents/templates",
+      expect.objectContaining({
+        type: "document",
+        name: "Transfer Certificate — Board Format",
+        category: "transfer_certificate",
+      }),
+    );
+
+    await createDocumentsHubTemplate(
+      { instituteId: INST, type: "report", name: "Progress Report" },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/documents/templates",
+      expect.objectContaining({ type: "report", name: "Progress Report" }),
+    );
+
+    await expect(
+      createDocumentsHubTemplate(
+        {
+          instituteId: INST,
+          // @ts-expect-error Documents hub must not submit certificate
+          type: "certificate",
+          name: "Should fail",
+        },
+        client,
+      ),
+    ).rejects.toThrow(/document and report/i);
+    expect(post).toHaveBeenCalledTimes(2);
   });
 
   it("posts create generated document in API mode", async () => {

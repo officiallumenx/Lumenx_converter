@@ -3,6 +3,9 @@
 export const MIN_MONTHLY_CHARGE_INR = 8_000;
 export const DEFAULT_PER_STUDENT_RATE_INR = 12;
 export const EXTENDED_PER_STUDENT_RATE_MAX_INR = 1_000;
+/** Exact free-trial length for newly approved institutes (days). */
+export const DEFAULT_TRIAL_DAYS = 60;
+/** Days of writable access after trial/paid period end before read-only. */
 export const DEFAULT_GRACE_DAYS = 7;
 
 export const SUBSCRIPTION_DURATION_OPTIONS = [1, 6, 12] as const;

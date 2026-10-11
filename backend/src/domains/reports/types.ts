@@ -47,11 +47,14 @@ export type CreateReportJobInput = {
   fromDate?: string | null;
   /** Inclusive ISO date (YYYY-MM-DD). Optional period filter for generators that support it. */
   toDate?: string | null;
+  /** Optional academic year scope for generators that store academic_year_id. */
+  academicYearId?: string | null;
 };
 
 export type ReportDateRange = {
   fromDate: string | null;
   toDate: string | null;
+  academicYearId?: string | null;
 };
 
 export type GeneratedReportFile = {

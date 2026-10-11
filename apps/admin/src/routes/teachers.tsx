@@ -29,7 +29,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -49,7 +49,7 @@ import {
   type TeacherListItem,
 } from "@/lib/teachers";
 import {
-  useTeachersListQuery,
+  useTeachersDirectoryInfiniteQuery,
   useCatalogSubjectsQuery,
   useCatalogClassesQuery,
   adminModulePrefix,
@@ -74,8 +74,14 @@ import {
   type TeacherImportRow,
 } from "@/lib/teachers/bulk-import-parse";
 import { matchSectionIdsByTeacherLabels } from "@/lib/teachers/bulk-import-resolve";
-import { TeacherBulkImportDialog } from "@/components/teachers/TeacherBulkImportDialog";
+import { RouteChunkFallback } from "@/components/RouteChunkFallback";
 import { formatApiClientError } from "@/lib/api";
+
+const TeacherBulkImportDialog = lazy(() =>
+  import("@/components/teachers/TeacherBulkImportDialog").then((m) => ({
+    default: m.TeacherBulkImportDialog,
+  })),
+);
 import { normalizeDateOnlyInput } from "@/lib/date-only";
 import { TEACHERS_CHANGED_EVENT } from "@/lib/career-to-teacher";
 import {
@@ -418,7 +424,7 @@ function TeachersPage() {
     teachingScope: roleFilter !== "all" ? roleToTeachingScope(roleFilter) : undefined,
     q: searchQuery.trim() || undefined,
   };
-  const teachersQuery = useTeachersListQuery(
+  const teachersQuery = useTeachersDirectoryInfiniteQuery(
     instituteCtx.activeInstituteId,
     listFilters,
     listEnabled,
@@ -433,17 +439,30 @@ function TeachersPage() {
   );
 
   const apiItems = useMemo(() => {
-    const base = teachersQuery.data?.items ?? [];
+    const base = teachersQuery.data?.pages.flatMap((p) => p.items) ?? [];
     if (Object.keys(detailOverrides).length === 0) return base;
     return base.map((item) => detailOverrides[item.id] ?? item);
-  }, [teachersQuery.data?.items, detailOverrides]);
-  const listStatus =
-    teachersQuery.data?.status ?? (listEnabled ? "loading" : "needs_institute");
-  const listError = teachersQuery.data?.errorMessage ?? null;
+  }, [teachersQuery.data?.pages, detailOverrides]);
+  const listStatus = !listEnabled
+    ? "needs_institute"
+    : teachersQuery.isError
+      ? "error"
+      : teachersQuery.isLoading
+        ? "loading"
+        : apiItems.length === 0
+          ? "empty"
+          : "ready";
+  const listError =
+    teachersQuery.error instanceof Error
+      ? teachersQuery.error.message
+      : teachersQuery.isError
+        ? "Failed to load teachers"
+        : null;
   const resolvedForInstituteId =
     teachersQuery.data && instituteCtx.activeInstituteId
       ? instituteCtx.activeInstituteId
       : null;
+  const hasMoreTeachers = Boolean(teachersQuery.hasNextPage);
 
   const [detailReload, setDetailReload] = useState(0);
   const bumpTeachersReload = (opts?: { includeClasses?: boolean }) => {
@@ -1248,19 +1267,36 @@ function TeachersPage() {
         ) : (
           <div className="grid grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 md:grid-cols-2 lg:grid-cols-3">
             {list.map((t) => (
-              <TeacherStaffCard
+              <div
                 key={t.id}
-                teacher={t as Teacher}
-                onOpen={(teacher) => openDetail(teacher)}
-                onMessage={(teacher) => openMessage(teacher as Teacher)}
-                onReset={(teacher) => {
-                  if (!guardWrite()) return;
-                  setResetTarget(teacher as Teacher);
+                style={{
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "auto 180px",
                 }}
-              />
+              >
+                <TeacherStaffCard
+                  teacher={t as Teacher}
+                  onOpen={(teacher) => openDetail(teacher)}
+                  onMessage={(teacher) => openMessage(teacher as Teacher)}
+                  onReset={(teacher) => {
+                    if (!guardWrite()) return;
+                    setResetTarget(teacher as Teacher);
+                  }}
+                />
+              </div>
             ))}
           </div>
         )}
+        {apiMode && hasMoreTeachers ? (
+          <div className="flex justify-center border-t border-border p-3">
+            <Button
+              disabled={teachersQuery.isFetchingNextPage}
+              onClick={() => void teachersQuery.fetchNextPage()}
+            >
+              {teachersQuery.isFetchingNextPage ? "Loading…" : "Load more teachers"}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       {/* Teacher detail / edit */}
@@ -2023,22 +2059,24 @@ function TeachersPage() {
       </Modal>
       ) : null}
 
-      {apiMode && writesEnabled ? (
-        <TeacherBulkImportDialog
-          open={bulkImportOpen}
-          onClose={() => {
-            if (!bulkImporting) setBulkImportOpen(false);
-          }}
-          onImport={importTeachers}
-          importing={bulkImporting}
-          instituteName={
-            instituteCtx.displayLabel ||
-            instituteCtx.activeInstitute?.name ||
-            undefined
-          }
-          sectionLabels={apiClassOptions.map((option) => option.value)}
-          subjectNames={apiSubjectCatalog.map((subject) => subject.name)}
-        />
+      {apiMode && writesEnabled && bulkImportOpen ? (
+        <Suspense fallback={<RouteChunkFallback label="Loading import…" />}>
+          <TeacherBulkImportDialog
+            open={bulkImportOpen}
+            onClose={() => {
+              if (!bulkImporting) setBulkImportOpen(false);
+            }}
+            onImport={importTeachers}
+            importing={bulkImporting}
+            instituteName={
+              instituteCtx.displayLabel ||
+              instituteCtx.activeInstitute?.name ||
+              undefined
+            }
+            sectionLabels={apiClassOptions.map((option) => option.value)}
+            subjectNames={apiSubjectCatalog.map((subject) => subject.name)}
+          />
+        </Suspense>
       ) : null}
     </AppShell>
   );

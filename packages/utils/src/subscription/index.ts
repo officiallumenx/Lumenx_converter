@@ -91,6 +91,13 @@ export {
   type OnlinePaymentAdapter,
 } from "./payment-adapter";
 
+export {
+  subscriptionWriteGateReasonFromDetails,
+  isSubscriptionWriteBlockedError,
+  formatSubscriptionWriteBlockedMessage,
+  type SubscriptionWriteGateReason,
+} from "./write-gate-errors";
+
 export type {
   SubscriptionLifecycleStatus,
   SubscriptionPaymentMethod,

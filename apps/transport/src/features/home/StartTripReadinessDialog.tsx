@@ -175,9 +175,12 @@ function AssignmentCheckRow({ check }: { check: AssignmentReadinessCheck }) {
 export function StartTripReadinessDialog({
   open,
   onOpenChange,
+  tripSlot = "morning",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** morning = Pickup, evening = Drop */
+  tripSlot?: "morning" | "evening";
 }) {
   const navigate = useNavigate();
   const [checks, setChecks] = useState<ReadinessCheck[]>(createCheckingState);
@@ -188,6 +191,7 @@ export function StartTripReadinessDialog({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const runIdRef = useRef(0);
+  const tripKindLabel = tripSlot === "evening" ? "Drop" : "Pickup";
 
   const allReady = servicesOn && assignmentOn;
 
@@ -249,31 +253,28 @@ export function StartTripReadinessDialog({
       void navigate({ to: ROUTES.attendance });
       return;
     }
-    if (session.phase === "completed") {
-      toast.error("Trip already completed", {
-        description: "Dismiss the completed trip on Home before starting a new one.",
-      });
-      onOpenChange(false);
-      return;
-    }
 
     setStarting(true);
-    const begin = await tripRepository.beginStartTrip();
+    const begin = await tripRepository.beginStartTrip(tripSlot);
     if (!begin.ok) {
       setStarting(false);
-      toast.error("Cannot start trip", { description: begin.reason });
+      toast.error(`Couldn't start ${tripKindLabel.toLowerCase()} trip`, {
+        description: begin.reason,
+      });
       return;
     }
 
-    const result = await tripRepository.confirmStartTrip();
+    const result = await tripRepository.confirmStartTrip(tripSlot);
     setStarting(false);
     if (!result.ok) {
-      toast.error("Cannot start trip", { description: result.reason });
+      toast.error(`Couldn't start ${tripKindLabel.toLowerCase()} trip`, {
+        description: result.reason,
+      });
       return;
     }
 
-    toast.success("Trip started", {
-      description: "Trip is running. Opening Attendance…",
+    toast.success(`${tripKindLabel} trip started`, {
+      description: "Opening Attendance…",
     });
     setConfirmOpen(false);
     onOpenChange(false);
@@ -299,7 +300,7 @@ export function StartTripReadinessDialog({
           if (starting) return;
           onOpenChange(next);
         }}
-        title="Before you start"
+        title={`Before you start ${tripKindLabel}`}
         description="All services and assignment checks must be Ready."
         footer={
           <div className="flex w-full flex-col gap-2">
@@ -313,7 +314,7 @@ export function StartTripReadinessDialog({
                 onClick={() => setConfirmOpen(true)}
               >
                 <Play className="size-4" aria-hidden />
-                Start Trip
+                Start {tripKindLabel} Trip
               </Button>
             ) : (
               <Button
@@ -377,7 +378,7 @@ export function StartTripReadinessDialog({
           if (starting) return;
           setConfirmOpen(next);
         }}
-        title="Start this trip?"
+        title={`Start ${tripKindLabel} trip?`}
         description="GPS tracking and attendance will begin after you confirm."
         footer={
           <div className="flex w-full flex-col gap-2">
@@ -391,7 +392,7 @@ export function StartTripReadinessDialog({
               onClick={() => void handleConfirmStart()}
             >
               <Play className="size-4" aria-hidden />
-              {starting ? "Starting…" : "Confirm Start Trip"}
+              {starting ? "Starting…" : `Confirm Start ${tripKindLabel}`}
             </Button>
             <Button
               type="button"
@@ -406,8 +407,8 @@ export function StartTripReadinessDialog({
         }
       >
         <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-          After confirmation the trip moves to Running. You can mark boarding and dropping on
-          Attendance.
+          This starts the <span className="font-semibold text-foreground">{tripKindLabel}</span>{" "}
+          trip. After confirmation you can mark students on Attendance.
         </div>
       </BottomSheet>
     </>

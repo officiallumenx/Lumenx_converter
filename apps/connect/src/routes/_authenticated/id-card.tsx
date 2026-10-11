@@ -25,6 +25,7 @@ import { getStudent, getStudentGuardians } from "@/lib/students/api";
 import { getPhotoSignedUrl } from "@/lib/photos/api";
 import { getInstitute } from "@/lib/institute-profile/api";
 import { connectQueryRoots } from "@/lib/connect-queries/keys";
+import { scopedConnectKey } from "@/lib/connect-queries/scope";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { PageSkeleton } from "@/student-portal/shared/ui";
 
@@ -59,18 +60,24 @@ function ParentIdCardPage() {
 }
 
 function ParentIdCardApiPage() {
-  const { activeChildId, linkedChildren, linkedChildrenLoading, activeInstituteId } = useApp();
+  const {
+    user,
+    activeChildId,
+    linkedChildren,
+    linkedChildrenLoading,
+    activeInstituteId,
+  } = useApp();
   const [qrOpen, setQrOpen] = useState(false);
   const child =
     linkedChildren.find((c) => c.id === activeChildId) ?? linkedChildren[0] ?? null;
 
   const query = useQuery({
-    queryKey: [
+    queryKey: scopedConnectKey(user?.id, [
       connectQueryRoots.parentPortal,
       activeInstituteId ?? "_",
       child?.id ?? "_",
       "id-card",
-    ] as const,
+    ]),
     enabled:
       Boolean(activeInstituteId) &&
       Boolean(child?.id) &&

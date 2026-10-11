@@ -17,9 +17,15 @@ import {
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
 import { useInstituteContext } from "@/lib/institutes";
+import {
+  scheduleDeferredSetupRefresh,
+  shouldDeferSetupChecklistNetwork,
+  verifiedCompletePlaceholderState,
+} from "./defer";
 import { buildSetupNavGate, emptySetupNavGate } from "./gate";
 import {
   invalidateSetupChecklistCache,
+  isVerifiedSetupCoreCompleteFresh,
   loadSetupChecklist,
   peekSetupChecklistCache,
   readVerifiedSetupCoreComplete,
@@ -78,10 +84,7 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
       if (cached) return cached;
       // Fast path: previously verified complete — unlock while background verifies.
       if (readVerifiedSetupCoreComplete(instituteCtx.activeInstituteId)) {
-        return {
-          ...emptyLoading(),
-          coreComplete: true,
-        };
+        return verifiedCompletePlaceholderState();
       }
       return emptyLoading();
     }
@@ -91,6 +94,8 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
   activeIdRef.current = instituteCtx.activeInstituteId;
   const refreshGenRef = useRef(dataRefreshGeneration);
   const allowIncompleteDowngradeRef = useRef(false);
+  /** Prevents overlapping idle refreshes for the same institute effect cycle. */
+  const deferredCancelRef = useRef<(() => void) | null>(null);
 
   const reload = useCallback(
     async (opts?: { force?: boolean }) => {
@@ -174,9 +179,11 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
       setState(cached);
     } else if (readVerifiedSetupCoreComplete(requestId)) {
       setState((prev) =>
-        prev.status === "ready" && activeIdRef.current === requestId
+        prev.status === "ready" &&
+        prev.coreComplete &&
+        activeIdRef.current === requestId
           ? prev
-          : { ...emptyLoading(), coreComplete: true },
+          : verifiedCompletePlaceholderState(),
       );
     } else {
       setState((prev) =>
@@ -189,9 +196,8 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const shouldForce = dataRefreshGeneration !== refreshGenRef.current;
     refreshGenRef.current = dataRefreshGeneration;
-    // Soft refresh generation bumps recount without allowing incomplete poison
-    // to overwrite a verified-complete snapshot.
-    void loadSetupChecklist(requestId, { force: shouldForce }).then((next) => {
+
+    const applyResult = (next: SetupChecklistState) => {
       if (cancelled || activeIdRef.current !== requestId) return;
       setState((prev) => {
         if (shouldRetainPreviousComplete(prev, next, false)) {
@@ -199,7 +205,45 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
         }
         return next;
       });
+    };
+
+    const runLoad = () => {
+      void loadSetupChecklist(requestId, { force: shouldForce }).then(applyResult);
+    };
+
+    const defer = shouldDeferSetupChecklistNetwork({
+      force: shouldForce,
+      cached,
+      verifiedFresh: isVerifiedSetupCoreCompleteFresh(requestId),
     });
+
+    if (defer) {
+      // Unlock nav / hide incomplete banner while the expensive recount waits.
+      const gateState =
+        cached?.status === "ready" && cached.coreComplete
+          ? cached
+          : verifiedCompletePlaceholderState();
+      setSetupNavGate(buildSetupNavGate(gateState));
+
+      deferredCancelRef.current?.();
+      const cancelIdle = scheduleDeferredSetupRefresh(() => {
+        deferredCancelRef.current = null;
+        if (cancelled || activeIdRef.current !== requestId) return;
+        runLoad();
+      });
+      deferredCancelRef.current = cancelIdle;
+
+      return () => {
+        cancelled = true;
+        cancelIdle();
+        if (deferredCancelRef.current === cancelIdle) {
+          deferredCancelRef.current = null;
+        }
+      };
+    }
+
+    // Incomplete, stale, or forced — keep current immediate checklist behavior.
+    runLoad();
 
     return () => {
       cancelled = true;
