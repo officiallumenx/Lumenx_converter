@@ -94,6 +94,7 @@ export function mapDbError(error: { code?: string; message?: string; details?: s
 
 export function ensureDbOk<T>(
   result: { data: T; error: { code?: string; message?: string; details?: string; hint?: string } | null },
+  _context?: string,
 ): T {
   if (result.error) {
     mapDbError(result.error);

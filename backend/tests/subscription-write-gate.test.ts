@@ -161,7 +161,7 @@ describe("subscription write-gate HTTP", () => {
       }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error?.details?.reason).toBe("SUBSCRIPTION_REQUIRED");
   });
 
@@ -196,7 +196,7 @@ describe("subscription write-gate HTTP", () => {
       }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error?.details?.reason).toBe("SUBSCRIPTION_READ_ONLY");
   });
 
@@ -417,7 +417,7 @@ describe("subscription write-gate HTTP", () => {
       }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error?.details?.reason).toBe("SUBSCRIPTION_READ_ONLY");
   });
 
@@ -445,7 +445,7 @@ describe("subscription write-gate HTTP", () => {
       }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error?.details?.reason).toBe("SUBSCRIPTION_READ_ONLY");
   });
 
@@ -474,7 +474,7 @@ describe("subscription write-gate HTTP", () => {
       }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.error?.details?.reason).toBe("SUBSCRIPTION_REQUIRED");
   });
 });

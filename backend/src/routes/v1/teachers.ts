@@ -36,14 +36,16 @@ function requireAdmin(c: {
 }
 
 const uuid = z.string().uuid();
-const dateOnly = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
-  z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
-    .nullable()
-    .optional(),
-);
+const dateOnly = z
+  .union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD"),
+    z.literal(""),
+    z.null(),
+  ])
+  .optional()
+  .transform((value): string | null | undefined =>
+    value === undefined ? undefined : value === "" ? null : value,
+  );
 
 const teachingScopeSchema = z.enum([
   "subject_teacher",

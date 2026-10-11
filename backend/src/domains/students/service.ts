@@ -178,7 +178,7 @@ export async function listStudentsPageForActor(
       const next = await listStudentsPage(admin, {
         ...filter,
         instituteId,
-        cursor,
+        cursor: cursor ?? undefined,
         limit,
       });
       return {

@@ -270,12 +270,10 @@ export async function updateInstituteForActor(
   const fieldPatch = toInstituteUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") fieldPatch.name = fieldPatch.name.trim();
   if (typeof fieldPatch.code === "string") {
-    fieldPatch.code = fieldPatch.code.trim();
-    if (
-      fieldPatch.code &&
-      fieldPatch.code.toLowerCase() !== existing.code.toLowerCase()
-    ) {
-      const clash = await findInstituteByCode(admin, fieldPatch.code);
+    const nextCode = fieldPatch.code.trim();
+    fieldPatch.code = nextCode;
+    if (nextCode && nextCode.toLowerCase() !== existing.code.toLowerCase()) {
+      const clash = await findInstituteByCode(admin, nextCode);
       if (clash && clash.id !== existing.id) {
         throw AppError.conflict("Institute code is already in use");
       }

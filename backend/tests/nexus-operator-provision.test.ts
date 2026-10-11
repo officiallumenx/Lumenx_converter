@@ -19,7 +19,7 @@ const rootActor = {
   platformRoleCode: "nexus_root",
   isPlatformOperator: true,
   memberships: [],
-} as Actor;
+} as unknown as Actor;
 const operationsActor = {
   ...rootActor,
   platformRoleCode: "operations",

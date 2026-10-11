@@ -35,7 +35,7 @@ describe("legacy parent auth retirement", () => {
       }),
     });
     expect(request.status).toBe(400);
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     expect(String(requestBody.error?.message ?? "")).toMatch(/Connect passwordless/i);
 
     const verify = await app.request("/api/v1/auth/parent/verify-otp", {
@@ -48,7 +48,7 @@ describe("legacy parent auth retirement", () => {
       }),
     });
     expect(verify.status).toBe(400);
-    const verifyBody = await verify.json();
+    const verifyBody = (await verify.json()) as any;
     expect(String(verifyBody.error?.message ?? "")).toMatch(/Connect passwordless/i);
   });
 });

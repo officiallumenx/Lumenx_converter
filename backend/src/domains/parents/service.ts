@@ -249,7 +249,7 @@ export async function listParentsPageForActor(
       const next = await listParentsPage(admin, {
         ...filter,
         instituteId,
-        cursor,
+        cursor: cursor ?? undefined,
         limit,
       });
       return {
@@ -430,7 +430,7 @@ export async function deleteParentForActor(
     entityKind: "parent",
     entityId: parentId,
     module: "Parents",
-    title: existing.display_name?.trim() || "Parent",
+    title: existing.name?.trim() || "Parent",
     subtitle: existing.phone ?? existing.email,
   });
 }

@@ -78,7 +78,10 @@ describe("otp delivery", () => {
     );
     expect(result).toEqual({ mode: "live", provider: "webhook", channel: "sms" });
     expect(fetchSpy).toHaveBeenCalledOnce();
-    const [url, init] = fetchSpy.mock.calls[0]!;
+    const [url, init] = fetchSpy.mock.calls[0]! as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe("https://hooks.example/sms");
     expect((init as RequestInit).headers).toMatchObject({
       Authorization: "Bearer secret",
@@ -117,7 +120,10 @@ describe("otp delivery", () => {
       provider: "startmessaging",
       channel: "sms",
     });
-    const [url, init] = fetchSpy.mock.calls[0]!;
+    const [url, init] = fetchSpy.mock.calls[0]! as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe("https://api.startmessaging.com/otp/send");
     expect((init as RequestInit).headers).toMatchObject({
       "X-API-Key": "sm_live_test",
@@ -151,7 +157,10 @@ describe("otp delivery", () => {
       env,
     );
 
-    const [url, init] = fetchSpy.mock.calls[0]!;
+    const [url, init] = fetchSpy.mock.calls[0]! as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(String(url)).toContain("api.twilio.com");
     expect(String(url)).toContain("ACtest");
     const form = new URLSearchParams(String((init as RequestInit).body));
@@ -182,7 +191,10 @@ describe("otp delivery", () => {
       env,
     );
     expect(result.provider).toBe("resend");
-    const [url, init] = fetchSpy.mock.calls[0]!;
+    const [url, init] = fetchSpy.mock.calls[0]! as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe("https://api.resend.com/emails");
     const body = JSON.parse(String((init as RequestInit).body));
     expect(body.to).toEqual(["teacher@school.edu"]);

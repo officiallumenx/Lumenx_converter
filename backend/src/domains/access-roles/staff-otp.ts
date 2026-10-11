@@ -136,6 +136,7 @@ export async function verifyStoredStaffLoginOtp(
     otp: input.otp,
   });
   if (!challenge) return null;
+  if (!challenge.subject_id || !challenge.institute_id) return null;
 
   return {
     userId: challenge.subject_id,

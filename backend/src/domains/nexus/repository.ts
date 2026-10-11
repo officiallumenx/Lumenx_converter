@@ -351,7 +351,7 @@ export async function insertSubscription(
     if (raced) return raced;
   }
 
-  return ensureDbOk(inserted) as SubscriptionRow;
+  return ensureDbOk(inserted) as unknown as SubscriptionRow;
 }
 
 export async function updateSubscriptionFields(

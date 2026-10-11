@@ -3,7 +3,7 @@ import {
   REMOTE_WRITE_ACK_PHRASE,
   assertRemoteWriteAck,
   looksLikeHostedSupabaseUrl,
-} from "../../scripts/assert-remote-write-ack.mjs";
+} from "./remote-write-ack.js";
 
 describe("assertRemoteWriteAck", () => {
   it("detects hosted supabase hosts", () => {

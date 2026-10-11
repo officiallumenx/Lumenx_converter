@@ -5,6 +5,7 @@ import { listActiveAssetsAll } from "../storage/repository.js";
 import { listOpenSupportThreadsForPlatform } from "../support/repository.js";
 import { listPolicyRules, listStorageQuotas } from "./repository.js";
 import type {
+  DerivedPlatformAlertDto,
   PolicyRuleKind,
   PolicyRuleRow,
   PolicySeverity,

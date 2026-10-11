@@ -35,7 +35,9 @@ async function evaluateAttendanceRules(
   for (const mark of marks) {
     const row = byStudent.get(mark.student_id) ?? { present: 0, total: 0 };
     row.total += 1;
-    if (mark.status === "present" || mark.status === "late") row.present += 1;
+    if (mark.status === "present" || (mark.status as string) === "late") {
+      row.present += 1;
+    }
     byStudent.set(mark.student_id, row);
   }
 

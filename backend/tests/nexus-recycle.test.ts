@@ -120,7 +120,7 @@ describe("nexus recycle oversight", () => {
       headers: { Authorization: "Bearer token-ops" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     const ids = body.data.map((row: { id: string }) => row.id);
     expect(ids).toContain(ITEM_A);
     expect(ids).toContain(ITEM_B);
@@ -133,7 +133,9 @@ describe("nexus recycle oversight", () => {
       { headers: { Authorization: "Bearer token-ops" } },
     );
     expect(res.status).toBe(200);
-    const ids = (await res.json()).data.map((row: { id: string }) => row.id);
+    const ids = ((await res.json()) as { data: { id: string }[] }).data.map(
+      (row) => row.id,
+    );
     expect(ids).toEqual([ITEM_A]);
   });
 

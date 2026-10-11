@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { writableTrialSubscription } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -33,6 +34,8 @@ const ROUTE_A = "af111111-1111-4111-8111-111111111111";
 const DRIVER_A = "d1111111-1111-4111-8111-111111111111";
 const STOP_PICKUP = "b0111111-1111-4111-8111-111111111111";
 const STOP_DROP = "b0222222-2222-4222-8222-222222222222";
+const SUB_A = "ab111111-1111-4111-8111-111111111111";
+const SUB_B = "ab222222-2222-4222-8222-222222222222";
 
 beforeEach(() => {
   resetEnvCache();
@@ -246,6 +249,11 @@ function baseDb(): MockDb {
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
     },
+  ];
+  // Writable trial so subscription write-gate allows trip/boarding mutations.
+  db.subscription = [
+    writableTrialSubscription(INST_A, SUB_A),
+    writableTrialSubscription(INST_B, SUB_B),
   ];
   return db;
 }

@@ -30,7 +30,12 @@ export async function fetchAllPagedRows<T>(
   while (from < SUPABASE_MAX_ROWS) {
     const to = Math.min(from + SUPABASE_PAGE_SIZE - 1, SUPABASE_MAX_ROWS - 1);
     const result = await buildPage(from, to);
-    const page = ensureDbOk(result as { data: unknown; error: unknown }) as T[];
+    const page = ensureDbOk(
+      result as {
+        data: unknown;
+        error: { code?: string; message?: string; details?: string; hint?: string } | null;
+      },
+    ) as T[];
     rows.push(...page);
     if (page.length < SUPABASE_PAGE_SIZE) {
       return { rows, truncated: false };

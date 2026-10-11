@@ -264,7 +264,7 @@ describe("subscription lifecycle sync", () => {
       headers: { Authorization: "Bearer token-billing" },
     });
     expect(ok.status).toBe(200);
-    const body = await ok.json();
+    const body = (await ok.json()) as any;
     expect(body.data.updated).toBeGreaterThanOrEqual(1);
     expect(db.subscription.find((s) => s.id === SUB_A)?.lifecycle_status).toBe(
       "read_only",

@@ -162,7 +162,7 @@ describe("subscription coverage audit", () => {
       headers: { Authorization: "Bearer token-billing" },
     });
     expect(ok.status).toBe(200);
-    const body = await ok.json();
+    const body = (await ok.json()) as any;
     expect(body.data.issueCount).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(body.data.issues)).toBe(true);
     // No PII beyond institute id/code/name

@@ -72,7 +72,7 @@ remarks.post("/", async (c) => {
     instituteId: body.institute_id,
     studentId: body.student_id,
     type: body.type,
-    tone: body.tone,
+    tone: body.tone ?? "none",
     text: body.text,
   });
   return c.json({ data }, 201);

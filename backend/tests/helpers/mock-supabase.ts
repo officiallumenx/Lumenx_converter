@@ -558,7 +558,7 @@ class QueryBuilder {
 }
 
 export function createMockSupabaseClients(options: {
-  tokens: MockAuthUsers;
+  tokens?: MockAuthUsers;
   db: MockDb;
   authUsersByEmail?: MockAuthUsersByEmail;
   /** Pre-seed Auth passwords for existing users (e.g. principal login tests). */
@@ -569,6 +569,7 @@ export function createMockSupabaseClients(options: {
   const errorQueue = options.nextErrors ?? [];
   const authUsersByEmail = options.authUsersByEmail ?? {};
   const authPasswords: Record<string, string> = { ...(options.authPasswords ?? {}) };
+  const tokens = options.tokens ?? {};
 
   const admin = {
     auth: {
@@ -665,9 +666,7 @@ export function createMockSupabaseClients(options: {
           return { data: { session: null }, error: { message: "invalid token" } };
         }
         const access_token = `access-${user.id}`;
-        if (options.tokens) {
-          options.tokens[access_token] = user.id;
-        }
+        tokens[access_token] = user.id;
         return {
           data: {
             session: {
@@ -700,7 +699,7 @@ export function createMockSupabaseClients(options: {
         };
       },
       async getUser(token: string): Promise<GetUserResult> {
-        const userId = options.tokens[token];
+        const userId = tokens[token];
         if (!userId) {
           return {
             data: { user: null },

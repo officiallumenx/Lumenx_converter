@@ -163,7 +163,7 @@ export async function listTeachersPageForActor(
       const next = await listTeachersPage(admin, {
         ...filter,
         instituteId,
-        cursor,
+        cursor: cursor ?? undefined,
         limit,
       });
       return {

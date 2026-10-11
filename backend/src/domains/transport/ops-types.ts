@@ -198,19 +198,6 @@ export type TransportEmergencyDto = {
   updatedAt: string;
 };
 
-export type VehicleLocationDto = {
-  id: string;
-  instituteId: string;
-  tripId: string;
-  vehicleId: string;
-  latitude: number;
-  longitude: number;
-  accuracyM: number | null;
-  capturedAt: string;
-  clientEventId?: string | null;
-  sequenceNumber?: number | null;
-};
-
 export type LearnerTransportLiveDto = {
   activeTrip: TransportTripDto | null;
   boarding: TransportBoardingEventDto | null;

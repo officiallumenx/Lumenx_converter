@@ -22,7 +22,7 @@ describe("fillAuthorizedPage", () => {
       });
 
     const allowed = new Set(["d", "e"]);
-    const page = await fillAuthorizedPage({
+    const page = await fillAuthorizedPage<{ id: string }, { id: string }>({
       limit: 2,
       cursor: null,
       fetchPage,
@@ -67,7 +67,8 @@ describe("fillAuthorizedPage", () => {
       limit: 10,
       cursor: null,
       fetchPage,
-      mapAuthorized: (rows) => rows.filter((r) => r.id === "ok"),
+      mapAuthorized: (rows: { id: string }[]) =>
+        rows.filter((r) => r.id === "ok"),
     });
 
     expect(page.items).toEqual([{ id: "ok" }]);

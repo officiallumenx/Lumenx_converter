@@ -3,7 +3,7 @@
 **Migration file:** `supabase/migrations/20261011140000_platform_certificate_templates_pptx.sql`  
 **Status:** **Applied to hosted production** `kmpzflsurepjwqnfqyld` on 2026-10-11 (`supabase db push --linked`, verified in `schema_migrations` + post-apply SQL).
 
-**Sibling transport migration** `20261009180000` remains **pending** — blocked by 3 live duplicate trip groups (see `qa-artifacts/TRANSPORT_UNIQUE_INDEX_BLOCKER.md`).
+**Sibling transport migration** `20261009180000` was **applied** after soft-deleting 3 evidenced redundant trips (see `qa-artifacts/TRANSPORT_DUP_RESOLUTION.md`).
 
 **Production preflight artifact:** `qa-artifacts/PLATFORM_CERT_TEMPLATES_PRODUCTION_PREFLIGHT.md`
 

@@ -237,7 +237,7 @@ export function ingestTripGpsSample(input: {
   nowMs?: number;
 }): {
   trusted: boolean;
-  rejectReason?: GpsTrustResult extends { ok: false; reason: infer R } ? R : never;
+  rejectReason?: "jump" | "stale_timestamp" | "bad_coords";
   tracker: TripEtaTracker;
 } {
   const nowMs = input.nowMs ?? Date.now();

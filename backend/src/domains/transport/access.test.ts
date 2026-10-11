@@ -16,18 +16,24 @@ const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 function actor(roles: string[]): Actor {
   return {
     userId: "66666666-6666-4666-8666-666666666666",
+    profileId: "66666666-6666-4666-8666-666666666666",
+    displayName: "Driver",
     email: "d@x.com",
+    profileStatus: "active",
     isPlatformOperator: false,
+    platformRoleCode: null,
     memberships: [
       {
         membershipId: "m1",
         instituteId: INST,
-        roles,
+        roles: roles as Actor["memberships"][number]["roles"],
         status: "active",
       },
     ],
+    teachers: [],
     students: [],
     parents: [],
+    staff: [],
   };
 }
 

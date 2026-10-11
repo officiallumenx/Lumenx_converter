@@ -163,7 +163,7 @@ describe("notification delivery diagnostic", () => {
       { headers: { Authorization: "Bearer token-admin" } },
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.data.notification.id).toBe(NOTIF);
     expect(body.data.deviceTokens[0].fingerprint).toMatch(/^[a-f0-9]{16}$/);
     expect(JSON.stringify(body)).not.toContain("secret-fcm-token-value");

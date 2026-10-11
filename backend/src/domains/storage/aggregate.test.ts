@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { aggregateUsageRows } from "./aggregate.js";
-import type { StoredAssetRow } from "../src/domains/assets/types.js";
+import type { StoredAssetRow } from "../assets/types.js";
 
 function row(partial: Partial<StoredAssetRow> & Pick<StoredAssetRow, "id" | "institute_id">): StoredAssetRow {
   return {
