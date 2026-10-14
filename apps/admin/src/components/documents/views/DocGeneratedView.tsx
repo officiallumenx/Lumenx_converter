@@ -427,7 +427,7 @@ function PipelineColumn({
               {COL_EMPTY_MSG[state]}
             </p>
             {state === "draft" && writesEnabled && (
-              <Link to="/documents" search={{ view: "generate" }}>
+              <Link to="/documents" search={{ view: "official" }}>
                 <button type="button" className="text-[10px] text-primary hover:underline font-medium mt-0.5">
                   Generate →
                 </button>
@@ -769,7 +769,7 @@ export function DocGeneratedView({
             ))}
           </div>
 
-          <Link to="/documents" search={{ view: "generate" }}>
+          <Link to="/documents" search={{ view: "official" }}>
             {writesEnabled ? (
               <Button variant="primary" size="sm">
                 <Wand2 className="size-3.5" /> Generate new

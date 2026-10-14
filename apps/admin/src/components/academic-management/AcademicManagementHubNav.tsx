@@ -7,6 +7,8 @@ import {
   GraduationCap,
   UserCog,
   Settings2,
+  ShieldCheck,
+  ArrowLeftRight,
 } from "lucide-react";
 
 const NAV: {
@@ -18,6 +20,8 @@ const NAV: {
   { view: "years", label: "Academic Years", short: "Years", icon: CalendarRange },
   { view: "promotion", label: "Student Promotion", short: "Promote", icon: ArrowUpFromLine },
   { view: "graduation", label: "Graduation", short: "Graduate", icon: GraduationCap },
+  { view: "retention", label: "Retention review", short: "Retain", icon: ShieldCheck },
+  { view: "transfers", label: "Transfers", short: "Transfer", icon: ArrowLeftRight },
   { view: "status", label: "Student Status", short: "Status", icon: UserCog },
   { view: "settings", label: "Academic Settings", short: "Settings", icon: Settings2 },
 ];

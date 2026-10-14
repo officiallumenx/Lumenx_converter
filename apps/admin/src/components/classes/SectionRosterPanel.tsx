@@ -141,7 +141,7 @@ export function SectionRosterPanel({
         )}
         <p className="mt-3 text-xs text-muted-foreground">
           Institute-wide enrollments are also available on{" "}
-          <Link to="/enrollments" className="text-primary hover:underline">
+          <Link to="/enrollments" search={{ sectionId: undefined, academicYearId: undefined }} className="text-primary hover:underline">
             Enrollments
           </Link>
           .

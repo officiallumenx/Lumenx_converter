@@ -21,6 +21,7 @@ describe("homework map", () => {
       dueDate: "2026-06-10",
       status: "published",
       publishedAt: "2026-06-01T10:00:00Z",
+      attachmentAssetId: null,
       createdAt: "2026-06-01T10:00:00Z",
       updatedAt: "2026-06-01T10:00:00Z",
     };

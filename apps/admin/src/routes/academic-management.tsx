@@ -8,6 +8,8 @@ import { StudentPromotionView } from "@/components/academic-management/views/Stu
 import { GraduationView } from "@/components/academic-management/views/GraduationView";
 import { StudentStatusView } from "@/components/academic-management/views/StudentStatusView";
 import { AcademicSettingsView } from "@/components/academic-management/views/AcademicSettingsView";
+import { RetentionReviewView } from "@/components/academic-management/views/RetentionReviewView";
+import { TransfersView } from "@/components/academic-management/views/TransfersView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { adminPageTitle } from "@/lib/admin-module-labels";
 
@@ -15,6 +17,8 @@ export type AcademicManagementView =
   | "years"
   | "promotion"
   | "graduation"
+  | "retention"
+  | "transfers"
   | "status"
   | "settings";
 
@@ -22,6 +26,8 @@ const VIEW_TITLES: Record<AcademicManagementView, string> = {
   years: "Academic Years",
   promotion: "Student Promotion",
   graduation: "Graduation",
+  retention: "Retention review",
+  transfers: "Transfers",
   status: "Student Status",
   settings: "Academic Settings",
 };
@@ -29,7 +35,9 @@ const VIEW_TITLES: Record<AcademicManagementView, string> = {
 const VIEW_SUBTITLES: Record<AcademicManagementView, string> = {
   years: "Create, activate, archive, and manage academic sessions",
   promotion: "Promote eligible students to the next class",
-  graduation: "Pass-out workflow · retain records for 5 years",
+  graduation: "Pass-out workflow · five-year review after graduation",
+  retention: "Review eligibility · extensions · legal holds · no auto-delete",
+  transfers: "Cross-institution transfer requests",
   status: "Status catalogue and sample assignments",
   settings: "Attendance · notifications · promotion workflow",
 };
@@ -39,6 +47,8 @@ const ACADEMIC_VIEW_CONFIG = {
     "years",
     "promotion",
     "graduation",
+    "retention",
+    "transfers",
     "status",
     "settings",
   ] as const,
@@ -67,6 +77,8 @@ function AcademicManagementPage() {
         {view === "years" && <AcademicYearsView />}
         {view === "promotion" ? <StudentPromotionView /> : null}
         {view === "graduation" ? <GraduationView /> : null}
+        {view === "retention" ? <RetentionReviewView /> : null}
+        {view === "transfers" ? <TransfersView /> : null}
         {view === "status" ? <StudentStatusView /> : null}
         {view === "settings" ? <AcademicSettingsView /> : null}
       </AdminPageTransition>

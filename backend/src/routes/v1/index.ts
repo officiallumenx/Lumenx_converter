@@ -55,6 +55,8 @@ import subscriptions from "./subscriptions.js";
 import productFeedback from "./product-feedback.js";
 import webhooks from "./webhooks.js";
 import registrations from "./registrations.js";
+import retention from "./retention.js";
+import transfers from "./transfers.js";
 import {
   accessRoles,
   accessAssignees,
@@ -134,6 +136,8 @@ v1.route("/storage", storage);
 v1.route("/recycle", recycle);
 v1.route("/analytics", analytics);
 v1.route("/reports", reports);
+v1.route("/retention", retention);
+v1.route("/transfers", transfers);
 v1.route("/teacher-performance", teacherPerformance);
 v1.route("/alert-rules", alertRules);
 v1.route("/school-alerts", schoolAlerts);

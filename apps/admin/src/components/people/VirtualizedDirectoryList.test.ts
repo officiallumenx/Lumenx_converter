@@ -9,13 +9,14 @@ describe("VirtualizedDirectoryList", () => {
       id: `id-${i}`,
       name: `Person ${i}`,
     }));
+    const TypedList = VirtualizedDirectoryList<{ id: string; name: string }>;
     const html = renderToStaticMarkup(
-      createElement(VirtualizedDirectoryList, {
+      createElement(TypedList, {
         items,
         estimateRowHeight: 72,
         overscan: 2,
-        getKey: (item: { id: string }) => item.id,
-        renderRow: (item: { id: string; name: string }) =>
+        getKey: (item) => item.id,
+        renderRow: (item) =>
           createElement("div", { "data-row": item.id }, item.name),
       }),
     );

@@ -1,50 +1,40 @@
 import { IconChip } from "@/components/IconChip";
 import { Link } from "@tanstack/react-router";
-import type { TemplateHubView } from "@/lib/template-management/types";
 import {
+  CERT_HUB_PRIMARY_NAV,
+  type CertHubView,
+} from "@/lib/certificates/cert-hub-views";
+import {
+  Award,
+  FileCheck2,
   LayoutDashboard,
-  Library,
+  LayoutTemplate,
+  ShieldCheck,
   Wand2,
-  FileCheck,
-  FolderOpen,
-  Users,
-  MoreHorizontal,
 } from "lucide-react";
 
-/** Primary nav only — kind filters live in Library; Imports/Categories/Settings under More. */
-const NAV: { view: TemplateHubView; label: string; short: string; icon: typeof LayoutDashboard }[] =
-  [
-    { view: "dashboard", label: "Overview", short: "Home", icon: LayoutDashboard },
-    { view: "library", label: "Library", short: "Library", icon: Library },
-    { view: "builder", label: "Builder", short: "Builder", icon: Wand2 },
-    { view: "generate", label: "Issue", short: "Issue", icon: FileCheck },
-    { view: "students", label: "Students", short: "Students", icon: Users },
-    { view: "generated", label: "Generated", short: "Out", icon: FolderOpen },
-    { view: "more", label: "More", short: "More", icon: MoreHorizontal },
-  ];
+const ICONS: Record<CertHubView, typeof LayoutDashboard> = {
+  overview: LayoutDashboard,
+  templates: LayoutTemplate,
+  issue: Wand2,
+  issued: FileCheck2,
+  verify: ShieldCheck,
+};
 
+/** @deprecated Use CertHubNav instead. Kept for backward compatibility. */
 export function TemplateHubNav({
   active,
   compact = false,
 }: {
-  active: TemplateHubView;
+  active: CertHubView;
   compact?: boolean;
 }) {
-  const activeNav: TemplateHubView =
-    active === "certificates" ||
-    active === "reports" ||
-    active === "id_cards" ||
-    active === "documents"
-      ? "library"
-      : active === "imports" || active === "categories" || active === "settings"
-        ? "more"
-        : active;
-
   return (
     <div className={`${compact ? "mb-2" : "mb-3 sm:mb-6"} -mx-1 px-1 overflow-x-auto lx-sidebar-scroll`}>
       <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max rounded-xl border border-border bg-card">
-        {NAV.map(({ view, label, short, icon: Icon }) => {
-          const isActive = activeNav === view;
+        {CERT_HUB_PRIMARY_NAV.map(({ view, label, short }) => {
+          const Icon = ICONS[view] ?? Award;
+          const isActive = active === view;
           return (
             <Link
               key={view}

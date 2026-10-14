@@ -111,7 +111,7 @@ export function DocPublishedApiPanel() {
           title="Published documents"
           hint="workflow_state = published · portal visibility from generated records"
           action={
-            <Link to="/documents" search={{ view: "generated" }}>
+            <Link to="/documents" search={{ view: "archive" }}>
               <Button size="sm" variant="ghost" className="gap-1">
                 All generated <ArrowRight className="size-3" />
               </Button>

@@ -18,6 +18,8 @@ describe("resolveBirthdayPrincipalName", () => {
       instituteId: institute.id,
       timezone: "Asia/Kolkata",
       locale: "en-IN",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
       settings: {
         profile: {
           name: "Alpha School",
@@ -56,6 +58,8 @@ describe("resolveBirthdayPrincipalName", () => {
       instituteId: institute.id,
       timezone: "Asia/Kolkata",
       locale: "en-IN",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
       settings: {},
     };
 

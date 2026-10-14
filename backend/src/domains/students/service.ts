@@ -86,6 +86,7 @@ export function toStudentDto(row: StudentRow): StudentDto {
     photoAssetPath: row.photo_asset_path,
     idCardIssuedOn: row.id_card_issued_on,
     idCardValidTill: row.id_card_valid_till,
+    graduatedOn: row.graduated_on ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

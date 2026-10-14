@@ -27,6 +27,12 @@ import {
 import { listStudents } from "../students/repository.js";
 import { listTeachers } from "../teachers/repository.js";
 import {
+  findAcademicYearById,
+  listClasses,
+  listEnrollments as listAcademicEnrollments,
+  listSections,
+} from "../academics/repository.js";
+import {
   listDrivers,
   listEnrollments,
   listRoutes,
@@ -70,6 +76,7 @@ const SUPPORTED = new Set([
   "transport-emergencies",
   "careers",
   "documents",
+  "academic-year-records",
 ]);
 
 export function isReportGenerationSupported(reportId: string): boolean {
@@ -548,6 +555,72 @@ export async function generateReportCsv(
             row.certificate_number,
             row.created_at,
           ]),
+        ),
+      };
+    }
+    case "academic-year-records": {
+      const academicYearId = range?.academicYearId?.trim();
+      if (!academicYearId) {
+        throw new Error(
+          'academic_year_id is required for report_id "academic-year-records"',
+        );
+      }
+      const year = await findAcademicYearById(admin, academicYearId);
+      if (!year || year.institute_id !== instituteId) {
+        throw new Error("Academic year not found for this institute");
+      }
+      const [enrollments, classes, sections, students] = await Promise.all([
+        listAcademicEnrollments(admin, { instituteId, academicYearId }),
+        listClasses(admin, { instituteId, academicYearId }),
+        listSections(admin, { instituteId, academicYearId }),
+        listStudents(admin, { instituteId }),
+      ]);
+      const classById = new Map(classes.map((c) => [c.id, c]));
+      const sectionById = new Map(sections.map((s) => [s.id, s]));
+      const studentById = new Map(students.map((s) => [s.id, s]));
+      return {
+        fileName: stamp(reportId),
+        contentType: "text/csv; charset=utf-8",
+        contentText: toCsv(
+          [
+            "academic_year_id",
+            "academic_year_name",
+            "enrollment_id",
+            "student_id",
+            "admission_number",
+            "display_name",
+            "class_code",
+            "class_name",
+            "section_code",
+            "section_name",
+            "roll_no",
+            "enrollment_status",
+            "enrolled_on",
+            "withdrawn_on",
+            "student_status",
+          ],
+          enrollments.map((row) => {
+            const student = studentById.get(row.student_id);
+            const klass = classById.get(row.class_id);
+            const section = sectionById.get(row.section_id);
+            return [
+              year.id,
+              year.name,
+              row.id,
+              row.student_id,
+              student?.admission_number ?? "",
+              student?.display_name ?? "",
+              klass?.code ?? "",
+              klass?.name ?? "",
+              section?.code ?? "",
+              section?.name ?? "",
+              row.roll_no ?? "",
+              row.status,
+              row.enrolled_on ?? "",
+              row.withdrawn_on ?? "",
+              student?.status ?? "",
+            ];
+          }),
         ),
       };
     }

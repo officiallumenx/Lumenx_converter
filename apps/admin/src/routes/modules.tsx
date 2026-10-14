@@ -14,7 +14,7 @@ import {
   Field,
   Select,
 } from "@lumenx/ui-admin";
-import { CreditCard, FileText, Lock, Download } from "lucide-react";
+import { CreditCard, FileText, Lock, Download, ShieldCheck } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ModulesApiSubscriptionPanel } from "@/components/modules/ModulesApiSubscriptionPanel";

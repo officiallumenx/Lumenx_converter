@@ -38,7 +38,7 @@ function StudentCertificateList({
             {student.admissionNumber ? ` · ${student.admissionNumber}` : ""}
           </p>
         </div>
-        <Link to="/templates" search={{ view: "generate" }} className="ml-auto">
+        <Link to="/templates" search={{ view: "issue" }} className="ml-auto">
           <Button size="sm" variant="primary">
             <FileCheck className="size-3.5" /> Issue certificate
           </Button>

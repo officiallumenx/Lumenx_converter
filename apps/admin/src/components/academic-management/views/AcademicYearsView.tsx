@@ -63,6 +63,11 @@ import {
   downloadAcademicYearRecordsPdf,
 } from "@/lib/academic-year-exports";
 import {
+  createReportJob,
+  downloadReportJob,
+  saveBlobAsFile,
+} from "@/lib/reports";
+import {
   loadYearEnrollmentRecords,
   yearRecordUiStatusTone,
   type YearEnrollmentRecord,
@@ -347,6 +352,32 @@ export function AcademicYearsView() {
   }, [viewYearLabel, viewClass, viewSection, viewStatus]);
 
   const downloadExcel = () => {
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId || !/^[0-9a-f-]{36}$/i.test(viewYearId)) {
+        notify("Select a valid academic year to export");
+        return;
+      }
+      void (async () => {
+        try {
+          const job = await createReportJob({
+            instituteId,
+            reportId: "academic-year-records",
+            academicYearId: viewYearId,
+          });
+          if (job.status !== "ready") {
+            notify(job.errorMessage ?? "Server export failed");
+            return;
+          }
+          const { blob, fileName } = await downloadReportJob(job.id);
+          saveBlobAsFile(blob, fileName);
+          notify(`Saved audited CSV · ${fileName}`);
+        } catch (err) {
+          notify(err instanceof Error ? err.message : "Server export failed");
+        }
+      })();
+      return;
+    }
     if (filteredRecords.length === 0) {
       notify("No records to download");
       return;
@@ -365,6 +396,12 @@ export function AcademicYearsView() {
   };
 
   const downloadPdf = () => {
+    if (apiMode) {
+      notify(
+        "Server exports are CSV. Use the CSV export button for audited year records.",
+      );
+      return;
+    }
     if (filteredRecords.length === 0) {
       notify("No records to download");
       return;
@@ -425,9 +462,6 @@ export function AcademicYearsView() {
         ("code" in (editing ?? {}) && editing && "code" in editing && editing.code
           ? editing.code
           : label.replace(/\s+/g, "-").slice(0, 50)) || "AY";
-      const isCreate = !(modal === "edit" && editing);
-      const shouldActivateOnCreate =
-        isCreate && !displayItems.some((y) => y.status === "active");
       const request =
         modal === "edit" && editing
           ? updateAcademicYear(editing.id, {
@@ -441,8 +475,8 @@ export function AcademicYearsView() {
               code,
               startsOn: form.startDate,
               endsOn: form.endDate,
-              // First year for an empty institute must be active so classes/students can be added.
-              status: shouldActivateOnCreate ? "active" : "upcoming",
+              // Always upcoming until an authorized admin explicitly activates.
+              status: "upcoming",
             });
       void request
         .then((saved) => {
@@ -458,15 +492,11 @@ export function AcademicYearsView() {
                 yearLabel: row.label ?? row.name,
               });
             }
-          } else if (shouldActivateOnCreate) {
-            syncAcademicYearLocked({ locked: false, yearLabel: label });
           }
           notify(
             modal === "edit"
               ? "Academic year updated"
-              : shouldActivateOnCreate
-                ? "Academic year created and activated — next: add classes"
-                : "Academic year created",
+              : "Academic year created as Upcoming — activate when ready",
           );
         })
         .catch((err) => {
@@ -806,18 +836,25 @@ export function AcademicYearsView() {
                   size="sm"
                   variant="outline"
                   onClick={downloadExcel}
-                  disabled={filteredRecords.length === 0}
+                  disabled={
+                    apiMode
+                      ? !/^[0-9a-f-]{36}$/i.test(viewYearId)
+                      : filteredRecords.length === 0
+                  }
                 >
-                  <FileSpreadsheet className="size-3.5" /> Excel
+                  <FileSpreadsheet className="size-3.5" />{" "}
+                  {apiMode ? "CSV (server)" : "Excel"}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={downloadPdf}
-                  disabled={filteredRecords.length === 0}
-                >
-                  <Download className="size-3.5" /> PDF
-                </Button>
+                {!apiMode ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={downloadPdf}
+                    disabled={filteredRecords.length === 0}
+                  >
+                    <Download className="size-3.5" /> PDF
+                  </Button>
+                ) : null}
               </div>
             }
           />

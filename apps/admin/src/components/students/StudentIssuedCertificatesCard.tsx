@@ -132,7 +132,7 @@ export function StudentIssuedCertificatesCard({ studentId }: { studentId: string
       {rows.length === 0 ? (
         <div className="px-5 pb-5 pt-5 text-xs leading-relaxed text-muted-foreground sm:px-6 sm:pb-6">
           No certificates have been issued for this student yet. Issue from{" "}
-          <Link to="/templates" search={{}} className="text-primary hover:underline">
+          <Link to="/templates" search={{ view: "issue" }} className="text-primary hover:underline">
             Certificates
           </Link>
           .

@@ -45,7 +45,6 @@ function newDraft(
     name: "Untitled template",
     kind: "certificate",
     categoryId: "academic_excellence",
-    source: "custom",
     status: "draft",
     tags: [],
     favorite: false,
@@ -179,7 +178,7 @@ function StartScreen({
               </button>
           ))}
         </div>
-          <Link to="/templates" search={{ view: "library" }} className="text-xs text-primary hover:underline inline-block">
+          <Link to="/templates" search={{ view: "templates" }} className="text-xs text-primary hover:underline inline-block">
             Browse full library →
           </Link>
         </section>
@@ -195,7 +194,7 @@ function StartScreen({
             <input type="file" accept={DESIGN_UPLOAD_ACCEPT} className="hidden" onChange={onFile} />
           </label>
           {error && <p className="text-xs text-destructive">{error}</p>}
-          <Link to="/templates" search={{ view: "library" }} className="text-xs text-muted-foreground hover:text-foreground">
+          <Link to="/templates" search={{ view: "templates" }} className="text-xs text-muted-foreground hover:text-foreground">
             ← Back to library
           </Link>
         </section>
@@ -345,7 +344,7 @@ export function TemplateBuilderView({ initialTemplateId }: BuilderProps) {
         >
           <ArrowLeft className="size-3.5" /> Start over
         </Button>
-        <Link to="/templates" search={{ view: "library" }}>
+        <Link to="/templates" search={{ view: "templates" }}>
           <Button size="sm" variant="ghost">
             Library
           </Button>

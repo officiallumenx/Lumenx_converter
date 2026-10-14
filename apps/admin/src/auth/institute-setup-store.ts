@@ -333,6 +333,7 @@ export function buildInstituteProfileFromSetup(
           {
             id: "setup-registration-main",
             heading: "Onboarding profile",
+            year: "",
             subheading: "Captured during institute profile setup",
             fields: registrationFields,
           },

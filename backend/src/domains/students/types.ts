@@ -39,6 +39,8 @@ export type StudentRow = {
   photo_asset_path: string | null;
   id_card_issued_on: string | null;
   id_card_valid_till: string | null;
+  /** Authoritative graduation date; null means unknown (retention review required). */
+  graduated_on: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -68,6 +70,7 @@ export type StudentDto = {
   photoAssetPath: string | null;
   idCardIssuedOn: string | null;
   idCardValidTill: string | null;
+  graduatedOn: string | null;
   createdAt: string;
   updatedAt: string;
 };

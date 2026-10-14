@@ -61,10 +61,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 const QUICK_ACTIONS = [
   { view: "requests" as const, label: "Requests", desc: "View & approve", Icon: Inbox },
-  { view: "generate" as const, label: "Generate", desc: "Issue new docs", Icon: Wand2, highlight: true },
+  { view: "official" as const, label: "Generate", desc: "Issue new docs", Icon: Wand2, highlight: true },
   { view: "templates" as const, label: "Templates", desc: "Browse layouts", Icon: FileText },
   { view: "packages" as const, label: "Packages", desc: "Bundle sets", Icon: Package },
-  { view: "published" as const, label: "Published", desc: "Portal docs", Icon: Globe },
+  { view: "archive" as const, label: "Archive", desc: "Generated & published", Icon: Globe },
   { view: "signatures" as const, label: "Signatures", desc: "Signatories", Icon: PenLine },
 ];
 
@@ -199,7 +199,7 @@ export function DocDashboardView() {
           <CardHeader
             title="Recently generated"
             action={
-              <Link to="/documents" search={{ view: "generated" }}>
+              <Link to="/documents" search={{ view: "archive" }}>
                 <Button size="sm" variant="ghost" className="gap-1">
                   All <ArrowRight className="size-3" />
                 </Button>
@@ -213,7 +213,7 @@ export function DocDashboardView() {
                   <History className="size-5 text-muted-foreground/50" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">No documents generated</p>
-                <Link to="/documents" search={{ view: "generate" }}>
+                <Link to="/documents" search={{ view: "official" }}>
                   <Button size="sm" variant="primary" className="mt-1">
                     <Wand2 className="size-3.5" /> Generate first
                   </Button>

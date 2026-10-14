@@ -37,7 +37,7 @@ describe("fetchAllListPages", () => {
         has_more: false,
       });
 
-    const items = await fetchAllListPages(
+    const items = await fetchAllListPages<{ id: string }>(
       { request } as never,
       (cursor) => `/api/v1/students?cursor=${cursor ?? ""}`,
     );

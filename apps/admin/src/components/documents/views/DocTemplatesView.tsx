@@ -116,12 +116,12 @@ export function DocTemplatesView({
           {writesEnabled ? (
             onActivateTemplate ? (
               <>
-                <Link to="/templates">
+                <Link to="/templates" search={{ view: "issued" }}>
                   <Button size="sm" variant="primary">
                     <ExternalLink className="size-3.5" /> Issued certificates
                   </Button>
                 </Link>
-                <Link to="/documents" search={{ view: "generate" }}>
+                <Link to="/documents" search={{ view: "official" }}>
                   <Button size="sm">
                     <FileCheck className="size-3.5" /> Generate
                   </Button>
@@ -129,12 +129,12 @@ export function DocTemplatesView({
               </>
             ) : (
               <>
-                <Link to="/templates" search={{ view: "library" }}>
+                <Link to="/templates" search={{ view: "templates" }}>
                   <Button size="sm" variant="primary">
                     <ExternalLink className="size-3.5" /> Open Library
                   </Button>
                 </Link>
-                <Link to="/templates" search={{ view: "builder" }}>
+                <Link to="/templates" search={{ view: "templates" }}>
                   <Button size="sm">
                     <Wand2 className="size-3.5" /> Builder
                   </Button>
@@ -255,8 +255,8 @@ export function DocTemplatesView({
                             to={onActivateTemplate ? "/documents" : "/templates"}
                             search={
                               onActivateTemplate
-                                ? { view: "generate" }
-                                : { view: "generate", templateId: t.id }
+                                ? { view: "official" }
+                                : { view: "issue", templateId: t.id }
                             }
                           >
                             <Button size="sm" variant="primary">
@@ -266,7 +266,7 @@ export function DocTemplatesView({
                           </Link>
                         )}
                         {onActivateTemplate ? null : (
-                          <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+                          <Link to="/templates" search={{ view: "templates", templateId: t.id }}>
                             <Button size="sm">
                               <Wand2 className="size-3" /> Edit
                             </Button>

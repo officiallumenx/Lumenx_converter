@@ -5,19 +5,17 @@ import {
 } from "@/lib/blob-asset-store";
 
 /** Local shapes only — avoid importing student-directory-store (circular). */
-type StudentProfileDocument = {
+type StudentMediaDoc = {
   id: string;
   previewAssetId?: string;
   previewDataUrl: string;
-  [key: string]: unknown;
 };
 
-type StudentDirectoryRecord = {
+type StudentMediaRecord = {
   id: string;
   photoAssetId?: string;
   photoDataUrl?: string;
-  admissionDocuments?: StudentProfileDocument[];
-  [key: string]: unknown;
+  admissionDocuments?: StudentMediaDoc[];
 };
 
 export function isInlineDataUrl(value: string | undefined): boolean {
@@ -32,7 +30,7 @@ export function studentDocAssetId(studentId: string, docId: string): string {
   return `student-doc:${studentId}:${docId}`;
 }
 
-export function collectStudentAssetIds(record: StudentDirectoryRecord): string[] {
+export function collectStudentAssetIds(record: StudentMediaRecord): string[] {
   const ids: string[] = [];
   if (record.photoAssetId) ids.push(record.photoAssetId);
   for (const doc of record.admissionDocuments ?? []) {
@@ -41,7 +39,7 @@ export function collectStudentAssetIds(record: StudentDirectoryRecord): string[]
   return ids;
 }
 
-export function slimStudentForPersist(record: StudentDirectoryRecord): StudentDirectoryRecord {
+export function slimStudentForPersist<T extends StudentMediaRecord>(record: T): T {
   return {
     ...record,
     photoDataUrl: undefined,
@@ -49,27 +47,27 @@ export function slimStudentForPersist(record: StudentDirectoryRecord): StudentDi
       ...doc,
       previewDataUrl: "",
     })),
-  };
+  } as T;
 }
 
-async function persistPhoto(record: StudentDirectoryRecord): Promise<StudentDirectoryRecord> {
+async function persistPhoto<T extends StudentMediaRecord>(record: T): Promise<T> {
   const inline = record.photoDataUrl?.trim();
   if (isInlineDataUrl(inline)) {
     const id = record.photoAssetId || studentPhotoAssetId(record.id);
     const ok = await putDataUrlAsset(id, inline!);
     if (!ok) return record;
-    return { ...record, photoAssetId: id, photoDataUrl: inline };
+    return { ...record, photoAssetId: id, photoDataUrl: inline } as T;
   }
   if (!inline && !record.photoAssetId) {
-    return { ...record, photoAssetId: undefined, photoDataUrl: undefined };
+    return { ...record, photoAssetId: undefined, photoDataUrl: undefined } as T;
   }
   return record;
 }
 
-async function persistDocuments(record: StudentDirectoryRecord): Promise<StudentDirectoryRecord> {
+async function persistDocuments<T extends StudentMediaRecord>(record: T): Promise<T> {
   const docs = record.admissionDocuments ?? [];
   if (docs.length === 0) return record;
-  const nextDocs: StudentProfileDocument[] = [];
+  const nextDocs: StudentMediaDoc[] = [];
   for (const doc of docs) {
     const inline = doc.previewDataUrl?.trim();
     if (isInlineDataUrl(inline)) {
@@ -80,26 +78,26 @@ async function persistDocuments(record: StudentDirectoryRecord): Promise<Student
     }
     nextDocs.push(doc);
   }
-  return { ...record, admissionDocuments: nextDocs };
+  return { ...record, admissionDocuments: nextDocs } as T;
 }
 
-export async function persistStudentMedia(
-  record: StudentDirectoryRecord,
-): Promise<StudentDirectoryRecord> {
+export async function persistStudentMedia<T extends StudentMediaRecord>(
+  record: T,
+): Promise<T> {
   const withPhoto = await persistPhoto(record);
   return persistDocuments(withPhoto);
 }
 
-export async function hydrateStudentMedia(
-  record: StudentDirectoryRecord,
-): Promise<StudentDirectoryRecord> {
+export async function hydrateStudentMedia<T extends StudentMediaRecord>(
+  record: T,
+): Promise<T> {
   let photoDataUrl = record.photoDataUrl;
   if (!isInlineDataUrl(photoDataUrl) && record.photoAssetId) {
     photoDataUrl = (await getBlobAssetAsDataUrl(record.photoAssetId)) ?? photoDataUrl;
   }
 
   const docs = record.admissionDocuments ?? [];
-  const admissionDocuments: StudentProfileDocument[] = [];
+  const admissionDocuments: StudentMediaDoc[] = [];
   for (const doc of docs) {
     let previewDataUrl = doc.previewDataUrl;
     if (!isInlineDataUrl(previewDataUrl) && doc.previewAssetId) {
@@ -112,29 +110,29 @@ export async function hydrateStudentMedia(
     ...record,
     photoDataUrl,
     admissionDocuments,
-  };
+  } as T;
 }
 
-export async function persistStudentDirectoryMedia(
-  records: StudentDirectoryRecord[],
-): Promise<StudentDirectoryRecord[]> {
-  const next: StudentDirectoryRecord[] = [];
+export async function persistStudentDirectoryMedia<T extends StudentMediaRecord>(
+  records: T[],
+): Promise<T[]> {
+  const next: T[] = [];
   for (const record of records) {
     next.push(await persistStudentMedia(record));
   }
   return next;
 }
 
-export async function hydrateStudentDirectoryMedia(
-  records: StudentDirectoryRecord[],
-): Promise<StudentDirectoryRecord[]> {
-  const next: StudentDirectoryRecord[] = [];
+export async function hydrateStudentDirectoryMedia<T extends StudentMediaRecord>(
+  records: T[],
+): Promise<T[]> {
+  const next: T[] = [];
   for (const record of records) {
     next.push(await hydrateStudentMedia(record));
   }
   return next;
 }
 
-export async function deleteStudentMedia(record: StudentDirectoryRecord): Promise<void> {
+export async function deleteStudentMedia(record: StudentMediaRecord): Promise<void> {
   await Promise.all(collectStudentAssetIds(record).map((id) => deleteBlobAsset(id)));
 }

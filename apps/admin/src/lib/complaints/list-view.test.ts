@@ -16,6 +16,8 @@ const rowA: ComplaintListItem = {
   destination: "principal_admin",
   priority: "High",
   status: "pending",
+  backendStatus: "pending",
+  responseNote: null,
   time: "1h ago",
   body: "Body A",
 };

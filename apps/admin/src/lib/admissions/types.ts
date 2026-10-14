@@ -110,6 +110,8 @@ export type AdmissionApplicationListItem = {
   name: string;
   grade: string;
   stage: AdmissionApplicationStage;
+  status: AdmissionApplicationStatus;
+  convertedStudentId: string | null;
   applied: string;
   docs: string;
   instituteId?: string;

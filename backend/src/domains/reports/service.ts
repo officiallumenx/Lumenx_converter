@@ -16,6 +16,7 @@ import {
   listReportJobs,
   updateReportJobFields,
 } from "./repository.js";
+import { recordInstituteAuditForActor } from "../audit/service.js";
 import type {
   CreateReportJobInput,
   ReportDefinitionDto,
@@ -50,6 +51,11 @@ const REPORT_CATALOG: Array<Omit<ReportDefinitionDto, "generationSupported">> = 
   { id: "leave", name: "Leave requests export", module: "Leave" },
   { id: "documents", name: "Generated documents export", module: "Documents" },
   { id: "audit", name: "Admin activity audit export", module: "Audit" },
+  {
+    id: "academic-year-records",
+    name: "Academic year roster & enrollments",
+    module: "Records",
+  },
 ];
 
 /** Roles that may queue export jobs (read-oriented; includes finance for fee CSVs). */
@@ -160,6 +166,17 @@ export async function createReportJobForActor(
       completed_at: completedAt,
     });
     if (!ready) throw AppError.internal("Failed to finalize report job");
+    await recordInstituteAuditForActor(admin, actor, {
+      instituteId,
+      action: "report.export.ready",
+      entityType: "report_job",
+      entityId: ready.id,
+      metadata: {
+        report_id: report.id,
+        academic_year_id: input.academicYearId ?? null,
+        // No student PII in audit metadata.
+      },
+    });
     return toReportJobDto(ready);
   } catch (err) {
     const message =
@@ -173,6 +190,20 @@ export async function createReportJobForActor(
       content_text: null,
     });
     if (!failed) throw AppError.internal("Failed to record report job failure");
+    try {
+      await recordInstituteAuditForActor(admin, actor, {
+        instituteId,
+        action: "report.export.failed",
+        entityType: "report_job",
+        entityId: failed.id,
+        metadata: {
+          report_id: report.id,
+          academic_year_id: input.academicYearId ?? null,
+        },
+      });
+    } catch {
+      // Audit failure must not hide the export failure response.
+    }
     return toReportJobDto(failed);
   }
 }

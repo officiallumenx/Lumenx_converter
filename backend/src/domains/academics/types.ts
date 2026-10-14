@@ -179,6 +179,8 @@ export type GraduateEnrollmentsInput = {
   instituteId: string;
   academicYearId: string;
   enrollmentIds: string[];
+  /** Authoritative graduation date (YYYY-MM-DD). Defaults to today when omitted. */
+  graduatedOn?: string | null;
 };
 
 export type AcademicYearDto = {

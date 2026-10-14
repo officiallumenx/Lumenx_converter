@@ -671,8 +671,8 @@ export function validateImportRow(
       errors.push(
         `Row ${rowNumber}: class "${row.className}" is not in this institute’s class list. Re-download the template.`,
       );
-    } else if (row.section.trim()) {
-      const sectionNeedle = row.section.trim().toLowerCase();
+    } else if (row.section?.trim()) {
+      const sectionNeedle = row.section?.trim().toLowerCase();
       const ok = matchedClass.sectionLabels.some(
         (label) => label.trim().toLowerCase() === sectionNeedle,
       );
@@ -820,7 +820,7 @@ export function downloadStudentDirectoryCsv(records: StudentDirectoryRecord[]): 
         s.surname,
         s.name,
         s.grade,
-        s.section ?? "",
+        "",
         s.parentName,
         s.parentPhone,
         s.address,

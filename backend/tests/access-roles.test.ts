@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 import {
   STAFF_LOGIN_DEMO_OTP,
 } from "../src/domains/access-roles/staff-otp.js";
@@ -88,6 +89,7 @@ function baseDb(): MockDb {
       created_at: "2026-01-01T00:00:00Z",
     },
   ];
+    ensureWritableTrials(db, [INST_A]);
   return db;
 }
 

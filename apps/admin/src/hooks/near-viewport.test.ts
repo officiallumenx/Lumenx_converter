@@ -49,12 +49,12 @@ describe("createOnceIntersectObserver", () => {
   it("observes, fires once on intersect, and disconnects", () => {
     const disconnect = vi.fn();
     const observe = vi.fn();
-    let callback: IntersectionObserverCallback | null = null;
+    const callbackRef: { current: IntersectionObserverCallback | null } = { current: null };
 
     vi.stubGlobal(
       "IntersectionObserver",
       vi.fn().mockImplementation((cb: IntersectionObserverCallback) => {
-        callback = cb;
+        callbackRef.current = cb;
         return { observe, disconnect, unobserve: vi.fn() };
       }),
     );
@@ -67,7 +67,7 @@ describe("createOnceIntersectObserver", () => {
     observer!.observe(el);
     expect(observe).toHaveBeenCalledWith(el);
 
-    callback?.(
+    callbackRef.current?.(
       [{ isIntersecting: true } as IntersectionObserverEntry],
       observer as IntersectionObserver,
     );
@@ -76,19 +76,19 @@ describe("createOnceIntersectObserver", () => {
   });
 
   it("does not fire when entries are not intersecting", () => {
-    let callback: IntersectionObserverCallback | null = null;
+    const callbackRef: { current: IntersectionObserverCallback | null } = { current: null };
     const disconnect = vi.fn();
     vi.stubGlobal(
       "IntersectionObserver",
       vi.fn().mockImplementation((cb: IntersectionObserverCallback) => {
-        callback = cb;
+        callbackRef.current = cb;
         return { observe: vi.fn(), disconnect, unobserve: vi.fn() };
       }),
     );
 
     const onIntersect = vi.fn();
     const observer = createOnceIntersectObserver(onIntersect);
-    callback?.(
+    callbackRef.current?.(
       [{ isIntersecting: false } as IntersectionObserverEntry],
       observer as IntersectionObserver,
     );

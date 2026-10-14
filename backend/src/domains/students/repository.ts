@@ -14,7 +14,7 @@ import type {
 } from "./types.js";
 
 const STUDENT_COLS =
-  "id, institute_id, user_profile_id, legacy_code, admission_number, source_admission_application_id, first_name, surname, display_name, gender, date_of_birth, address, class_label, section_label, roll_no, status, access_status, blood_group, emergency_contact, house, photo_asset_path, id_card_issued_on, id_card_valid_till, created_at, updated_at, deleted_at";
+  "id, institute_id, user_profile_id, legacy_code, admission_number, source_admission_application_id, first_name, surname, display_name, gender, date_of_birth, address, class_label, section_label, roll_no, status, access_status, blood_group, emergency_contact, house, photo_asset_path, id_card_issued_on, id_card_valid_till, graduated_on, created_at, updated_at, deleted_at";
 
 export async function listGuardianStudentIds(
   admin: SupabaseClient,

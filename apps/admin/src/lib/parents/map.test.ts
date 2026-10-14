@@ -77,7 +77,6 @@ describe("parents DTO mapping", () => {
       parentIdentityLabel(
         dto({
           legacyCode: null,
-          phone: null,
           id: "ba111111-1111-4111-8111-111111111111",
         }),
       ),

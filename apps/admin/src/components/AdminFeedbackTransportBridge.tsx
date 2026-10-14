@@ -19,7 +19,7 @@ export function AdminFeedbackTransportBridge() {
 
     setLumenXFeedbackTransport({
       resolveInstituteId: () =>
-        isInstituteUuid(activeInstituteId) ? activeInstituteId : null,
+        activeInstituteId !== null && isInstituteUuid(activeInstituteId) ? activeInstituteId : null,
       submit: async (input) => {
         await getAdminApiClient().post("/api/v1/product-feedback", {
           institute_id: input.instituteId,

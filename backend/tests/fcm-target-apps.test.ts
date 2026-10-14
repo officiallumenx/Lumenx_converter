@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 import { resolveTargetApps } from "../src/domains/notifications/resolve-target-apps.js";
 import { enqueueFcmDeliveryAttempts } from "../src/domains/notifications/fcm-enqueue.js";
 
@@ -151,6 +152,7 @@ function multiAppDb(): MockDb {
       deleted_at: null,
     },
   ];
+    ensureWritableTrials(db, [INST_A]);
   return db;
 }
 
