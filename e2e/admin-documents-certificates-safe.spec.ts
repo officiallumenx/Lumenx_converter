@@ -45,7 +45,7 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
 
     await page.goto("/documents?view=templates");
     await expect(
-      page.getByText(/Transfer Certificate — Board Format/i).first(),
+      page.getByText(/Transfer Certificate [\u2013\u2014\-] Board Format/i).first(),
     ).toBeVisible({ timeout: 20_000 });
 
     expect(writes).toEqual([]);
@@ -156,12 +156,14 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
 
     await page.goto("/templates?view=issued");
     await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
-    await expect(
-      page.getByText(/Issued certificates/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    // Assert loading before the Admin API client timeout (~15s) can convert the
+    // in-flight mock into an error shell.
     await expect(
       page.getByText(/Loading issued certificates/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText(/Issued certificates/i).first(),
+    ).toBeVisible({ timeout: 5_000 });
     expect(writes).toEqual([]);
   });
 });

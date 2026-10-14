@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDocumentsTemplatesQuery, useDocumentsGeneratedQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
+import { useDocumentsGeneratedQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
@@ -28,10 +28,13 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   filterDocumentsHubTemplates,
+  loadDocumentsTemplatesList,
   resolveDocumentsGeneratedListView,
   resolveDocumentsTemplatesListView,
+  shouldCommitDocumentsTemplatesLoad,
   transitionGeneratedDocument,
   getGeneratedDocumentSignedUrl,
   type DocumentsGeneratedListStatus,
@@ -83,6 +86,7 @@ function DocumentsPage() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const queryClient = useQueryClient();
+  const [templatesReloadKey, setTemplatesReloadKey] = useReloadKey();
   const listEnabled =
     apiMode &&
     instituteCtx.status === "ready" &&
@@ -94,16 +98,16 @@ function DocumentsPage() {
     view === "student-docs" ||
     view === "overview" ||
     view === "official";
-  const templatesQuery = useDocumentsTemplatesQuery(
-    instituteCtx.activeInstituteId,
-    listEnabled && needsTemplates,
-  );
+  // Generated rows stay on React Query (archive / student-docs). Templates use the
+  // same imperative load path as Certificates — RQ sync previously left listBlocked
+  // stuck when the query errored or aborted without committing resolvedForInstituteId.
   const generatedQuery = useDocumentsGeneratedQuery(
     instituteCtx.activeInstituteId,
     listEnabled && needsGenerated,
   );
   const bumpDocumentsReload = () => {
     invalidateAdminCache("admin:documents");
+    setTemplatesReloadKey((key) => key + 1);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.documents),
@@ -131,10 +135,7 @@ function DocumentsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: templatesResolvedForInstituteId,
     storedItems: apiTemplates,
-    storedStatus:
-      templatesQuery.isLoading && !templatesQuery.data
-        ? "loading"
-        : templatesListStatus,
+    storedStatus: templatesListStatus,
     storedErrorMessage: templatesListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -203,27 +204,38 @@ function DocumentsPage() {
       return;
     }
 
-    if (templatesQuery.isLoading && !templatesQuery.data) {
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    if (apiTemplates.length === 0) {
       setTemplatesListStatus("loading");
       setTemplatesListError(null);
-      return;
     }
-    if (!templatesQuery.data) return;
-
-    const next = templatesQuery.data;
-    setApiTemplates(next.items);
-    setTemplatesListStatus(next.status);
-    setTemplatesListError(next.errorMessage);
-    setTemplatesResolvedForInstituteId(instituteCtx.activeInstituteId);
+    void loadDocumentsTemplatesList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitDocumentsTemplatesLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiTemplates(next.items);
+      setTemplatesListStatus(next.status);
+      setTemplatesListError(next.errorMessage);
+      setTemplatesResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- length only gates skeleton
   }, [
     apiMode,
-    view,
+    needsTemplates,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    templatesQuery.data,
-    templatesQuery.isLoading,
-    needsTemplates,
+    templatesReloadKey,
   ]);
 
   useEffect(() => {
@@ -262,7 +274,24 @@ function DocumentsPage() {
       return;
     }
 
-    if (generatedQuery.isLoading && !generatedQuery.data) {
+    if (generatedQuery.isError) {
+      const message =
+        generatedQuery.error instanceof Error
+          ? generatedQuery.error.message
+          : "Failed to load generated documents";
+      setApiGenerated([]);
+      setGeneratedListStatus(
+        /access denied|forbidden|403/i.test(message) ? "forbidden" : "error",
+      );
+      setGeneratedListError(message);
+      setGeneratedResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+
+    if (
+      (generatedQuery.isLoading || generatedQuery.isPending) &&
+      !generatedQuery.data
+    ) {
       setGeneratedListStatus("loading");
       setGeneratedListError(null);
       return;
@@ -282,6 +311,9 @@ function DocumentsPage() {
     instituteCtx.errorMessage,
     generatedQuery.data,
     generatedQuery.isLoading,
+    generatedQuery.isPending,
+    generatedQuery.isError,
+    generatedQuery.error,
     needsGenerated,
   ]);
 
