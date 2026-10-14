@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
+  "name": "lumenx-connect",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
+  // Vite/Nitro source entry. Workers Builds must upload via dist/server/wrangler.json.
   "main": "src/server.ts",
 }

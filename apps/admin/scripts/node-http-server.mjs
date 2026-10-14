@@ -2,9 +2,9 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import handler from "./dist/server/server.js";
+import handler from "../dist/server/index.mjs";
 
-const rootDir = fileURLToPath(new URL(".", import.meta.url));
+const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const clientDir = join(rootDir, "dist/client");
 const port = Number(process.env.PORT) || 8080;
 const host = process.env.HOST || "0.0.0.0";

@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/prepare-cf-worker-deploy.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
+    "cf:upload": "wrangler versions upload --config dist/server/wrangler.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:billing-calc": "tsx src/lib/billing/billing-calc.selftest.ts",

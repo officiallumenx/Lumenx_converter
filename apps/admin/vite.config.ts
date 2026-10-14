@@ -45,6 +45,8 @@ function adminLumenxUiChartStubResolve(): Plugin {
 }
 
 const createConfig = defineConfig({
+  // Force Nitro cloudflare-module output so Workers Builds can upload dist/server.
+  nitro: true,
   tanstackStart: {
     server: { entry: "server" },
   },
