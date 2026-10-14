@@ -134,17 +134,17 @@ export function DocDashboardApiPanel() {
           <CardHeader title="Quick actions" />
           <CardBody>
             <div className="flex flex-col gap-2">
-              <Link to="/documents" search={{ view: "generate" }}>
+              <Link to="/documents" search={{ view: "official" }}>
                 <Button variant="primary" className="w-full justify-start gap-2">
                   <Wand2 className="size-3.5" /> Generate document
                 </Button>
               </Link>
-              <Link to="/documents" search={{ view: "generated" }}>
+              <Link to="/documents" search={{ view: "archive" }}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <FolderCheck className="size-3.5" /> Generated history
                 </Button>
               </Link>
-              <Link to="/documents" search={{ view: "published" }}>
+              <Link to="/documents" search={{ view: "archive" }}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Globe className="size-3.5" /> Published
                 </Button>
@@ -161,7 +161,7 @@ export function DocDashboardApiPanel() {
           <CardHeader
             title="Recent generated"
             action={
-              <Link to="/documents" search={{ view: "generated" }}>
+              <Link to="/documents" search={{ view: "archive" }}>
                 <Button size="sm" variant="ghost" className="gap-1">
                   All <ArrowRight className="size-3" />
                 </Button>

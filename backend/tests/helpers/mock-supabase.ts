@@ -144,6 +144,8 @@ export type MockDb = {
   grade_scheme: Row[];
   timetable_publication: Row[];
   mark_publication: Row[];
+  student_retention_review: Row[];
+  student_transfer_request: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -1003,5 +1005,7 @@ export function emptyMockDb(): MockDb {
     grade_scheme: [],
     timetable_publication: [],
     mark_publication: [],
+    student_retention_review: [],
+    student_transfer_request: [],
   };
 }

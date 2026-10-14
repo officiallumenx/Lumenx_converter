@@ -31,7 +31,8 @@ const adminActor: Actor = {
 describe("reports catalog coverage", () => {
   it("marks every catalog entry as generation supported", () => {
     const catalog = listReportCatalogForActor(adminActor, INSTITUTE);
-    expect(catalog.length).toBe(22);
+    // Includes Records pillar entry "academic-year-records" (23 total).
+    expect(catalog.length).toBe(23);
     for (const item of catalog) {
       expect(item.generationSupported).toBe(true);
       expect(isReportGenerationSupported(item.id)).toBe(true);

@@ -237,6 +237,44 @@ function assertDateRange(startsOn: string, endsOn: string): void {
   }
 }
 
+/** Inclusive date-range overlap for YYYY-MM-DD strings. */
+export function academicYearRangesOverlap(
+  aStartsOn: string,
+  aEndsOn: string,
+  bStartsOn: string,
+  bEndsOn: string,
+): boolean {
+  return aStartsOn <= bEndsOn && bStartsOn <= aEndsOn;
+}
+
+const LIVE_YEAR_STATUSES = new Set(["upcoming", "active", "completed"]);
+
+async function assertNoLiveYearDateOverlap(
+  admin: SupabaseClient,
+  instituteId: string,
+  startsOn: string,
+  endsOn: string,
+  excludeYearId?: string,
+): Promise<void> {
+  const years = await listAcademicYears(admin, { instituteId });
+  for (const year of years) {
+    if (excludeYearId && year.id === excludeYearId) continue;
+    if (!LIVE_YEAR_STATUSES.has(year.status)) continue;
+    if (
+      academicYearRangesOverlap(
+        startsOn,
+        endsOn,
+        year.starts_on,
+        year.ends_on,
+      )
+    ) {
+      throw AppError.conflict(
+        `Academic year dates overlap with existing year "${year.name}" (${year.starts_on}–${year.ends_on})`,
+      );
+    }
+  }
+}
+
 async function resolveAccessibleStudentIds(
   admin: SupabaseClient,
   actor: Actor,
@@ -334,12 +372,21 @@ export async function createAcademicYearForActor(
     });
   }
   assertDateRange(input.startsOn, input.endsOn);
+  await assertNoLiveYearDateOverlap(
+    admin,
+    instituteId,
+    input.startsOn,
+    input.endsOn,
+  );
 
+  // New years always start as upcoming — including the institute's first year.
+  // Activation requires an explicit authorized PATCH to status=active.
   const row = await insertAcademicYear(admin, {
     ...input,
     instituteId,
     name,
     code,
+    status: "upcoming",
   });
   return toAcademicYearDto(row);
 }
@@ -368,6 +415,18 @@ export async function updateAcademicYearForActor(
     return toAcademicYearDto(existing);
   }
 
+  const nextStatus =
+    (fieldPatch.status as string | undefined) ?? existing.status;
+  if (LIVE_YEAR_STATUSES.has(nextStatus)) {
+    await assertNoLiveYearDateOverlap(
+      admin,
+      existing.institute_id,
+      startsOn,
+      endsOn,
+      yearId,
+    );
+  }
+
   const activating = fieldPatch.status === "active";
   if (activating) {
     const activeYears = await listAcademicYears(admin, {
@@ -394,6 +453,32 @@ export async function deleteAcademicYearForActor(
   if (!existing) throw AppError.notFound("Academic year not found");
 
   assertStaffWriter(actor, existing.institute_id);
+
+  if (existing.status === "active") {
+    throw AppError.conflict(
+      "Cannot delete the active academic year. Activate another year first or archive this year.",
+    );
+  }
+
+  const classes = await listClasses(admin, {
+    instituteId: existing.institute_id,
+    academicYearId: yearId,
+  });
+  if (classes.length > 0) {
+    throw AppError.conflict(
+      "Cannot delete academic year with classes. Remove or reassign classes first.",
+    );
+  }
+
+  const enrollments = await listEnrollments(admin, {
+    instituteId: existing.institute_id,
+    academicYearId: yearId,
+  });
+  if (enrollments.length > 0) {
+    throw AppError.conflict(
+      "Cannot delete academic year with enrollments. Historical records must be preserved.",
+    );
+  }
 
   const deleted = await softDeleteAcademicYear(admin, yearId);
   if (!deleted) throw AppError.conflict("Academic year was already deleted");
@@ -1217,6 +1302,14 @@ export async function graduateEnrollmentsForActor(
     });
   }
 
+  const graduatedOn =
+    input.graduatedOn?.trim() || new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(graduatedOn)) {
+    throw AppError.validation("graduated_on must be YYYY-MM-DD", {
+      graduated_on: ["Invalid date"],
+    });
+  }
+
   const results: EnrollmentDto[] = [];
   for (const enrollmentId of input.enrollmentIds) {
     const existing = await findEnrollmentById(admin, enrollmentId);
@@ -1234,6 +1327,23 @@ export async function graduateEnrollmentsForActor(
       status: "graduated",
     });
     results.push(updated);
+
+    const student = await findStudentById(admin, existing.student_id);
+    if (student && student.institute_id === instituteId) {
+      await updateStudentFields(admin, student.id, {
+        status: "graduated",
+        graduated_on: graduatedOn,
+      });
+      const { ensureRetentionReviewForGraduation } = await import(
+        "../retention/service.js"
+      );
+      await ensureRetentionReviewForGraduation(admin, actor, {
+        instituteId,
+        studentId: student.id,
+        graduatingEnrollmentId: existing.id,
+        graduatedOn,
+      });
+    }
   }
 
   return results;

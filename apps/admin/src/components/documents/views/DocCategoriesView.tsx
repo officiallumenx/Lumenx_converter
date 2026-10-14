@@ -272,10 +272,11 @@ function CategoryDetail({
           </div>
         ) : (
           <Card>
-            <DataTable
-              empty={group.items.length === 0}
-              emptyMessage="No document types in this category"
-              head={
+            <DataTable>
+              {group.items.length === 0 ? (
+                <tbody><tr><td colSpan={9} className="px-5 py-8 text-center text-sm text-muted-foreground">No document types in this category</td></tr></tbody>
+              ) : null}
+              <thead>
                 <tr>
                   <Th>Name</Th>
                   <Th>Description</Th>
@@ -285,32 +286,33 @@ function CategoryDetail({
                   <Th>Pending</Th>
                   <Th>Avg days</Th>
                   <Th>Last issued</Th>
-                  <Th />
+                  <Th>{""}</Th>
                 </tr>
-              }
-            >
-              {group.items.map((item) => (
-                <Tr key={item.id}>
-                  <Td className="font-medium">{item.name}</Td>
-                  <Td className="text-xs text-muted-foreground max-w-[200px] truncate">{item.description}</Td>
-                  <Td><Pill tone="neutral">{AUDIENCE_LABEL[item.targetAudience]}</Pill></Td>
-                  <Td>{item.templateCount}</Td>
-                  <Td>{item.issuedCount.toLocaleString()}</Td>
-                  <Td>
-                    {item.pendingRequests > 0
-                      ? <Pill tone="warning">{item.pendingRequests}</Pill>
-                      : <span className="text-xs text-muted-foreground">—</span>
-                    }
-                  </Td>
-                  <Td className="text-sm text-muted-foreground">{item.avgProcessingDays === 0 ? "Instant" : `${item.avgProcessingDays}d`}</Td>
-                  <Td className="text-xs text-muted-foreground">{item.lastIssuedOn ?? "Never"}</Td>
-                  <Td>
-                    <Button size="sm" variant="ghost" onClick={() => setSelectedItem(item)}>
-                      Details
-                    </Button>
-                  </Td>
-                </Tr>
-              ))}
+              </thead>
+              <tbody>
+                {group.items.map((item) => (
+                  <Tr key={item.id}>
+                    <Td className="font-medium">{item.name}</Td>
+                    <Td className="text-xs text-muted-foreground max-w-[200px] truncate">{item.description}</Td>
+                    <Td><Pill tone="neutral">{AUDIENCE_LABEL[item.targetAudience]}</Pill></Td>
+                    <Td>{item.templateCount}</Td>
+                    <Td>{item.issuedCount.toLocaleString()}</Td>
+                    <Td>
+                      {item.pendingRequests > 0
+                        ? <Pill tone="warning">{item.pendingRequests}</Pill>
+                        : <span className="text-xs text-muted-foreground">—</span>
+                      }
+                    </Td>
+                    <Td className="text-sm text-muted-foreground">{item.avgProcessingDays === 0 ? "Instant" : `${item.avgProcessingDays}d`}</Td>
+                    <Td className="text-xs text-muted-foreground">{item.lastIssuedOn ?? "Never"}</Td>
+                    <Td>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedItem(item)}>
+                        Details
+                      </Button>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
             </DataTable>
           </Card>
         )}
@@ -339,7 +341,7 @@ function CategoryItemModal({
   onClose: () => void;
 }) {
   return (
-    <Modal title={item.name} onClose={onClose}>
+    <Modal open={true} title={item.name} onClose={onClose}>
       <div className="space-y-5">
         {/* Meta */}
         <p className="text-sm text-muted-foreground">{item.description}</p>
@@ -479,7 +481,7 @@ export function DocCategoriesView() {
       </div>
 
       {addOpen && (
-        <Modal title="New category" onClose={() => setAddOpen(false)}>
+        <Modal open={addOpen} title="New category" onClose={() => setAddOpen(false)}>
           <div className="space-y-4">
             <Field label="Category name">
               <TextInput

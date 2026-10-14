@@ -114,7 +114,8 @@ export type GraduationCandidate = {
   class: string;
   section: string;
   exitYear: string;
-  retainUntil: string;
+  /** Demo-only illustrative review-eligibility label — not production retention data. */
+  reviewEligibleLabel: string;
   status: "ready" | "graduated" | "archived";
 };
 
@@ -930,7 +931,7 @@ export const GRADUATION_CANDIDATES: GraduationCandidate[] = [
     class: "10th",
     section: "A",
     exitYear: "2025-2026",
-    retainUntil: "2030-2031",
+    reviewEligibleLabel: "Demo · ~2030-2031",
     status: "ready",
   },
   {
@@ -940,7 +941,7 @@ export const GRADUATION_CANDIDATES: GraduationCandidate[] = [
     class: "10th",
     section: "B",
     exitYear: "2025-2026",
-    retainUntil: "2030-2031",
+    reviewEligibleLabel: "Demo · ~2030-2031",
     status: "ready",
   },
   {
@@ -950,7 +951,7 @@ export const GRADUATION_CANDIDATES: GraduationCandidate[] = [
     class: "12th",
     section: "A",
     exitYear: "2024-2025",
-    retainUntil: "2029-2030",
+    reviewEligibleLabel: "Demo · ~2029-2030",
     status: "graduated",
   },
   {
@@ -960,7 +961,7 @@ export const GRADUATION_CANDIDATES: GraduationCandidate[] = [
     class: "10th",
     section: "C",
     exitYear: "2020-2021",
-    retainUntil: "2025-2026",
+    reviewEligibleLabel: "Demo · needs review",
     status: "archived",
   },
 ];

@@ -38,7 +38,7 @@ export function AdminPlatformReadOnlyBanner() {
             </Button>
           </Link>
         ) : state.academicYearLocked ? (
-          <Link to="/academic-management">
+          <Link to="/academic-management" search={{ view: "years" }}>
             <Button size="sm" variant="primary" data-admin-allow-readonly>
               {M.academics}
             </Button>

@@ -363,7 +363,7 @@ export function EnrollmentsApiPage({
                 },
                 options: [
                   { value: "all", label: "All years" },
-                  ...years.map((year) => ({ value: year.id, label: year.name })),
+                  ...years.map((year) => ({ value: year.id, label: year.label })),
                 ],
               },
               {

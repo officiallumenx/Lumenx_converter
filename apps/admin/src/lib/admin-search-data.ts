@@ -109,4 +109,5 @@ export function buildAdminPeopleSearchItems(input: {
 }
 
 /** @deprecated Demo teacher catalog removed; product search uses API. */
-export const SEARCH_TEACHERS = [] as const;
+export type SearchTeacher = { id: string; name: string; dept: string; employeeId: string; email: string; phone: string };
+export const SEARCH_TEACHERS: SearchTeacher[] = [];

@@ -3,6 +3,7 @@ import { teacherAssignmentDtosToListItems } from "@/lib/timetable/map";
 import type { TeacherAssignmentListItem } from "@/lib/timetable/types";
 import { listSubjects } from "@/lib/subjects/api";
 import { listTeachers } from "@/lib/teachers/api";
+import { teacherDtoToListItem } from "@/lib/teachers/map";
 import type { SectionDetailItem } from "./types";
 
 export async function loadSectionTeacherAssignments(
@@ -18,7 +19,7 @@ export async function loadSectionTeacherAssignments(
     listSubjects({ instituteId: section.instituteId }),
   ]);
   const teachersById = new Map(
-    teachers.map((t) => [t.id, { ...t, name: t.name }]),
+    teachers.map((t) => [t.id, teacherDtoToListItem(t)]),
   );
   const subjectsById = new Map(subjects.map((s) => [s.id, s]));
   return teacherAssignmentDtosToListItems(assignments, teachersById, subjectsById);

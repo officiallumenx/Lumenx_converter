@@ -148,6 +148,7 @@ enrollments.post("/graduate", async (c) => {
       institute_id: uuid,
       academic_year_id: uuid,
       enrollment_ids: z.array(uuid).min(1),
+      graduated_on: dateOnly.nullable().optional(),
     }),
     await c.req.json(),
   );
@@ -155,6 +156,7 @@ enrollments.post("/graduate", async (c) => {
     instituteId: body.institute_id,
     academicYearId: body.academic_year_id,
     enrollmentIds: body.enrollment_ids,
+    graduatedOn: body.graduated_on,
   });
   return c.json({ data });
 });

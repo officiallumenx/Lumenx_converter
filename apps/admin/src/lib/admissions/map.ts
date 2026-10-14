@@ -72,6 +72,8 @@ export function admissionApplicationDtoToListItem(
     name: dto.studentDisplayName?.trim() || "Applicant",
     grade: gradeFromPayload(dto.payload),
     stage: mapStatus(dto.status),
+    status: dto.status,
+    convertedStudentId: dto.convertedStudentId,
     applied: formatApplied(dto.submittedAt ?? dto.createdAt),
     docs: docsSummary ?? "—/—",
     instituteId: dto.instituteId,

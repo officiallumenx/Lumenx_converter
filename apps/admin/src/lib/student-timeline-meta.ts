@@ -118,8 +118,8 @@ export function recordAdmissionOnTimeline(
   const existing = metaStore.load()[student.id];
   if (existing?.admission) return;
   putTimelineMeta({
-    studentId: student.id,
     ...existing,
+    studentId: student.id,
     admission: {
       recordedAt: new Date().toISOString(),
       displayDate: formatTimelineDate(),

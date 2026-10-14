@@ -101,7 +101,7 @@ export function DocPackagesView() {
               { label: "Archived", value: "archived" },
             ]}
           />
-          <ToolbarMeta count={filtered.length} label="packages" />
+          <ToolbarMeta>{filtered.length} packages</ToolbarMeta>
           <Button variant="primary" size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="size-3.5" /> New package
           </Button>
@@ -152,7 +152,7 @@ export function DocPackagesView() {
       </Card>
 
       {detail && (
-        <Modal title={detail.name} onClose={() => setDetail(null)}>
+        <Modal open={true} title={detail.name} onClose={() => setDetail(null)}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -195,7 +195,7 @@ export function DocPackagesView() {
       )}
 
       {addOpen && (
-        <Modal title="New package" onClose={() => setAddOpen(false)}>
+        <Modal open={addOpen} title="New package" onClose={() => setAddOpen(false)}>
           <div className="space-y-4">
             <Field label="Package name">
               <TextInput

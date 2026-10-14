@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 import { flushPendingFcmDeliveries } from "../src/workers/fcm-worker-runner.js";
 import type { Messaging } from "firebase-admin/messaging";
 
@@ -65,6 +66,7 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
   ];
+    ensureWritableTrials(db, [INST_A]);
   return db;
 }
 

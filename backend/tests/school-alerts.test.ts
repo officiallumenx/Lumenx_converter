@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -58,6 +59,7 @@ function baseDb(): MockDb {
     { membership_id: MEMBER_STUDENT, role_code: "student" },
     { membership_id: MEMBER_TEACHER, role_code: "teacher" },
   ];
+    ensureWritableTrials(db, [INST_A]);
   return db;
 }
 

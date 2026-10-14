@@ -14,7 +14,7 @@ export function StorageDocumentsHubPanel() {
           Document templates, generation, and publishing are managed in the Documents
           module.
         </p>
-        <Link to="/documents">
+        <Link to="/documents" search={{ view: "overview" }}>
           <Button variant="primary">
             <FolderOpen className="size-4" /> Open Documents module
           </Button>

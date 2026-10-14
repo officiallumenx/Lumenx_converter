@@ -18,9 +18,14 @@ const baseUser: AuthUser = {
   id: "user-1",
   name: "Coordinator",
   email: "coord@demo.edu",
-  role: "staff",
+  role: "coordinator",
+  initials: "CO",
+  title: "Coordinator",
   instituteId: "inst-1",
   instituteName: "Demo",
+  isVerified: true,
+  mfaEnabled: false,
+  createdAt: "2026-01-01T00:00:00Z",
 };
 
 describe("getAttendanceModuleAccess (API mode)", () => {

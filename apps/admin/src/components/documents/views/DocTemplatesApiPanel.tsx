@@ -207,7 +207,7 @@ export function DocTemplatesApiPanel({
         </div>
       </Card>
 
-      <KpiGrid cols={2}>
+      <KpiGrid cols={4}>
         <Kpi label="Active" value={String(stats.active)} tone="up" />
         <Kpi label="Drafts" value={String(stats.draft)} tone="neutral" />
       </KpiGrid>

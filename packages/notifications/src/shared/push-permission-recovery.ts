@@ -79,8 +79,8 @@ export async function openAppNotificationSettings(): Promise<boolean> {
       () => ({ App: null }),
     );
     // Best-effort: some WebViews accept this intent URL.
-    if (App && typeof (App as { openUrl?: (o: { url: string }) => Promise<void> }).openUrl === "function") {
-      await (App as { openUrl: (o: { url: string }) => Promise<void> }).openUrl({
+    if (App && typeof (App as unknown as { openUrl?: (o: { url: string }) => Promise<void> }).openUrl === "function") {
+      await (App as unknown as { openUrl: (o: { url: string }) => Promise<void> }).openUrl({
         url: "app-settings:",
       });
       return true;

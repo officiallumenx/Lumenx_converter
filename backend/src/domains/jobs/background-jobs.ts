@@ -10,12 +10,14 @@ import { publishDueScheduledAnnouncementsSystem } from "../announcements/service
 import { evaluateAlertRulesSystem } from "../alert-rules/service.js";
 import { processDiaryRemindersSystem } from "../diary/reminders.js";
 import { processTransportRemindersSystem } from "../transport/transport-reminders.js";
+import { processRetentionReviewEligibilitySystem } from "../retention/service.js";
 
 export type BackgroundJobsResult = {
   announcements: { scanned: number; published: number };
   alerts: { institutes: number; newlyFired: number };
   diary: { institutes: number; teachers: number; emitted: number };
   transport: { institutes: number; emitted: number };
+  retention: { scanned: number; markedEligible: number };
 };
 
 async function runIsolated<T>(
@@ -73,6 +75,12 @@ export async function runBackgroundJobs(
     { institutes: 0, emitted: 0 },
     logger,
   );
+  const retention = await runIsolated(
+    "retention",
+    () => processRetentionReviewEligibilitySystem(admin, { now }),
+    { scanned: 0, markedEligible: 0 },
+    logger,
+  );
 
-  return { announcements, alerts, diary, transport };
+  return { announcements, alerts, diary, transport, retention };
 }

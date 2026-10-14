@@ -62,7 +62,7 @@ const teacherListItem: TeacherListItem = {
   id: TEACHER,
   instituteId: INST,
   name: "Ms. Ananya Iyer",
-  role: "teacher",
+  role: "subject-teacher",
   dept: "Mathematics",
   email: "t@x.com",
   phone: "9",

@@ -7,6 +7,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 
 const silentLogger = createLogger("error");
 
@@ -184,6 +185,7 @@ function baseDb(): MockDb {
     { code: "student", label: "Student", description: null, is_assignable: true },
     { code: "principal", label: "Principal", description: null, is_assignable: true },
   ];
+    ensureWritableTrials(db, [INST_A, INST_B]);
   return db;
 }
 

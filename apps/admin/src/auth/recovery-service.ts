@@ -30,7 +30,12 @@ export async function mockVerifyRecoveryLogin(
   throw new Error(DEMO_RECOVERY_REMOVED);
 }
 
-export async function mockLookupAccountByEmail(_email: string): Promise<never> {
+export type RecoveryAccount = {
+  email: string;
+  user: { id: string; name: string; phone: string | null };
+};
+
+export async function mockLookupAccountByEmail(_email: string): Promise<RecoveryAccount> {
   throw new Error(DEMO_RECOVERY_REMOVED);
 }
 

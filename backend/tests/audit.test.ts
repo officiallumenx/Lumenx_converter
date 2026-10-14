@@ -8,6 +8,7 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
+import { ensureWritableTrials } from "./helpers/subscription-fixture.js";
 import {
   recordInstituteAuditForActor,
   recordPlatformAuditForActor,
@@ -125,6 +126,7 @@ function baseDb(): MockDb {
       created_at: "2026-01-04T00:00:00.000Z",
     },
   ];
+    ensureWritableTrials(db, [INST_A, INST_B]);
   return db;
 }
 

@@ -341,7 +341,7 @@ function TemplateCard({
         {/* Actions */}
         <div className="flex flex-wrap gap-1.5">
           {canIssue && (
-            <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+            <Link to="/templates" search={{ view: "issue", templateId: t.id }}>
               <Button size="sm" variant="primary" className="gap-1">
                 <FileCheck className="size-3" /> Issue
               </Button>
@@ -360,7 +360,7 @@ function TemplateCard({
           <Button size="sm" onClick={onPreview}>
             <Eye className="size-3" /> Preview
           </Button>
-          <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+          <Link to="/templates" search={{ view: "templates", templateId: t.id }}>
             <Button size="sm">
               <Wand2 className="size-3" /> Edit
             </Button>
@@ -475,7 +475,7 @@ function TemplateListRow({
           </Button>
         )}
         {canIssue && (
-          <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+          <Link to="/templates" search={{ view: "issue", templateId: t.id }}>
             <Button size="sm" variant="primary">
               <FileCheck className="size-3" /> Issue
             </Button>
@@ -641,7 +641,7 @@ function PreviewModal({
           <Button onClick={onDuplicate}>
             <Copy className="size-3.5" /> Duplicate & customize
           </Button>
-          <Link to="/templates" search={{ view: "builder", templateId: template.id }}>
+          <Link to="/templates" search={{ view: "templates", templateId: template.id }}>
             <Button>
               <Layers className="size-3.5" /> Open in builder
             </Button>
@@ -652,7 +652,7 @@ function PreviewModal({
             </Button>
           )}
           {canIssue && (
-            <Link to="/templates" search={{ view: "generate", templateId: template.id }}>
+            <Link to="/templates" search={{ view: "issue", templateId: template.id }}>
               <Button variant="primary">
                 <FileCheck className="size-3.5" /> Issue to students
               </Button>
@@ -964,7 +964,7 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
                 <p className="text-sm font-medium text-foreground">No templates found</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
                   Try adjusting filters, or{" "}
-                  <Link to="/templates" search={{ view: "imports" }} className="text-primary hover:underline">
+                  <Link to="/templates" search={{ view: "templates" }} className="text-primary hover:underline">
                     import a custom template
                   </Link>
                   .

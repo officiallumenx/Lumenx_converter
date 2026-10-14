@@ -35,6 +35,8 @@ const bundleA: TimetableReadBundle = {
       sectionLabel: "A",
       slotCount: 1,
       activeCount: 1,
+      inactiveCount: 0,
+      publishStatus: "draft" as const,
     },
   ],
 };

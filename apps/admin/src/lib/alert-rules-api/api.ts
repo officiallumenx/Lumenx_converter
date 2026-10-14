@@ -7,6 +7,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
 import type {
   AlertEvaluateResultDto,
+  AlertFireDto,
   AlertRuleDto,
   CreateAlertRuleInput,
   UpdateAlertRuleInput,

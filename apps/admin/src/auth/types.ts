@@ -166,6 +166,7 @@ export interface ForgotPasswordFormData {
 }
 
 export interface ForgotPasswordFormErrors {
+  [key: string]: string | undefined;
   email?: string;
   general?: string;
 }

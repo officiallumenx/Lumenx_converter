@@ -70,7 +70,7 @@ describe("resolveStorageUsageView", () => {
       instituteStatus: "ready",
       activeInstituteId: INST,
       resolvedForInstituteId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      storedSummary: { totalAssets: 3, totalBytes: 100, byCategory: [] },
+      storedSummary: { totalAssets: 3, totalBytes: 100, byCategory: [], byBucket: [] },
       storedAssets: [],
       storedStatus: "ready",
       storedErrorMessage: null,

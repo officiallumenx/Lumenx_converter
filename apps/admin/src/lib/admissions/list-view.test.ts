@@ -10,6 +10,8 @@ const rowA: AdmissionApplicationListItem = {
   name: "Aarav",
   grade: "Grade 10",
   stage: "review",
+  status: "review",
+  convertedStudentId: null,
   applied: "1 Jun 2026",
   docs: "—/—",
 };

@@ -2,42 +2,43 @@ import { Link } from "@tanstack/react-router";
 import { Card, CardHeader, CardBody, Button, PageStack } from "@lumenx/ui-admin";
 import { Upload, Tags, Settings, ArrowRight } from "lucide-react";
 
-const SECTIONS = [
+import type { CertHubView } from "@/lib/certificates/cert-hub-views";
+
+const SECTIONS: { view: CertHubView; title: string; hint: string; icon: typeof Upload }[] = [
   {
-    view: "imports" as const,
+    view: "templates",
     title: "Imports",
     hint: "Upload PPT or PPTX · map variables · save as template",
     icon: Upload,
   },
   {
-    view: "categories" as const,
+    view: "templates",
     title: "Categories",
     hint: "Organize templates by academic, certificates, sports, identity",
     icon: Tags,
   },
   {
-    view: "settings" as const,
+    view: "overview",
     title: "Settings",
     hint: "Prefixes, bulk limits, watermarks, Connect sync preferences",
     icon: Settings,
   },
 ];
 
-/** Secondary tools — kept out of the main workflow tabs. */
 export function TemplateMoreView() {
   return (
     <PageStack>
       <Card>
         <CardHeader
-          title="More tools"
-          hint="Optional · main path is Library → Builder → Activate → Issue"
+          title="More"
+          hint="Imports · Categories · Settings"
         />
         <CardBody className="grid gap-3 sm:grid-cols-3">
           {SECTIONS.map((s) => {
             const Icon = s.icon;
             return (
               <Link
-                key={s.view}
+                key={s.title}
                 to="/templates"
                 search={{ view: s.view }}
                 className="rounded-xl border border-border bg-muted/15 p-4 hover:bg-muted/30 transition-colors block space-y-2"
@@ -59,10 +60,10 @@ export function TemplateMoreView() {
       <Card>
         <CardHeader title="Need to issue certificates?" />
         <CardBody className="flex flex-wrap gap-2">
-          <Link to="/templates" search={{ view: "students" }}>
+          <Link to="/templates" search={{ view: "issued" }}>
             <Button variant="outline">Student records</Button>
           </Link>
-          <Link to="/templates" search={{ view: "generate" }}>
+          <Link to="/templates" search={{ view: "issue" }}>
             <Button variant="primary">Issue to students</Button>
           </Link>
         </CardBody>

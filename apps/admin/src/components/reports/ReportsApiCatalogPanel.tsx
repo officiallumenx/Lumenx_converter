@@ -215,6 +215,7 @@ export function ReportsApiCatalogPanel() {
           action={
             <Link
               to="/academic-management"
+              search={{ view: "years" }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted/60"
             >
               <Users className="size-3.5" />

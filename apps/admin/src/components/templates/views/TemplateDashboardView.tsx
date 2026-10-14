@@ -32,28 +32,28 @@ const STEPS = [
     n: "1",
     title: "Browse or duplicate",
     body: "Open Library. Use a system template as-is, or Duplicate to customize.",
-    to: "library" as const,
+    to: "templates" as const,
     cta: "Open Library",
   },
   {
     n: "2",
     title: "Edit in Builder",
     body: "Change layout and variables. Save as draft until you are ready.",
-    to: "builder" as const,
+    to: "templates" as const,
     cta: "Open Builder",
   },
   {
     n: "3",
     title: "Activate",
     body: "Draft templates cannot be issued. Activate in Library when ready.",
-    to: "library" as const,
+    to: "templates" as const,
     cta: "See drafts",
   },
   {
     n: "4",
     title: "Issue to students",
     body: "Pick an active template, choose students, generate certificates.",
-    to: "generate" as const,
+    to: "issue" as const,
     cta: "Issue now",
   },
 ];
@@ -114,32 +114,32 @@ export function TemplateDashboardView() {
           <CardHeader title="Quick actions" />
           <CardBody>
             <div className="grid gap-2">
-              <Link to="/templates" search={{ view: "generate" }}>
+              <Link to="/templates" search={{ view: "issue" }}>
                 <Button className="w-full justify-start" variant="primary">
                   <FileCheck className="size-3.5" /> Issue to students
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "library" }}>
+              <Link to="/templates" search={{ view: "templates" }}>
                 <Button className="w-full justify-start">
                   <Library className="size-3.5" /> Browse library
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "builder" }}>
+              <Link to="/templates" search={{ view: "templates" }}>
                 <Button className="w-full justify-start">
                   <Wand2 className="size-3.5" /> New / edit in builder
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "students" }}>
+              <Link to="/templates" search={{ view: "issued" }}>
                 <Button className="w-full justify-start">
                   <FileCheck className="size-3.5" /> Student records
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "generated" }}>
+              <Link to="/templates" search={{ view: "issued" }}>
                 <Button className="w-full justify-start">
                   <FolderOpen className="size-3.5" /> Generated certificates
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "more" }}>
+              <Link to="/templates" search={{ view: "overview" }}>
                 <Button className="w-full justify-start" variant="ghost">
                   <Upload className="size-3.5" /> Import · Categories · Settings
                 </Button>
