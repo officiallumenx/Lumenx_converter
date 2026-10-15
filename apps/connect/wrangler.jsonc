@@ -1,8 +1,14 @@
 {
+  "compatibility_date": "2025-09-24",
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "lumenx-connect",
-  "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  // Vite/Nitro source entry. Workers Builds must upload via dist/server/wrangler.json.
-  "main": "src/server.ts",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "dist/server/server.js",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client"
+  },
+  "no_bundle": true
 }
