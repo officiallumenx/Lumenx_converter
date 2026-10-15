@@ -81,8 +81,22 @@ export function resetSupabaseBrowserClientForTests(): void {
   cachedAccessToken = null;
 }
 
+function hasStoredRefreshToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem("lumenx.admin.supabase.auth.v1");
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { refresh_token?: unknown };
+    return typeof parsed.refresh_token === "string" && parsed.refresh_token.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Refresh once (deduped) when access token is missing/expired. */
 export async function tryRefreshSupabaseSession(): Promise<boolean> {
+  // No refresh token ⇒ do not hit hosted Auth (avoids signed-out E2E hangs).
+  if (!hasStoredRefreshToken()) return false;
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
@@ -110,6 +124,38 @@ async function readSupabaseSession(): Promise<Session | null> {
 }
 
 /**
+ * Playwright safe journeys set `VITE_E2E_SAFE_AUTH=1` and optionally seed
+ * `lumenx.admin.supabase.auth.v1`. In that mode we never call hosted Auth —
+ * seeded token wins; missing seed means signed-out.
+ */
+function readE2eSafeAccessToken(): string | null | undefined {
+  if (import.meta.env.VITE_E2E_SAFE_AUTH !== "1") return undefined;
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("lumenx.admin.supabase.auth.v1");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      access_token?: unknown;
+      expires_at?: unknown;
+    };
+    if (typeof parsed.access_token !== "string" || !parsed.access_token.trim()) {
+      return null;
+    }
+    const expiresAtMs =
+      typeof parsed.expires_at === "number" && Number.isFinite(parsed.expires_at)
+        ? parsed.expires_at * 1000
+        : Date.now() + 86_400_000;
+    cachedAccessToken = {
+      token: parsed.access_token,
+      expiresAtMs,
+    };
+    return parsed.access_token;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Return a usable access JWT.
  * Capacitor / WebView can report no session for a few hundred ms after boot
  * even when localStorage already has a refresh token — wait and refresh
@@ -121,6 +167,21 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
     Date.now() < cachedAccessToken.expiresAtMs - REFRESH_SKEW_MS
   ) {
     return cachedAccessToken.token;
+  }
+
+  const e2eToken = readE2eSafeAccessToken();
+  // `null` = safe-auth mode with no seed (signed-out). `undefined` = normal path.
+  if (e2eToken === null) {
+    cachedAccessToken = null;
+    return null;
+  }
+  if (e2eToken) return e2eToken;
+
+  // No persisted Supabase session ⇒ signed-out. Avoid getSession/refresh races
+  // that can leave AuthGate stuck on "loading" during mocked browser journeys.
+  if (!hasStoredRefreshToken()) {
+    cachedAccessToken = null;
+    return null;
   }
 
   let session = await readSupabaseSession();

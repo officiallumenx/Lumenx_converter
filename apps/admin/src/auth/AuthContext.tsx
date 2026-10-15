@@ -157,6 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void bootstrap();
     return () => {
       cancelled = true;
+      // Allow remount (React Strict Mode / fast hydrate) to run bootstrap again.
+      // Without this, a cancelled first pass can leave status stuck on idle/loading.
+      bootstrapped.current = false;
     };
   }, []);
 
