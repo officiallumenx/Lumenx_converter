@@ -4,6 +4,9 @@ Shared deploy model for `lumenx-admin`, `lumenx-nexus`, `lumenx-connect`, `lumen
 
 ## Root cause (fixed in repo)
 
+This was **not** a Supabase/database migration problem and **not** missing production data.
+It was a **Cloudflare Workers / Wrangler deploy configuration** failure only.
+
 Cloudflare’s default deploy command is:
 
 ```text
@@ -12,6 +15,8 @@ npx wrangler versions upload
 
 That discovers app-root `wrangler.jsonc`. The old config used `main: src/server.ts` (Vite/TanStack source entry), which is **not** a valid post-build Worker entry → `Missing entry-point`.
 
+When the Workers Builds root directory is the monorepo root, that command also finds **no** Wrangler config at `/`, which produces the same error.
+
 **Fix:**
 
 1. Each app’s `wrangler.jsonc` points at `dist/server/server.js` + `dist/client`.
@@ -19,6 +24,8 @@ That discovers app-root `wrangler.jsonc`. The old config used `main: src/server.
 3. Prepare also writes **monorepo-root** `wrangler.json` / `wrangler.jsonc` with
    `apps/<name>/dist/...` paths so bare `npx wrangler versions upload` works when
    Cloudflare’s build root is the repository root (common monorepo misconfig).
+
+All five Workers Builds (`lumenx-admin`, `lumenx-connect`, `lumenx-nexus`, `lumenx-transport`, `lumenx-website`) pass on this configuration.
 
 ## Required Workers Builds settings (dashboard)
 

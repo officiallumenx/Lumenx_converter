@@ -21,21 +21,26 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
   test("Documents overview and Official docs surface TC copy without writes", async ({
     page,
   }) => {
+    // Multi-step hub journey (overview → official → templates). Local ~18s;
+    // CI previously hit the default 30s test timeout while waiting for the
+    // templates list after two prior cold navigations (run 38619013282).
+    test.setTimeout(90_000);
+
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
     const writes = await mockAdminDocsCertsApi(page, "with-tc-template");
 
     await page.goto("/documents?view=overview");
-    await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/documents/, { timeout: 15_000 });
     await expect(
       page.getByText(/Issue, track, and retrieve official school documents/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("link", { name: /Official/i }).first()).toBeVisible();
 
     await page.goto("/documents?view=official");
     await expect(
       page.getByText(/Official school documents/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByText(/Transfer certificates/i).first(),
     ).toBeVisible();
@@ -44,6 +49,12 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     ).toBeVisible();
 
     await page.goto("/documents?view=templates");
+    await expect(page).toHaveURL(/\/documents/, { timeout: 15_000 });
+    // Confirm Templates hub shell before the async TC row (same path the
+    // empty-templates journey uses successfully on CI).
+    await expect(
+      page.getByRole("heading", { name: /^Document templates$/i }).first(),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByText(/Transfer Certificate [\u2013\u2014\-] Board Format/i).first(),
     ).toBeVisible({ timeout: 20_000 });
