@@ -22,6 +22,9 @@ build/
 # ─── Cloudflare Wrangler ────────────────────────────────────────────────────
 .wrangler/
 .dev.vars
+# Post-build deploy config written by scripts/prepare-cf-worker-deploy.mjs
+# (source of truth for Vite/Nitro remains apps/*/wrangler.jsonc).
+apps/*/wrangler.json
 
 # ─── Environment & secrets ──────────────────────────────────────────────────
 .env
