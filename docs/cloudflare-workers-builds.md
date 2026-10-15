@@ -12,12 +12,13 @@ npx wrangler versions upload
 
 That discovers app-root `wrangler.jsonc`. The old config used `main: src/server.ts` (Vite/TanStack source entry), which is **not** a valid post-build Worker entry → `Missing entry-point`.
 
-**Fix:** each app’s `wrangler.jsonc` now points at the post-build outputs:
+**Fix:**
 
-- `main`: `dist/server/server.js`
-- `assets.directory`: `dist/client`
-
-`npm run build` runs Vite/Nitro then `scripts/prepare-cf-worker-deploy.mjs`, which bundles `server.js` and re-syncs app-root + `dist/server` Wrangler configs.
+1. Each app’s `wrangler.jsonc` points at `dist/server/server.js` + `dist/client`.
+2. `prepare-cf-worker-deploy.mjs` re-syncs those paths after every build.
+3. Prepare also writes **monorepo-root** `wrangler.json` / `wrangler.jsonc` with
+   `apps/<name>/dist/...` paths so bare `npx wrangler versions upload` works when
+   Cloudflare’s build root is the repository root (common monorepo misconfig).
 
 ## Required Workers Builds settings (dashboard)
 
