@@ -116,12 +116,12 @@ export function DocTemplatesView({
           {writesEnabled ? (
             onActivateTemplate ? (
               <>
-                <Link to="/templates" search={{ view: "issued" }}>
+                <Link to="/templates" search={{ view: "published" }}>
                   <Button size="sm" variant="primary">
                     <ExternalLink className="size-3.5" /> Issued certificates
                   </Button>
                 </Link>
-                <Link to="/documents" search={{ view: "official" }}>
+                <Link to="/documents" search={{ view: "templates" }}>
                   <Button size="sm">
                     <FileCheck className="size-3.5" /> Generate
                   </Button>
@@ -255,8 +255,8 @@ export function DocTemplatesView({
                             to={onActivateTemplate ? "/documents" : "/templates"}
                             search={
                               onActivateTemplate
-                                ? { view: "official" }
-                                : { view: "issue", templateId: t.id }
+                                ? { view: "templates" }
+                                : { view: "templates", templateId: t.id }
                             }
                           >
                             <Button size="sm" variant="primary">

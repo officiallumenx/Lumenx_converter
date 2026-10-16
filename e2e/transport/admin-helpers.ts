@@ -10,6 +10,8 @@ export type AdminFixture = TransportFixture & {
   transportBaseUrl: string;
   student2Name: string;
   student2Id: string;
+  student3Id?: string;
+  student3Name?: string;
 };
 
 export function asAdminFixture(fixture: TransportFixture): AdminFixture | null {
@@ -138,14 +140,28 @@ export async function ensureStudent2NeedsPickup(
   );
 }
 
+/** Unique browser geolocation so client duplicate-GPS (~25 m) does not block serial E2E stops. */
+export async function setUniqueStopGeolocation(
+  page: Page,
+  seed = Date.now(),
+): Promise<{ latitude: number; longitude: number }> {
+  // ~120 m steps north/east from the fixture baseline (17.385, 78.4867).
+  const step = (seed % 40) + 1;
+  const latitude = 17.385 + step * 0.0011;
+  const longitude = 78.4867 + step * 0.0011;
+  await page.context().setGeolocation({ latitude, longitude });
+  return { latitude, longitude };
+}
+
 export async function submitNewPendingStopViaUi(
   page: Page,
   fixture: AdminFixture,
   stopName: string,
-  opts?: { requireStudent?: boolean },
+  opts?: { requireStudent?: boolean; geoSeed?: number },
 ): Promise<string> {
   const requireStudent = opts?.requireStudent ?? false;
   await ensureStudent2NeedsPickup(fixture);
+  await setUniqueStopGeolocation(page, opts?.geoSeed ?? Date.now());
   await openTransportRouteSetup(page, fixture);
 
   const addBtn = page.getByRole("button", { name: /Add Stop/i });
@@ -154,7 +170,7 @@ export async function submitNewPendingStopViaUi(
 
   // GPS capture may be automatic or need a button
   const captureBtn = page.getByRole("button", {
-    name: /Capture|Use location|Get location|GPS/i,
+    name: /Capture|Use location|Get location|GPS|Update Current GPS/i,
   });
   if (await captureBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await captureBtn.click();

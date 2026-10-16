@@ -7,9 +7,10 @@ import {
   adminQueryRoots,
   adminQueryKeys,
 } from "@/lib/admin-queries/keys";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return transportServiceDateToday();
 }
 
 /**

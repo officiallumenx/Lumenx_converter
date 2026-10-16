@@ -1,17 +1,12 @@
 import { useEffect } from "react";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
-import { getTransportApiBaseUrl } from "@/lib/api-base-url";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
+import { registerTransportDeviceToken } from "@/lib/transport-api";
 import {
   bootstrapPushDeviceToken,
   dispatchInAppAlert,
   openSafeAppDeepLink,
 } from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
-
-function apiBaseUrl(): string {
-  return getTransportApiBaseUrl();
-}
 
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
   useEffect(() => {
@@ -20,28 +15,7 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
     void bootstrapPushDeviceToken({
       app: "transport",
       register: async ({ app, platform, token }) => {
-        const accessToken = await getSupabaseAccessToken();
-        if (!accessToken) throw new Error("Authentication required");
-        const response = await fetch(`${apiBaseUrl()}/api/v1/notifications/device-tokens`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ app, platform, token }),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          let message = `Request failed (${response.status})`;
-          try {
-            const json = JSON.parse(text) as { error?: { message?: string } };
-            if (json.error?.message) message = json.error.message;
-          } catch {
-            // ignore
-          }
-          throw new Error(message);
-        }
+        await registerTransportDeviceToken({ app, platform, token });
       },
       onPermission: (granted) => {
         void logLumenXAnalyticsEventForContext({
@@ -59,6 +33,12 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           name: "push_bootstrap_diagnostic",
           params: { code },
         });
+      },
+      onForegroundPush: () => {
+        // Refresh driver inbox without inventing toast copy (web FCM uses onForegroundMessage).
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("lumenx-transport-push-foreground"));
+        }
       },
       onNotificationOpened: (href) => {
         openSafeAppDeepLink(href);

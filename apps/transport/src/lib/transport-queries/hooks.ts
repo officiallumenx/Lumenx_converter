@@ -19,13 +19,12 @@ import {
   emergencyRepository,
   refreshApiOpenEmergency,
 } from "@/lib/transport/emergency";
+import { hydrateDriverSessionFromAssignment } from "@/lib/transport/hydrate-driver-session";
 import { hydrateRouteSetupFromApi } from "@/lib/transport/route-setup/api-sync";
 import {
   getRouteSetupDriverScope,
   setRouteSetupDriverScope,
 } from "@/lib/transport/route-setup/store";
-import { tripRepository } from "@/lib/transport/trip/repository";
-import { attendanceRepository } from "@/lib/transport/attendance/repository";
 import type { TransportNotification } from "@/lib/transport/types";
 import "@/lib/transport/gps-outbox";
 
@@ -102,7 +101,6 @@ async function fetchDriverAssignment(input: {
  */
 export function useDriverAssignmentQuery(): DriverAssignment {
   const { user, hydrated } = useTransportAuth();
-  const queryClient = useQueryClient();
   const instituteId = user?.instituteId ?? null;
   const driverId = user?.driverId ?? null;
 
@@ -179,27 +177,9 @@ export function useDriverAssignmentQuery(): DriverAssignment {
       setRouteSetupDriverScope(scope);
       setAttendanceVehicleScope(scopeVehicleId || null);
       if (instituteId) {
-        void import("@/lib/transport/trip/store").then(({ setRouteHydrated }) => {
-          setRouteHydrated(false);
-        });
-        void queryClient.invalidateQueries({
-          queryKey: transportQueryKeys.roster(instituteId),
-        });
-        // Roster + today's trip completions must finish before Home shows a CTA.
-        // Previously routeHydrated flipped true before list-trips, so Start Pickup
-        // appeared after a completed Pickup (Drop never showed until full reload).
-        void Promise.all([
-          loadDriverRosterForHydrate(instituteId).then((roster) =>
-            hydrateRouteSetupFromApi(scope, roster),
-          ),
-          tripRepository.hydrateFromApi().then(() => attendanceRepository.hydrateFromApi()),
-        ])
-          .catch(() => undefined)
-          .finally(() => {
-            void import("@/lib/transport/trip/store").then(({ setRouteHydrated }) => {
-              setRouteHydrated(true);
-            });
-          });
+        // Coalesced live hydrate (reuses assignment roster; skips duplicate GETs
+        // when AppShell + page both mount this hook).
+        void hydrateDriverSessionFromAssignment({ instituteId, scope });
       }
       return;
     }
@@ -220,7 +200,6 @@ export function useDriverAssignmentQuery(): DriverAssignment {
     driverPhone,
     instituteId,
     instituteTimezone,
-    queryClient,
   ]);
 
   return assignment;

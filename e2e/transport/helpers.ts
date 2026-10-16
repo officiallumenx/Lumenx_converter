@@ -26,6 +26,8 @@ export type TransportFixture = {
   transportBaseUrl?: string;
   student2Id?: string;
   enrollment2Id?: string;
+  student3Id?: string;
+  student3Name?: string;
   student2Name?: string;
 };
 

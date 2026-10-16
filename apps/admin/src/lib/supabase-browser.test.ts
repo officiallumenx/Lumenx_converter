@@ -134,7 +134,7 @@ describe("getSupabaseAccessToken", () => {
     }));
 
     const { tryRefreshSupabaseSession } = await import("./supabase-browser");
-    await expect(tryRefreshSupabaseSession()).resolves.toBe(false);
+    await expect(tryRefreshSupabaseSession()).resolves.toEqual({ kind: "unavailable" });
     expect(refreshSession).not.toHaveBeenCalled();
   });
 });

@@ -366,6 +366,12 @@ export type DriverRouteRoster = {
   routeId: string | null;
   routeName: string | null;
   vehicleId: string | null;
+  /** Bus label for the assigned vehicle (avoids listing all vehicles on cold open). */
+  vehicleNumber: string | null;
+  /** Seat capacity when known; null if vehicle missing or unset. */
+  vehicleCapacity: number | null;
+  /** Route approval so drivers can operate without listing all routes. */
+  routeApprovalStatus: TransportApprovalStatus | null;
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];
@@ -415,6 +421,9 @@ export async function getDriverRouteRosterForActor(
       routeId: null,
       routeName: null,
       vehicleId: null,
+      vehicleNumber: null,
+      vehicleCapacity: null,
+      routeApprovalStatus: null,
       locked: false,
       stops: [],
       students: [],
@@ -423,6 +432,17 @@ export async function getDriverRouteRosterForActor(
       expectedOnboardCount: 0,
     };
   }
+
+  const vehicle = route.vehicle_id
+    ? await findVehicleById(admin, route.vehicle_id)
+    : null;
+  const vehicleNumber = vehicle?.vehicle_number?.trim() || null;
+  const vehicleCapacity =
+    typeof vehicle?.capacity === "number" &&
+    Number.isFinite(vehicle.capacity) &&
+    vehicle.capacity > 0
+      ? vehicle.capacity
+      : null;
 
   const stopRows = await listStopsForRoute(admin, route.id);
   const visibleStops = isTransportWriter(actor, id)
@@ -488,6 +508,9 @@ export async function getDriverRouteRosterForActor(
     routeId: route.id,
     routeName: route.name,
     vehicleId: route.vehicle_id,
+    vehicleNumber,
+    vehicleCapacity,
+    routeApprovalStatus: route.approval_status,
     locked: route.config_status === "locked",
     stops: visibleStops
       .slice()

@@ -89,6 +89,19 @@ config.compatibility_flags = Array.from(
 );
 const overrideNameEarly = process.env.WRANGLER_CI_OVERRIDE_NAME || "";
 const appFolderEarly = path.basename(appRoot);
+const folderToWorkerName = {
+  admin: "lumenx-admin",
+  nexus: "lumenx-nexus",
+  connect: "lumenx-connect",
+  transport: "lumenx-transport",
+  website: "lumenx-website",
+};
+const expectedWorkerName = folderToWorkerName[appFolderEarly];
+// Always pin Worker name from app folder. Nitro/dist configs can inherit a stale
+// name after parallel monorepo builds and must not upload Admin as Nexus (etc.).
+if (expectedWorkerName) {
+  config.name = expectedWorkerName;
+}
 const overrideFolderEarly = {
   "lumenx-admin": "admin",
   "lumenx-nexus": "nexus",

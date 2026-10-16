@@ -27,8 +27,8 @@ const WEEKDAYS = [
   { key: "Sun", label: "Sun" },
 ] as const;
 
-const DEFAULT_STOP_RADIUS_M = 150;
-const DEFAULT_SCHOOL_RADIUS_M = 150;
+const DEFAULT_STOP_RADIUS_M = 100;
+const DEFAULT_SCHOOL_RADIUS_M = 100;
 
 function geolocationErrorMessage(err: GeolocationPositionError): string {
   if (err.code === err.PERMISSION_DENIED) {

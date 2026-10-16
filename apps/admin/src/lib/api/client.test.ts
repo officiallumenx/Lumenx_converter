@@ -36,9 +36,11 @@ describe("createApiClient", () => {
   });
 
   it("throws UNAUTHENTICATED when no token", async () => {
+    const onUnauthorized = vi.fn();
     const api = createApiClient({
       getBaseUrl: () => "http://127.0.0.1:8787",
       getAccessToken: async () => null,
+      onUnauthorized,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -46,6 +48,52 @@ describe("createApiClient", () => {
       code: "UNAUTHENTICATED",
       status: 401,
     });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("null token → refresh → uses fresh token without onUnauthorized", async () => {
+    const onUnauthorized = vi.fn();
+    let token: string | null = null;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { ok: true } }),
+    });
+
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => token,
+      tryRefreshSession: async () => {
+        token = "fresh-after-idle";
+        return true;
+      },
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(api.get<{ ok: boolean }>("/api/v1/me")).resolves.toEqual({ ok: true });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe(
+      "Bearer fresh-after-idle",
+    );
+  });
+
+  it("null token → refresh fails → onUnauthorized once (clears stale UI session)", async () => {
+    const onUnauthorized = vi.fn();
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => null,
+      tryRefreshSession: async () => false,
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    await expect(api.get("/api/v1/me")).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+      status: 401,
+    });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -269,5 +317,99 @@ describe("createApiClient", () => {
     await expect(api.get("/x")).rejects.toMatchObject({
       message: expect.stringContaining("VITE_API_BASE_URL"),
     });
+  });
+
+  it("stale request 401 after session bump does not clear the new session", async () => {
+    const onUnauthorized = vi.fn();
+    let generation = 1;
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({ error: { code: "UNAUTHENTICATED", message: "expired" } }),
+    });
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "stale-from-user-a",
+      getSessionGeneration: () => generation,
+      tryRefreshSession: async () => {
+        // Simulate User B login while User A's request is still resolving.
+        generation = 2;
+        return { kind: "invalid" };
+      },
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(api.get("/api/v1/me")).rejects.toBeInstanceOf(ApiClientError);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("transient refresh failure preserves session (no onUnauthorized)", async () => {
+    const onUnauthorized = vi.fn();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({ error: { code: "UNAUTHENTICATED", message: "expired" } }),
+    });
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      tryRefreshSession: async () => ({ kind: "transient" }),
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(api.get("/x")).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+      status: 0,
+      message: expect.stringContaining("temporarily unavailable"),
+    });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("skipAuth 401 does not clear an authenticated session", async () => {
+    const onUnauthorized = vi.fn();
+    const tryRefreshSession = vi.fn().mockResolvedValue({ kind: "refreshed" });
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({ error: { code: "UNAUTHENTICATED", message: "bad creds" } }),
+    });
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "live-session-token",
+      tryRefreshSession,
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(api.post("/api/v1/auth/login", {}, { skipAuth: true })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(tryRefreshSession).not.toHaveBeenCalled();
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("confirmed invalid refresh clears session once", async () => {
+    const onUnauthorized = vi.fn();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({ error: { code: "UNAUTHENTICATED", message: "expired" } }),
+    });
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      tryRefreshSession: async () => ({ kind: "invalid" }),
+      onUnauthorized,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(api.get("/x")).rejects.toBeInstanceOf(ApiClientError);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 });

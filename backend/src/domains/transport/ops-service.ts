@@ -6,7 +6,11 @@ import {
   requireInstituteId,
 } from "../../authorization/index.js";
 import { findStudentById, listGuardianStudentIds } from "../students/repository.js";
-import { isDriverForInstitute, isTransportWriter } from "./approval.js";
+import {
+  isDriverForInstitute,
+  isOperationallyUsable,
+  isTransportWriter,
+} from "./approval.js";
 import {
   assertAuthenticatedDriverId,
   assertBoardingTargetAllowed,
@@ -221,12 +225,18 @@ async function enrichTrip(
     latestLocation?.capturedAt ?? null,
   );
 
+  // Rejected stops/enrollments are not operationally usable — exclude from trip plans.
+  // Pending remains usable (same contract as isOperationallyUsable / Connect).
   const ordered = stops
+    .filter((s) => isOperationallyUsable(s.approval_status))
     .slice()
     .sort((a, b) => a.route_order - b.route_order);
   const enrollments = await listEnrollments(admin, row.institute_id);
   const routeEnrollments = enrollments.filter(
-    (e) => e.route_id === row.route_id && e.status === "active",
+    (e) =>
+      e.route_id === row.route_id &&
+      e.status === "active" &&
+      isOperationallyUsable(e.approval_status),
   );
   const stopRefs = ordered.map((s) => ({
     id: s.id,
@@ -835,7 +845,8 @@ async function maybeMarkSchoolArrivedOnPing(
 
   let latitude: number | null = null;
   let longitude: number | null = null;
-  let radiusM: number = 150;
+  /** Prefer per-stop school radius (e.g. configured 100m); else settings; else product default via resolveStopGeofenceM. */
+  let radiusM: number | null = null;
 
   if (
     schoolStop &&
@@ -844,19 +855,20 @@ async function maybeMarkSchoolArrivedOnPing(
   ) {
     latitude = schoolStop.latitude;
     longitude = schoolStop.longitude;
-    radiusM = Number(schoolStop.notification_radius_m) || 150;
+    radiusM = schoolStop.notification_radius_m;
   } else if (
     settings?.school_latitude != null &&
     settings?.school_longitude != null
   ) {
     latitude = settings.school_latitude;
     longitude = settings.school_longitude;
-    radiusM = settings.school_notification_radius_m ?? 150;
+    radiusM = settings.school_notification_radius_m;
   }
 
   if (latitude == null || longitude == null) return;
 
   const distanceM = haversineMeters(location, { latitude, longitude });
+  // isBusWithinStopRadius → resolveStopGeofenceM preserves configured radius (default 100m).
   if (!isBusWithinStopRadius(distanceM, radiusM)) return;
 
   const now = new Date().toISOString();

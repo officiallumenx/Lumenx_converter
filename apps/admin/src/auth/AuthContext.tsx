@@ -39,11 +39,21 @@ import {
   tryApplyApiActiveInstituteSession,
   clearApiActiveInstituteSession,
 } from "./api-active-institute";
-import { setAdminApiUnauthorizedHandler } from "@/lib/admin-api";
+import {
+  bumpAdminAuthSessionGeneration,
+  setAdminApiUnauthorizedHandler,
+} from "@/lib/admin-api";
+import { clearAdminQueryClient } from "@/lib/admin-queries/query-client";
 import { bindApiRegistrationUser } from "./api-registration-state";
 import { finalizeApiAuthUser } from "./api-auth-finalize";
 import { runApiInstituteSignUp } from "./api-signup-flow";
 import { assertNotDemoFallback } from "@lumenx/auth";
+
+/** Drop in-memory RQ cache before painting a new authenticated user (cold-start residue). */
+function resetInMemoryCachesForNewSession(): void {
+  bumpAdminAuthSessionGeneration();
+  clearAdminQueryClient();
+}
 
 // ── Context ───────────────────────────────────────────────────
 
@@ -70,17 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const bootstrapped = useRef(false);
 
   const clearApiLocalState = useCallback(async () => {
-    // Explicit logout — wipe session + await IndexedDB query cache clear.
+    // Explicit logout / forced auth failure — wipe session + query caches.
+    bumpAdminAuthSessionGeneration();
     await clearApiModeLocalIdentity();
-    clearLoginFlowDraft();
-    clearAppUnlock();
-    setUser(null);
-    setStatus("unauthenticated");
-  }, []);
-
-  const clearApiSessionKeepCache = useCallback(() => {
-    // 401 / soft auth miss — drop UI session but keep IndexedDB module cache.
-    clearApiModeSessionIdentity({ clearActiveInstitute: true });
     clearLoginFlowDraft();
     clearAppUnlock();
     setUser(null);
@@ -93,14 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAdminApiUnauthorizedHandler(() => {
-      // API client already refreshed + retried once on 401.
-      // Reaching here means auth is genuinely invalid — logout (do not refresh-and-bail).
+      // Confirmed invalid session — full clear so User B cannot see User A's caches.
       void apiSignOut().finally(() => {
-        clearApiSessionKeepCache();
+        void clearApiLocalState();
       });
     });
     return () => setAdminApiUnauthorizedHandler(null);
-  }, [clearApiSessionKeepCache]);
+  }, [clearApiLocalState]);
 
   /** On mount — optimistic local session, then confirm via Supabase / /me. */
   useEffect(() => {
@@ -169,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const hydrated = await apiSignInWithPassword(identifier, password);
+        resetInMemoryCachesForNewSession();
         bindApiRegistrationUser(hydrated.user.id);
         const user = await finalizeApiAuthUser(hydrated);
         saveSession(user, remember, { authSource: "api" });
@@ -215,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password: input.password,
           pin: input.pin,
         });
+        resetInMemoryCachesForNewSession();
         bindApiRegistrationUser(hydrated.user.id);
         const user = await finalizeApiAuthUser(hydrated);
         saveSession(user, input.remember ?? false, { authSource: "api" });
@@ -251,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password: input.password,
           pin: input.pin,
         });
+        resetInMemoryCachesForNewSession();
         bindApiRegistrationUser(hydrated.user.id);
         const user = await finalizeApiAuthUser(hydrated);
         saveSession(user, input.remember ?? false, { authSource: "api" });
@@ -291,6 +295,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyApiActiveInstitute = useCallback(
     (instituteId: string, instituteName: string) => {
+      // New tenant context — drop prior institute's in-memory module cache.
+      resetInMemoryCachesForNewSession();
       const next = tryApplyApiActiveInstituteSession(instituteId, instituteName);
       if (next) setUser(next);
       void import("@/lib/access-roles").then(({ syncApiAccessPermissions }) => {
@@ -302,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Clear API-mode institute presentation when context is no longer validated. */
   const clearApiActiveInstitutePresentation = useCallback(() => {
+    bumpAdminAuthSessionGeneration();
     const next = clearApiActiveInstituteSession();
     if (next) setUser(next);
   }, []);
@@ -311,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const hydrated = await runApiInstituteSignUp(data);
+      resetInMemoryCachesForNewSession();
       saveSession(hydrated.user, false, { authSource: "api" });
       clearAppUnlock();
       setUser(hydrated.user);

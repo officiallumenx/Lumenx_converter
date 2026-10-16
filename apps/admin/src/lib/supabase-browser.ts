@@ -1,7 +1,12 @@
 import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
+import {
+  classifySupabaseRefreshFailure,
+  isSessionRefreshSuccess,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 
 let client: SupabaseClient | null = null;
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: Promise<SessionRefreshOutcome> | null = null;
 let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
 
 const REFRESH_SKEW_MS = 60_000;
@@ -94,21 +99,36 @@ function hasStoredRefreshToken(): boolean {
 }
 
 /** Refresh once (deduped) when access token is missing/expired. */
-export async function tryRefreshSupabaseSession(): Promise<boolean> {
+export async function tryRefreshSupabaseSession(): Promise<SessionRefreshOutcome> {
   // No refresh token ⇒ do not hit hosted Auth (avoids signed-out E2E hangs).
-  if (!hasStoredRefreshToken()) return false;
+  if (!hasStoredRefreshToken()) return { kind: "unavailable" };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return { kind: "transient" };
+  }
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
+  refreshInFlight = (async (): Promise<SessionRefreshOutcome> => {
     try {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.refreshSession();
       if (!error && data.session?.access_token) {
         cacheToken(data.session);
-        return true;
+        return { kind: "refreshed" };
       }
-      return false;
-    } catch {
-      return false;
+      if (!error && !data.session) {
+        return { kind: "invalid" };
+      }
+      if (error) {
+        const classified = classifySupabaseRefreshFailure(error);
+        if (classified === "transient") return { kind: "transient" };
+        if (classified === "invalid") return { kind: "invalid" };
+        return { kind: "unknown" };
+      }
+      return { kind: "unknown" };
+    } catch (err) {
+      const classified = classifySupabaseRefreshFailure(err);
+      if (classified === "invalid") return { kind: "invalid" };
+      if (classified === "transient") return { kind: "transient" };
+      return { kind: "unknown" };
     } finally {
       refreshInFlight = null;
     }
@@ -193,8 +213,8 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
     }
   }
   if (!session?.access_token) {
-    const ok = await tryRefreshSupabaseSession();
-    if (ok) session = await readSupabaseSession();
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) session = await readSupabaseSession();
   }
   if (!session?.access_token) {
     cachedAccessToken = null;
@@ -203,10 +223,11 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 
   const expiresAtMs = (session.expires_at ?? 0) * 1000;
   if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
-    const ok = await tryRefreshSupabaseSession();
-    if (ok) {
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) {
       session = (await readSupabaseSession()) ?? session;
     } else if (!expiresAtMs || expiresAtMs <= Date.now()) {
+      // Transient/unknown: keep non-expired token; expired → null without clearing storage.
       cachedAccessToken = null;
       return null;
     }

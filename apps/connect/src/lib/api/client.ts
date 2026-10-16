@@ -1,3 +1,10 @@
+import {
+  asSessionRefreshOutcome,
+  isRecoverableRefreshFailure,
+  isSessionRefreshSuccess,
+  shouldClearSessionOnRefreshFailure,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 import { ApiClientError, normalizeApiError } from "./errors";
 
 export type ApiRequestOptions = {
@@ -8,6 +15,8 @@ export type ApiRequestOptions = {
   signal?: AbortSignal;
   /** Internal: already retried once after session refresh. */
   _authRetried?: boolean;
+  /** Internal: auth session generation captured when the request started. */
+  _sessionGeneration?: number;
   /** Return full JSON including pagination siblings instead of unwrapping data. */
   envelope?: boolean;
 };
@@ -17,10 +26,13 @@ export type ApiClientConfig = {
   getAccessToken: () => Promise<string | null>;
   /**
    * Optional silent refresh before treating HTTP 401 as logout.
-   * Return true when a new access token is available.
+   * Prefer structured SessionRefreshOutcome so transient network failures
+   * do not destroy a recoverable session.
    */
-  tryRefreshSession?: () => Promise<boolean>;
-  /** Called on HTTP 401 after refresh+retry failed (session cleanup hook). */
+  tryRefreshSession?: () => Promise<boolean | SessionRefreshOutcome>;
+  /** Current auth session generation — stale requests must not clear a newer login. */
+  getSessionGeneration?: () => number;
+  /** Called on confirmed auth failure after refresh+retry (session cleanup hook). */
   onUnauthorized?: () => void;
   fetchImpl?: typeof fetch;
 };
@@ -29,29 +41,96 @@ function resolveBaseUrl(raw: string): string {
   return raw.replace(/\/+$/, "");
 }
 
+function transientRefreshError(): ApiClientError {
+  return new ApiClientError({
+    status: 0,
+    code: "NETWORK_ERROR",
+    message:
+      "Session refresh temporarily unavailable — check your connection and try again",
+  });
+}
+
 export function createApiClient(config: ApiClientConfig) {
   const fetchImpl = config.fetchImpl ?? fetch;
+
+  function captureGeneration(options: ApiRequestOptions): number | undefined {
+    if (options._sessionGeneration !== undefined) return options._sessionGeneration;
+    return config.getSessionGeneration?.();
+  }
+
+  function invokeUnauthorized(sessionGeneration: number | undefined): void {
+    if (
+      sessionGeneration !== undefined &&
+      config.getSessionGeneration &&
+      config.getSessionGeneration() !== sessionGeneration
+    ) {
+      return;
+    }
+    config.onUnauthorized?.();
+  }
 
   async function shouldRetryAfterUnauthorized(
     options: ApiRequestOptions,
   ): Promise<boolean> {
-    if (options.skipAuth || options._authRetried) {
-      config.onUnauthorized?.();
+    const sessionGeneration = captureGeneration(options);
+    if (options.skipAuth) return false;
+    if (options._authRetried) {
+      invokeUnauthorized(sessionGeneration);
       return false;
     }
     if (!config.tryRefreshSession) {
-      config.onUnauthorized?.();
+      invokeUnauthorized(sessionGeneration);
       return false;
     }
-    const refreshed = await config.tryRefreshSession();
-    if (!refreshed) {
-      config.onUnauthorized?.();
-      return false;
+    const outcome = asSessionRefreshOutcome(await config.tryRefreshSession());
+    if (isSessionRefreshSuccess(outcome)) return true;
+    if (isRecoverableRefreshFailure(outcome)) {
+      throw transientRefreshError();
     }
-    return true;
+    if (shouldClearSessionOnRefreshFailure(outcome)) {
+      invokeUnauthorized(sessionGeneration);
+    }
+    return false;
+  }
+
+  async function resolveAccessToken(options: ApiRequestOptions): Promise<string> {
+    const sessionGeneration = captureGeneration(options);
+    if (options.accessToken !== undefined) {
+      if (options.accessToken) return options.accessToken;
+      invokeUnauthorized(sessionGeneration);
+      throw new ApiClientError({
+        status: 401,
+        code: "UNAUTHENTICATED",
+        message: "Authentication required",
+      });
+    }
+
+    let token = await config.getAccessToken();
+    if (!token && !options._authRetried && config.tryRefreshSession) {
+      const outcome = asSessionRefreshOutcome(await config.tryRefreshSession());
+      if (isSessionRefreshSuccess(outcome)) {
+        token = await config.getAccessToken();
+      } else if (isRecoverableRefreshFailure(outcome)) {
+        throw transientRefreshError();
+      }
+    }
+    if (!token) {
+      invokeUnauthorized(sessionGeneration);
+      throw new ApiClientError({
+        status: 401,
+        code: "UNAUTHENTICATED",
+        message: "Authentication required",
+      });
+    }
+    return token;
   }
 
   async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const requestOptions: ApiRequestOptions = {
+      ...options,
+      _sessionGeneration:
+        options._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -69,32 +148,25 @@ export function createApiClient(config: ApiClientConfig) {
       Accept: "application/json",
     };
 
-    if (options.body !== undefined) {
+    if (requestOptions.body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
 
-    if (!options.skipAuth) {
-      const token =
-        options.accessToken !== undefined
-          ? options.accessToken
-          : await config.getAccessToken();
-      if (!token) {
-        throw new ApiClientError({
-          status: 401,
-          code: "UNAUTHENTICATED",
-          message: "Authentication required",
-        });
-      }
+    if (!requestOptions.skipAuth) {
+      const token = await resolveAccessToken(requestOptions);
       headers.Authorization = `Bearer ${token}`;
     }
 
     let response: Response;
     try {
       response = await fetchImpl(url, {
-        method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
+        method: requestOptions.method ?? (requestOptions.body !== undefined ? "POST" : "GET"),
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: options.signal,
+        body:
+          requestOptions.body !== undefined
+            ? JSON.stringify(requestOptions.body)
+            : undefined,
+        signal: requestOptions.signal,
       });
     } catch {
       throw new ApiClientError({
@@ -121,10 +193,10 @@ export function createApiClient(config: ApiClientConfig) {
         response.statusText || "Request failed",
       );
       if (response.status === 401) {
-        const retry = await shouldRetryAfterUnauthorized(options);
+        const retry = await shouldRetryAfterUnauthorized(requestOptions);
         if (retry) {
           return request<T>(path, {
-            ...options,
+            ...requestOptions,
             accessToken: undefined,
             _authRetried: true,
           });
@@ -134,7 +206,7 @@ export function createApiClient(config: ApiClientConfig) {
     }
 
     if (
-      !options.envelope &&
+      !requestOptions.envelope &&
       json &&
       typeof json === "object" &&
       "data" in json
@@ -150,6 +222,11 @@ export function createApiClient(config: ApiClientConfig) {
     form: FormData,
     options?: Omit<ApiRequestOptions, "method" | "body">,
   ): Promise<T> {
+    const opts: ApiRequestOptions = {
+      ...(options ?? {}),
+      _sessionGeneration:
+        options?._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -162,19 +239,8 @@ export function createApiClient(config: ApiClientConfig) {
       ? path
       : `${base}${path.startsWith("/") ? path : `/${path}`}`;
     const headers: Record<string, string> = { Accept: "application/json" };
-    const opts = options ?? {};
     if (!opts.skipAuth) {
-      const token =
-        opts.accessToken !== undefined
-          ? opts.accessToken
-          : await config.getAccessToken();
-      if (!token) {
-        throw new ApiClientError({
-          status: 401,
-          code: "UNAUTHENTICATED",
-          message: "Authentication required",
-        });
-      }
+      const token = await resolveAccessToken(opts);
       headers.Authorization = `Bearer ${token}`;
     }
     let response: Response;

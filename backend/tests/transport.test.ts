@@ -500,7 +500,7 @@ describe("transport api", () => {
       { headers: { Authorization: "Bearer token-admin" } },
     );
     expect(empty.status).toBe(200);
-    expect((await json(empty)).data.defaultNotificationRadiusM).toBe(150);
+    expect((await json(empty)).data.defaultNotificationRadiusM).toBe(100);
 
     const put = await app.request(
       `/api/v1/transport/settings?institute_id=${INST_A}`,
@@ -939,6 +939,10 @@ describe("transport api", () => {
     const body = await json(res);
     expect(body.data.driverId).toBe(DRIVER_A);
     expect(body.data.routeId).toBe(ROUTE_A);
+    expect(body.data.vehicleId).toBe(VEHICLE_A);
+    expect(body.data.vehicleNumber).toBe("BUS-1");
+    expect(body.data.vehicleCapacity).toBe(40);
+    expect(body.data.routeApprovalStatus).toBe("approved");
     expect(body.data.stops.length).toBeGreaterThanOrEqual(2);
     expect(body.data.students.length).toBe(2);
     expect(body.data.students.some((s: { studentName: string }) => s.studentName === "Kid A")).toBe(

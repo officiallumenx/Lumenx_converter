@@ -175,11 +175,22 @@ export type CreateGeneratedInput = {
   teacherId?: string | null;
   recipientName: string;
   recipientRef?: string | null;
-  certificateNumber?: string | null;
+  /**
+   * Optional client idempotency key for this draft in a generation batch.
+   * Stored in payload.generationKey; permanent numbers are never client-set.
+   */
+  generationKey?: string | null;
   payload?: unknown;
 };
 
 export type TransitionGeneratedInput = {
   workflowState: GeneratedWorkflowState;
   rejectionReason?: string | null;
+};
+
+export type RepublishGeneratedInput = {
+  title?: string;
+  payload?: unknown;
+  /** When true (default), notify student/parent portals again. */
+  notify?: boolean;
 };

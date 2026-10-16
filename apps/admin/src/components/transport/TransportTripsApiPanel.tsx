@@ -34,6 +34,7 @@ import type { TransportTripDto } from "@/lib/transport/types";
 import { TransportTripMonitorDetail } from "@/components/transport/TransportTripMonitorDetail";
 import { useQueryClient } from "@tanstack/react-query";
 import { adminQueryKeys } from "@/lib/admin-queries/keys";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   instituteId: string;
@@ -168,7 +169,7 @@ export function TransportTripsApiPanel({
   writesEnabled = true,
   onNotify,
 }: Props) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const queryClient = useQueryClient();
   const tripsQuery = useTransportTripsQuery(instituteId, today);
   const emergenciesQuery = useTransportEmergenciesQuery(instituteId);

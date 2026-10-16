@@ -1,3 +1,4 @@
+import { createAuthSessionClock } from "@lumenx/auth";
 import { createApiClient, type ConnectApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import {
@@ -7,6 +8,15 @@ import {
 
 let onUnauthorizedHandler: (() => void) | null = null;
 let client: ConnectApiClient | null = null;
+const authSessionClock = createAuthSessionClock();
+
+export function bumpConnectAuthSessionGeneration(): number {
+  return authSessionClock.bump();
+}
+
+export function getConnectAuthSessionGeneration(): number {
+  return authSessionClock.current();
+}
 
 export function setConnectApiUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorizedHandler = handler;
@@ -25,9 +35,10 @@ export function getConnectApiClient(): ConnectApiClient {
       return getSupabaseAccessToken();
     },
     tryRefreshSession: async () => {
-      if (!isApiAuthMode()) return false;
+      if (!isApiAuthMode()) return { kind: "unavailable" };
       return tryRefreshSupabaseSession();
     },
+    getSessionGeneration: () => authSessionClock.current(),
     onUnauthorized: () => {
       onUnauthorizedHandler?.();
     },
@@ -38,4 +49,5 @@ export function getConnectApiClient(): ConnectApiClient {
 export function resetConnectApiClientForTests(): void {
   client = null;
   onUnauthorizedHandler = null;
+  authSessionClock.resetForTests();
 }

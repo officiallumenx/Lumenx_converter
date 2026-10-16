@@ -1,5 +1,6 @@
 /**
  * Documents hub information architecture.
+ * Exactly two primary sections: Templates | Published.
  * Legacy view query params are aliased so old bookmarks keep working.
  */
 
@@ -31,30 +32,27 @@ export function filterDocumentsHubTemplates<
   });
 }
 
-export const DOC_HUB_VIEWS = [
-  "overview",
-  "official",
-  "student-docs",
-  "templates",
-  "archive",
-  // Legacy / demo-only surfaces (not in primary nav for API mode)
-  "requests",
-  "packages",
-  "signatures",
-  "categories",
-  "settings",
-] as const;
+export const DOC_HUB_VIEWS = ["templates", "published"] as const;
 
 export type DocHubView = (typeof DOC_HUB_VIEWS)[number];
 
 export const DOCUMENTS_VIEW_CONFIG = {
   views: DOC_HUB_VIEWS,
-  defaultView: "overview" as const,
+  defaultView: "templates" as const,
   aliases: {
-    dashboard: "overview",
-    generate: "official",
-    published: "official",
-    generated: "archive",
+    overview: "templates",
+    dashboard: "templates",
+    official: "templates",
+    generate: "templates",
+    "student-docs": "published",
+    archive: "published",
+    generated: "published",
+    // Demo-only legacy tabs collapse into Templates
+    requests: "templates",
+    packages: "templates",
+    signatures: "templates",
+    categories: "templates",
+    settings: "templates",
   } satisfies Partial<Record<string, DocHubView>>,
 };
 
@@ -62,51 +60,19 @@ export const DOC_HUB_PRIMARY_NAV: {
   view: DocHubView;
   label: string;
   short: string;
-  highlight?: boolean;
 }[] = [
-  { view: "overview", label: "Overview", short: "Home" },
-  { view: "official", label: "Official docs", short: "Official", highlight: true },
-  { view: "student-docs", label: "Student docs", short: "Students" },
   { view: "templates", label: "Templates", short: "Templates" },
-  { view: "archive", label: "Archive", short: "Archive" },
-];
-
-/** Demo-only extras kept for localStore mode; hidden from API primary nav. */
-export const DOC_HUB_DEMO_EXTRA_NAV: {
-  view: DocHubView;
-  label: string;
-  short: string;
-}[] = [
-  { view: "requests", label: "Requests (demo)", short: "Requests" },
-  { view: "packages", label: "Packages (demo)", short: "Packages" },
-  { view: "signatures", label: "Signatures (demo)", short: "Sigs" },
-  { view: "categories", label: "Categories", short: "Cats" },
-  { view: "settings", label: "Settings (demo)", short: "Settings" },
+  { view: "published", label: "Published", short: "Published" },
 ];
 
 export const DOC_VIEW_TITLES: Record<DocHubView, string> = {
-  overview: "Documents",
-  official: "Official school documents",
-  "student-docs": "Student documents",
   templates: "Document templates",
-  archive: "Document archive",
-  requests: "Document requests",
-  packages: "Document packages",
-  signatures: "Signatures",
-  categories: "Categories",
-  settings: "Studio settings",
+  published: "Published documents",
 };
 
 export const DOC_VIEW_SUBTITLES: Record<DocHubView, string> = {
-  overview: "Issue, track, and retrieve official school documents",
-  official:
-    "Transfer certificates, bonafides, study certificates, and other school documents",
-  "student-docs": "Student-linked documents · review, download, and track status",
-  templates: "Layouts used for official school documents (not award certificates)",
-  archive: "Search previously generated and published documents",
-  requests: "Request intake is demo-only until a real workflow is enabled",
-  packages: "Document packages are demo-only",
-  signatures: "Signature capture is demo-only",
-  categories: "Categories derived from templates",
-  settings: "Studio settings are demo-only",
+  templates:
+    "Select a template, choose students, generate, preview, then publish",
+  published:
+    "Search, review, edit, and republish previously published documents",
 };

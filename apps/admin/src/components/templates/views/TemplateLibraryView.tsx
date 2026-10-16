@@ -341,7 +341,7 @@ function TemplateCard({
         {/* Actions */}
         <div className="flex flex-wrap gap-1.5">
           {canIssue && (
-            <Link to="/templates" search={{ view: "issue", templateId: t.id }}>
+            <Link to="/templates" search={{ view: "templates", templateId: t.id }}>
               <Button size="sm" variant="primary" className="gap-1">
                 <FileCheck className="size-3" /> Issue
               </Button>
@@ -475,7 +475,7 @@ function TemplateListRow({
           </Button>
         )}
         {canIssue && (
-          <Link to="/templates" search={{ view: "issue", templateId: t.id }}>
+          <Link to="/templates" search={{ view: "templates", templateId: t.id }}>
             <Button size="sm" variant="primary">
               <FileCheck className="size-3" /> Issue
             </Button>
@@ -652,7 +652,7 @@ function PreviewModal({
             </Button>
           )}
           {canIssue && (
-            <Link to="/templates" search={{ view: "issue", templateId: template.id }}>
+            <Link to="/templates" search={{ view: "templates", templateId: template.id }}>
               <Button variant="primary">
                 <FileCheck className="size-3.5" /> Issue to students
               </Button>

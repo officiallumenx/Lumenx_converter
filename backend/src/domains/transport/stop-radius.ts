@@ -3,7 +3,8 @@ import { AppError } from "../../errors/app-error.js";
 /** Product bounds for stop geofence radius (meters). Matches Admin settings UI. */
 export const STOP_RADIUS_MIN_M = 20;
 export const STOP_RADIUS_MAX_M = 5000;
-export const STOP_RADIUS_DEFAULT_M = 150;
+/** Owner Phase 7 decision: default arrival geofence is 100 m (still Admin-configurable). */
+export const STOP_RADIUS_DEFAULT_M = 100;
 
 /**
  * Validate a stop notification radius in meters.

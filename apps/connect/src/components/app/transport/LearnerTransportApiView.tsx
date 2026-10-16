@@ -200,6 +200,8 @@ export function LearnerTransportApiView({
   const {
     data: live,
     isFetching: liveFetching,
+    isError: liveIsError,
+    error: liveError,
     refresh: refreshLive,
   } = useLearnerTransportLiveQuery(instituteId, studentId, true, {
     pollMs: livePollMs,
@@ -371,6 +373,25 @@ export function LearnerTransportApiView({
     <div className="min-w-0 max-w-full space-y-5">
       {headerExtra}
       <PageHeader title="Transport" subtitle={subtitle} />
+
+      {liveIsError ? (
+        <div
+          className="rounded-xl border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive"
+          role="alert"
+        >
+          Live tracking could not load
+          {liveError instanceof Error && liveError.message
+            ? `: ${liveError.message}`
+            : "."}{" "}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            onClick={() => refreshLive()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {pending ? (
         <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
