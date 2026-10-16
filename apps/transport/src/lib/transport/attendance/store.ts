@@ -94,8 +94,12 @@ export function resetAttendanceStore() {
 export type AttendanceActionResult = {
   ok: boolean;
   reason?: string;
-  code?: "not_found" | "invalid" | "confirm_required" | "finalized";
+  code?: "not_found" | "invalid" | "confirm_required" | "finalized" | "busy";
   student?: AttendanceStudentState | null;
+  /** Mark accepted locally; server confirmation still pending. */
+  pending?: boolean;
+  /** Event queued because the device is offline. */
+  queuedOffline?: boolean;
 };
 
 /** Instant local boarding mark — UI updates before the API round-trip. */
@@ -222,7 +226,13 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
     const shared = await listBoardingViaApi(trip.tripId);
     const base = createRosterBase();
     const byId = new Map(shared.map((m) => [m.studentId, m]));
+    const priorById = new Map(students.map((s) => [s.id, s]));
     students = base.map((student) => {
+      const prior = priorById.get(student.id);
+      // Do not clobber an in-flight optimistic mark or error/retry chip.
+      if (prior?.syncStatus === "syncing" || prior?.syncStatus === "error") {
+        return prior;
+      }
       const mark = byId.get(student.id);
       if (!mark) return { ...student, syncStatus: student.syncStatus ?? "idle" };
       return {

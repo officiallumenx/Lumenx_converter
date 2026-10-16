@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { FeatureHero } from "@/components/ui/feature-hero";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { useRouteSetup } from "@/hooks/use-route-setup";
-import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
@@ -50,16 +49,9 @@ export function RouteSetupPage() {
   const { user } = useTransportAuth();
   const queryClient = useQueryClient();
 
+  // Roster refreshes via app-level TransportRealtimeSync → invalidateQueries.
   useDriverRosterQuery(user?.instituteId, assignment.status === "ready");
 
-  const refreshFromRealtime = useCallback(() => {
-    if (!user?.instituteId) return;
-    void queryClient.invalidateQueries({
-      queryKey: transportQueryKeys.roster(user.instituteId),
-    });
-  }, [queryClient, user?.instituteId]);
-
-  useTransportRealtimeRefresh(user?.instituteId, refreshFromRealtime);
   const driverId = user?.id ?? assignment.account?.id ?? "";
   const vehicleId = assignment.bus?.vehicleId ?? "";
   const busLabel = assignment.bus?.busNumber ?? "—";

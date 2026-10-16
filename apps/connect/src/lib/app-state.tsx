@@ -19,7 +19,10 @@ import { awaitConnectStoreReset, resetAllConnectStores } from "./reset-stores";
 import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { apiSignOut, tryHydrateApiSession } from "@/auth/api-auth";
-import { setConnectApiUnauthorizedHandler } from "@/lib/connect-api";
+import {
+  bumpConnectAuthSessionGeneration,
+  setConnectApiUnauthorizedHandler,
+} from "@/lib/connect-api";
 import { ApiClientError } from "@/lib/api";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
@@ -108,6 +111,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setConnectApiUnauthorizedHandler(() => {
       void (async () => {
+        bumpConnectAuthSessionGeneration();
         // API client already refreshed + retried once on 401.
         // Reaching here means auth is genuinely invalid — clear Supabase + UI + caches.
         await apiSignOut().catch(() => undefined);
@@ -120,6 +124,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLinkedChildrenError(null);
         clearPhotoSignedUrlCache();
         clearAllLinkedChildrenCaches();
+        // Embedded admissions portal shares Connect's API client + Supabase session.
+        void import("@/lib/admissions/repositories").then(({ signOutUser }) => {
+          signOutUser();
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("lumenx:connect-auth-cleared"));
+          }
+        });
         void import("@/lib/connect-queries").then(
           ({ clearConnectQueryClient, clearAllPersistedConnectCaches }) => {
             clearConnectQueryClient();
@@ -318,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInApi = useCallback((u: User, r: Role, instituteId: string) => {
+    bumpConnectAuthSessionGeneration();
     let previousUserId: string | null = null;
     try {
       const raw = localStorage.getItem(CONNECT_STORAGE_KEYS.user);
@@ -353,6 +365,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    bumpConnectAuthSessionGeneration();
     appLockStore.lockSession();
     void apiSignOut();
     setUser(null);

@@ -1,7 +1,12 @@
 import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
+import {
+  classifySupabaseRefreshFailure,
+  isSessionRefreshSuccess,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 
 let client: SupabaseClient | null = null;
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: Promise<SessionRefreshOutcome> | null = null;
 let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
 
 const REFRESH_SKEW_MS = 60_000;
@@ -81,20 +86,49 @@ export function resetSupabaseBrowserClientForTests(): void {
   cachedAccessToken = null;
 }
 
+function hasStoredRefreshToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem("lumenx.admin.supabase.auth.v1");
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { refresh_token?: unknown };
+    return typeof parsed.refresh_token === "string" && parsed.refresh_token.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Refresh once (deduped) when access token is missing/expired. */
-export async function tryRefreshSupabaseSession(): Promise<boolean> {
+export async function tryRefreshSupabaseSession(): Promise<SessionRefreshOutcome> {
+  // No refresh token ⇒ do not hit hosted Auth (avoids signed-out E2E hangs).
+  if (!hasStoredRefreshToken()) return { kind: "unavailable" };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return { kind: "transient" };
+  }
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
+  refreshInFlight = (async (): Promise<SessionRefreshOutcome> => {
     try {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.refreshSession();
       if (!error && data.session?.access_token) {
         cacheToken(data.session);
-        return true;
+        return { kind: "refreshed" };
       }
-      return false;
-    } catch {
-      return false;
+      if (!error && !data.session) {
+        return { kind: "invalid" };
+      }
+      if (error) {
+        const classified = classifySupabaseRefreshFailure(error);
+        if (classified === "transient") return { kind: "transient" };
+        if (classified === "invalid") return { kind: "invalid" };
+        return { kind: "unknown" };
+      }
+      return { kind: "unknown" };
+    } catch (err) {
+      const classified = classifySupabaseRefreshFailure(err);
+      if (classified === "invalid") return { kind: "invalid" };
+      if (classified === "transient") return { kind: "transient" };
+      return { kind: "unknown" };
     } finally {
       refreshInFlight = null;
     }
@@ -107,6 +141,38 @@ async function readSupabaseSession(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getSession();
   if (error) return null;
   return data.session ?? null;
+}
+
+/**
+ * Playwright safe journeys set `VITE_E2E_SAFE_AUTH=1` and optionally seed
+ * `lumenx.admin.supabase.auth.v1`. In that mode we never call hosted Auth —
+ * seeded token wins; missing seed means signed-out.
+ */
+function readE2eSafeAccessToken(): string | null | undefined {
+  if (import.meta.env.VITE_E2E_SAFE_AUTH !== "1") return undefined;
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("lumenx.admin.supabase.auth.v1");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      access_token?: unknown;
+      expires_at?: unknown;
+    };
+    if (typeof parsed.access_token !== "string" || !parsed.access_token.trim()) {
+      return null;
+    }
+    const expiresAtMs =
+      typeof parsed.expires_at === "number" && Number.isFinite(parsed.expires_at)
+        ? parsed.expires_at * 1000
+        : Date.now() + 86_400_000;
+    cachedAccessToken = {
+      token: parsed.access_token,
+      expiresAtMs,
+    };
+    return parsed.access_token;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -123,6 +189,21 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
     return cachedAccessToken.token;
   }
 
+  const e2eToken = readE2eSafeAccessToken();
+  // `null` = safe-auth mode with no seed (signed-out). `undefined` = normal path.
+  if (e2eToken === null) {
+    cachedAccessToken = null;
+    return null;
+  }
+  if (e2eToken) return e2eToken;
+
+  // No persisted Supabase session ⇒ signed-out. Avoid getSession/refresh races
+  // that can leave AuthGate stuck on "loading" during mocked browser journeys.
+  if (!hasStoredRefreshToken()) {
+    cachedAccessToken = null;
+    return null;
+  }
+
   let session = await readSupabaseSession();
   if (!session?.access_token) {
     for (const waitMs of SESSION_HYDRATE_WAITS_MS) {
@@ -132,8 +213,8 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
     }
   }
   if (!session?.access_token) {
-    const ok = await tryRefreshSupabaseSession();
-    if (ok) session = await readSupabaseSession();
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) session = await readSupabaseSession();
   }
   if (!session?.access_token) {
     cachedAccessToken = null;
@@ -142,10 +223,11 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 
   const expiresAtMs = (session.expires_at ?? 0) * 1000;
   if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
-    const ok = await tryRefreshSupabaseSession();
-    if (ok) {
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) {
       session = (await readSupabaseSession()) ?? session;
     } else if (!expiresAtMs || expiresAtMs <= Date.now()) {
+      // Transient/unknown: keep non-expired token; expired → null without clearing storage.
       cachedAccessToken = null;
       return null;
     }

@@ -3,6 +3,7 @@
  * Runs from background-jobs (never from frontend timers).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createLogger } from "../../logger/logger.js";
 import { listActiveInstitutesForLogin } from "../identity/repository.js";
 import { findInstituteSettings } from "../identity/repository.js";
 import { isOperationallyUsable } from "./approval.js";
@@ -34,6 +35,8 @@ import {
 } from "./transport-notification-severity.js";
 import { nextGpsHealthAction } from "./gps-health-reminder.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
+
+const log = createLogger("info");
 
 export type TransportRemindersResult = {
   institutes: number;
@@ -462,8 +465,14 @@ export async function processTransportRemindersSystem(
   for (const inst of institutes) {
     try {
       emitted += await processInstituteReminders(admin, inst.id, now);
-    } catch {
-      // Isolate per institute — continue others.
+    } catch (err) {
+      // Isolate per institute — continue others, but never swallow silently.
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({
+        msg: "transport_reminders_institute_failed",
+        instituteId: inst.id,
+        error: message,
+      });
     }
   }
   return { institutes: institutes.length, emitted };

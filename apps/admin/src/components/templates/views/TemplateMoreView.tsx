@@ -18,7 +18,7 @@ const SECTIONS: { view: CertHubView; title: string; hint: string; icon: typeof U
     icon: Tags,
   },
   {
-    view: "overview",
+    view: "templates",
     title: "Settings",
     hint: "Prefixes, bulk limits, watermarks, Connect sync preferences",
     icon: Settings,
@@ -60,10 +60,10 @@ export function TemplateMoreView() {
       <Card>
         <CardHeader title="Need to issue certificates?" />
         <CardBody className="flex flex-wrap gap-2">
-          <Link to="/templates" search={{ view: "issued" }}>
+          <Link to="/templates" search={{ view: "published" }}>
             <Button variant="outline">Student records</Button>
           </Link>
-          <Link to="/templates" search={{ view: "issue" }}>
+          <Link to="/templates" search={{ view: "templates" }}>
             <Button variant="primary">Issue to students</Button>
           </Link>
         </CardBody>

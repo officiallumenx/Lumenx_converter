@@ -8,6 +8,7 @@ import type {
 import type { DriverDto, RouteDto, StopDto, TransportEnrollmentDto, TransportSettingsDto, VehicleDto } from "./types";
 import type { StudentListItem } from "@/lib/students/types";
 import type { TransportEnrollmentListItem } from "./types";
+import { STOP_RADIUS_DEFAULT_M } from "./stop-radius";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -169,7 +170,8 @@ export function transportSettingsDtoToTransportSettings(
     schoolLocationLabel: dto.schoolLocationLabel ?? null,
     schoolLatitude: dto.schoolLatitude ?? null,
     schoolLongitude: dto.schoolLongitude ?? null,
-    schoolNotificationRadiusM: dto.schoolNotificationRadiusM ?? 150,
+    schoolNotificationRadiusM:
+      dto.schoolNotificationRadiusM ?? STOP_RADIUS_DEFAULT_M,
   };
 }
 

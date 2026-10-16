@@ -1,6 +1,15 @@
+import {
+  createAuthSessionClock,
+  isRecoverableRefreshFailure,
+  isSessionRefreshSuccess,
+  shouldClearSessionOnRefreshFailure,
+} from "@lumenx/auth";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { getTransportApiBaseUrl } from "@/lib/api-base-url";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
+import {
+  getSupabaseAccessToken,
+  tryRefreshSupabaseSession,
+} from "@/lib/supabase-browser";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,15 +39,86 @@ export class TransportApiError extends Error {
   }
 }
 
+let transportUnauthorizedHandler: (() => void) | null = null;
+let transportAuthRetrying = false;
+const authSessionClock = createAuthSessionClock();
+
+export function bumpTransportAuthSessionGeneration(): number {
+  return authSessionClock.bump();
+}
+
+export function getTransportAuthSessionGeneration(): number {
+  return authSessionClock.current();
+}
+
+/** Clears driver UI session when Supabase auth cannot be restored. */
+export function setTransportApiUnauthorizedHandler(
+  handler: (() => void) | null,
+): void {
+  transportUnauthorizedHandler = handler;
+}
+
+export function resetTransportApiAuthForTests(): void {
+  transportUnauthorizedHandler = null;
+  transportAuthRetrying = false;
+  authSessionClock.resetForTests();
+}
+
+function invokeTransportUnauthorized(sessionGeneration: number): void {
+  if (authSessionClock.current() !== sessionGeneration) return;
+  transportUnauthorizedHandler?.();
+}
+
+function transientRefreshTransportError(): TransportApiError {
+  return new TransportApiError(
+    "Session refresh temporarily unavailable — check your connection and try again",
+    0,
+    "NETWORK_ERROR",
+  );
+}
+
+async function resolveTransportAccessToken(sessionGeneration: number): Promise<string> {
+  let token = await getSupabaseAccessToken();
+  if (!token) {
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) {
+      token = await getSupabaseAccessToken();
+    } else if (isRecoverableRefreshFailure(outcome)) {
+      throw transientRefreshTransportError();
+    }
+  }
+  if (!token) {
+    invokeTransportUnauthorized(sessionGeneration);
+    throw new TransportApiError("Authentication required", 401, "UNAUTHENTICATED");
+  }
+  return token;
+}
+
+async function handleRefreshAfter401(
+  sessionGeneration: number,
+): Promise<boolean> {
+  const outcome = await tryRefreshSupabaseSession();
+  if (isSessionRefreshSuccess(outcome)) return true;
+  if (isRecoverableRefreshFailure(outcome)) {
+    throw transientRefreshTransportError();
+  }
+  if (shouldClearSessionOnRefreshFailure(outcome)) {
+    invokeTransportUnauthorized(sessionGeneration);
+  }
+  return false;
+}
+
 async function transportFetch<T>(
   path: string,
-  init?: RequestInit & { body?: unknown },
+  init?: Omit<RequestInit, "body"> & { body?: unknown },
+  authRetried = false,
+  sessionGeneration?: number,
 ): Promise<T> {
+  const capturedGeneration = sessionGeneration ?? authSessionClock.current();
   if (!isApiAuthMode()) {
     throw new Error("Transport API requires VITE_TRANSPORT_AUTH_MODE=api");
   }
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error("Authentication required");
+  const token = await resolveTransportAccessToken(capturedGeneration);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -81,6 +161,19 @@ async function transportFetch<T>(
       })
     : {};
   if (!response.ok) {
+    if (response.status === 401 && !authRetried && !transportAuthRetrying) {
+      transportAuthRetrying = true;
+      try {
+        const retry = await handleRefreshAfter401(capturedGeneration);
+        if (retry) {
+          return transportFetch<T>(path, init, true, capturedGeneration);
+        }
+      } finally {
+        transportAuthRetrying = false;
+      }
+    } else if (response.status === 401 && authRetried) {
+      invokeTransportUnauthorized(capturedGeneration);
+    }
     throw new TransportApiError(
       json.error?.message ?? `Request failed (${response.status})`,
       response.status,
@@ -102,6 +195,22 @@ export type DriverMe = {
 export async function getDriverMe(instituteId: string): Promise<DriverMe> {
   const query = new URLSearchParams({ institute_id: instituteId });
   return transportFetch<DriverMe>(`/api/v1/transport/drivers/me?${query.toString()}`);
+}
+
+/** Push token registration — uses transportFetch auth (refresh + generation guard). */
+export async function registerTransportDeviceToken(input: {
+  app: string;
+  platform: string;
+  token: string;
+}): Promise<void> {
+  await transportFetch<unknown>("/api/v1/notifications/device-tokens", {
+    method: "POST",
+    body: {
+      app: input.app,
+      platform: input.platform,
+      token: input.token,
+    },
+  });
 }
 
 export type DriverRouteRosterStop = {
@@ -138,6 +247,10 @@ export type DriverRouteRoster = {
   routeId: string | null;
   routeName: string | null;
   vehicleId: string | null;
+  /** Present on current API; optional for older backends during rollout. */
+  vehicleNumber?: string | null;
+  vehicleCapacity?: number | null;
+  routeApprovalStatus?: string | null;
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];

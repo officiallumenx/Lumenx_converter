@@ -28,6 +28,10 @@ import {
   nexusSignOut,
   validateNexusSession,
 } from "@/lib/nexus-login-api";
+import {
+  bumpNexusAuthSessionGeneration,
+  setNexusApiUnauthorizedHandler,
+} from "@/lib/nexus-api";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 function NotFoundComponent() {
@@ -129,6 +133,17 @@ function NexusSessionRoot() {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
+
+  useEffect(() => {
+    setNexusApiUnauthorizedHandler(() => {
+      bumpNexusAuthSessionGeneration();
+      setHasOperatorSession(false);
+      void nexusSignOut().finally(() => {
+        navigate({ to: "/login", replace: true });
+      });
+    });
+    return () => setNexusApiUnauthorizedHandler(null);
+  }, [navigate]);
 
   useEffect(() => {
     if (!isNexusApiMode()) {

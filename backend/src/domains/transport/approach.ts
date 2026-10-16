@@ -28,6 +28,7 @@ import {
 import {
   guardianUserIdsForStudents,
   staffUserIdsForInstitute,
+  studentUserIdsForStudents,
 } from "./ops-notifications.js";
 import { appendTripTimeline } from "./ops-repository.js";
 
@@ -300,6 +301,11 @@ export async function evaluateApproachAlertsOnPing(
     trip.institute_id,
     candidateStudentIds,
   );
+  const studentsById = await studentUserIdsForStudents(
+    admin,
+    trip.institute_id,
+    candidateStudentIds,
+  );
 
   const suppressApproachBands = isWithinApproachStartGrace(trip.started_at);
 
@@ -315,36 +321,66 @@ export async function evaluateApproachAlertsOnPing(
 
       for (const studentId of geom.studentIds) {
         const recipients = guardiansByStudent.get(studentId) ?? [];
-        if (recipients.length === 0) continue;
-        const title =
-          threshold <= 5
-            ? "Bus is very close to your stop"
-            : threshold <= 15
-              ? "Bus is approaching your stop"
-              : `Bus about ${threshold} min away`;
-        emitTransportNotificationSafe(admin, {
-          instituteId: trip.institute_id,
-          createdByUserId,
-          kind: TRANSPORT_EVENT.STOP_APPROACHING,
-          approachThresholdMin: threshold,
-          title,
-          body: `The bus is about ${geom.etaMinutes} min away from ${geom.stop.name}.`,
-          deepLink: deepLinkForTransportEvent(
-            TRANSPORT_EVENT.STOP_APPROACHING,
-            "parent",
-          ),
-          targetAudience: "parent",
-          dedupeKey: transportDedupe.approach(trip.id, studentId, threshold),
-          recipientUserIds: recipients,
-          payload: {
-            tripId: trip.id,
-            studentId,
-            stopId: geom.stop.id,
-            distanceM: Math.round(geom.distanceM),
-            etaMinutes: geom.etaMinutes,
-            thresholdMin: threshold,
-          },
-        });
+        const studentUserId = studentsById.get(studentId);
+        // Owner workflow allows either a timed alert or “next is your stop” copy.
+        // Keep ETA bands (30/15/5) for scheduling; present next-stop readiness language.
+        // Audience: parents and students only (no staff/driver on approach).
+        if (recipients.length > 0) {
+          const title =
+            threshold <= 5
+              ? "Next is your stop — be ready"
+              : threshold <= 15
+                ? "Next is your children's stop — be ready"
+                : `Next stop: ${geom.stop.name} — be ready`;
+          emitTransportNotificationSafe(admin, {
+            instituteId: trip.institute_id,
+            createdByUserId,
+            kind: TRANSPORT_EVENT.STOP_APPROACHING,
+            approachThresholdMin: threshold,
+            title,
+            body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
+            deepLink: deepLinkForTransportEvent(
+              TRANSPORT_EVENT.STOP_APPROACHING,
+              "parent",
+            ),
+            targetAudience: "parent",
+            dedupeKey: transportDedupe.approach(trip.id, studentId, threshold),
+            recipientUserIds: recipients,
+            payload: {
+              tripId: trip.id,
+              studentId,
+              stopId: geom.stop.id,
+              distanceM: Math.round(geom.distanceM),
+              etaMinutes: geom.etaMinutes,
+              thresholdMin: threshold,
+            },
+          });
+        }
+        if (studentUserId) {
+          emitTransportNotificationSafe(admin, {
+            instituteId: trip.institute_id,
+            createdByUserId,
+            kind: TRANSPORT_EVENT.STOP_APPROACHING,
+            approachThresholdMin: threshold,
+            title: "Next is your stop — be ready",
+            body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
+            deepLink: deepLinkForTransportEvent(
+              TRANSPORT_EVENT.STOP_APPROACHING,
+              "student",
+            ),
+            targetAudience: "student",
+            dedupeKey: `${transportDedupe.approach(trip.id, studentId, threshold)}:student`,
+            recipientUserIds: [studentUserId],
+            payload: {
+              tripId: trip.id,
+              studentId,
+              stopId: geom.stop.id,
+              distanceM: Math.round(geom.distanceM),
+              etaMinutes: geom.etaMinutes,
+              thresholdMin: threshold,
+            },
+          });
+        }
       }
     }
   }
@@ -356,6 +392,13 @@ export async function evaluateApproachAlertsOnPing(
     const uniqueParents = [
       ...new Set(
         geom.studentIds.flatMap((id) => guardiansByStudent.get(id) ?? []),
+      ),
+    ];
+    const uniqueStudents = [
+      ...new Set(
+        geom.studentIds
+          .map((id) => studentsById.get(id))
+          .filter((id): id is string => Boolean(id)),
       ),
     ];
 
@@ -380,7 +423,31 @@ export async function evaluateApproachAlertsOnPing(
       },
     });
 
-    if (!arrivalCreated.ok) continue;
+    if (uniqueStudents.length > 0) {
+      emitTransportNotificationSafe(admin, {
+        instituteId: trip.institute_id,
+        createdByUserId,
+        kind: TRANSPORT_EVENT.STOP_ARRIVED,
+        severity: "info",
+        softChime: true,
+        title: "Bus arrived at your stop",
+        body: "Bus arrived at your stop.",
+        deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "student"),
+        targetAudience: "student",
+        dedupeKey: `${transportDedupe.arrived(trip.id, geom.stop.id)}:student`,
+        recipientUserIds: uniqueStudents,
+        payload: {
+          tripId: trip.id,
+          stopId: geom.stop.id,
+          distanceM: Math.round(geom.distanceM),
+          geofenceM: resolveStopGeofenceM(geom.stop.notification_radius_m),
+          studentIds: geom.studentIds,
+        },
+      });
+    }
+
+    // Parent emit may be empty (no guardians) — still proceed for staff/timeline.
+    if (!arrivalCreated.ok && arrivalCreated.reason !== "empty") continue;
 
     const driver = await findDriverById(admin, trip.driver_id);
     if (driver?.user_profile_id) {

@@ -154,7 +154,7 @@ export function DocGenerateApiPanel() {
     })
       .then(() => {
         notify("Document generated as draft");
-        void navigate({ to: "/documents", search: { view: "archive" } });
+        void navigate({ to: "/documents", search: { view: "published" } });
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to generate document");

@@ -76,17 +76,30 @@ describe("notification radius geofence (no 50m floor)", () => {
     expect(isBusWithinStopRadius(31, 30)).toBe(false);
   });
 
-  it("falls back to 150 when missing/invalid", () => {
-    expect(resolveStopGeofenceM(null)).toBe(150);
-    expect(resolveStopGeofenceM(0)).toBe(150);
-    expect(resolveStopGeofenceM(-10)).toBe(150);
-    expect(resolveStopGeofenceM("x")).toBe(150);
+  it("falls back to 100 when missing/invalid", () => {
+    expect(resolveStopGeofenceM(null)).toBe(100);
+    expect(resolveStopGeofenceM(0)).toBe(100);
+    expect(resolveStopGeofenceM(-10)).toBe(100);
+    expect(resolveStopGeofenceM("x")).toBe(100);
   });
 
-  it("treats bus inside default 150m as arrived geofence", () => {
-    expect(isBusWithinStopRadius(149, null)).toBe(true);
-    expect(isBusWithinStopRadius(150, null)).toBe(true);
-    expect(isBusWithinStopRadius(151, null)).toBe(false);
+  it("treats bus inside default 100m as arrived geofence", () => {
+    expect(isBusWithinStopRadius(99, null)).toBe(true);
+    expect(isBusWithinStopRadius(100, null)).toBe(true);
+    expect(isBusWithinStopRadius(101, null)).toBe(false);
+  });
+
+  it("applies configured radius consistently (no silent default override)", () => {
+    expect(resolveStopGeofenceM(100)).toBe(100);
+    expect(isBusWithinStopRadius(99, 100)).toBe(true);
+    expect(isBusWithinStopRadius(100, 100)).toBe(true);
+    expect(isBusWithinStopRadius(101, 100)).toBe(false);
+    // Explicit 150 still works when configured; must not accept beyond that.
+    expect(resolveStopGeofenceM(150)).toBe(150);
+    expect(isBusWithinStopRadius(150, 150)).toBe(true);
+    expect(isBusWithinStopRadius(151, 150)).toBe(false);
+    // Configured 80m must not expand to default 100.
+    expect(isBusWithinStopRadius(90, 80)).toBe(false);
   });
 });
 

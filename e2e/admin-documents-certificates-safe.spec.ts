@@ -6,6 +6,9 @@ import {
   mockAdminDocsCertsApi,
 } from "./docs-certs/safe-mocks";
 
+/** Em dash / en dash / hyphen — mock uses em dash; keep matcher resilient. */
+const TC_BOARD_FORMAT = /Transfer Certificate.+Board Format/i;
+
 test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
   test("signed-out users cannot open Documents or Certificates hubs", async ({
     page,
@@ -21,21 +24,23 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
   test("Documents overview and Official docs surface TC copy without writes", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
+
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const writes = await mockAdminDocsCertsApi(page, "with-tc-template");
+    const mock = await mockAdminDocsCertsApi(page, "with-tc-template");
 
     await page.goto("/documents?view=overview");
-    await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/documents/, { timeout: 15_000 });
     await expect(
       page.getByText(/Issue, track, and retrieve official school documents/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("link", { name: /Official/i }).first()).toBeVisible();
 
     await page.goto("/documents?view=official");
     await expect(
       page.getByText(/Official school documents/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByText(/Transfer certificates/i).first(),
     ).toBeVisible();
@@ -43,42 +48,72 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
       page.getByText(/Transfer Certificates stay in Documents/i).first(),
     ).toBeVisible();
 
+    const templatesResponse = page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== "GET") return false;
+        try {
+          return new URL(response.url()).pathname === "/api/v1/documents/templates";
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 20_000 },
+    );
     await page.goto("/documents?view=templates");
+    await expect(page).toHaveURL(/\/documents/, { timeout: 15_000 });
     await expect(
-      page.getByText(/Transfer Certificate [\u2013\u2014\-] Board Format/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+      page.getByRole("heading", { name: /^Document templates$/i }).first(),
+    ).toBeVisible({ timeout: 15_000 });
 
-    expect(writes).toEqual([]);
+    const response = await templatesResponse;
+    expect(response.ok(), `templates API status ${response.status()}`).toBeTruthy();
+    const payload = (await response.json()) as { data?: Array<{ name?: string }> };
+    expect(
+      payload.data?.some((row) => TC_BOARD_FORMAT.test(row.name ?? "")),
+      "mocked templates payload must include TC Board Format",
+    ).toBeTruthy();
+
+    await expect(page.getByText(TC_BOARD_FORMAT).first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    expect(mock.writes).toEqual([]);
   });
 
   test("Documents empty, loading, error, and forbidden states render safely", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
+
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
 
-    const emptyWrites = await mockAdminDocsCertsApi(page, "empty");
+    const emptyMock = await mockAdminDocsCertsApi(page, "empty");
     await page.goto("/documents?view=templates");
     await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
     await expect(
       page.getByText(/No templates match your filters/i).first(),
     ).toBeVisible({ timeout: 20_000 });
-    expect(emptyWrites).toEqual([]);
+    expect(emptyMock.writes).toEqual([]);
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const loadingWrites = await mockAdminDocsCertsApi(page, "loading");
-    await page.goto("/documents?view=templates");
-    await expect(
-      page.getByText(/Loading document templates/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
-    expect(loadingWrites).toEqual([]);
+    const loadingMock = await mockAdminDocsCertsApi(page, "loading");
+    try {
+      await page.goto("/documents?view=templates");
+      await expect(
+        page.getByText(/Loading document templates/i).first(),
+      ).toBeVisible({ timeout: 20_000 });
+      expect(loadingMock.writes).toEqual([]);
+    } finally {
+      loadingMock.releaseLoading();
+    }
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const errWrites = await mockAdminDocsCertsApi(page, "error");
+    const errMock = await mockAdminDocsCertsApi(page, "error");
     await page.goto("/documents?view=archive");
     // Query-layer errors may surface as a load hint or remain on the loading shell;
     // either way the route must stay usable and write-free.
@@ -90,12 +125,12 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
         )
         .first(),
     ).toBeVisible({ timeout: 20_000 });
-    expect(errWrites).toEqual([]);
+    expect(errMock.writes).toEqual([]);
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const forbiddenWrites = await mockAdminDocsCertsApi(page, "forbidden");
+    const forbiddenMock = await mockAdminDocsCertsApi(page, "forbidden");
     await page.goto("/documents?view=templates");
     await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
     await expect(
@@ -105,7 +140,7 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
         )
         .first(),
     ).toBeVisible({ timeout: 20_000 });
-    expect(forbiddenWrites).toEqual([]);
+    expect(forbiddenMock.writes).toEqual([]);
   });
 
   test("Certificates templates, issued empty, and Verify point TC to Documents", async ({
@@ -113,7 +148,7 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
   }) => {
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const writes = await mockAdminDocsCertsApi(page, "empty");
+    const mock = await mockAdminDocsCertsApi(page, "empty");
 
     await page.goto("/templates?view=templates");
     await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
@@ -146,24 +181,26 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     ).toBeVisible();
     await expect(page.getByText(/Open verify page/i).first()).toBeVisible();
 
-    expect(writes).toEqual([]);
+    expect(mock.writes).toEqual([]);
   });
 
   test("Certificates issued loading shell stays read-only", async ({ page }) => {
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
-    const writes = await mockAdminDocsCertsApi(page, "loading");
+    const mock = await mockAdminDocsCertsApi(page, "loading");
 
-    await page.goto("/templates?view=issued");
-    await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
-    // Assert loading before the Admin API client timeout (~15s) can convert the
-    // in-flight mock into an error shell.
-    await expect(
-      page.getByText(/Loading issued certificates/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.getByText(/Issued certificates/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
-    expect(writes).toEqual([]);
+    try {
+      await page.goto("/templates?view=issued");
+      await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
+      await expect(
+        page.getByText(/Loading issued certificates/i).first(),
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(
+        page.getByText(/Issued certificates/i).first(),
+      ).toBeVisible({ timeout: 5_000 });
+      expect(mock.writes).toEqual([]);
+    } finally {
+      mock.releaseLoading();
+    }
   });
 });

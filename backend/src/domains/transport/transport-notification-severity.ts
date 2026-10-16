@@ -86,11 +86,11 @@ export function isCriticalTransportBypass(severity: TransportSeverity): boolean 
 /** Deterministic deep links by event kind. */
 export function deepLinkForTransportEvent(
   kind: string,
-  audience: "parent" | "driver" | "admin",
+  audience: "parent" | "driver" | "admin" | "student",
 ): string {
   switch (kind) {
     case TRANSPORT_EVENT.STOP_ARRIVED:
-      return audience === "parent"
+      return audience === "parent" || audience === "student"
         ? "/transport/live"
         : audience === "driver"
           ? "/attendance"
@@ -98,18 +98,22 @@ export function deepLinkForTransportEvent(
     case TRANSPORT_EVENT.STUDENT_BOARDED:
       return "/transport";
     case TRANSPORT_EVENT.STUDENT_DROPPED:
-      return audience === "parent" ? "/transport/history" : "/transport";
+      return audience === "parent" || audience === "student"
+        ? "/transport/history"
+        : "/transport";
     case TRANSPORT_EVENT.EMERGENCY_CREATED:
     case TRANSPORT_EVENT.EMERGENCY_RESOLVED:
       return audience === "driver"
         ? "/emergency"
-        : audience === "parent"
+        : audience === "parent" || audience === "student"
           ? "/transport/live"
           : "/transport";
     case TRANSPORT_EVENT.STOP_APPROACHING:
-      return audience === "parent" ? "/transport/live" : "/transport";
+      return audience === "parent" || audience === "student"
+        ? "/transport/live"
+        : "/transport";
     case TRANSPORT_EVENT.SCHOOL_ARRIVED:
-      return audience === "parent"
+      return audience === "parent" || audience === "student"
         ? "/transport/live"
         : audience === "driver"
           ? "/attendance"

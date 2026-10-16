@@ -12,6 +12,7 @@ import {
   CascadingFiltersMenu,
 } from "@lumenx/ui-admin";
 import { ArrowLeft, Lock, LockOpen, Route as RouteIcon } from "lucide-react";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { TransportApprovalPanel } from "@/components/transport/TransportApprovalPanel";
 import { TransportRouteDetail } from "@/components/transport/TransportRouteDetail";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -126,7 +127,7 @@ export function TransportRoutesView({
           ) : null}
         </div>
 
-        {writesEnabled ? (
+        {writesEnabled && !isApiAuthMode() ? (
         <TransportApprovalPanel routeId={selected.id} />
         ) : null}
 
@@ -236,7 +237,7 @@ export function TransportRoutesView({
 
   return (
     <div className="space-y-4">
-      {writesEnabled ? (
+      {writesEnabled && !isApiAuthMode() ? (
       <TransportApprovalPanel
         title="Pending route setup requests"
         hint="All routes · open a route for lock/unlock and scoped review"

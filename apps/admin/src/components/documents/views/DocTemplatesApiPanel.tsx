@@ -195,7 +195,7 @@ export function DocTemplatesApiPanel({
               <Button size="sm" variant="primary" onClick={openCreate}>
                 <Plus className="size-3.5" /> New template
               </Button>
-              <Link to="/documents" search={{ view: "official" }}>
+              <Link to="/documents" search={{ view: "templates" }}>
                 <Button size="sm">
                   <FileCheck className="size-3.5" /> Generate
                 </Button>
@@ -281,7 +281,7 @@ export function DocTemplatesApiPanel({
                           </Button>
                         ) : null}
                         {t.status === "active" ? (
-                          <Link to="/documents" search={{ view: "official" }}>
+                          <Link to="/documents" search={{ view: "templates" }}>
                             <Button size="sm" variant="primary">
                               <FileCheck className="size-3" /> Generate
                             </Button>

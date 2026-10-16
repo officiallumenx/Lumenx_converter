@@ -1,3 +1,10 @@
+import {
+  asSessionRefreshOutcome,
+  isRecoverableRefreshFailure,
+  isSessionRefreshSuccess,
+  shouldClearSessionOnRefreshFailure,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 import { ApiClientError, normalizeApiError } from "./errors";
 
 export type ApiRequestOptions = {
@@ -17,6 +24,8 @@ export type ApiRequestOptions = {
   skipOfflineQueue?: boolean;
   /** Internal: already retried once after session refresh. */
   _authRetried?: boolean;
+  /** Internal: auth session generation captured when the request started. */
+  _sessionGeneration?: number;
   /**
    * When true, return the full JSON body (including next_cursor / has_more)
    * instead of unwrapping `{ data }`.
@@ -35,10 +44,13 @@ export type ApiClientConfig = {
   getAccessToken: () => Promise<string | null>;
   /**
    * Optional silent refresh before treating HTTP 401 as logout.
-   * Return true when a new access token is available.
+   * Prefer structured SessionRefreshOutcome so transient network failures
+   * do not destroy a recoverable session.
    */
-  tryRefreshSession?: () => Promise<boolean>;
-  /** Called on HTTP 401 after refresh+retry failed (session cleanup hook). */
+  tryRefreshSession?: () => Promise<boolean | SessionRefreshOutcome>;
+  /** Current auth session generation — stale requests must not clear a newer login. */
+  getSessionGeneration?: () => number;
+  /** Called on confirmed auth failure after refresh+retry (session cleanup hook). */
   onUnauthorized?: () => void;
   fetchImpl?: typeof fetch;
   /** Default fetch timeout — avoids hung requests after network flaps. */
@@ -139,32 +151,100 @@ function resolveIsOnline(config: ApiClientConfig): boolean {
   return navigator.onLine;
 }
 
+function transientRefreshError(): ApiClientError {
+  return new ApiClientError({
+    status: 0,
+    code: "NETWORK_ERROR",
+    message:
+      "Session refresh temporarily unavailable — check your connection and try again",
+  });
+}
+
 export function createApiClient(config: ApiClientConfig) {
   const fetchImpl = config.fetchImpl ?? fetch;
   const defaultTimeoutMs = config.defaultTimeoutMs ?? API_DEFAULT_TIMEOUT_MS;
 
+  function captureGeneration(options: ApiRequestOptions): number | undefined {
+    if (options._sessionGeneration !== undefined) return options._sessionGeneration;
+    return config.getSessionGeneration?.();
+  }
+
+  function invokeUnauthorized(sessionGeneration: number | undefined): void {
+    if (
+      sessionGeneration !== undefined &&
+      config.getSessionGeneration &&
+      config.getSessionGeneration() !== sessionGeneration
+    ) {
+      return;
+    }
+    config.onUnauthorized?.();
+  }
+
   /**
    * On 401: refresh once + allow caller to retry. Only invoke onUnauthorized
-   * when refresh is unavailable or already retried (genuine auth failure).
+   * when the session is confirmed invalid and still current.
    * Returns true when the caller should retry the request once.
    */
   async function shouldRetryAfterUnauthorized(
     options: ApiRequestOptions,
   ): Promise<boolean> {
-    if (options.skipAuth || options._authRetried) {
-      config.onUnauthorized?.();
+    const sessionGeneration = captureGeneration(options);
+    // Public/login requests must never clear an authenticated session.
+    if (options.skipAuth) return false;
+    if (options._authRetried) {
+      invokeUnauthorized(sessionGeneration);
       return false;
     }
     if (!config.tryRefreshSession) {
-      config.onUnauthorized?.();
+      invokeUnauthorized(sessionGeneration);
       return false;
     }
-    const refreshed = await config.tryRefreshSession();
-    if (!refreshed) {
-      config.onUnauthorized?.();
-      return false;
+    const outcome = asSessionRefreshOutcome(await config.tryRefreshSession());
+    if (isSessionRefreshSuccess(outcome)) return true;
+    if (isRecoverableRefreshFailure(outcome)) {
+      throw transientRefreshError();
     }
-    return true;
+    if (shouldClearSessionOnRefreshFailure(outcome)) {
+      invokeUnauthorized(sessionGeneration);
+    }
+    return false;
+  }
+
+  /**
+   * Obtain a usable Bearer token at request time.
+   * If the session is briefly missing (tab resume / expiry), refresh once.
+   * Transient refresh failures keep the UI session; confirmed invalid clears it.
+   */
+  async function resolveAccessToken(options: ApiRequestOptions): Promise<string> {
+    const sessionGeneration = captureGeneration(options);
+    if (options.accessToken !== undefined) {
+      if (options.accessToken) return options.accessToken;
+      invokeUnauthorized(sessionGeneration);
+      throw new ApiClientError({
+        status: 401,
+        code: "UNAUTHENTICATED",
+        message: "Authentication required",
+      });
+    }
+
+    let token = await config.getAccessToken();
+    if (!token && !options._authRetried && config.tryRefreshSession) {
+      const outcome = asSessionRefreshOutcome(await config.tryRefreshSession());
+      if (isSessionRefreshSuccess(outcome)) {
+        token = await config.getAccessToken();
+      } else if (isRecoverableRefreshFailure(outcome)) {
+        throw transientRefreshError();
+      }
+    }
+    if (!token) {
+      invokeUnauthorized(sessionGeneration);
+      throw new ApiClientError({
+        status: 401,
+        code: "UNAUTHENTICATED",
+        message: "Authentication required",
+      });
+    }
+    return token;
   }
 
   async function maybeQueueWrite(
@@ -185,6 +265,11 @@ export function createApiClient(config: ApiClientConfig) {
   }
 
   async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const requestOptions: ApiRequestOptions = {
+      ...options,
+      _sessionGeneration:
+        options._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -195,11 +280,11 @@ export function createApiClient(config: ApiClientConfig) {
     }
 
     const method =
-      options.method ?? (options.body !== undefined ? "POST" : "GET");
+      requestOptions.method ?? (requestOptions.body !== undefined ? "POST" : "GET");
 
     // Offline writes go straight to the outbox — no hung fetch.
     if (!resolveIsOnline(config) && isWriteMethod(method)) {
-      const queued = await maybeQueueWrite(method, path, options);
+      const queued = await maybeQueueWrite(method, path, requestOptions);
       if (queued) throw queuedOfflineError();
     }
 
@@ -211,46 +296,39 @@ export function createApiClient(config: ApiClientConfig) {
       Accept: "application/json",
     };
 
-    if (options.body !== undefined) {
+    if (requestOptions.body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
 
-    if (!options.skipAuth) {
-      const token =
-        options.accessToken !== undefined
-          ? options.accessToken
-          : await config.getAccessToken();
-      if (!token) {
-        throw new ApiClientError({
-          status: 401,
-          code: "UNAUTHENTICATED",
-          message: "Authentication required",
-        });
-      }
+    if (!requestOptions.skipAuth) {
+      const token = await resolveAccessToken(requestOptions);
       headers.Authorization = `Bearer ${token}`;
     }
 
     const online = resolveIsOnline(config);
     const timeoutMs =
-      options.timeoutMs ??
+      requestOptions.timeoutMs ??
       (online
         ? defaultTimeoutMs
         : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
-    const { signal, cleanup } = mergeTimeoutSignal(options.signal, timeoutMs);
+    const { signal, cleanup } = mergeTimeoutSignal(requestOptions.signal, timeoutMs);
 
     let response: Response;
     try {
       response = await fetchImpl(url, {
         method,
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body:
+          requestOptions.body !== undefined
+            ? JSON.stringify(requestOptions.body)
+            : undefined,
         signal,
       });
     } catch (err) {
-      const networkErr = networkFailureFromAbort(err, options.signal);
+      const networkErr = networkFailureFromAbort(err, requestOptions.signal);
       if (
         networkErr.message !== "Request cancelled" &&
-        (await maybeQueueWrite(method, path, options))
+        (await maybeQueueWrite(method, path, requestOptions))
       ) {
         throw queuedOfflineError();
       }
@@ -276,10 +354,10 @@ export function createApiClient(config: ApiClientConfig) {
         response.statusText || "Request failed",
       );
       if (response.status === 401) {
-        const retry = await shouldRetryAfterUnauthorized(options);
+        const retry = await shouldRetryAfterUnauthorized(requestOptions);
         if (retry) {
           return request<T>(path, {
-            ...options,
+            ...requestOptions,
             accessToken: undefined,
             _authRetried: true,
           });
@@ -289,7 +367,7 @@ export function createApiClient(config: ApiClientConfig) {
     }
 
     if (
-      !options.envelope &&
+      !requestOptions.envelope &&
       json &&
       typeof json === "object" &&
       "data" in json
@@ -306,6 +384,11 @@ export function createApiClient(config: ApiClientConfig) {
     form: FormData,
     options?: Omit<ApiRequestOptions, "method" | "body">,
   ): Promise<T> {
+    const opts: ApiRequestOptions = {
+      ...(options ?? {}),
+      _sessionGeneration:
+        options?._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -318,19 +401,8 @@ export function createApiClient(config: ApiClientConfig) {
       ? path
       : `${base}${path.startsWith("/") ? path : `/${path}`}`;
     const headers: Record<string, string> = { Accept: "application/json" };
-    const opts = options ?? {};
     if (!opts.skipAuth) {
-      const token =
-        opts.accessToken !== undefined
-          ? opts.accessToken
-          : await config.getAccessToken();
-      if (!token) {
-        throw new ApiClientError({
-          status: 401,
-          code: "UNAUTHENTICATED",
-          message: "Authentication required",
-        });
-      }
+      const token = await resolveAccessToken(opts);
       headers.Authorization = `Bearer ${token}`;
     }
     const online = resolveIsOnline(config);
@@ -394,6 +466,11 @@ export function createApiClient(config: ApiClientConfig) {
     path: string,
     options?: Omit<ApiRequestOptions, "method" | "body">,
   ): Promise<{ blob: Blob; fileName: string | null; contentType: string | null }> {
+    const opts: ApiRequestOptions = {
+      ...(options ?? {}),
+      _sessionGeneration:
+        options?._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -407,19 +484,8 @@ export function createApiClient(config: ApiClientConfig) {
       : `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
     const headers: Record<string, string> = { Accept: "*/*" };
-    const opts = options ?? {};
     if (!opts.skipAuth) {
-      const token =
-        opts.accessToken !== undefined
-          ? opts.accessToken
-          : await config.getAccessToken();
-      if (!token) {
-        throw new ApiClientError({
-          status: 401,
-          code: "UNAUTHENTICATED",
-          message: "Authentication required",
-        });
-      }
+      const token = await resolveAccessToken(opts);
       headers.Authorization = `Bearer ${token}`;
     }
 

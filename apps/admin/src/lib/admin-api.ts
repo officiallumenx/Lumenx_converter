@@ -1,3 +1,4 @@
+import { createAuthSessionClock } from "@lumenx/auth";
 import { createApiClient, type AdminApiClient } from "@/lib/api";
 import {
   getSupabaseAccessToken,
@@ -13,6 +14,15 @@ import {
 
 let onUnauthorizedHandler: (() => void) | null = null;
 let client: AdminApiClient | null = null;
+const authSessionClock = createAuthSessionClock();
+
+export function bumpAdminAuthSessionGeneration(): number {
+  return authSessionClock.bump();
+}
+
+export function getAdminAuthSessionGeneration(): number {
+  return authSessionClock.current();
+}
 
 export function setAdminApiUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorizedHandler = handler;
@@ -36,9 +46,10 @@ export function getAdminApiClient(): AdminApiClient {
       return getSupabaseAccessToken();
     },
     tryRefreshSession: async () => {
-      if (!isApiAuthMode()) return false;
+      if (!isApiAuthMode()) return { kind: "unavailable" };
       return tryRefreshSupabaseSession();
     },
+    getSessionGeneration: () => authSessionClock.current(),
     onUnauthorized: () => {
       onUnauthorizedHandler?.();
     },
@@ -66,4 +77,5 @@ export function getAdminApiClient(): AdminApiClient {
 export function resetAdminApiClientForTests(): void {
   client = null;
   onUnauthorizedHandler = null;
+  authSessionClock.resetForTests();
 }
