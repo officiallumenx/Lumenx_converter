@@ -1,0 +1,33 @@
+{
+  "name": "@lumenx/app-nexus-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LumenX Nexus Windows desktop shell (Electron)",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win nsis --x64 --publish never",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.lumenx.desktop.nexus",
+    "productName": "LumenX Nexus",
+    "directories": {
+      "output": "dist"
+    },
+    "files": ["src/**/*", "package.json"],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "LumenX-Nexus-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "author": "LumenX",
+  "devDependencies": {
+    "electron": "35.1.2",
+    "electron-builder": "25.1.8"
+  }
+}

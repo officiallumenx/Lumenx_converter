@@ -35,7 +35,7 @@ function ResourcesDownloadsPage() {
         headingAs="h1"
         eyebrow="Download center"
         title="Get the apps that exist. Nothing invented."
-        lede="Connect and Transport are mobile apps. Admin and Careers open on the web when the origin is public. Android and iOS stay Coming soon until a real listing or APK is configured. Admissions opens via Connect."
+        lede="Admin and Nexus: Open Web App, Android APK, and Windows installer. Connect and Transport: Android APK only. Admissions and Careers: web plus Android APK. Download buttons stay disabled until a verified public file URL is configured — never a placeholder."
       >
         <nav className="home-role-tabs mb-10" aria-label="Products">
           {DOWNLOAD_LIST.map((channel) => (

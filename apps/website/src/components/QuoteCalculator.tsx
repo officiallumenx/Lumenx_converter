@@ -103,8 +103,8 @@ export function QuoteCalculator({
     <SiteCard className="mx-auto max-w-xl border-[var(--border-brand)]">
       <p className="text-sm font-semibold tracking-tight">Estimate your campus price</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Per-student rate is set for your institute. Try a rate below — one bill only: higher of
-        (students × rate) or {formatInr(MIN_MONTHLY_CHARGE_INR)}.
+        Starts from {formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / student / month. Try a rate below —
+        one bill only: higher of (students × rate) or {formatInr(MIN_MONTHLY_CHARGE_INR)}.
       </p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">

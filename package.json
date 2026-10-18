@@ -40,7 +40,12 @@
     "build:api": "npm run build --workspace=@lumenx/api",
     "start:api": "npm run start --workspace=@lumenx/api",
     "typecheck:api": "npm run typecheck --workspace=@lumenx/api",
-    "madge:circular": "npx madge --circular --extensions ts,tsx packages apps/admin/src apps/connect/src"
+    "madge:circular": "npx madge --circular --extensions ts,tsx packages apps/admin/src apps/connect/src",
+    "releases:collect-apks": "node scripts/collect-android-apks.mjs",
+    "releases:collect-windows": "node scripts/collect-windows-installers.mjs",
+    "releases:publish": "node scripts/publish-downloads.mjs",
+    "dist:admin-desktop": "npm run dist --workspace=@lumenx/app-admin-desktop",
+    "dist:nexus-desktop": "npm run dist --workspace=@lumenx/app-nexus-desktop"
   },
   "workspaces": [
     "apps/*",

@@ -1,0 +1,33 @@
+{
+  "name": "@lumenx/app-admin-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LumenX Admin Windows desktop shell (Electron)",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win nsis --x64 --publish never",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.lumenx.desktop.admin",
+    "productName": "LumenX Admin",
+    "directories": {
+      "output": "dist"
+    },
+    "files": ["src/**/*", "package.json"],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "LumenX-Admin-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "author": "LumenX",
+  "devDependencies": {
+    "electron": "35.1.2",
+    "electron-builder": "25.1.8"
+  }
+}

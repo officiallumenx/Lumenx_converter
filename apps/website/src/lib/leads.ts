@@ -5,8 +5,6 @@ import {
   type WebsiteLeadIntent,
 } from "./lead-mail";
 
-const LEADS_KEY = "lumenx.website.leads.v1";
-
 export type { WebsiteLeadIntent };
 
 export type WebsiteLead = {
@@ -19,6 +17,8 @@ export type WebsiteLead = {
   message: string;
   intent: WebsiteLeadIntent;
   submittedAt: string;
+  /** Filled only by bots. Real submissions leave this empty. */
+  companyWebsite?: string;
 };
 
 export type LeadSubmitResult =
@@ -45,23 +45,12 @@ function buildLead(lead: Omit<WebsiteLead, "submittedAt">): WebsiteLead {
   return { ...lead, submittedAt: new Date().toISOString() };
 }
 
-function saveLocalDraft(lead: WebsiteLead): void {
-  try {
-    const raw = localStorage.getItem(LEADS_KEY);
-    const list: WebsiteLead[] = raw ? (JSON.parse(raw) as WebsiteLead[]) : [];
-    list.unshift(lead);
-    localStorage.setItem(LEADS_KEY, JSON.stringify(list.slice(0, 50)));
-  } catch {
-    // Storage may be blocked.
-  }
-}
-
 function failureMessage(kind: "http" | "network"): string {
   const inbox = LEAD_INBOX_EMAIL;
   if (kind === "network") {
-    return `We could not reach the message service. A draft was kept in this browser only — LumenX has not confirmed receipt. Please email ${inbox}.`;
+    return `We could not reach the message service. Please email ${inbox}.`;
   }
-  return `We could not deliver your message just now. A draft was kept in this browser only. Please email ${inbox} or try again shortly.`;
+  return `We could not deliver your message just now. Please email ${inbox} or try again shortly.`;
 }
 
 async function submitViaWeb3Forms(lead: WebsiteLead, accessKey: string): Promise<LeadSubmitResult | null> {
@@ -91,12 +80,11 @@ async function submitViaWeb3Forms(lead: WebsiteLead, accessKey: string): Promise
     if (response.ok && body?.success) {
       return { ok: true, mode: "remote", lead };
     }
-    saveLocalDraft(lead);
     return {
       ok: false,
       mode: "remote-error",
       lead,
-      message: body?.message?.trim() || failureMessage("http"),
+      message: failureMessage("http"),
       inbox: LEAD_INBOX_EMAIL,
     };
   } catch {
@@ -107,28 +95,26 @@ async function submitViaWeb3Forms(lead: WebsiteLead, accessKey: string): Promise
 async function submitViaLeadApi(lead: WebsiteLead): Promise<LeadSubmitResult> {
   const endpoint = readLeadEndpoint();
   try {
+    const body = JSON.stringify({
+      ...lead,
+      company_website: lead.companyWebsite ?? "",
+    });
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify(lead),
+      body,
     });
     if (!response.ok) {
-      saveLocalDraft(lead);
       let message = failureMessage("http");
-      let needsActivation = false;
       try {
-        const body = (await response.json()) as {
-          error?: string;
-          needsActivation?: boolean;
-        };
-        if (body.error?.trim()) message = body.error.trim();
-        needsActivation = Boolean(body.needsActivation);
+        const payload = (await response.json()) as { error?: string };
+        if (payload.error?.trim()) message = payload.error.trim();
       } catch {
         // keep default
       }
       return {
         ok: false,
-        mode: needsActivation ? "needs-activation" : "remote-error",
+        mode: "remote-error",
         lead,
         message,
         inbox: LEAD_INBOX_EMAIL,
@@ -136,7 +122,6 @@ async function submitViaLeadApi(lead: WebsiteLead): Promise<LeadSubmitResult> {
     }
     return { ok: true, mode: "remote", lead };
   } catch {
-    saveLocalDraft(lead);
     return {
       ok: false,
       mode: "remote-error",
@@ -155,6 +140,9 @@ export async function submitWebsiteLead(
   leadInput: Omit<WebsiteLead, "submittedAt">,
 ): Promise<LeadSubmitResult> {
   const lead = buildLead(leadInput);
+  if (lead.companyWebsite?.trim()) {
+    return { ok: true, mode: "remote", lead };
+  }
   const web3Key = readWeb3FormsKey();
 
   if (web3Key) {
@@ -167,7 +155,5 @@ export async function submitWebsiteLead(
 
 /** @deprecated Use submitWebsiteLead — local-only save is not a successful delivery. */
 export function saveWebsiteLead(lead: Omit<WebsiteLead, "submittedAt">): WebsiteLead {
-  const row = buildLead(lead);
-  saveLocalDraft(row);
-  return row;
+  return buildLead(lead);
 }

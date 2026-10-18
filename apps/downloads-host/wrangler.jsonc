@@ -1,0 +1,18 @@
+{
+  "name": "lumenx-downloads",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "downloads.lumenxtech.in/*",
+      "zone_name": "lumenxtech.in"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DOWNLOADS",
+      "bucket_name": "lumenx-downloads"
+    }
+  ]
+}

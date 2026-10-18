@@ -35,8 +35,9 @@ function withSecurityHeaders(response: Response, opts?: { skipCsp?: boolean }): 
   if (response.status === 404) {
     headers.set("X-Robots-Tag", "noindex");
   }
-  if (import.meta.env.PROD && !opts?.skipCsp) {
-    headers.set("Content-Security-Policy", CSP);
+  if (import.meta.env.PROD) {
+    headers.set("Strict-Transport-Security", "max-age=15552000");
+    if (!opts?.skipCsp) headers.set("Content-Security-Policy", CSP);
   }
   return new Response(response.body, {
     status: response.status,
@@ -57,6 +58,63 @@ function publicOriginForSeo(request: Request, url: URL): string {
   }
   if (isProductionMarketingHost(url.hostname)) return url.origin;
   return configured || url.origin;
+}
+
+const PRODUCT_SLUGS = new Set(["admin", "connect", "transport", "admissions", "careers"]);
+
+const MODULE_SECTIONS: Record<string, string> = {
+  transport: "transport",
+  admissions: "admissions",
+  academics: "admin",
+  administration: "admin",
+  finance: "admin",
+  communication: "admin",
+  documents: "admin",
+  growth: "admin",
+};
+
+function legacyRedirectTarget(pathname: string, search: string): string | null {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (path === "/download" || path.startsWith("/download/")) return `/resources/downloads${search}`;
+  if (path === "/downloads" || path.startsWith("/downloads/")) return `/resources/downloads${search}`;
+  if (path === "/demo" || path.startsWith("/demo/")) return "/contact?intent=demo";
+  if (path === "/demos" || path.startsWith("/demos/")) return "/contact?intent=demo";
+  if (path === "/features" || path.startsWith("/features/")) return "/modules";
+  if (path === "/how-it-works" || path.startsWith("/how-it-works/")) return "/platform";
+  if (path === "/resources/blog" || path === "/resources/demo") return "/resources";
+  if (path === "/products") return "/platform";
+  if (path.startsWith("/products/")) {
+    const slug = path.slice("/products/".length);
+    if (slug === "nexus") return "/about";
+    if (PRODUCT_SLUGS.has(slug)) return `/platform/${slug}`;
+    return null;
+  }
+  if (path.startsWith("/modules/") && path !== "/modules") {
+    const category = path.slice("/modules/".length);
+    const section = MODULE_SECTIONS[category];
+    return section ? `/modules?section=${section}` : "/modules";
+  }
+  if (path.startsWith("/solutions/") && path !== "/solutions") {
+    const role = path.slice("/solutions/".length);
+    return /^[a-z0-9-]+$/.test(role) ? `/solutions?role=${role}` : "/solutions";
+  }
+  return null;
+}
+
+function canonicalHostRedirect(request: Request, url: URL): Response | null {
+  const host = url.hostname.toLowerCase();
+  if (host !== "www.lumenxtech.in") return null;
+  const target = new URL(url.pathname + url.search, "https://lumenxtech.in");
+  const status = request.method === "GET" || request.method === "HEAD" ? 301 : 308;
+  return new Response(null, { status, headers: { Location: target.toString() } });
+}
+
+function handleLegacyRedirect(request: Request, url: URL): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const targetPath = legacyRedirectTarget(url.pathname, url.search);
+  if (!targetPath) return null;
+  const target = new URL(targetPath, url.origin);
+  return new Response(null, { status: 301, headers: { Location: target.toString() } });
 }
 
 function handleWellKnown(request: Request): Response | null {
@@ -169,6 +227,13 @@ export default {
 
 async function handleFetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
   try {
+    const url = new URL(request.url);
+    const hostRedirect = canonicalHostRedirect(request, url);
+    if (hostRedirect) return withSecurityHeaders(hostRedirect, { skipCsp: true });
+
+    const legacy = handleLegacyRedirect(request, url);
+    if (legacy) return withSecurityHeaders(legacy, { skipCsp: true });
+
     const leadApi = await handleLeadApiRequest(request, env);
     if (leadApi) return withSecurityHeaders(leadApi);
 

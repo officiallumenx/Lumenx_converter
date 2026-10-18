@@ -10,18 +10,18 @@ import { formatInr } from "@/lib/format";
 
 export const PRICING_HERO = {
   eyebrow: "Pricing",
-  title: "One monthly bill — not two.",
-  lede: `Your institute gets a per-student rate (often ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)} — set for your campus, not fixed forever at ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)}). You pay either students × that rate, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} — whichever is higher. Never both. ${DEFAULT_TRIAL_DAYS}-day free trial after approval.`,
+  title: `Monthly from ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} per student.`,
+  lede: `Starts from ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / student / month. Your rate is set for your campus (often ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}). You pay students × that rate, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} — whichever is higher. Never both. ${DEFAULT_TRIAL_DAYS}-day free trial after approval.`,
 } as const;
 
 export const PRICING_FORMULA = [
   {
-    value: `${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}`,
-    note: "per student (set for your campus)",
+    value: `From ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)}`,
+    note: "per student / month",
   },
   {
     value: "or",
-    note: `${formatInr(MIN_MONTHLY_CHARGE_INR)} minimum`,
+    note: `${formatInr(MIN_MONTHLY_CHARGE_INR)} campus minimum`,
   },
   {
     value: `${DEFAULT_TRIAL_DAYS} days`,
@@ -31,7 +31,7 @@ export const PRICING_FORMULA = [
 
 export const PRICING_RULE = {
   title: "How the bill is calculated",
-  body: `Monthly price = the higher of (students × your per-student rate) or ${formatInr(MIN_MONTHLY_CHARGE_INR)}. Your rate is assigned for your institute — typically ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}. ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} below is only a starting estimate.`,
+  body: `Monthly price = the higher of (students × your per-student rate) or ${formatInr(MIN_MONTHLY_CHARGE_INR)}. Pricing starts from ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / student / month. Your confirmed rate is set for your campus — typically ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}.`,
   examples: [
     {
       label: "Small campus",
@@ -65,8 +65,8 @@ export const PRICING_INCLUDED = [
 
 export const PRICING_FAQ: { q: string; a: string }[] = [
   {
-    q: "Is the rate always ₹12 per student?",
-    a: `No. ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} is a common starting estimate on this website. Your institute’s per-student rate is set for your campus — often between ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)} and ${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}. We confirm it when you join.`,
+    q: "Does monthly pricing start from ₹12?",
+    a: `Yes — public pricing starts from ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / student / month. Your institute’s confirmed rate is set for your campus and is often between ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)} and ${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}.`,
   },
   {
     q: "Do we pay per-student rate plus ₹8,000?",
@@ -74,7 +74,7 @@ export const PRICING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How much does it cost?",
-    a: `Students × your per-student rate each month, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} if that total is lower. Typical rates are ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)} per student.`,
+    a: `From ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} per student each month, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} if students × rate is lower. Typical rates are ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)} per student.`,
   },
   {
     q: "What is included?",

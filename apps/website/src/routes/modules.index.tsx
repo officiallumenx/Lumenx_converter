@@ -48,7 +48,10 @@ function ModulesIndexPage() {
     <SiteShell>
       <section className="site-section site-section--flush">
         <Container>
-          <h1 className="sr-only">LumenX modules — Admin, Connect, Transport, Admissions, and Careers</h1>
+          <h1 className="site-section-title">LumenX modules</h1>
+          <p className="mt-3 mb-8 max-w-2xl text-muted-foreground">
+            Admin, Connect, Transport, Admissions, and Careers.
+          </p>
           <ModulesCatalog
             section={section}
             onSectionChange={onSectionChange}

@@ -93,9 +93,9 @@ export const PAGE_SEO = {
   },
   pricing: {
     path: "/pricing",
-    title: "LumenX Pricing | Simple Institute Management Pricing",
+    title: "LumenX Pricing | Monthly from ₹12 per student",
     description:
-      "Per-student rate set for your campus (often ₹12–₹15). One monthly bill: higher of students × rate, or ₹8,000 minimum. 60-day trial.",
+      "Monthly pricing starts from ₹12 per student. One campus bill: higher of students × rate, or ₹8,000 minimum. Typical band ₹12–₹15. 60-day trial.",
   },
   resources: {
     path: "/resources",
@@ -268,13 +268,6 @@ export function websiteJsonLd() {
       name: SITE_NAME,
       ...(origin ? { logo: `${origin}/brand/lumenx-logo.png` } : {}),
     },
-    potentialAction: origin
-      ? {
-          "@type": "SearchAction",
-          target: `${origin}/?q={search_term_string}`,
-          "query-input": "required name=search_term_string",
-        }
-      : undefined,
   };
 }
 
@@ -328,31 +321,10 @@ export function robotsTxt(origin: string, request?: Request): string {
   }
   const sitemap = origin ? `Sitemap: ${origin}/sitemap.xml\n` : "";
   // Keep legacy/demo paths out of the index; never Disallow: / on production.
-  return [
-    "User-agent: *",
-    "Allow: /",
-    "Allow: /sitemap.xml",
-    "Disallow: /download$",
-    "Disallow: /download/",
-    "Disallow: /downloads$",
-    "Disallow: /downloads/",
-    "Disallow: /demo$",
-    "Disallow: /demo/",
-    "Disallow: /demos$",
-    "Disallow: /demos/",
-    "Disallow: /products$",
-    "Disallow: /products/",
-    "Disallow: /features$",
-    "Disallow: /features/",
-    "Disallow: /how-it-works$",
-    "Disallow: /how-it-works/",
-    "",
-    sitemap,
-  ].join("\n");
+  return ["User-agent: *", "Allow: /", "", sitemap].join("\n");
 }
 
 export function sitemapXml(origin: string, paths: readonly string[] = ["/"]): string {
-  const lastmod = new Date().toISOString().slice(0, 10);
   const urls = paths
     .map((path) => {
       const loc = path === "/" ? `${origin}/` : `${origin}${path}`;
@@ -364,7 +336,7 @@ export function sitemapXml(origin: string, paths: readonly string[] = ["/"]): st
             : path.startsWith("/solutions/")
               ? "0.8"
               : "0.7";
-      return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+      return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
     })
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;

@@ -23,6 +23,18 @@ describe("parseWebsiteLeadPayload", () => {
     expect(lead?.name).toBe("Ada");
   });
 
+  it("rejects an address without a domain and an oversized message", () => {
+    expect(parseWebsiteLeadPayload({ name: "Ada", email: "a@b", intent: "demo" })).toBeNull();
+    expect(
+      parseWebsiteLeadPayload({
+        name: "Ada",
+        email: "ada@school.edu",
+        intent: "demo",
+        message: "x".repeat(4001),
+      }),
+    ).toBeNull();
+  });
+
   it("rejects missing email or intent", () => {
     expect(
       parseWebsiteLeadPayload({ name: "Ada", email: "not-an-email", intent: "demo" }),

@@ -21,6 +21,7 @@ export const COOKIE_POLICY: LegalDocument = {
       paragraphs: [
         `${C.legalName} sets first-party cookies and storage required to operate the Services.`,
         "If we use trusted infrastructure providers (for example authentication or hosting tooling), they may set technical cookies strictly necessary for security or delivery of the Service.",
+        "The public marketing website loads fonts from Google (fonts.googleapis.com and fonts.gstatic.com). That request can send your IP address to Google. The marketing site does not set analytics or advertising cookies.",
       ],
     },
     {

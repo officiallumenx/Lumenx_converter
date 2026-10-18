@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
-import { TypographyProvider } from "@lumenx/ui";
+import { Button, TypographyProvider } from "@lumenx/ui";
 import { SITE_NAME } from "@/content/nav";
 import { SITE_MOTION_BOOT } from "@/motion/boot";
 import { SiteShell } from "@/components/SiteShell";
@@ -24,9 +24,9 @@ function NotFoundComponent() {
           <p className="mt-3 text-muted-foreground">
             The link may be old. Products, pricing, and downloads are in the menu.
           </p>
-          <Link to="/" className="site-btn site-btn--primary mt-6">
-            Back home
-          </Link>
+          <Button asChild className="mt-6 font-semibold">
+            <Link to="/">Back home</Link>
+          </Button>
         </div>
       </div>
     </SiteShell>
@@ -35,22 +35,25 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  console.error(error);
   return (
     <SiteShell>
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="max-w-md text-center">
           <h1 className="site-section-title">Something went wrong</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
-          <button
+          <p className="mt-2 text-sm text-muted-foreground">
+            This page could not be loaded. Try again, or come back from the home page.
+          </p>
+          <Button
             type="button"
+            className="mt-6 font-semibold"
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="site-btn site-btn--primary mt-6"
           >
             Try again
-          </button>
+          </Button>
         </div>
       </div>
     </SiteShell>

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
+import { Button, cn } from "@lumenx/ui";
 import { PRIMARY_NAV, type NavItem } from "@/content/nav";
-import { cn } from "@lumenx/ui";
 
 function pathMatches(pathname: string, to: string): boolean {
   if (to === "/") return pathname === "/";
@@ -26,7 +26,7 @@ function MobileMenuSection({
     <li>
       <button
         type="button"
-        className="site-nav-link flex w-full items-center justify-between"
+        className="flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm font-medium text-foreground hover:bg-accent"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -34,10 +34,14 @@ function MobileMenuSection({
         <ChevronDown className={cn("size-4 opacity-70 transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <ul className="mb-2 ml-3 border-l border-border pl-3">
+        <ul className="mb-2 ml-3 border-l border-border pl-2">
           {item.overview ? (
             <li>
-              <Link to={item.overview.to} className="site-nav-link w-full text-sm" onClick={onNavigate}>
+              <Link
+                to={item.overview.to}
+                className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={onNavigate}
+              >
                 {item.overview.title}
               </Link>
             </li>
@@ -47,7 +51,7 @@ function MobileMenuSection({
               <Link
                 to={child.to}
                 search={child.search}
-                className="site-nav-link w-full text-sm"
+                className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
                 onClick={onNavigate}
               >
                 {child.label}
@@ -56,7 +60,11 @@ function MobileMenuSection({
           ))}
           {item.footerLink ? (
             <li>
-              <Link to={item.footerLink.to} className="site-nav-link w-full text-sm" onClick={onNavigate}>
+              <Link
+                to={item.footerLink.to}
+                className="block rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={onNavigate}
+              >
                 {item.footerLink.label}
               </Link>
             </li>
@@ -67,61 +75,46 @@ function MobileMenuSection({
   );
 }
 
-export function MobileNavbar({
-  open,
-  onNavigate,
-}: {
-  open: boolean;
-  onNavigate?: () => void;
-}) {
+export function MobileNavbar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  if (!open) return null;
 
   return (
-    <div
-      id="mobile-nav"
-      className="site-mobile-nav lg:hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Site menu"
-    >
-      <nav aria-label="Primary">
-        <ul className="site-container flex flex-col py-2">
-          {PRIMARY_NAV.map((item) => {
-            if (item.kind === "link") {
-              const active = pathMatches(pathname, item.to);
-              return (
-                <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    className={cn("site-nav-link w-full", active && "active")}
-                    aria-current={active ? "page" : undefined}
-                    onClick={onNavigate}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            }
-            return <MobileMenuSection key={item.id} item={item} onNavigate={onNavigate} />;
-          })}
-          <li>
-            <Link to="/login" className="site-nav-link w-full" onClick={onNavigate}>
-              Login
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/contact"
-              search={{ intent: "demo" }}
-              className="site-nav-link w-full font-semibold text-[var(--site-brand)]"
-              onClick={onNavigate}
-            >
-              Book a Demo
-            </Link>
-          </li>
-        </ul>
-      </nav>
-    </div>
+    <nav id="mobile-nav" aria-label="Primary" className="flex h-full flex-col">
+      <ul className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-2">
+        {PRIMARY_NAV.map((item) => {
+          if (item.kind === "link") {
+            const active = pathMatches(pathname, item.to);
+            return (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className={cn(
+                    "block rounded-md px-3 py-2.5 text-sm font-medium hover:bg-accent",
+                    active ? "bg-accent text-foreground" : "text-foreground",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                  onClick={onNavigate}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            );
+          }
+          return <MobileMenuSection key={item.id} item={item} onNavigate={onNavigate} />;
+        })}
+      </ul>
+      <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+        <Button asChild variant="outline" className="w-full justify-center">
+          <Link to="/login" onClick={onNavigate}>
+            Login
+          </Link>
+        </Button>
+        <Button asChild className="w-full justify-center font-semibold">
+          <Link to="/contact" search={{ intent: "demo" }} onClick={onNavigate}>
+            Book a Demo
+          </Link>
+        </Button>
+      </div>
+    </nav>
   );
 }

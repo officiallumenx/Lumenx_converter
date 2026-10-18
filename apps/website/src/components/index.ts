@@ -11,6 +11,7 @@ export { SolutionCard } from "./content/SolutionCard";
 export { StatCard } from "./content/StatCard";
 export { TestimonialCard } from "./content/TestimonialCard";
 export { FAQItem } from "./content/FAQItem";
+export { FAQList } from "./content/FAQList";
 export { PricingCard } from "./content/PricingCard";
 
 export { ProductBadge } from "./product/ProductBadge";

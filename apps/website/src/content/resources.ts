@@ -18,7 +18,7 @@ export const RESOURCE_CARDS = [
   {
     to: "/resources/downloads",
     title: "Downloads",
-    body: "Web apps and store links only when a real URL is configured — otherwise Coming soon.",
+    body: "Web apps open when live. Android and Windows downloads appear only after real files are published.",
   },
 ] as const;
 
