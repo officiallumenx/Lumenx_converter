@@ -867,6 +867,22 @@ button.site-card { text-align: left; cursor: pointer; }
   height: 1.75rem;
   border-radius: var(--site-radius-full);
 }
+.site-product-mark--lg {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+.site-product-mark--logo {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+}
+.site-product-mark--logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .site-product-chip {
   display: inline-flex;
   align-items: center;

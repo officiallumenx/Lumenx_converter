@@ -1,6 +1,8 @@
+const path = require("path");
 const { app, BrowserWindow, shell, session } = require("electron");
 
 const APP_ORIGIN = process.env.LUMENX_ADMIN_ORIGIN || "https://admin.lumenxtech.in";
+const APP_ICON = path.join(__dirname, "icon.png");
 const ALLOWED_HOSTS = new Set([
   "admin.lumenxtech.in",
   "api.lumenxtech.in",
@@ -30,6 +32,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     title: "LumenX Admin",
+    icon: APP_ICON,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

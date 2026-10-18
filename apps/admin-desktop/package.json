@@ -13,16 +13,29 @@
     "appId": "com.lumenx.desktop.admin",
     "productName": "LumenX Admin",
     "directories": {
-      "output": "dist"
+      "output": "dist-out"
     },
     "files": ["src/**/*", "package.json"],
+    "asar": true,
+    "compression": "maximum",
+    "icon": "build/icon.png",
     "win": {
       "target": ["nsis"],
-      "artifactName": "LumenX-Admin-Setup.${ext}"
+      "artifactName": "LumenX-Admin-Setup.${ext}",
+      "icon": "build/icon.png",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LumenX Admin",
+      "uninstallDisplayName": "LumenX Admin",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   },
   "author": "LumenX",

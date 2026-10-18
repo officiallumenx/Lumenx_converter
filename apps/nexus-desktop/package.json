@@ -16,13 +16,24 @@
       "output": "dist"
     },
     "files": ["src/**/*", "package.json"],
+    "asar": true,
+    "compression": "maximum",
     "win": {
       "target": ["nsis"],
-      "artifactName": "LumenX-Nexus-Setup.${ext}"
+      "artifactName": "LumenX-Nexus-Setup.${ext}",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LumenX Nexus",
+      "uninstallDisplayName": "LumenX Nexus",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   },
   "author": "LumenX",

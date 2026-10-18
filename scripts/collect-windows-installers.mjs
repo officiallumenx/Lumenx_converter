@@ -13,6 +13,7 @@ const mapping = [
   {
     product: "admin",
     sources: [
+      path.join(root, "apps", "admin-desktop", "dist-out", "LumenX-Admin-Setup.exe"),
       path.join(root, "apps", "admin-desktop", "dist", "LumenX-Admin-Setup.exe"),
     ],
     dest: "admin-setup.exe",
