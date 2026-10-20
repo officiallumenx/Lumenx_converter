@@ -937,6 +937,10 @@ export async function upsertBoardingForActor(
     return enrichBoarding(admin, existingByEvent);
   }
 
+  const prior = await findBoardingEvent(admin, tripId, input.studentId);
+  const boardingStatusChanged =
+    !prior || prior.boarding_status !== input.boardingStatus;
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -953,23 +957,25 @@ export async function upsertBoardingForActor(
           : undefined,
   });
 
-  await appendTripTimeline(admin, tripId, timelineEvent({
-    kind:
-      input.boardingStatus === "boarded"
-        ? TRANSPORT_EVENT.STUDENT_BOARDED
-        : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
-    label:
-      input.boardingStatus === "boarded" ? "Student boarded" : "Student not boarded",
-    stopId: input.stopId,
-    studentId: input.studentId,
-  }));
+  if (boardingStatusChanged) {
+    await appendTripTimeline(admin, tripId, timelineEvent({
+      kind:
+        input.boardingStatus === "boarded"
+          ? TRANSPORT_EVENT.STUDENT_BOARDED
+          : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
+      label:
+        input.boardingStatus === "boarded" ? "Student boarded" : "Student not boarded",
+      stopId: input.stopId,
+      studentId: input.studentId,
+    }));
 
-  await notifyBoardingMarked(admin, {
-    trip,
-    studentId: input.studentId,
-    boardingStatus: input.boardingStatus,
-    createdByUserId: actor.userId,
-  });
+    await notifyBoardingMarked(admin, {
+      trip,
+      studentId: input.studentId,
+      boardingStatus: input.boardingStatus,
+      createdByUserId: actor.userId,
+    });
+  }
   return enrichBoarding(admin, row);
 }
 
@@ -1008,6 +1014,10 @@ export async function upsertDroppingForActor(
     return enrichBoarding(admin, existingByEvent);
   }
 
+  const prior = await findBoardingEvent(admin, tripId, input.studentId);
+  const droppingStatusChanged =
+    !prior || prior.dropping_status !== input.droppingStatus;
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -1024,23 +1034,25 @@ export async function upsertDroppingForActor(
           : undefined,
   });
 
-  await appendTripTimeline(admin, tripId, timelineEvent({
-    kind: TRANSPORT_EVENT.STUDENT_DROPPED,
-    label:
-      input.droppingStatus === "dropped"
-        ? "Student dropped"
-        : "Student not dropped",
-    stopId: input.stopId,
-    studentId: input.studentId,
-  }));
+  if (droppingStatusChanged) {
+    await appendTripTimeline(admin, tripId, timelineEvent({
+      kind: TRANSPORT_EVENT.STUDENT_DROPPED,
+      label:
+        input.droppingStatus === "dropped"
+          ? "Student dropped"
+          : "Student not dropped",
+      stopId: input.stopId,
+      studentId: input.studentId,
+    }));
 
-  await notifyDroppingMarked(admin, {
-    trip,
-    studentId: input.studentId,
-    stopId: input.stopId,
-    droppingStatus: input.droppingStatus,
-    createdByUserId: actor.userId,
-  });
+    await notifyDroppingMarked(admin, {
+      trip,
+      studentId: input.studentId,
+      stopId: input.stopId,
+      droppingStatus: input.droppingStatus,
+      createdByUserId: actor.userId,
+    });
+  }
 
   // Parent notification only after backend confirmation (notifyDroppingMarked above).
   const refreshed = await findTripById(admin, tripId);

@@ -1,4 +1,5 @@
 import type { DriverRouteRoster, DriverRouteRosterStudent } from "@/lib/transport-api";
+import type { RosterStudent } from "./types";
 
 export type ApiRosterEnrollment = {
   id: string;
@@ -116,16 +117,7 @@ export function setApiDriverRoster(
 }
 
 /** Operational roster rows mapped for the attendance seed (excludes Not Riding Today). */
-export function listApprovedAttendanceRosterStudents(): Array<{
-  id: string;
-  name: string;
-  grade: string;
-  stopName: string;
-  stopId: string | null;
-  dropStopId: string | null;
-  dropStopName: string | null;
-  rollNo: string;
-}> {
+export function listApprovedAttendanceRosterStudents(): RosterStudent[] {
   return state.students
     .filter((s) => isOperationalApproval(s.approvalStatus) && !s.notRidingToday)
     .map((s) => ({
@@ -133,7 +125,8 @@ export function listApprovedAttendanceRosterStudents(): Array<{
       name: String(s.studentName ?? "").trim() || "Student",
       grade: String(s.studentClass ?? "").trim(),
       stopName: String(s.stopName ?? "").trim() || "Stop not assigned",
-      stopId: s.stopId,
+      // RosterStudent uses optional string; map null/empty to undefined.
+      stopId: s.stopId?.trim() || undefined,
       dropStopId: s.dropStopId,
       dropStopName: s.dropStopName,
       rollNo: String(s.rollNo ?? "").trim(),

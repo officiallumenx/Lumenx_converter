@@ -88,12 +88,8 @@ export function teacherCategoryFromAppNotification(
     return "staff_notices";
   }
 
-  if (
-    isAlertNotification(notification) &&
-    notification.category !== "leave" &&
-    notification.category !== "transport" &&
-    notification.category !== "assignments"
-  ) {
+  // leave / transport / assignments already handled above; alert-style remainder → urgent
+  if (isAlertNotification(notification)) {
     return "urgent";
   }
 

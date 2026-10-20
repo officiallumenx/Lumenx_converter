@@ -133,8 +133,9 @@ export const transportDedupe = {
     `transport:${tripId}:student:${studentId}:not_boarded`,
   dropped: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:dropped`,
-  approach: (tripId: string, studentId: string, thresholdMin: number) =>
-    `transport:${tripId}:student:${studentId}:approach:${thresholdMin}`,
+  /** Parent-level approach: one notification per trip+stop+threshold (not per child). */
+  approach: (tripId: string, stopId: string, thresholdMin: number) =>
+    `transport:${tripId}:stop:${stopId}:approach:${thresholdMin}`,
   reminder: (
     tripOrRouteKey: string,
     studentId: string,

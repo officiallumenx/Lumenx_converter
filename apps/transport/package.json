@@ -23,6 +23,7 @@
     "icons:android": "node scripts/generate-launcher-icons.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {

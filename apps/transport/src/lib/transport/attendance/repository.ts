@@ -7,6 +7,7 @@ import {
 import type { BoardingStatus, DroppingStatus } from "../types";
 import { getTripSessionSnapshot } from "../trip/store";
 import { resolveDropStopIdForMark } from "./drop-stop";
+import type { AttendanceStudentState } from "../types";
 import {
   applyLocalBoarding,
   applyLocalDropping,
@@ -18,7 +19,6 @@ import {
   finalizeAttendanceForActiveTrip,
   subscribeAttendanceStore,
   type AttendanceActionResult,
-  type AttendanceStudentState,
 } from "./store";
 
 function newClientEventId(prefix: string): string {

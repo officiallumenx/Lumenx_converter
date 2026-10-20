@@ -1,4 +1,5 @@
 import type { Persister } from "@tanstack/react-query-persist-client";
+import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del, keys } from "idb-keyval";
 import {
@@ -65,11 +66,11 @@ export function getConnectQueryPersister(userId: string): Persister {
     throttleTime: 1000,
     serialize: (client) =>
       JSON.stringify(sanitizePersistedQueryClient(client)),
-    deserialize: (cached) => {
+    deserialize: (cached): PersistedClient => {
       try {
-        return sanitizePersistedQueryClient(JSON.parse(cached));
+        return sanitizePersistedQueryClient(JSON.parse(cached)) as PersistedClient;
       } catch {
-        return sanitizePersistedQueryClient({});
+        return sanitizePersistedQueryClient({}) as PersistedClient;
       }
     },
   });

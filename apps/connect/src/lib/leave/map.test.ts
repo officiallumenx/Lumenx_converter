@@ -53,6 +53,32 @@ describe("connect leave map", () => {
     expect(toLeaveBadgeStatus(row.status)).toBe("ignored");
   });
 
+  it("preserves cancelled status for badges and teacher leave rows", () => {
+    const dto: LeaveRequestDto = {
+      id: "lv-cancel",
+      instituteId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      subjectKind: "teacher",
+      studentId: null,
+      teacherId: "bb111111-1111-4111-8111-111111111111",
+      requestedByUserId: "user-2",
+      leaveType: "casual",
+      intendedApproverRole: "institute_admin",
+      startDate: "2026-07-01",
+      endDate: "2026-07-01",
+      reason: "Plans changed",
+      status: "cancelled",
+      academicYearId: null,
+      classId: null,
+      sectionId: null,
+      createdAt: "2026-06-28T09:00:00Z",
+      updatedAt: "2026-06-28T10:00:00Z",
+    };
+
+    const teacherRow = leaveDtoToTeacherLeaveRequest(dto);
+    expect(teacherRow.status).toBe("cancelled");
+    expect(toLeaveBadgeStatus("cancelled")).toBe("cancelled");
+  });
+
   it("maps teacher leave dto with principal approver", () => {
     const dto: LeaveRequestDto = {
       id: "lv-2",

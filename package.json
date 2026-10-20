@@ -34,6 +34,8 @@
     "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
     "test:connect": "npm run test --workspace=@lumenx/app-connect",
     "test:e2e:safe": "node scripts/run-safe-e2e.mjs",
+    "test:e2e:staging-multi-role": "node --env-file=backend/.env.staging ./node_modules/@playwright/test/cli.js test --project=staging-multi-role",
+    "test:e2e:staging-multi-role:with-shells": "node --env-file=backend/.env.staging e2e/staging/run-multi-role-with-shells.mjs",
     "verify:auth:live": "node backend/scripts/verify-live-auth.mjs",
     "sync:api-envs": "node scripts/sync-api-mode-envs.mjs",
     "dev:api": "npm run dev --workspace=@lumenx/api",

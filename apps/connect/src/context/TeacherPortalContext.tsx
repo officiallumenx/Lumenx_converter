@@ -110,10 +110,26 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   // Warm module caches once roster identity is known (background; no UI block).
   useEffect(() => {
-    if (!isTeacher || !activeInstituteId || !teacherId || !instituteOk) return;
+    if (!isTeacher || isRestoring || !activeInstituteId || !teacherId || !instituteOk) {
+      return;
+    }
     if (!roster) return;
-    prefetchTeacherModuleQueries(queryClient, userId, activeInstituteId, teacherId);
-  }, [isTeacher, activeInstituteId, teacherId, instituteOk, roster, queryClient, userId]);
+    return prefetchTeacherModuleQueries(
+      queryClient,
+      userId,
+      activeInstituteId,
+      teacherId,
+    );
+  }, [
+    isTeacher,
+    isRestoring,
+    activeInstituteId,
+    teacherId,
+    instituteOk,
+    roster,
+    queryClient,
+    userId,
+  ]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;

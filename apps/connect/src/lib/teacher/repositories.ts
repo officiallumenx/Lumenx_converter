@@ -67,6 +67,7 @@ import {
   pushHomeworkActivityLog,
   removeTeacherFromPrincipalAttendanceAlerts,
   listenDemoSync,
+  postDemoSync,
 } from "@lumenx/utils";
 import {
   attachmentFromSimpleUpload,

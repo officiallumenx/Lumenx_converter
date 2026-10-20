@@ -310,7 +310,7 @@ export async function evaluateApproachAlertsOnPing(
   const suppressApproachBands = isWithinApproachStartGrace(trip.started_at);
 
   // Approach bands — async; never block the GPS request on fanout.
-  // One nearest band per student per ping (not every crossed threshold).
+  // One nearest band per stop per ping; coalesce guardians so N siblings ≠ N parent rows.
   if (!suppressApproachBands) {
     for (const geom of nearby.values()) {
       // Do not fire ETA threshold alerts when ETA is not publishable.
@@ -319,68 +319,76 @@ export async function evaluateApproachAlertsOnPing(
       if (threshold == null && !geom.withinRadius) continue;
       if (threshold == null) continue;
 
-      for (const studentId of geom.studentIds) {
-        const recipients = guardiansByStudent.get(studentId) ?? [];
-        const studentUserId = studentsById.get(studentId);
-        // Owner workflow allows either a timed alert or “next is your stop” copy.
-        // Keep ETA bands (30/15/5) for scheduling; present next-stop readiness language.
-        // Audience: parents and students only (no staff/driver on approach).
-        if (recipients.length > 0) {
-          const title =
-            threshold <= 5
-              ? "Next is your stop — be ready"
-              : threshold <= 15
-                ? "Next is your children's stop — be ready"
-                : `Next stop: ${geom.stop.name} — be ready`;
-          emitTransportNotificationSafe(admin, {
-            instituteId: trip.institute_id,
-            createdByUserId,
-            kind: TRANSPORT_EVENT.STOP_APPROACHING,
-            approachThresholdMin: threshold,
-            title,
-            body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
-            deepLink: deepLinkForTransportEvent(
-              TRANSPORT_EVENT.STOP_APPROACHING,
-              "parent",
-            ),
-            targetAudience: "parent",
-            dedupeKey: transportDedupe.approach(trip.id, studentId, threshold),
-            recipientUserIds: recipients,
-            payload: {
-              tripId: trip.id,
-              studentId,
-              stopId: geom.stop.id,
-              distanceM: Math.round(geom.distanceM),
-              etaMinutes: geom.etaMinutes,
-              thresholdMin: threshold,
-            },
-          });
-        }
-        if (studentUserId) {
-          emitTransportNotificationSafe(admin, {
-            instituteId: trip.institute_id,
-            createdByUserId,
-            kind: TRANSPORT_EVENT.STOP_APPROACHING,
-            approachThresholdMin: threshold,
-            title: "Next is your stop — be ready",
-            body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
-            deepLink: deepLinkForTransportEvent(
-              TRANSPORT_EVENT.STOP_APPROACHING,
-              "student",
-            ),
-            targetAudience: "student",
-            dedupeKey: `${transportDedupe.approach(trip.id, studentId, threshold)}:student`,
-            recipientUserIds: [studentUserId],
-            payload: {
-              tripId: trip.id,
-              studentId,
-              stopId: geom.stop.id,
-              distanceM: Math.round(geom.distanceM),
-              etaMinutes: geom.etaMinutes,
-              thresholdMin: threshold,
-            },
-          });
-        }
+      const uniqueParents = [
+        ...new Set(
+          geom.studentIds.flatMap((id) => guardiansByStudent.get(id) ?? []),
+        ),
+      ];
+      const uniqueStudents = [
+        ...new Set(
+          geom.studentIds
+            .map((id) => studentsById.get(id))
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      // If a user is already in the parent audience for this stop event, skip student fanout.
+      const studentOnly = uniqueStudents.filter((id) => !uniqueParents.includes(id));
+
+      if (uniqueParents.length > 0) {
+        const title =
+          threshold <= 5
+            ? "Next is your stop — be ready"
+            : threshold <= 15
+              ? "Next is your children's stop — be ready"
+              : `Next stop: ${geom.stop.name} — be ready`;
+        emitTransportNotificationSafe(admin, {
+          instituteId: trip.institute_id,
+          createdByUserId,
+          kind: TRANSPORT_EVENT.STOP_APPROACHING,
+          approachThresholdMin: threshold,
+          title,
+          body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
+          deepLink: deepLinkForTransportEvent(
+            TRANSPORT_EVENT.STOP_APPROACHING,
+            "parent",
+          ),
+          targetAudience: "parent",
+          dedupeKey: transportDedupe.approach(trip.id, geom.stop.id, threshold),
+          recipientUserIds: uniqueParents,
+          payload: {
+            tripId: trip.id,
+            stopId: geom.stop.id,
+            studentIds: geom.studentIds,
+            distanceM: Math.round(geom.distanceM),
+            etaMinutes: geom.etaMinutes,
+            thresholdMin: threshold,
+          },
+        });
+      }
+      if (studentOnly.length > 0) {
+        emitTransportNotificationSafe(admin, {
+          instituteId: trip.institute_id,
+          createdByUserId,
+          kind: TRANSPORT_EVENT.STOP_APPROACHING,
+          approachThresholdMin: threshold,
+          title: "Next is your stop — be ready",
+          body: `Next is your stop (${geom.stop.name}). Be ready when the bus arrives.`,
+          deepLink: deepLinkForTransportEvent(
+            TRANSPORT_EVENT.STOP_APPROACHING,
+            "student",
+          ),
+          targetAudience: "student",
+          dedupeKey: `${transportDedupe.approach(trip.id, geom.stop.id, threshold)}:student`,
+          recipientUserIds: studentOnly,
+          payload: {
+            tripId: trip.id,
+            stopId: geom.stop.id,
+            studentIds: geom.studentIds,
+            distanceM: Math.round(geom.distanceM),
+            etaMinutes: geom.etaMinutes,
+            thresholdMin: threshold,
+          },
+        });
       }
     }
   }

@@ -17,6 +17,7 @@ import {
   assignEnrollmentDropStop,
   assignEnrollmentPickupStop,
 } from "@/lib/transport/route-setup/api-sync";
+import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import {
   canEditStop,

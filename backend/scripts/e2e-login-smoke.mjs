@@ -424,17 +424,18 @@ async function main() {
     record("api.ready", false, "skipped");
   }
 
-  // ── App shells ──
+  // ── App shells (HTTP readiness only — auth logins are separate steps below) ──
   if (!SKIP_SHELLS) {
     for (const shell of SHELLS) {
       try {
         const res = await fetch(shell.url, { redirect: "follow" });
         record(`shell.${shell.app}`, res.ok, `${shell.url} HTTP ${res.status}`);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         record(
           `shell.${shell.app}`,
           false,
-          err instanceof Error ? err.message : String(err),
+          `${msg} — start apps or run: npm run smoke:login:staging:with-shells --workspace=@lumenx/api`,
         );
       }
     }

@@ -188,6 +188,7 @@ describe("trip session (in-memory + API sync)", () => {
     expect(getTripSessionSnapshot().homeAction).toBe("start_drop");
     const blockedPickup = beginStartTripSession("morning");
     expect(blockedPickup.ok).toBe(false);
+    if (blockedPickup.ok) throw new Error("expected morning start to be blocked");
     expect(blockedPickup.reason).toMatch(/Pickup is already completed/i);
   });
 
@@ -218,6 +219,7 @@ describe("trip session (in-memory + API sync)", () => {
 
     const blocked = beginStartTripSession("evening");
     expect(blocked.ok).toBe(false);
+    if (blocked.ok) throw new Error("expected evening start to be blocked while syncing");
     expect(blocked.reason).toMatch(/syncing/i);
 
     clearTripEndSyncPending();
@@ -247,6 +249,7 @@ describe("trip session (in-memory + API sync)", () => {
     resetTripSession();
     const blockedReady = beginStartTripSession("evening");
     expect(blockedReady.ok).toBe(false);
+    if (blockedReady.ok) throw new Error("expected evening start to be blocked");
     expect(blockedReady.reason).toMatch(/Pickup/i);
 
     // Completed chrome with evening slot sets eveningCompletedToday, not morning —
@@ -264,6 +267,9 @@ describe("trip session (in-memory + API sync)", () => {
     dismissCompletedTripSession();
     const blockedAfterChrome = beginStartTripSession("evening");
     expect(blockedAfterChrome.ok).toBe(false);
+    if (blockedAfterChrome.ok) {
+      throw new Error("expected evening start to remain blocked after completed chrome");
+    }
     expect(blockedAfterChrome.reason).toMatch(/Pickup|Drop trip is already completed/i);
     expect(getTripSessionSnapshot().morningCompletedToday).toBe(false);
   });

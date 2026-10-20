@@ -11,88 +11,113 @@ import { loadLearnerActivities } from "@/lib/activity/learner-load";
 import { loadStudentFeePortal } from "@/lib/fees";
 import { connectQueryKeys } from "./keys";
 import { scopedConnectKey } from "./scope";
+import { runPrefetchTiers, type IdleCancel } from "./schedule-idle";
 
 /**
- * Warm common student module caches after the portal snapshot is ready so
- * navigating between modules hits React Query instead of a cold skeleton.
+ * Warm common student module caches after the portal snapshot is ready.
+ * Critical modules run immediately; lower-priority modules wait for idle.
  */
 export function prefetchStudentModuleQueries(
   queryClient: QueryClient,
   userId: string,
   instituteId: string,
   studentId: string,
-): void {
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.teachersLearner(instituteId, studentId),
-    ),
-    queryFn: () => loadLearnerTeachers({ instituteId, studentId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.timetableLearner(instituteId, studentId),
-    ),
-    queryFn: () => loadLearnerTimetable({ instituteId, studentId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(userId, connectQueryKeys.events(instituteId)),
-    queryFn: () => loadConnectEvents({ instituteId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(userId, connectQueryKeys.schoolAlerts(instituteId)),
-    queryFn: () => loadPortalSchoolAlerts({ instituteId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.transportLearner(instituteId, studentId),
-    ),
-    queryFn: () => loadLearnerTransport({ instituteId, studentId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.marksStudent(instituteId, studentId),
-    ),
-    queryFn: () => loadStudentReportCards({ instituteId, studentId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.homeworkStudent(instituteId, studentId),
-    ),
-    queryFn: () => loadStudentHomeworkItems({ instituteId, studentId }),
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(userId, connectQueryKeys.diaryLearner(instituteId)),
-    queryFn: async () => {
-      const rows = await listDiaryDays({ instituteId, submitted: true });
-      return rows.slice().sort((a, b) => b.diaryDate.localeCompare(a.diaryDate));
+): IdleCancel {
+  const critical = [
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.teachersLearner(instituteId, studentId),
+        ),
+        queryFn: () => loadLearnerTeachers({ instituteId, studentId }),
+      });
     },
-  });
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.timetableLearner(instituteId, studentId),
+        ),
+        queryFn: () => loadLearnerTimetable({ instituteId, studentId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.schoolAlerts(instituteId),
+        ),
+        queryFn: () => loadPortalSchoolAlerts({ instituteId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.transportLearner(instituteId, studentId),
+        ),
+        queryFn: () => loadLearnerTransport({ instituteId, studentId }),
+      });
+    },
+  ];
 
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.activitiesLearner(instituteId, studentId),
-    ),
-    queryFn: () => loadLearnerActivities({ instituteId, studentId }),
-  });
+  const deferred = [
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(userId, connectQueryKeys.events(instituteId)),
+        queryFn: () => loadConnectEvents({ instituteId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.marksStudent(instituteId, studentId),
+        ),
+        queryFn: () => loadStudentReportCards({ instituteId, studentId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.homeworkStudent(instituteId, studentId),
+        ),
+        queryFn: () => loadStudentHomeworkItems({ instituteId, studentId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.diaryLearner(instituteId),
+        ),
+        queryFn: async () => {
+          const rows = await listDiaryDays({ instituteId, submitted: true });
+          return rows.slice().sort((a, b) => b.diaryDate.localeCompare(a.diaryDate));
+        },
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.activitiesLearner(instituteId, studentId),
+        ),
+        queryFn: () => loadLearnerActivities({ instituteId, studentId }),
+      });
+    },
+    () => {
+      void queryClient.prefetchQuery({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.feesStudent(instituteId, studentId),
+        ),
+        queryFn: () => loadStudentFeePortal({ instituteId, studentId }),
+      });
+    },
+  ];
 
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.feesStudent(instituteId, studentId),
-    ),
-    queryFn: () => loadStudentFeePortal({ instituteId, studentId }),
-  });
+  return runPrefetchTiers({ critical, deferred });
 }

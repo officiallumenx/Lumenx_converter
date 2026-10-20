@@ -32,6 +32,7 @@ import {
 import { DEFAULT_DEMO_PROFILE_ID, getDemoProfile } from "@lumenx/types";
 import { LumenXLogo } from "@/components/app/LumenXLogo";
 import { careersPortalUrl } from "@/lib/careers-origin";
+import { admissionsPortalUrl } from "@/lib/admissions-origin";
 import type { Role } from "@lumenx/types";
 import { INSTITUTE_KIND_LABEL } from "@lumenx/types";
 import { toast } from "sonner";
@@ -600,9 +601,12 @@ function LoginPage() {
                 <div className="login-portal-links">
                   <p>
                     New to {selectedInstitute?.name ?? "this institute"}?{" "}
-                    <Link to="/admissions/login" className="font-medium text-primary hover:underline">
+                    <a
+                      href={admissionsPortalUrl("/login")}
+                      className="font-medium text-primary hover:underline"
+                    >
                       Apply for admission
-                    </Link>
+                    </a>
                   </p>
                   <p>
                     Looking for a job?{" "}

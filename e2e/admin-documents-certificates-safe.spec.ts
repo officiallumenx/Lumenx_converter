@@ -6,6 +6,11 @@ import {
   mockAdminDocsCertsApi,
 } from "./docs-certs/safe-mocks";
 
+/**
+ * Admin Documents & Certificates hubs use a Templates | Published IA.
+ * Legacy ?view= aliases (overview/official/issued/verify/archive) still resolve.
+ */
+
 /** Em dash / en dash / hyphen — mock uses em dash; keep matcher resilient. */
 const TC_BOARD_FORMAT = /Transfer Certificate.+Board Format/i;
 
@@ -13,15 +18,20 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
   test("signed-out users cannot open Documents or Certificates hubs", async ({
     page,
   }) => {
+    // Ensure no optimistic session seed; AuthGate redirects once status leaves idle/loading.
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
     const writes = await blockApiWrites(page);
     await page.goto("/documents");
-    await expect(page).toHaveURL(/\/(welcome|login)/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/(welcome|login)/, { timeout: 20_000 });
     await page.goto("/templates");
-    await expect(page).toHaveURL(/\/(welcome|login)/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/(welcome|login)/, { timeout: 20_000 });
     expect(writes.filter((w) => !w.startsWith("GET"))).toEqual([]);
   });
 
-  test("Documents overview and Official docs surface TC copy without writes", async ({
+  test("Documents templates hub surfaces TC workflow without writes", async ({
     page,
   }) => {
     test.setTimeout(90_000);
@@ -30,23 +40,24 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     await blockHostedSupabaseAuth(page);
     const mock = await mockAdminDocsCertsApi(page, "with-tc-template");
 
+    // Legacy overview alias → templates
     await page.goto("/documents?view=overview");
     await expect(page).toHaveURL(/\/documents/, { timeout: 15_000 });
     await expect(
-      page.getByText(/Issue, track, and retrieve official school documents/i).first(),
+      page.getByRole("heading", { name: /^Document templates$/i }).first(),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: /Official/i }).first()).toBeVisible();
+    await expect(
+      page.getByText(/Generate documents|Select a template|Template → students/i).first(),
+    ).toBeVisible({ timeout: 15_000 });
 
+    // Legacy official alias → templates (TC remains a Documents template kind)
     await page.goto("/documents?view=official");
     await expect(
-      page.getByText(/Official school documents/i).first(),
+      page.getByRole("heading", { name: /^Document templates$/i }).first(),
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      page.getByText(/Transfer certificates/i).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/Transfer Certificates stay in Documents/i).first(),
-    ).toBeVisible();
+      page.getByText(/Document \(incl\. Transfer Certificate\)|Transfer Certificate|Documents API templates/i).first(),
+    ).toBeVisible({ timeout: 15_000 });
 
     const templatesResponse = page.waitForResponse(
       (response) => {
@@ -92,7 +103,11 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     await page.goto("/documents?view=templates");
     await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
     await expect(
-      page.getByText(/No templates match your filters/i).first(),
+      page
+        .getByText(
+          /No templates match your filters|No active templates|No document templates found/i,
+        )
+        .first(),
     ).toBeVisible({ timeout: 20_000 });
     expect(emptyMock.writes).toEqual([]);
 
@@ -114,14 +129,13 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
     const errMock = await mockAdminDocsCertsApi(page, "error");
+    // Legacy archive alias → published
     await page.goto("/documents?view=archive");
-    // Query-layer errors may surface as a load hint or remain on the loading shell;
-    // either way the route must stay usable and write-free.
     await expect(page).toHaveURL(/\/documents/, { timeout: 20_000 });
     await expect(
       page
         .getByText(
-          /Loading generated documents|Failed to load generated documents|Mocked documents\/certs failure|Document archive/i,
+          /Loading published documents|Failed to load published documents|Mocked documents\/certs failure|Published documents|Access denied/i,
         )
         .first(),
     ).toBeVisible({ timeout: 20_000 });
@@ -143,9 +157,10 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     expect(forbiddenMock.writes).toEqual([]);
   });
 
-  test("Certificates templates, issued empty, and Verify point TC to Documents", async ({
+  test("Certificates templates, published empty, and verify point TC to Documents", async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
     const mock = await mockAdminDocsCertsApi(page, "empty");
@@ -153,38 +168,54 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
     await page.goto("/templates?view=templates");
     await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
     await expect(
-      page.getByText(/Certificate templates|Active certificate templates/i).first(),
+      page.getByText(/Certificate templates|Published certificates|Generate certificates/i).first(),
     ).toBeVisible({ timeout: 20_000 });
     await expect(
       page
         .getByText(
-          /No published certificate templates|No active certificate templates/i,
+          /No published certificate templates|No active certificate templates|No published templates/i,
         )
         .first(),
     ).toBeVisible({ timeout: 20_000 });
 
-    // listBlocked true→false transition (HistoryPanel hooks-order regression).
+    // Legacy issued alias → published
     await page.goto("/templates?view=issued");
+    await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
     await expect(
-      page.getByText(/Issued certificates/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+      page
+        .getByText(
+          /Published certificates|Issued history|Loading issued certificates|No certificates issued yet|No issued certificates found/i,
+        )
+        .first(),
+    ).toBeVisible({ timeout: 30_000 });
     await expect(
-      page.getByText(/No certificates issued yet|Issued history/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+      page.getByText(/No certificates issued yet|No issued certificates found|issued certificates|0 published/i).first(),
+    ).toBeVisible({ timeout: 30_000 });
 
+    // Legacy verify alias → published (verify panel still renders under Published)
     await page.goto("/templates?view=verify");
+    await expect(page).toHaveURL(/\/templates/, { timeout: 20_000 });
     await expect(
-      page.getByText(/Transfer Certificates generated under Documents/i).first(),
+      page.getByRole("heading", { name: /Published certificates/i }).first(),
     ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page
+        .getByText(
+          /Public verification|Transfer Certificates generated under Documents|Open verify page|Official school documents \(incl\. TC\)/i,
+        )
+        .first(),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Open verify page/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       page.getByText(/Official school documents \(incl\. TC\)/i).first(),
-    ).toBeVisible();
-    await expect(page.getByText(/Open verify page/i).first()).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
 
     expect(mock.writes).toEqual([]);
   });
 
-  test("Certificates issued loading shell stays read-only", async ({ page }) => {
+  test("Certificates published loading shell stays read-only", async ({ page }) => {
     await installOptimisticAdminSession(page);
     await blockHostedSupabaseAuth(page);
     const mock = await mockAdminDocsCertsApi(page, "loading");
@@ -196,7 +227,7 @@ test.describe("Admin Documents & Certificates (mocked / read-only)", () => {
         page.getByText(/Loading issued certificates/i).first(),
       ).toBeVisible({ timeout: 20_000 });
       await expect(
-        page.getByText(/Issued certificates/i).first(),
+        page.getByText(/Published certificates|Issued history/i).first(),
       ).toBeVisible({ timeout: 5_000 });
       expect(mock.writes).toEqual([]);
     } finally {

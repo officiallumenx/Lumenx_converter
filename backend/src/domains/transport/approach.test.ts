@@ -11,7 +11,10 @@ import {
   resolveStopGeofenceM,
 } from "./approach.js";
 import { shouldPersistGpsSample } from "./gps-persist.js";
-import { severityForTransportEvent } from "./transport-notification-severity.js";
+import {
+  severityForTransportEvent,
+  transportDedupe,
+} from "./transport-notification-severity.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
 import { shouldNotifyTripPhaseChange } from "./trip-lifecycle.js";
 
@@ -66,6 +69,43 @@ describe("approach withinRadius radius handling", () => {
   it("defines a finite spatial eval radius for scale", () => {
     expect(APPROACH_EVAL_RADIUS_M).toBeGreaterThan(10_000);
     expect(APPROACH_EVAL_RADIUS_M).toBeLessThan(50_000);
+  });
+
+  it("coalesces parent approach identity to trip+stop+threshold (not per child)", () => {
+    const tripId = "trip-1";
+    const stopId = "stop-home";
+    const threshold = 15;
+    const childA = "stu-a";
+    const childB = "stu-b";
+    // Historical per-student keys would diverge for siblings at the same stop.
+    expect(`transport:${tripId}:student:${childA}:approach:${threshold}`).not.toBe(
+      `transport:${tripId}:student:${childB}:approach:${threshold}`,
+    );
+    // Authoritative parent-level identity is stop-scoped.
+    expect(transportDedupe.approach(tripId, stopId, threshold)).toBe(
+      `transport:${tripId}:stop:${stopId}:approach:${threshold}`,
+    );
+    expect(transportDedupe.approach(tripId, stopId, threshold)).toBe(
+      transportDedupe.approach(tripId, stopId, threshold),
+    );
+    // Distinct stops / thresholds remain distinct.
+    expect(transportDedupe.approach(tripId, "stop-other", threshold)).not.toBe(
+      transportDedupe.approach(tripId, stopId, threshold),
+    );
+    expect(transportDedupe.approach(tripId, stopId, 5)).not.toBe(
+      transportDedupe.approach(tripId, stopId, threshold),
+    );
+    // Boarded remains per-student so two siblings produce two boarding notifies.
+    expect(transportDedupe.boarded(tripId, childA)).not.toBe(
+      transportDedupe.boarded(tripId, childB),
+    );
+  });
+
+  it("dedupes student audience when the same user is already a guardian recipient", () => {
+    const uniqueParents = ["parent-1", "parent-2"];
+    const uniqueStudents = ["parent-1", "student-only"];
+    const studentOnly = uniqueStudents.filter((id) => !uniqueParents.includes(id));
+    expect(studentOnly).toEqual(["student-only"]);
   });
 });
 

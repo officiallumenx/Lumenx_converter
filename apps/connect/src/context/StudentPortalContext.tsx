@@ -52,11 +52,17 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
           userDisplayName: user?.name,
           userEmail: user?.email,
         });
-        return result.status === "ready" ? result.snapshot : null;
+        if (result.status === "ready" && result.snapshot) return result.snapshot;
+        // Empty linkage is a stable outcome; other statuses are retried by React Query.
+        if (result.status === "empty" || result.status === "needs_institute") {
+          return null;
+        }
+        throw new Error(result.errorMessage ?? `Student portal load: ${result.status}`);
       }
       return studentRepository.getSnapshot();
     },
     enabled: canRun && !isRestoring,
+    retry: 2,
   });
 
   useEffect(() => {
@@ -75,15 +81,23 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
   }, [activeInstituteId, queryClient, userId]);
 
   const snapshot = query.data ?? null;
+  // While IndexedDB restore blocks the query (`enabled: !isRestoring`), keep portals in a
+  // loading state — otherwise consumers flash "No linked student" for up to the restore window.
   const isLoading =
-    isStudent && canRun && !isRestoring && query.isLoading && !snapshot;
+    isStudent &&
+    (isRestoring || (canRun && !snapshot && (query.isLoading || query.isPending)));
 
   useEffect(() => {
-    if (!isStudent || !snapshot || !activeInstituteId) return;
+    if (!isStudent || isRestoring || !snapshot || !activeInstituteId) return;
     const studentId = snapshot.profile.id;
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(studentId)) return;
-    prefetchStudentModuleQueries(queryClient, userId, activeInstituteId, studentId);
-  }, [isStudent, snapshot, activeInstituteId, queryClient, userId]);
+    return prefetchStudentModuleQueries(
+      queryClient,
+      userId,
+      activeInstituteId,
+      studentId,
+    );
+  }, [isStudent, isRestoring, snapshot, activeInstituteId, queryClient, userId]);
 
   const value = useMemo<StudentPortalState>(() => {
     if (!isStudent) {

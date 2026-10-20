@@ -270,7 +270,7 @@ export function notificationsToTeacherFeed(notifications: AppNotification[]): {
     .slice(0, 8)
     .map(appNotificationToTeacherNotification);
   const announcements = notifications
-    .filter((n) => n.category === "circulars" || n.category === "announcements")
+    .filter((n) => n.category === "circulars")
     .slice(0, 5)
     .map((n) => ({
       id: n.id,

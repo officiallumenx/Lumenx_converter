@@ -309,7 +309,7 @@ export function useDriverRosterQuery(
     queryFn: async () => {
       const roster = await loadDriverRosterForHydrate(instituteId!);
       const scope = getRouteSetupDriverScope();
-      if (scope?.instituteId === instituteId) {
+      if (scope && scope.instituteId === instituteId) {
         await hydrateRouteSetupFromApi(scope, roster);
       }
       return roster;

@@ -66,7 +66,8 @@ function daysAgo(days: number, hour = 11): string {
 }
 
 function seedAuditLog(): AuditRecord[] {
-  return [
+  // Explicit annotation keeps action literals in AuditAction (avoids string widening).
+  const rows: AuditRecord[] = [
     {
       id: "aud-seed-1",
       at: daysAgo(0, 11),
@@ -187,7 +188,8 @@ function seedAuditLog(): AuditRecord[] {
       after: "1 year",
       summary: "Platform default updated",
     },
-  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  ];
+  return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
 function notify(): void {
