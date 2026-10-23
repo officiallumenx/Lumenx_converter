@@ -3,7 +3,15 @@ import {
   Search, ChevronRight, Bell, Sun, Moon, Menu,
   LogOut, User, ChevronDown, MoreHorizontal, Settings,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useTheme } from "@/components/theme-provider";
 import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
 import { adminNav } from "@/lib/admin-nav";
@@ -468,6 +476,19 @@ export function AdminChrome() {
     return attachScrollChain(main);
   }, []);
 
+  // Main chrome scrolls this element, not the window. On module change always
+  // start at the top. A follow-up frame catches TanStack nested-scroll copy
+  // that can otherwise leave the new module scrolled to the previous offset.
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    main.scrollTop = 0;
+    const frame = requestAnimationFrame(() => {
+      main.scrollTop = 0;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [path]);
+
   const handleLogout = () => {
     setProfileOpen(false);
     void signOut();
@@ -856,6 +877,7 @@ export function AdminChrome() {
         <main
           ref={mainRef}
           id="main-content"
+          data-scroll-restoration-id="admin-main"
           className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain scroll-smooth px-3 sm:px-5 md:px-6 pt-3 pb-[calc(var(--lx-mobile-nav-height)+0.75rem)] sm:pt-4 lg:pt-6 lg:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         >
           <DataRefreshHost />

@@ -126,62 +126,64 @@ async function processInstituteReminders(
       now <= new Date(prePickupAt.getTime() + 10 * 60_000);
 
     if (inMorning || inPrePickup) {
-      for (const enrollment of riding) {
-        const guardians = guardiansByStudent.get(enrollment.student_id) ?? [];
-        if (guardians.length === 0) continue;
+      // Trip-level reminders: one emit per unique parent (siblings share one push).
+      const uniqueParents = [
+        ...new Set(
+          riding.flatMap((e) => guardiansByStudent.get(e.student_id) ?? []),
+        ),
+      ];
+      // Prefer a stable route key from the first riding enrollment.
+      const routeKey = riding[0]?.route_id ?? "route";
 
-        if (inMorning) {
-          const ok = await emitTransportNotification(admin, {
-            instituteId,
-            createdByUserId: systemUserId,
-            kind: "SERVICE_REMINDER",
-            severity: "info",
-            title: "Bus service today",
-            body: "Your child's bus service is scheduled today.",
-            deepLink: "/transport",
-            targetAudience: "parent",
-            dedupeKey: transportDedupe.reminder(
-              enrollment.route_id,
-              enrollment.student_id,
-              "morning_service",
-              serviceDate,
-            ),
-            recipientUserIds: guardians,
-            payload: {
-              studentId: enrollment.student_id,
-              serviceDate,
-              reminderType: "morning_service",
-            },
-          });
-          if (ok.ok) emitted += 1;
-        }
+      if (uniqueParents.length > 0 && inMorning) {
+        const ok = await emitTransportNotification(admin, {
+          instituteId,
+          createdByUserId: systemUserId,
+          kind: "SERVICE_REMINDER",
+          severity: "info",
+          title: "Bus service today",
+          body: "Your children's bus service is scheduled today.",
+          deepLink: "/transport",
+          targetAudience: "parent",
+          dedupeKey: transportDedupe.reminderParent(
+            routeKey,
+            "morning_service",
+            serviceDate,
+          ),
+          recipientUserIds: uniqueParents,
+          payload: {
+            serviceDate,
+            reminderType: "morning_service",
+            studentIds: ridingIds,
+          },
+        });
+        if (ok.ok) emitted += 1;
+      }
 
-        if (inPrePickup) {
-          const ok = await emitTransportNotification(admin, {
-            instituteId,
-            createdByUserId: systemUserId,
-            kind: "PICKUP_REMINDER",
-            severity: "attention",
-            title: "Pickup expected soon",
-            body: `Your child's bus is expected around ${formatPickupClock(pickupRaw)}.`,
-            deepLink: "/transport/live",
-            targetAudience: "parent",
-            dedupeKey: transportDedupe.reminder(
-              enrollment.route_id,
-              enrollment.student_id,
-              "pre_pickup",
-              serviceDate,
-            ),
-            recipientUserIds: guardians,
-            payload: {
-              studentId: enrollment.student_id,
-              serviceDate,
-              reminderType: "pre_pickup",
-              expectedPickup: pickupRaw,
-            },
-          });
-          if (ok.ok) emitted += 1;
-        }
+      if (uniqueParents.length > 0 && inPrePickup) {
+        const ok = await emitTransportNotification(admin, {
+          instituteId,
+          createdByUserId: systemUserId,
+          kind: "PICKUP_REMINDER",
+          severity: "attention",
+          title: "Pickup expected soon",
+          body: `Your children's bus is expected around ${formatPickupClock(pickupRaw)}.`,
+          deepLink: "/transport/live",
+          targetAudience: "parent",
+          dedupeKey: transportDedupe.reminderParent(
+            routeKey,
+            "pre_pickup",
+            serviceDate,
+          ),
+          recipientUserIds: uniqueParents,
+          payload: {
+            serviceDate,
+            reminderType: "pre_pickup",
+            expectedPickup: pickupRaw,
+            studentIds: ridingIds,
+          },
+        });
+        if (ok.ok) emitted += 1;
       }
     }
   }

@@ -22,6 +22,7 @@ const EVENT_SEVERITY: Partial<Record<TransportEventKind | string, TransportSever
   [TRANSPORT_EVENT.NOT_RIDING_CREATED]: "info",
   [TRANSPORT_EVENT.NOT_RIDING_CANCELLED]: "info",
   [TRANSPORT_EVENT.STOP_APPROACHING]: "attention",
+  [TRANSPORT_EVENT.STOP_NEXT]: "attention",
   [TRANSPORT_EVENT.TRIP_DELAYED]: "attention",
   [TRANSPORT_EVENT.STUDENT_NOT_BOARDED]: "attention",
   [TRANSPORT_EVENT.EMERGENCY_CREATED]: "critical",
@@ -109,6 +110,7 @@ export function deepLinkForTransportEvent(
           ? "/transport/live"
           : "/transport";
     case TRANSPORT_EVENT.STOP_APPROACHING:
+    case TRANSPORT_EVENT.STOP_NEXT:
       return audience === "parent" || audience === "student"
         ? "/transport/live"
         : "/transport";
@@ -127,8 +129,17 @@ export function deepLinkForTransportEvent(
 export const transportDedupe = {
   arrived: (tripId: string, stopId: string) =>
     `transport:${tripId}:stop:${stopId}:arrived`,
+  /** One sequential “next stop” announce per trip×upcoming stop (not per child). */
+  stopNext: (tripId: string, stopId: string) =>
+    `transport:${tripId}:stop:${stopId}:next`,
   boarded: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:boarded`,
+  /** Trip-level parent reminder — unique recipient, not per sibling. */
+  reminderParent: (
+    tripOrRouteKey: string,
+    reminderType: string,
+    serviceDate: string,
+  ) => `transport:${tripOrRouteKey}:reminder:${reminderType}:${serviceDate}`,
   notBoarded: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:not_boarded`,
   dropped: (tripId: string, studentId: string) =>

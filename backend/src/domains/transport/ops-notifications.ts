@@ -510,7 +510,7 @@ export async function notifyBoardingMarked(
         : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
       title: boarded ? `${name} picked up safely` : `${name} not boarded`,
       body: boarded
-        ? `Your children picked up safely — ${name} has boarded the bus.`
+        ? `${name} has boarded the bus.`
         : `${name} was marked not boarded for this trip.`,
       deepLink: deepLinkForTransportEvent(
         boarded
@@ -550,6 +550,27 @@ export async function notifyBoardingMarked(
   }
 }
 
+/** Pure parent drop copy — school wording only when stop is school. */
+export function buildStudentDroppedParentCopy(input: {
+  studentName: string;
+  stopName: string;
+  stopKind: string | null | undefined;
+}): { title: string; body: string; atSchool: boolean } {
+  const name = input.studentName.trim() || "Your child";
+  const stopName = input.stopName.trim() || "the stop";
+  const atSchool =
+    input.stopKind === "school" || /^school\b/i.test(stopName);
+  return {
+    atSchool,
+    title: atSchool
+      ? `${name} reached school safely`
+      : `${name} dropped off safely`,
+    body: atSchool
+      ? `${name} was dropped at school (${stopName}).`
+      : `${name} was dropped at ${stopName}.`,
+  };
+}
+
 export async function notifyDroppingMarked(
   admin: SupabaseClient,
   input: {
@@ -578,18 +599,28 @@ export async function notifyDroppingMarked(
   );
 
   let stopName = "the stop";
+  let stopKind: string | null = null;
   if (input.stopId) {
     const stop = await findStopById(admin, input.stopId);
     if (stop?.name?.trim()) stopName = stop.name.trim();
+    stopKind = stop?.kind ?? null;
   }
+
+  // Accurate singular copy from the actual stop name — never invent “at school”
+  // unless the stop is the school stop (or its name already says so).
+  const { title: parentTitle, body: parentBody } = buildStudentDroppedParentCopy({
+    studentName: name,
+    stopName,
+    stopKind,
+  });
 
   if (recipients.length > 0) {
     await emitTransportNotification(admin, {
       instituteId: input.trip.institute_id,
       createdByUserId: input.createdByUserId,
       kind: TRANSPORT_EVENT.STUDENT_DROPPED,
-      title: `${name} dropped at stop safely`,
-      body: `Your children dropped at stop safely — ${name} was dropped at ${stopName}.`,
+      title: parentTitle,
+      body: parentBody,
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "parent"),
       targetAudience: "parent",
       dedupeKey: transportDedupe.dropped(input.trip.id, input.studentId),
@@ -599,6 +630,8 @@ export async function notifyDroppingMarked(
         tripId: input.trip.id,
         studentId: input.studentId,
         stopId: input.stopId ?? null,
+        stopName,
+        stopKind,
       },
     });
   }
@@ -618,6 +651,8 @@ export async function notifyDroppingMarked(
         tripId: input.trip.id,
         studentId: input.studentId,
         stopId: input.stopId ?? null,
+        stopName,
+        stopKind,
       },
     });
   }

@@ -74,6 +74,8 @@ Add the same origins to staging API `CORS_ORIGINS`.
 
 ## 4. Start the API against staging and check health
 
+### Local laptop
+
 From `backend/` (with `.env.staging` filled):
 
 ```bash
@@ -85,14 +87,22 @@ npm run build
 npm run start:staging
 ```
 
+### Hosted Railway staging
+
+Set `LUMENX_ENV=staging` and the staging gate / Supabase variables in the Railway
+service (see `qa-artifacts/staging-api-service-setup-plan.md`). An on-disk
+`.env.staging` file is **not** required when variables are injected by the
+platform. Do not package secrets into the image.
+
 Health (no secrets printed):
 
 ```bash
-curl -sS http://127.0.0.1:8787/health
+curl -sS http://127.0.0.1:8787/api/v1/health
 # expect JSON with status ok
 ```
 
-If the process exits with `Staging environment refused to start`, fix `.env.staging` confirmation / ref mismatch / denylist — do **not** weaken the guard.
+If the process exits with `Staging environment refused to start`, fix confirmation /
+ref mismatch / denylist / missing keys — do **not** weaken the guard.
 
 Optional: set `E2E_API_BASE_URL` / `SMOKE_API_BASE_URL` in `.env.staging` when the API is not on localhost.
 

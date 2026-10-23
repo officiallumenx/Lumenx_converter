@@ -71,7 +71,7 @@ export function RolesAccessPage() {
           eyebrow="Operations"
           title={M.roles}
           subtitle="Create institute roles, assign teachers/staff, and control Admin module access"
-        />
+         helpKey="permissions" />
         <RolesAccessApiPanel />
       </AppShell>
     );
@@ -141,7 +141,7 @@ function RolesAccessDemoPage() {
         eyebrow="Operations"
         title={M.roles}
         subtitle="Create institute roles, assign users, and control which Admin modules they can open"
-      />
+       helpKey="permissions" />
       {message && (
         <div className="mb-5 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs">
           <span>{message}</span>

@@ -1,7 +1,10 @@
 /**
  * Shared dotenv loader for API entry and smoke scripts.
- * When LUMENX_ENV=staging (or LUMENX_DOTENV points at .env.staging), never merge
+ * When LUMENX_ENV=staging (or LUMENX_DOTENV / --staging), never merge
  * the default backend/.env — that can silently attach production credentials.
+ *
+ * Hosted Railway: LUMENX_ENV=staging + injected process.env is enough (no file).
+ * Local: prefer backend/.env.staging when present (fills missing keys only).
  */
 import { config as loadDotenv } from "dotenv";
 import { existsSync } from "node:fs";
@@ -12,7 +15,7 @@ const backendRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * @param {{ cwd?: string }} [opts]
- * @returns {{ mode: "staging" | "default", path: string | null }}
+ * @returns {{ mode: "staging" | "default", path: string | null, stagingSource?: "file" | "process_env" }}
  */
 export function loadLumenxDotenv(opts = {}) {
   const cwd = opts.cwd ?? backendRoot;
@@ -31,13 +34,18 @@ export function loadLumenxDotenv(opts = {}) {
     process.argv.includes("--staging");
 
   if (wantsStaging) {
-    if (!existsSync(stagingPath)) {
+    if (existsSync(stagingPath)) {
+      loadDotenv({ path: stagingPath, override: false });
+      return { mode: "staging", path: stagingPath, stagingSource: "file" };
+    }
+
+    if (explicit) {
       throw new Error(
-        `Staging mode requires ${stagingPath}. Copy backend/.env.staging.example → backend/.env.staging and fill staging-only values. See backend/STAGING.md.`,
+        `Staging dotenv file not found: ${stagingPath}. Unset LUMENX_DOTENV to use injected process.env, or create the file from backend/.env.staging.example. See backend/STAGING.md.`,
       );
     }
-    loadDotenv({ path: stagingPath, override: true });
-    return { mode: "staging", path: stagingPath };
+
+    return { mode: "staging", path: null, stagingSource: "process_env" };
   }
 
   const defaultPath = resolve(cwd, ".env");

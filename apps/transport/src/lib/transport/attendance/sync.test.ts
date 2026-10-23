@@ -179,7 +179,7 @@ describe("attendance sync via ops-outbox", () => {
     );
   });
 
-  it("uses last route stop when dropStopId omitted from roster seed", async () => {
+  it("uses pickup stop when dropStopId omitted from roster seed (not school)", async () => {
     vi.mocked(getTripSessionSnapshot).mockReturnValue({
       tripId: "trip-evening",
       currentStopIndex: 0,
@@ -209,7 +209,7 @@ describe("attendance sync via ops-outbox", () => {
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "drop",
-        stopId: "stop-school",
+        stopId: "stop-pickup",
       }),
     );
   });

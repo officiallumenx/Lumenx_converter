@@ -103,14 +103,23 @@ describe("API registration sign-up wiring", () => {
 
     const hydrated = await runApiInstituteSignUp(signUpData);
 
-    expect(submitRegistration).toHaveBeenCalledWith({
-      applicantName: "Dr. Ananya Verma",
-      email: "principal@school.edu",
-      password: "SecurePass123",
-      phone: "+919876543210",
-      pin: "123456",
-      payload: registrationPayload,
-    });
+    expect(submitRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicantName: "Dr. Ananya Verma",
+        email: "principal@school.edu",
+        password: "SecurePass123",
+        phone: "+919876543210",
+        pin: "123456",
+        payload: registrationPayload,
+        legalConsent: expect.objectContaining({
+          accepted: true,
+          documents: expect.arrayContaining([
+            expect.objectContaining({ id: "admin_terms" }),
+            expect.objectContaining({ id: "admin_privacy" }),
+          ]),
+        }),
+      }),
+    );
     expect(apiSignInWithPassword).toHaveBeenCalledWith(
       "principal@school.edu",
       "SecurePass123",
@@ -153,14 +162,17 @@ describe("API registration sign-up wiring", () => {
       ...signUpData,
     });
 
-    expect(submitRegistration).toHaveBeenCalledWith({
-      applicantName: "Dr. Ananya Verma",
-      email: "principal@school.edu",
-      password: "SecurePass123",
-      phone: "+919876543210",
-      pin: "123456",
-      payload: registrationPayload,
-    });
+    expect(submitRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicantName: "Dr. Ananya Verma",
+        email: "principal@school.edu",
+        password: "SecurePass123",
+        phone: "+919876543210",
+        pin: "123456",
+        payload: registrationPayload,
+        legalConsent: expect.objectContaining({ accepted: true }),
+      }),
+    );
     expect(submitRegistration.mock.calls[0]?.[0]).not.toHaveProperty("firebaseIdToken");
   });
 

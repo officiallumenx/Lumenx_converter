@@ -836,8 +836,10 @@ async function maybeMarkSchoolArrivedOnPing(
   location: { latitude: number; longitude: number },
   createdByUserId: string,
 ): Promise<void> {
-  if (trip.school_arrived_at) return;
-  if (!isPickupPhase(trip.phase)) return;
+  // Starting a pickup at school must not imply "children reached school".
+  // Require an active pickup phase past trip-start, and honor approach start grace.
+  const { canEvaluateSchoolArrivalOnPing } = await import("./approach.js");
+  if (!canEvaluateSchoolArrivalOnPing(trip)) return;
 
   const stops = await listStopsForRoute(admin, trip.route_id);
   const schoolStop = stops.find((s) => (s.kind ?? "waypoint") === "school");

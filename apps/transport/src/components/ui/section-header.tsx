@@ -1,10 +1,12 @@
 import type { ElementType, ReactNode } from "react";
 import { cn } from "@lumenx/ui";
+import { ModuleHelpControl } from "@/components/module-help";
 
 export function SectionHeader({
   title,
   subtitle,
   action,
+  helpKey,
   className,
   as: TitleTag = "h2",
   size = "section",
@@ -12,10 +14,15 @@ export function SectionHeader({
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  /** Registry id for the module-help info popup. */
+  helpKey?: string;
   className?: string;
   as?: ElementType;
   size?: "page" | "section";
 }) {
+  const help = helpKey ? <ModuleHelpControl helpKey={helpKey} /> : null;
+  const hasAction = Boolean(action || help);
+
   return (
     <div className={cn("flex items-start justify-between gap-3", className)}>
       <div className="min-w-0">
@@ -39,7 +46,12 @@ export function SectionHeader({
           </p>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {hasAction ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {action}
+          {help}
+        </div>
+      ) : null}
     </div>
   );
 }

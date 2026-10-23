@@ -41,6 +41,7 @@ import {
   getModuleNavDirection,
 } from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
+import { ModuleHelpRouteControl } from "@/components/module-help";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { LumenXLogo } from "@/components/app/LumenXLogo";
@@ -310,6 +311,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                 <p className="text-sm font-bold leading-tight truncate">LumenX Connect</p>
               </div>
             </Link>
+            <ModuleHelpRouteControl />
             <ThemeToggle />
             <HeaderSettingsMenu />
           </div>
@@ -336,6 +338,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-1">
             <PendingSyncBadge />
+            <ModuleHelpRouteControl />
             <ThemeToggle />
             <HeaderSettingsMenu />
           </div>
@@ -410,6 +413,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-1">
             <PendingSyncBadge />
+            <ModuleHelpRouteControl />
             <ThemeToggle />
             {user && (
               <Link

@@ -70,7 +70,7 @@ function TeacherAttendancePage() {
           eyebrow="Academics"
           title="Teacher Attendance"
           subtitle="Mark · overview · history"
-        />
+         helpKey="teacher-attendance" />
         <TeacherAttendanceApiPage />
       </AppShell>
     );
@@ -272,7 +272,7 @@ function TeacherAttendanceDemoPage() {
         eyebrow="Academics"
         title="Teacher Attendance"
         subtitle={subtitle}
-      />
+       helpKey="teacher-attendance" />
       <PageStack>
         {tab === "overview" ? (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-[11px]">

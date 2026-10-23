@@ -71,7 +71,7 @@ function AcademicManagementPage() {
         eyebrow="Academics"
         title={VIEW_TITLES[view]}
         subtitle={VIEW_SUBTITLES[view]}
-      />
+       helpKey="academic-management" />
       <AcademicManagementHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "years" && <AcademicYearsView />}

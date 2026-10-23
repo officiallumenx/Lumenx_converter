@@ -22,6 +22,7 @@ import { getInitials } from "@/lib/initials";
 import { settingsRepository } from "@/lib/transport";
 import { useTransportAuth } from "@/lib/auth";
 
+import { ModuleHelpRouteControl } from "@/components/module-help";
 import { TransportGlobalSearch } from "./transport-global-search";
 
 import { DriverMark } from "./driver-mark";
@@ -64,6 +65,7 @@ export function TransportAppHeader() {
 
         <div className="flex shrink-0 items-center gap-1">
           <PendingSyncBadge />
+          <ModuleHelpRouteControl />
           <TransportGlobalSearch />
           <Link
             to={ROUTES.notifications}

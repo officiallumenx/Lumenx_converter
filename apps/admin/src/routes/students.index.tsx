@@ -1012,7 +1012,7 @@ function StudentsPage() {
             ? `${countLabel(list.length)} students · ${scopeLabel}`
             : `${list.length} students · ${scopeLabel}`
         }
-      />
+       helpKey="students" />
       {!listView.rowsValid ? (
         <Card className="p-5">
           <div className="py-12 text-sm text-muted-foreground text-center">

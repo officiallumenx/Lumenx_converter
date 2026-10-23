@@ -317,6 +317,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("loading");
     setError(null);
     try {
+      // Enforce consent at the auth boundary (not only in the signup UI).
+      if (!data.acceptTerms) {
+        const { SIGNUP_CONSENT_REQUIRED_MESSAGE } = await import("./signup-legal-consent");
+        throw new Error(SIGNUP_CONSENT_REQUIRED_MESSAGE);
+      }
       const hydrated = await runApiInstituteSignUp(data);
       resetInMemoryCachesForNewSession();
       saveSession(hydrated.user, false, { authSource: "api" });

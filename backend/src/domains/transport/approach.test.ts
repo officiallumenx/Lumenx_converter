@@ -4,11 +4,13 @@ import {
   APPROACH_START_GRACE_MS,
   approachBandForEta,
   approachDestinationModeForTrip,
+  approachNotifyCopy,
   approachThresholdToEmit,
   enrollmentApproachStopId,
   isBusWithinStopRadius,
   isWithinApproachStartGrace,
   resolveStopGeofenceM,
+  routePlanStopIdsForTrip,
 } from "./approach.js";
 import { shouldPersistGpsSample } from "./gps-persist.js";
 import {
@@ -106,6 +108,60 @@ describe("approach withinRadius radius handling", () => {
     const uniqueStudents = ["parent-1", "student-only"];
     const studentOnly = uniqueStudents.filter((id) => !uniqueParents.includes(id));
     expect(studentOnly).toEqual(["student-only"]);
+  });
+
+  it("uses distinct copy for ETA approach vs sequential STOP_NEXT", () => {
+    const copy = approachNotifyCopy("Gate A", 5);
+    expect(copy.title.toLowerCase()).toContain("approaching");
+    expect(copy.title.toLowerCase()).not.toContain("next is your stop");
+    expect(copy.body.toLowerCase()).not.toContain("next is your stop");
+    expect(transportDedupe.stopNext("trip-1", "stop-2")).toBe(
+      "transport:trip-1:stop:stop-2:next",
+    );
+    expect(transportDedupe.stopNext("trip-1", "stop-2")).not.toBe(
+      transportDedupe.arrived("trip-1", "stop-2"),
+    );
+    expect(transportDedupe.stopNext("trip-1", "stop-2")).not.toBe(
+      transportDedupe.approach("trip-1", "stop-2", 5),
+    );
+  });
+
+  it("trip-start dedupe is one key per trip for three siblings / one parent", () => {
+    const tripId = "trip-siblings";
+    expect(transportDedupe.tripStarted(tripId, "parent")).toBe(
+      `transport:${tripId}:started:parent`,
+    );
+    // Same key for any sibling count — emit once with unique recipientUserIds.
+    expect(transportDedupe.tripStarted(tripId, "parent")).toBe(
+      transportDedupe.tripStarted(tripId, "parent"),
+    );
+    expect(transportDedupe.reminderParent("route-1", "morning_service", "2026-10-16")).toBe(
+      "transport:route-1:reminder:morning_service:2026-10-16",
+    );
+    expect(
+      transportDedupe.reminderParent("route-1", "morning_service", "2026-10-16"),
+    ).not.toContain("stu-");
+  });
+
+  it("builds sequential plan so stop-2 is next only after stop-1", () => {
+    const stops = [
+      { id: "s1", name: "Stop 1", route_order: 1, kind: "waypoint" as const },
+      { id: "s2", name: "Stop 2", route_order: 2, kind: "waypoint" as const },
+      { id: "school", name: "School", route_order: 99, kind: "school" as const },
+    ];
+    const plan = routePlanStopIdsForTrip(
+      { phase: "running", slot: "morning" },
+      stops,
+      [
+        { student_id: "a", pickup_stop_id: "s1", drop_stop_id: "school" },
+        { student_id: "b", pickup_stop_id: "s2", drop_stop_id: "school" },
+      ],
+    );
+    expect(plan[0]).toBe("s1");
+    expect(plan[1]).toBe("s2");
+    // Proximity to s2 alone does not change plan order — STOP_NEXT uses plan[i+1]
+    // only after arrival at plan[i].
+    expect(plan.indexOf("s2")).toBe(1);
   });
 });
 

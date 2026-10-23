@@ -28,6 +28,7 @@ import { Route as SplashRouteImport } from './routes/splash'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SendRouteImport } from './routes/send'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ProfileSettingsRouteImport } from './routes/profile-settings'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -166,6 +167,11 @@ const SetupRoute = SetupRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SendRoute = SendRouteImport.update({
+  id: '/send',
+  path: '/send',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -427,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
@@ -490,6 +497,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
@@ -555,6 +563,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/profile-settings': typeof ProfileSettingsRoute
   '/reports': typeof ReportsRoute
+  '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile-settings'
     | '/reports'
+    | '/send'
     | '/settings'
     | '/setup'
     | '/signup'
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile-settings'
     | '/reports'
+    | '/send'
     | '/settings'
     | '/setup'
     | '/signup'
@@ -749,6 +760,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile-settings'
     | '/reports'
+    | '/send'
     | '/settings'
     | '/setup'
     | '/signup'
@@ -815,6 +827,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ProfileSettingsRoute: typeof ProfileSettingsRoute
   ReportsRoute: typeof ReportsRoute
+  SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   SignupRoute: typeof SignupRoute
@@ -969,6 +982,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/send': {
+      id: '/send'
+      path: '/send'
+      fullPath: '/send'
+      preLoaderRoute: typeof SendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -1372,6 +1392,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ProfileSettingsRoute: ProfileSettingsRoute,
   ReportsRoute: ReportsRoute,
+  SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   SignupRoute: SignupRoute,

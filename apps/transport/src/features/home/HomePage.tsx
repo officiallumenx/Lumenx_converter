@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, MapPinned, Play } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -95,6 +95,39 @@ export function HomePage() {
       );
     });
   };
+
+  // Local notification Continue / End (Issue 7) — never silent auto-end.
+  useEffect(() => {
+    const onContinue = () => {
+      toast.message("Trip continued", {
+        description: "GPS tracking is still active. Keep the trip open until students are done.",
+      });
+    };
+    const onEndRequest = () => {
+      toast.message("End trip from Home", {
+        description: "Confirm End Trip when all students are accounted for.",
+      });
+      void navigate({ to: ROUTES.home });
+    };
+    window.addEventListener(
+      "lumenx-transport-driver-continue-trip",
+      onContinue as EventListener,
+    );
+    window.addEventListener(
+      "lumenx-transport-driver-end-trip-request",
+      onEndRequest as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        "lumenx-transport-driver-continue-trip",
+        onContinue as EventListener,
+      );
+      window.removeEventListener(
+        "lumenx-transport-driver-end-trip-request",
+        onEndRequest as EventListener,
+      );
+    };
+  }, [navigate]);
 
   const showPickupCompleteBanner =
     session.morningCompletedToday &&

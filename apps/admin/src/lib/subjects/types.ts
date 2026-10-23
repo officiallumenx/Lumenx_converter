@@ -10,6 +10,8 @@ export type SubjectDto = {
   category: string;
   periodsPerWeek: number;
   applicableClassCodes: string[];
+  capacity: number | null;
+  classPeriods: Record<string, number>;
   status: SubjectStatus;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +28,8 @@ export type SubjectListItem = {
   category: string;
   periodsPerWeek: number;
   grades: string[];
+  capacity: number | null;
+  classPeriods: Record<string, number>;
   /** Demo-compat — not populated from API list DTO. */
   assignedTeacherIds: string[];
   status: SubjectStatus;

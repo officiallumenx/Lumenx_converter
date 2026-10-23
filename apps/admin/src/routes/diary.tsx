@@ -227,7 +227,7 @@ function DiaryViewPage() {
         eyebrow="Academics"
         title={M.diary}
         subtitle="Teacher submits · Admin view only (no add, edit, or delete)"
-      />
+       helpKey="diary" />
       {apiMode && listView.rowsValid && sorted.length > 0 ? (
         <div className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
           <Pill tone="success">{submittedCount} submitted</Pill>

@@ -31,7 +31,10 @@ import { useAuth } from "@/auth/AuthContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApiRegistrationSync } from "@/auth/use-api-registration-sync";
 import { activateApprovedApiRegistration } from "@/auth/api-registration-activation";
-import { getApiRegistrationView } from "@/auth/api-registration-state";
+import {
+  ensureApiRegistrationForUser,
+  getApiRegistrationView,
+} from "@/auth/api-registration-state";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import {
   applyApprovedRegistrationToUser,
@@ -83,7 +86,7 @@ function ReviewIllustration() {
             Review in progress
           </div>
           <div className="text-[9px] text-amber-700/80 dark:text-amber-400/80">
-            Typical turnaround 2–3 days
+            Awaiting Nexus decision
           </div>
         </div>
       </div>
@@ -402,9 +405,20 @@ function PendingVerificationPage() {
     }
   }, [user?.email, unlockIfApproved]);
 
+  // Always re-fetch server status on entry — do not trust a stale in-memory "pending".
+  useEffect(() => {
+    if (!isApiAuthMode() || !user?.id) return;
+    void ensureApiRegistrationForUser(user.id, { force: true }).then(() => {
+      const next = getApplicationStatusForEmail(user.email);
+      setStatus(next);
+      setInitialLoading(false);
+      void unlockIfApproved(next);
+    });
+  }, [user?.id, user?.email, unlockIfApproved]);
+
   useEffect(() => {
     if (!isApiAuthMode() || !user?.id || initialLoading) return;
-    if (status.loadState === "ready") return;
+    if (status.loadState === "ready" || status.loadState === "error") return;
     void handleRefresh();
   }, [user?.id, initialLoading, status.loadState, handleRefresh]);
 
@@ -611,9 +625,13 @@ function PendingVerificationPage() {
 
               {!approved && !rejected && (
                 <div className="mt-4 rounded-xl border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 px-4 py-3 text-left">
-                  <div className="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
-                    <Clock className="size-3.5 shrink-0" />
-                    Estimated review time: {status.estimatedReviewDays}
+                  <div className="flex items-start gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+                    <Clock className="size-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      Your registration was received and is awaiting Nexus approval.
+                      Use <strong className="font-semibold">Check status</strong> to
+                      refresh — no published review timeline is available.
+                    </span>
                   </div>
                 </div>
               )}

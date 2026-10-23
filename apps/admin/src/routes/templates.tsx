@@ -334,7 +334,7 @@ function CertificatesPage() {
         eyebrow="Institute"
         title={CERT_VIEW_TITLES[view]}
         subtitle={subtitle}
-      />
+       helpKey="templates" />
       <CertHubNav active={view} />
       <PublishedCertificateCatalogView
         section={view}

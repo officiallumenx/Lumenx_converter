@@ -22,3 +22,15 @@ export {
 } from "./privacy";
 
 export { COOKIE_POLICY, legalDocumentToPlainText } from "./cookies";
+
+export {
+  LEGAL_DOCUMENT_IDS,
+  LEGAL_COMPANY_VERSION,
+  ADMIN_TERMS_VERSION,
+  ADMIN_PRIVACY_VERSION,
+  COOKIE_POLICY_VERSION,
+  REGISTRATION_REQUIRED_LEGAL_DOCUMENTS,
+  legalVersionFromLastUpdated,
+  type LegalDocumentId,
+  type LegalDocumentVersionRef,
+} from "./versions";

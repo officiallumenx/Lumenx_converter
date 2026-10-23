@@ -1,6 +1,6 @@
 {
   "name": "@lumenx/app-connect",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -41,6 +41,7 @@
     "@lumenx/capacitor": "*",
     "@lumenx/config": "*",
     "@lumenx/legal": "*",
+    "@lumenx/module-help": "*",
     "@lumenx/module-attendance": "*",
     "@lumenx/module-exams": "*",
     "@lumenx/module-fees": "*",

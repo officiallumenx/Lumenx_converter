@@ -13,6 +13,8 @@ function dto(overrides: Partial<SubjectDto> = {}): SubjectDto {
     category: "Sciences",
     periodsPerWeek: 5,
     applicableClassCodes: ["G10"],
+    capacity: null,
+    classPeriods: {},
     status: "active",
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",

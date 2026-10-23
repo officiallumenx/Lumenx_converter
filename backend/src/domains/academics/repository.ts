@@ -34,7 +34,7 @@ const SECTION_COLS =
   "id, institute_id, academic_year_id, class_id, name, code, capacity, room, sort_order, status, class_teacher_id, created_at, updated_at, deleted_at";
 
 const SUBJECT_COLS =
-  "id, institute_id, name, code, category, periods_per_week, applicable_class_codes, status, created_at, updated_at, deleted_at";
+  "id, institute_id, name, code, category, periods_per_week, applicable_class_codes, capacity, class_periods, status, created_at, updated_at, deleted_at";
 
 const ENROLLMENT_SCOPE_COLS =
   "id, institute_id, academic_year_id, student_id, class_id, section_id, status, deleted_at";
@@ -444,6 +444,8 @@ export async function insertSubject(
       category: input.category,
       periods_per_week: input.periodsPerWeek,
       applicable_class_codes: input.applicableClassCodes,
+      capacity: input.capacity ?? null,
+      class_periods: input.classPeriods ?? {},
       status: input.status ?? "draft",
     })
     .select(SUBJECT_COLS)
@@ -537,6 +539,8 @@ export function toSubjectUpdatePatch(
   if (input.applicableClassCodes !== undefined) {
     patch.applicable_class_codes = input.applicableClassCodes;
   }
+  if (input.capacity !== undefined) patch.capacity = input.capacity;
+  if (input.classPeriods !== undefined) patch.class_periods = input.classPeriods;
   if (input.status !== undefined) patch.status = input.status;
   return patch;
 }

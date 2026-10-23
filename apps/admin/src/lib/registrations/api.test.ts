@@ -51,6 +51,13 @@ describe("registrations api repository", () => {
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
+    const legalConsent = {
+      accepted: true as const,
+      documents: [
+        { id: "admin_terms" as const, version: "2026-09-04" },
+        { id: "admin_privacy" as const, version: "2026-09-04" },
+      ],
+    };
     const result = await submitRegistration(
       {
         applicantName: "Dr. Ananya Verma",
@@ -61,6 +68,7 @@ describe("registrations api repository", () => {
           instituteName: "Alpha International School",
           instituteType: "School (K-12)",
         },
+        legalConsent,
       },
       client,
     );
@@ -82,6 +90,7 @@ describe("registrations api repository", () => {
     expect(body.password).toBe("SecurePass123");
     expect(body).not.toHaveProperty("firebase_id_token");
     expect(body.payload.instituteName).toBe("Alpha International School");
+    expect(body.legal_consent).toEqual(legalConsent);
   });
 
   it("fetches own registration with auth in API mode", async () => {
@@ -129,6 +138,13 @@ describe("registrations api repository", () => {
         {
           payload: {
             instituteName: "Updated School",
+          },
+          legalConsent: {
+            accepted: true,
+            documents: [
+              { id: "admin_terms", version: "2026-09-04" },
+              { id: "admin_privacy", version: "2026-09-04" },
+            ],
           },
         },
         client,

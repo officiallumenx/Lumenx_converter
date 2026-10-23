@@ -202,7 +202,7 @@ function DocumentsPage() {
         eyebrow="Institute"
         title={DOC_VIEW_TITLES[view]}
         subtitle={subtitle}
-      />
+       helpKey="documents" />
       <DocHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "templates" ? (

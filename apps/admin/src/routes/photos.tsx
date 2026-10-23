@@ -465,7 +465,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Profile photo management"
-        />
+         helpKey="photos" />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Photos require API auth mode with a live institute.
@@ -482,7 +482,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Profile photo management"
-        />
+         helpKey="photos" />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Select an institute to manage profile photos.
@@ -502,7 +502,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Assign staff, student, and driver profile photos"
-        />
+         helpKey="photos" />
 
         <Card>
           <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">
