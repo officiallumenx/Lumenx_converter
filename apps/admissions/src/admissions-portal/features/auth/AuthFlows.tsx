@@ -610,7 +610,6 @@ export function InstituteSignupFlow() {
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [email, setEmail] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
-  const [emailOtp, setEmailOtp] = useState("");
   const [adminName, setAdminName] = useState("");
   const [instituteName, setInstituteName] = useState("");
   const [instituteCode, setInstituteCode] = useState("");
@@ -626,7 +625,6 @@ export function InstituteSignupFlow() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [phoneGrant, setPhoneGrant] = useState("");
-  const [emailGrant, setEmailGrant] = useState("");
 
   const phoneDisplay = `${country.code} ${phone}`;
 
@@ -666,39 +664,10 @@ export function InstituteSignupFlow() {
           apiBaseUrl: admissionsApiBase(),
         });
         setPhoneGrant(verified.grant);
-        const result = await requestSignupOtp({
-          subjectKey: email.trim().toLowerCase(),
-          channel: "email",
-          destination: email.trim().toLowerCase(),
-          apiBaseUrl: admissionsApiBase(),
-        });
-        toast.message(
-          result.devOtp
-            ? `Email OTP sent to ${email} (demo: ${result.devOtp})`
-            : `Email OTP sent to ${result.maskedDestination}`,
-        );
-        setStep("verifyEmail");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Invalid mobile OTP");
-      }
-      return;
-    }
-    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
-  };
-
-  const verifyEmail = async () => {
-    if (isApiAuthMode()) {
-      try {
-        const verified = await verifySignupOtp({
-          subjectKey: email.trim().toLowerCase(),
-          channel: "email",
-          otp: emailOtp,
-          apiBaseUrl: admissionsApiBase(),
-        });
-        setEmailGrant(verified.grant);
+        toast.success("Mobile number verified");
         setStep("details");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Invalid email OTP");
+        toast.error(err instanceof Error ? err.message : "Invalid mobile OTP");
       }
       return;
     }
@@ -736,7 +705,7 @@ export function InstituteSignupFlow() {
           password,
           accountType: "institute_admin",
           instituteName: instituteName.trim(),
-          verificationGrants: [phoneGrant, emailGrant],
+          verificationGrants: [phoneGrant].filter(Boolean),
         });
         toast.success("Institute account created");
         nav({ to: "/institute/openings" });
@@ -827,7 +796,7 @@ export function InstituteSignupFlow() {
         <h1 className="font-display text-2xl font-bold">Standalone institute signup</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Mobile and email are both required and verified by OTP.
+        Email and mobile are required. Only mobile is verified with OTP — no email OTP.
       </p>
 
       <div className="mt-4">
@@ -879,22 +848,6 @@ export function InstituteSignupFlow() {
           </InputOTP>
           <Button className="w-full" onClick={verifyPhone}>
             Verify mobile
-          </Button>
-        </div>
-      )}
-
-      {step === "verifyEmail" && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Email OTP · {email}</p>
-          <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
-            <InputOTPGroup className="justify-center">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <InputOTPSlot key={i} index={i} />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
-          <Button className="w-full" onClick={verifyEmail}>
-            Verify email
           </Button>
         </div>
       )}
