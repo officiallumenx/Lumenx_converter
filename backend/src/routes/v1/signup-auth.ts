@@ -9,7 +9,13 @@ import {
   requestSignupVerifyOtp,
   verifySignupChannelOtp,
 } from "../../domains/auth-credentials/signup-verify.js";
-import { completeAppSignup } from "../../domains/auth-credentials/app-signup.js";
+import {
+  completeAppPasswordReset,
+  completeAppSignup,
+  loginAppWithMobilePassword,
+  requestAppPasswordResetOtp,
+  verifyAppPasswordResetOtp,
+} from "../../domains/auth-credentials/app-signup.js";
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -92,6 +98,92 @@ signupAuth.post("/complete", async (c) => {
       token_type: "bearer",
     },
   }, 201);
+});
+
+/** Mobile + password login (email is recovery/details only). */
+signupAuth.post("/password-login", async (c) => {
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      app: z.enum(["admissions", "careers"]),
+      phone: z.string().min(8).max(30),
+      password: z.string().min(1).max(128),
+      account_type: z
+        .enum(["parent", "institute_admin", "job_seeker", "recruiter"])
+        .optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await loginAppWithMobilePassword(admin, {
+    app: body.app,
+    phone: body.phone,
+    password: body.password,
+    accountType: body.account_type,
+  });
+  return c.json({
+    data: {
+      user_id: data.userId,
+      account_type: data.accountType,
+      access_token: data.accessToken,
+      refresh_token: data.refreshToken,
+      token_type: "bearer",
+    },
+  });
+});
+
+/** Forgot password — mobile OTP request. */
+signupAuth.post("/forgot-password/request-otp", async (c) => {
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      app: z.enum(["admissions", "careers"]),
+      phone: z.string().min(8).max(30),
+    }),
+    await c.req.json(),
+  );
+  const data = await requestAppPasswordResetOtp(admin, {
+    app: body.app,
+    phone: body.phone,
+  });
+  return c.json({ data });
+});
+
+signupAuth.post("/forgot-password/verify-otp", async (c) => {
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      app: z.enum(["admissions", "careers"]),
+      phone: z.string().min(8).max(30),
+      otp: z.string().length(6),
+    }),
+    await c.req.json(),
+  );
+  const data = await verifyAppPasswordResetOtp(admin, {
+    app: body.app,
+    phone: body.phone,
+    otp: body.otp,
+  });
+  return c.json({ data });
+});
+
+signupAuth.post("/forgot-password/complete", async (c) => {
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      app: z.enum(["admissions", "careers"]),
+      phone: z.string().min(8).max(30),
+      mobile_otp_grant: z.string().min(32).max(256),
+      new_password: z.string().min(8).max(128),
+    }),
+    await c.req.json(),
+  );
+  const data = await completeAppPasswordReset(admin, {
+    app: body.app,
+    phone: body.phone,
+    mobileOtpGrant: body.mobile_otp_grant,
+    newPassword: body.new_password,
+  });
+  return c.json({ data });
 });
 
 const bindPin = new Hono<AppBindings>();

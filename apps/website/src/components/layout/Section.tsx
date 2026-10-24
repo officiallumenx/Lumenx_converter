@@ -17,6 +17,7 @@ export function Section({
   tone = "default",
   headingAs = "h2",
   dense = false,
+  align = "start",
 }: {
   id?: string;
   eyebrow?: string;
@@ -29,6 +30,8 @@ export function Section({
   headingAs?: "h1" | "h2" | "h3";
   /** Tighter top padding and heading gap — for catalogue pages. */
   dense?: boolean;
+  /** Play-style centered section heads on marketing pages. */
+  align?: "start" | "center";
 }) {
   const revealRef = useReveal<HTMLElement>();
   const hasHeading = Boolean(eyebrow || title || lede);
@@ -50,7 +53,8 @@ export function Section({
             eyebrow={eyebrow}
             title={title}
             lede={lede}
-            className={cn("site-section-head", dense ? "mb-5" : "mb-10")}
+            align={align}
+            className={cn("site-section-head", dense ? "site-section-head--dense" : undefined)}
           />
         ) : null}
         {children}

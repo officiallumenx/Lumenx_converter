@@ -17,9 +17,9 @@ export function SiteCard({
     <Card
       data-product={product}
       className={cn(
-        "site-card flex h-full flex-col rounded-xl border bg-card p-5 text-card-foreground shadow-sm",
+        "site-card",
         product && "site-card--product",
-        quiet && "site-card--quiet shadow-none",
+        quiet && "site-card--quiet",
         className,
       )}
       {...props}

@@ -5,6 +5,7 @@ export function HomeProblem() {
   return (
     <Section
       id="problem"
+      align="center"
       eyebrow="The problem"
       title="The institute is one organisation. The tools usually are not."
       lede="Office, families, transport, intake, and hiring each keep their own list. The work is copied. The story never matches."

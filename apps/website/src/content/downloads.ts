@@ -45,8 +45,14 @@ export type DownloadChannel = {
 };
 
 const CONNECT_WEB = marketingWebUrl(import.meta.env.VITE_CONNECT_ORIGIN, "https://connect.lumenxtech.in");
-const CAREERS_STANDALONE = marketingWebUrl(import.meta.env.VITE_CAREERS_ORIGIN, null);
-const ADMISSIONS_STANDALONE = marketingWebUrl(import.meta.env.VITE_ADMISSIONS_ORIGIN, null);
+const CAREERS_STANDALONE = marketingWebUrl(
+  import.meta.env.VITE_CAREERS_ORIGIN,
+  "https://careers.lumenxtech.in",
+);
+const ADMISSIONS_STANDALONE = marketingWebUrl(
+  import.meta.env.VITE_ADMISSIONS_ORIGIN,
+  "https://admissions.lumenxtech.in",
+);
 const TRANSPORT_WEB = marketingWebUrl(
   import.meta.env.VITE_TRANSPORT_ORIGIN,
   "https://transport.lumenxtech.in",

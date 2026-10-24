@@ -337,11 +337,11 @@ export const HOME_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How is pricing calculated?",
-    a: "Monthly pricing starts from ₹12 per student. Your campus rate is set for your institute (often ₹12–₹15). You pay whichever is higher: students × that rate, or ₹8,000 minimum — never both. Choose monthly, 6-month, or yearly tenure.",
+    a: "Monthly pricing starts from ₹12 per student. Your campus rate is set for your institute (often ₹12–₹15). You pay whichever is higher: students × that rate, or ₹8,000 minimum — never both. Choose monthly, 6-month, or yearly tenure. Yearly includes 2 months free.",
   },
   {
     q: "Is there a trial?",
-    a: "Yes. 60 days of full access after your institute is approved. This website does not take payment.",
+    a: "Yes. 60 days of full access after your institute is approved. This website does not take payment. Yearly billing is separate — it includes 2 months free, not a second 60-day trial.",
   },
   {
     q: "Does LumenX take payments on this website?",

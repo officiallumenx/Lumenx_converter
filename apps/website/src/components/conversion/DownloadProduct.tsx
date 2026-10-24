@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Button, cn } from "@lumenx/ui";
+import { cn } from "@lumenx/ui";
 import type { ProductId } from "@/theme/products";
 import {
   DOWNLOADS,
@@ -42,7 +42,8 @@ export function DownloadProduct({
     <SiteCard
       id={id}
       product={id}
-      className={cn("scroll-mt-28", highlighted && "download-product--active")}
+      quiet
+      className={cn("scroll-mt-28 download-product", highlighted && "download-product--active")}
     >
       <div className={cn("grid gap-6", !compact && qr ? "lg:grid-cols-[minmax(0,1fr)_10.5rem]" : "")}>
         <div>
@@ -92,11 +93,11 @@ export function DownloadProduct({
             })}
           </dl>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="site-cta-row mt-5">
             {channel.platforms.web !== "not-offered" && web ? (
-              <Button asChild className="font-semibold">
+              <CTAButton asChild size="md">
                 <a href={web}>{webButtonLabel(channel)}</a>
-              </Button>
+              </CTAButton>
             ) : null}
 
             {channel.platforms.android !== "not-offered" ? (

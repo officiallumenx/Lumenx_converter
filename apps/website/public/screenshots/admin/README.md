@@ -1,12 +1,21 @@
 # Admin product screenshots for /platform/admin → “More of the surface”
 
-Drop real PNG captures here (tablet / desktop, crop to the main panel):
+Desktop captures (preferred — wide browser frame on the site):
 
-- command.png       → Home / today
-- people.png        → Students or people directory
-- attendance.png    → Student attendance
-- fees.png          → Fees
-- roles.png         → Permissions / roles
-- certificates.png  → Documents or certificates
+- `command.png` — Home / today
+- `analytics.png` — Analytics dashboards
+- `classes.png` — Classes / sections
+- `fees.png` — Fees overview
+- `modules.png` — Module entitlements
+- `feedback.png` — LumenX feedback
 
-Until these files exist, the site falls back to illustrative panels.
+Optional mobile extras (not primary gallery):
+
+- `people.jpg` — Students directory (phone)
+
+Still useful if you capture them on desktop:
+
+- Students / teachers / parents directory
+- Attendance
+- Roles / permissions
+- Certificates / documents

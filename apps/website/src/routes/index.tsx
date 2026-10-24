@@ -5,6 +5,9 @@ import { CTAButton } from "@/components/conversion/CTAButton";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomeProblem } from "@/components/home/HomeProblem";
 import { HomeEcosystem } from "@/components/home/HomeEcosystem";
+import { HomeShowcase } from "@/components/home/HomeShowcase";
+import { HomeRoles } from "@/components/home/HomeRoles";
+import { HomeFeatures } from "@/components/home/HomeFeatures";
 import { HomePricing } from "@/components/home/HomePricing";
 import { HomeFaq } from "@/components/home/HomeFaq";
 import { HOME_FAQ } from "@/content/home";
@@ -26,6 +29,9 @@ function HomePage() {
       <HomeHero />
       <HomeProblem />
       <HomeEcosystem />
+      <HomeShowcase />
+      <HomeRoles />
+      <HomeFeatures />
       <HomePricing />
       <HomeFaq />
       <GetStartedCTA

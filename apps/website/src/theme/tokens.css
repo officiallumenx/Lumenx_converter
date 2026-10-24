@@ -14,18 +14,18 @@
   --site-ink: oklch(0.24 0.06 262);
   --site-ink-soft: oklch(0.34 0.05 262);
 
-  /* Blue-tinted paper — not plain white */
-  --background: oklch(0.945 0.035 255);
+  /* Play-inspired paper: mostly white with soft blue wash */
+  --background: oklch(0.985 0.012 255);
   --foreground: var(--site-ink);
-  --surface: oklch(0.965 0.028 255);
-  --surface-hover: oklch(0.93 0.045 262);
-  --elevated: oklch(0.975 0.022 255);
-  --card: oklch(0.97 0.024 255);
+  --surface: oklch(0.975 0.014 255);
+  --surface-hover: oklch(0.95 0.03 262);
+  --elevated: oklch(0.995 0.006 255);
+  --card: oklch(1 0.004 255);
   --card-foreground: var(--site-ink);
-  --popover: oklch(0.98 0.018 255);
+  --popover: oklch(1 0.004 255);
   --popover-foreground: var(--site-ink);
-  --muted: oklch(0.925 0.042 255);
-  --muted-foreground: oklch(0.38 0.04 262);
+  --muted: oklch(0.955 0.02 255);
+  --muted-foreground: oklch(0.42 0.03 262);
   --primary: var(--site-brand);
   --primary-foreground: var(--site-brand-foreground);
   --secondary: oklch(0.945 0.03 255);
@@ -37,12 +37,12 @@
   --destructive: oklch(0.52 0.18 25);
   --destructive-foreground: oklch(0.99 0.005 250);
 
-  /* —— Borders —— */
-  --border: oklch(0.42 0.12 262 / 0.16);
-  --border-strong: oklch(0.42 0.14 262 / 0.24);
-  --border-brand: oklch(0.52 0.22 262 / 0.38);
-  --input: oklch(0.42 0.12 262 / 0.18);
-  --ring: oklch(0.52 0.22 262 / 0.45);
+  /* —— Borders (Play-like: soft stroke, restrained brand accent) —— */
+  --border: oklch(0.42 0.06 262 / 0.12);
+  --border-strong: oklch(0.42 0.08 262 / 0.18);
+  --border-brand: oklch(0.52 0.22 262 / 0.26);
+  --input: oklch(0.42 0.08 262 / 0.16);
+  --ring: oklch(0.52 0.22 262 / 0.4);
 
   /* Product accents — same values as the apps */
   --site-product-admin: oklch(0.52 0.22 262);
@@ -78,11 +78,14 @@
   --site-space-6: 2rem;
   --site-space-7: 3rem;
   --site-space-8: 4rem;
-  --site-gutter: clamp(1.25rem, 4vw, 2rem);
-  --site-section-y: clamp(4rem, 7vw, 6rem);
+  --site-gutter: clamp(1rem, 4vw, 1.5rem); /* Play container px-4 ≈ 16px base */
+  --site-section-y: clamp(3.5rem, 6.5vw, 5.5rem);
+  --site-section-head-gap: var(--site-space-6);
+  --site-section-head-gap-dense: var(--site-space-5);
   --site-header-h: 4rem;
-  --site-max: 72rem;
+  --site-max: 72rem; /* ~1140–1320 Play container band */
   --site-narrow: 42rem;
+  --site-wide: 76rem;
 
   /* —— Shadows (indigo-tinted) —— */
   --site-shadow-xs: 0 1px 2px oklch(0.42 0.16 262 / 0.08);
@@ -97,13 +100,13 @@
   --shadow-pop: var(--site-shadow-lg);
 
   --ease-emph: cubic-bezier(0.22, 1, 0.36, 1);
-  --site-duration: 180ms;
-  --site-duration-hover: 180ms;
-  --site-duration-enter: 380ms;
-  --site-duration-page: 200ms;
-  --site-duration-crossfade: 200ms;
-  --site-stagger: 55ms;
-  --site-enter-y: 12px;
+  --site-duration: 160ms;
+  --site-duration-hover: 160ms;
+  --site-duration-enter: 320ms;
+  --site-duration-page: 140ms;
+  --site-duration-crossfade: 160ms;
+  --site-stagger: 40ms;
+  --site-enter-y: 10px;
 
   /* Marketing type (extends shared --lx-text-*) */
   --site-text-hero: clamp(2.25rem, 4.5vw, 3.75rem);
@@ -111,6 +114,7 @@
   --site-text-title: clamp(1.125rem, 1.4vw, 1.25rem);
   --site-text-kicker: 0.75rem;
   --site-text-caption: 0.8125rem;
+  --site-kicker-tracking: 0.16em;
 
   /* —— Breakpoints (aligned with Tailwind defaults) —— */
   --site-bp-sm: 40rem;

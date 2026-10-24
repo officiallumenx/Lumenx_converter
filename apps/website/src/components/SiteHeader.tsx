@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import {
-  Button,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -9,6 +8,7 @@ import {
   SheetTrigger,
 } from "@lumenx/ui";
 import { SiteLogo } from "./SiteLogo";
+import { SiteButton } from "./SiteButton";
 import { CTAButton } from "./conversion/CTAButton";
 import { Navbar } from "./navigation/Navbar";
 import { MobileNavbar } from "./navigation/MobileNavbar";
@@ -34,12 +34,12 @@ export function SiteHeader({
           <SiteLogo />
         </Link>
         <Navbar onNavigate={() => onMenuOpenChange(false)} />
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" className="hidden sm:inline-flex">
+        <div className="site-header-actions">
+          <CTAButton asChild variant="ghost" size="md" className="site-header-login">
             <Link to="/login" onClick={() => onMenuOpenChange(false)}>
               Login
             </Link>
-          </Button>
+          </CTAButton>
           <CTAButton asChild size="md">
             <Link
               to="/contact"
@@ -51,16 +51,16 @@ export function SiteHeader({
           </CTAButton>
           <Sheet open={menuOpen} onOpenChange={onMenuOpenChange}>
             <SheetTrigger asChild>
-              <Button
+              <SiteButton
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="icon"
-                className="size-11 lg:hidden"
+                className="site-header-menu-trigger"
                 aria-controls="mobile-nav"
               >
                 <Menu className="size-5" aria-hidden />
                 <span className="sr-only">Open menu</span>
-              </Button>
+              </SiteButton>
             </SheetTrigger>
             <SheetContent side="right" className="flex w-full flex-col sm:max-w-sm">
               <SheetHeader className="text-left">

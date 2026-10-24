@@ -143,7 +143,7 @@ export const PAGE_SEO = {
     path: "/login",
     title: "Login — LumenX",
     description:
-      "Open LumenX web apps when public origins are configured. Institute offices issue login credentials — this site does not publish passwords.",
+      "Open Connect and Transport on Google Play, Admin downloads, and Admissions or Careers as mobile web. Institute offices issue login credentials — this site does not publish passwords.",
   },
   privacy: {
     path: "/privacy",

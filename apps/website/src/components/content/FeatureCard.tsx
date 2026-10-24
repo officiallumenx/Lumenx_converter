@@ -19,10 +19,10 @@ export function FeatureCard({
   className?: string;
 }) {
   return (
-    <SiteCard product={product} quiet className={cn("px-4 py-3", className)}>
+    <SiteCard product={product} quiet className={cn("site-feature-card", className)}>
       {icon ? <AnimatedIcon icon={icon} product={product} className="mb-2" /> : null}
-      <p className="font-medium">{title}</p>
-      {children ? <div className="mt-1 text-sm text-muted-foreground">{children}</div> : null}
+      <p className="site-card-title">{title}</p>
+      {children ? <div className="site-feature-card__body">{children}</div> : null}
     </SiteCard>
   );
 }

@@ -9,6 +9,7 @@ export function HomeFeatures() {
   return (
     <Section
       id="capabilities"
+      align="center"
       eyebrow="Capabilities"
       title="Grouped by the work, not a feature dump."
       lede="A short map of what the ecosystem covers. Each group is a few real capabilities — not a wall of names."

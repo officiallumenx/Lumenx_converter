@@ -12,15 +12,16 @@ import { SiteLogo } from "./SiteLogo";
 import { Container } from "./layout/Container";
 import { CTAButton } from "./conversion/CTAButton";
 
+/** Play-inspired dense footer on navy — LumenX brand tokens only. */
 export function SiteFooter() {
   return (
-    <footer className="border-t bg-[color-mix(in_oklch,var(--card)_88%,var(--site-brand-soft))]">
-      <Container className="grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-6">
+    <footer className="play-footer">
+      <Container className="grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-6">
         <div className="sm:col-span-2 lg:col-span-2">
           <Link to="/" aria-label="LumenX home" className="inline-flex min-h-11 min-w-11 items-center rounded-md">
             <SiteLogo />
           </Link>
-          <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+          <p className="play-footer__lede mt-4 max-w-xs text-sm leading-relaxed">
             {SITE_TAGLINE} for modern educational institutions.
           </p>
           <CTAButton asChild className="mt-6">
@@ -37,8 +38,8 @@ export function SiteFooter() {
           <FooterColumn title="Legal" links={FOOTER_LEGAL} />
         </div>
       </Container>
-      <div className="border-t py-4 text-center text-xs text-muted-foreground">
-        <Container>© {new Date().getFullYear()} LumenX</Container>
+      <div className="play-footer__bar">
+        <Container>© {new Date().getFullYear()} LumenX. All rights reserved.</Container>
       </div>
     </footer>
   );
@@ -53,11 +54,11 @@ function FooterColumn({
 }) {
   return (
     <div>
-      <h2 className="site-kicker">{title}</h2>
+      <h2 className="play-footer__heading">{title}</h2>
       <ul className="mt-3 space-y-1">
         {links.map((link) => (
           <li key={`${link.to}-${link.label}`}>
-            <Link to={link.to} search={link.search} className="site-footer-link">
+            <Link to={link.to} search={link.search} className="play-footer__link">
               {link.label}
             </Link>
           </li>

@@ -1,6 +1,6 @@
 /**
  * LumenX Admissions standalone app origin.
- * Override with VITE_ADMISSIONS_ORIGIN (e.g. https://admissions.lumenx.app).
+ * Override with VITE_ADMISSIONS_ORIGIN (e.g. https://admissions.lumenxtech.in).
  */
 export function getAdmissionsOrigin(): string {
   const fromEnv = import.meta.env.VITE_ADMISSIONS_ORIGIN as string | undefined;
@@ -11,7 +11,7 @@ export function getAdmissionsOrigin(): string {
       return `${protocol}//${hostname}:5177`;
     }
   }
-  return "https://admissions.lumenx.app";
+  return "https://admissions.lumenxtech.in";
 }
 
 export function admissionsPortalUrl(path: string): string {

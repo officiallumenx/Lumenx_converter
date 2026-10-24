@@ -1,6 +1,6 @@
 /**
  * LumenX Careers standalone app origin.
- * Override with VITE_CAREERS_ORIGIN (e.g. https://careers.lumenx.app).
+ * Override with VITE_CAREERS_ORIGIN (e.g. https://careers.lumenxtech.in).
  */
 export function getCareersOrigin(): string {
   const fromEnv = import.meta.env.VITE_CAREERS_ORIGIN as string | undefined;
@@ -11,7 +11,7 @@ export function getCareersOrigin(): string {
       return `${protocol}//${hostname}:5176`;
     }
   }
-  return "https://careers.lumenx.app";
+  return "https://careers.lumenxtech.in";
 }
 
 export function careersPortalUrl(path: string): string {

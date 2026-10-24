@@ -147,11 +147,7 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
     if (!isApiAuthMode()) {
       throw new Error("Careers authentication requires API mode.");
     }
-    const email = identifier.trim().toLowerCase();
-    if (!email.includes("@")) {
-      throw new Error("Sign in with your email address.");
-    }
-    const result = await apiSignInWithPassword(email, password);
+    const result = await apiSignInWithPassword(identifier, password);
     bumpCareersAuthSessionGeneration();
     setUser(result.user);
     return result.user;

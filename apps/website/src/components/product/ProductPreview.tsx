@@ -5,7 +5,37 @@ import type { ProductDevice, ProductPreviewTab } from "@/content/product-pages";
 import { cycleTabKey, useTabFocus } from "@/components/home/tabKeys";
 import { DeviceMockup } from "../visual/DeviceMockup";
 import { BrowserMockup } from "../visual/BrowserMockup";
+import { LaptopMockup } from "../visual/LaptopMockup";
+import { PhoneMockup } from "../visual/PhoneMockup";
 import { PreviewPanel } from "./previews";
+
+function PreviewShot({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="site-preview-shot-fallback" role="img" aria-label={`${alt} preview unavailable`}>
+        <p className="text-sm font-medium text-foreground">Preview unavailable</p>
+        <p className="mt-1 text-xs text-muted-foreground">The screenshot could not be loaded.</p>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="block h-auto w-full object-cover object-top"
+      loading="eager"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export function ProductPreview({
   product,
@@ -20,32 +50,26 @@ export function ProductPreview({
   interactiveChild?: boolean;
   compact?: boolean;
 }) {
-  const [active, setActive] = useState(tabs[0]?.id ?? "");
+  const realTabs = tabs.filter((tab) => Boolean(tab.image));
+  const visibleTabs = realTabs.length > 0 ? realTabs : [];
+  const [active, setActive] = useState(visibleTabs[0]?.id ?? "");
   const [child, setChild] = useState("Aanya");
-  const ids = tabs.map((tab) => tab.id);
+  const ids = visibleTabs.map((tab) => tab.id);
   const { setRef, focus } = useTabFocus<string>();
-  const current = tabs.find((tab) => tab.id === active) ?? tabs[0];
+  const current = visibleTabs.find((tab) => tab.id === active) ?? visibleTabs[0];
   if (!current) return null;
 
-  const body = (
-    <div key={current.id} className="site-crossfade">
-      <PreviewPanel
-        id={current.panel}
-        child={child}
-        onChild={interactiveChild ? setChild : undefined}
-      />
-    </div>
-  );
+  const isDesktop = device === "browser";
 
   return (
-    <div data-product={product}>
+    <div data-product={product} className="site-product-preview">
       <div
-        className="mb-3 flex flex-wrap gap-2"
+        className="site-preview-tabs mb-2"
         role="tablist"
         aria-label="Product preview"
         onKeyDown={(event) => cycleTabKey(event, ids, current.id, setActive, focus)}
       >
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             ref={setRef(tab.id)}
@@ -55,22 +79,37 @@ export function ProductPreview({
             aria-selected={tab.id === current.id}
             aria-controls={`preview-panel-${product}`}
             tabIndex={tab.id === current.id ? 0 : -1}
-            className={cn(
-              "min-h-10 rounded-full px-3 text-sm",
-              tab.id === current.id ? "bg-foreground text-background" : "bg-muted hover:bg-muted/80",
-            )}
+            className={cn("site-preview-tab", tab.id === current.id && "site-preview-tab--active")}
             onClick={() => setActive(tab.id)}
           >
             {tab.label}
           </button>
         ))}
       </div>
-      <div id={`preview-panel-${product}`} role="tabpanel" aria-labelledby={`preview-tab-${product}-${current.id}`}>
-        {device === "browser" ? (
-          <BrowserMockup title="Interactive preview">{body}</BrowserMockup>
+      <div
+        id={`preview-panel-${product}`}
+        role="tabpanel"
+        aria-labelledby={`preview-tab-${product}-${current.id}`}
+        className="site-crossfade"
+        key={current.id}
+      >
+        {current.image ? (
+          isDesktop ? (
+            <LaptopMockup title="Product preview" className="site-laptop--hero">
+              <PreviewShot src={current.image} alt={current.label} />
+            </LaptopMockup>
+          ) : (
+            <PhoneMockup title="Product preview" compact={compact}>
+              <PreviewShot src={current.image} alt={current.label} />
+            </PhoneMockup>
+          )
+        ) : isDesktop ? (
+          <BrowserMockup title="Product preview">
+            <PreviewPanel id={current.panel} child={child} onChild={interactiveChild ? setChild : undefined} />
+          </BrowserMockup>
         ) : (
-          <DeviceMockup device={device} title="Interactive preview" compact={compact}>
-            {body}
+          <DeviceMockup device={device} title="Product preview" compact={compact}>
+            <PreviewPanel id={current.panel} child={child} onChild={interactiveChild ? setChild : undefined} />
           </DeviceMockup>
         )}
       </div>

@@ -17,6 +17,7 @@ export function HomeRoles() {
   return (
     <Section
       id="roles"
+      align="center"
       eyebrow="By role"
       title="The same records. A different door for each person."
       lede="Administrators, teachers, parents, students, and drivers each get the surface that matches the job."

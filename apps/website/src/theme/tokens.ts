@@ -21,6 +21,24 @@ export const SITE_SPACE = {
   8: "var(--site-space-8)",
   gutter: "var(--site-gutter)",
   sectionY: "var(--site-section-y)",
+  sectionHeadGap: "var(--site-section-head-gap)",
+  sectionHeadGapDense: "var(--site-section-head-gap-dense)",
+} as const;
+
+export const SITE_LAYOUT = {
+  max: "var(--site-max)",
+  narrow: "var(--site-narrow)",
+  wide: "var(--site-wide)",
+  headerH: "var(--site-header-h)",
+} as const;
+
+export const SITE_TYPE = {
+  hero: "var(--site-text-hero)",
+  display: "var(--site-text-display)",
+  title: "var(--site-text-title)",
+  kicker: "var(--site-text-kicker)",
+  caption: "var(--site-text-caption)",
+  kickerTracking: "var(--site-kicker-tracking)",
 } as const;
 
 export const SITE_RADIUS = {

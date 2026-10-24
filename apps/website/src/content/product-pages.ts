@@ -60,6 +60,8 @@ export type ProductPreviewTab = {
   id: string;
   label: string;
   panel: PreviewPanelId;
+  /** Real product screenshot — preferred over the illustrative panel. */
+  image?: string;
 };
 
 export type ProductShot = {
@@ -118,7 +120,7 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     doesNotReplace: adminApp.doesNotReplace,
     delivery: "app",
     deliveryNote: "Browser console for the institute office. Android when a public build is published.",
-    device: "tablet",
+    device: "browser",
     android: true,
     demoProduct: "admin",
     capabilities: [
@@ -189,11 +191,48 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       },
     ],
     previewTabs: [
-      { id: "command", label: "Command", panel: "admin-command" },
-      { id: "people", label: "People", panel: "admin-people" },
-      { id: "attendance", label: "Attendance", panel: "admin-attendance" },
-      { id: "fees", label: "Fees", panel: "admin-fees" },
-      { id: "roles", label: "Roles", panel: "admin-roles" },
+      {
+        id: "command",
+        label: "Today",
+        panel: "admin-command",
+        image: "/screenshots/admin/command.png",
+      },
+      {
+        id: "analytics",
+        label: "Analytics",
+        panel: "admin-command",
+        image: "/screenshots/admin/analytics.png",
+      },
+      {
+        id: "classes",
+        label: "Classes",
+        panel: "admin-people",
+        image: "/screenshots/admin/classes.png",
+      },
+      {
+        id: "people",
+        label: "People",
+        panel: "admin-people",
+        image: "/screenshots/admin/people.jpg",
+      },
+      {
+        id: "fees",
+        label: "Fees",
+        panel: "admin-fees",
+        image: "/screenshots/admin/fees.png",
+      },
+      {
+        id: "modules",
+        label: "Modules",
+        panel: "admin-roles",
+        image: "/screenshots/admin/modules.png",
+      },
+      {
+        id: "feedback",
+        label: "Feedback",
+        panel: "admin-docs",
+        image: "/screenshots/admin/feedback.png",
+      },
     ],
     workflows: [
       {
@@ -273,43 +312,50 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     shots: [
       {
         title: "Today",
-        caption: "Home command from LumenX Admin.",
+        caption: "Home command from LumenX Admin (desktop).",
         image: "/screenshots/admin/command.png",
         panel: "admin-command",
-        device: "tablet",
+        device: "browser",
       },
       {
-        title: "Directory",
-        caption: "People directory the rest of the platform reads.",
-        image: "/screenshots/admin/people.png",
+        title: "Analytics",
+        caption: "Live institute totals and durable chart series (desktop).",
+        image: "/screenshots/admin/analytics.png",
+        panel: "admin-command",
+        device: "browser",
+      },
+      {
+        title: "Classes",
+        caption: "Class sections, capacity, and class teachers (desktop).",
+        image: "/screenshots/admin/classes.png",
         panel: "admin-people",
-        device: "tablet",
+        device: "browser",
       },
       {
-        title: "Attendance",
-        caption: "Student and staff attendance for the campus day.",
-        image: "/screenshots/admin/attendance.png",
-        panel: "admin-attendance",
-        device: "tablet",
+        title: "People",
+        caption: "Teachers and staff directory (desktop).",
+        image: "/screenshots/admin/people.jpg",
+        panel: "admin-people",
+        device: "browser",
       },
       {
         title: "Fees",
-        caption: "Structures, publish, and per-student dues.",
+        caption: "Structures, publish, and per-student dues (desktop).",
         image: "/screenshots/admin/fees.png",
         panel: "admin-fees",
-        device: "tablet",
+        device: "browser",
       },
       {
-        title: "Roles",
-        caption: "Office roles with per-module access.",
-        image: "/screenshots/admin/roles.png",
+        title: "Modules",
+        caption: "Enable or disable Admin modules for the institute (desktop).",
+        image: "/screenshots/admin/modules.png",
         panel: "admin-roles",
-        device: "tablet",
+        device: "browser",
       },
       {
-        title: "Certificates",
-        caption: "Templates and issued documents in Admin.",
-        image: "/screenshots/admin/certificates.png",
+        title: "Feedback",
+        caption: "Platform feedback from the institute office (desktop).",
+        image: "/screenshots/admin/feedback.png",
         panel: "admin-docs",
         device: "browser",
       },
@@ -347,11 +393,42 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Notifications", body: "In-app alerts from attendance, fees, transport, and the office." },
     ],
     previewTabs: [
-      { id: "parent", label: "Parent", panel: "connect-home" },
-      { id: "teacher", label: "Teacher", panel: "connect-teacher" },
-      { id: "student", label: "Student", panel: "connect-student" },
-      { id: "homework", label: "Homework", panel: "connect-homework" },
-      { id: "alerts", label: "Notifications", panel: "connect-notify" },
+      {
+        id: "parent",
+        label: "Parent",
+        panel: "connect-home",
+        image: "/screenshots/connect/home.jpg",
+      },
+      {
+        id: "teacher",
+        label: "Teacher",
+        panel: "connect-teacher",
+        image: "/screenshots/connect/teacher-home.jpg",
+      },
+      {
+        id: "attendance",
+        label: "Attendance",
+        panel: "connect-teacher",
+        image: "/screenshots/connect/attendance.jpg",
+      },
+      {
+        id: "homework",
+        label: "Homework",
+        panel: "connect-homework",
+        image: "/screenshots/connect/homework.jpg",
+      },
+      {
+        id: "timetable",
+        label: "Timetable",
+        panel: "connect-student",
+        image: "/screenshots/connect/timetable.jpg",
+      },
+      {
+        id: "alerts",
+        label: "Notifications",
+        panel: "connect-notify",
+        image: "/screenshots/connect/notify.jpg",
+      },
     ],
     workflows: [
       { title: "Issue", body: "The office creates the person in Admin and issues Connect credentials." },
@@ -393,9 +470,76 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "OTP entry", body: "Institute → portal → credentials → OTP. Real login details come from your institute — not from this website." },
     ],
     shots: [
-      { title: "Parent home", caption: "Multi-child home — illustrative.", panel: "connect-home", device: "phone" },
-      { title: "Teacher attendance", caption: "Class mark from Connect.", panel: "connect-teacher", device: "phone" },
-      { title: "Notifications", caption: "In-app alerts, not a public SMS gateway claim.", panel: "connect-notify", device: "phone" },
+      {
+        title: "Parent home",
+        caption: "Multi-child home from LumenX Connect.",
+        image: "/screenshots/connect/home.jpg",
+        panel: "connect-home",
+        device: "phone",
+      },
+      {
+        title: "Timetable",
+        caption: "The child’s day — periods, subjects, and teachers.",
+        image: "/screenshots/connect/timetable.jpg",
+        panel: "connect-student",
+        device: "phone",
+      },
+      {
+        title: "Teacher home",
+        caption: "Subject teacher day — classes, attendance, and homework at a glance.",
+        image: "/screenshots/connect/teacher-home.jpg",
+        panel: "connect-teacher",
+        device: "phone",
+      },
+      {
+        title: "Class attendance",
+        caption: "Teachers mark the class; families see their own record.",
+        image: "/screenshots/connect/attendance.jpg",
+        panel: "connect-teacher",
+        device: "phone",
+      },
+      {
+        title: "Homework",
+        caption: "Published homework by item or class — submissions in one place.",
+        image: "/screenshots/connect/homework.jpg",
+        panel: "connect-homework",
+        device: "phone",
+      },
+      {
+        title: "Exams",
+        caption: "Published exam schedule.",
+        image: "/screenshots/connect/exams.jpg",
+        panel: "connect-homework",
+        device: "phone",
+      },
+      {
+        title: "Marks",
+        caption: "Subject results for the child.",
+        image: "/screenshots/connect/marks.jpg",
+        panel: "connect-homework",
+        device: "phone",
+      },
+      {
+        title: "Teachers",
+        caption: "Teachers linked to the child.",
+        image: "/screenshots/connect/teachers.jpg",
+        panel: "connect-home",
+        device: "phone",
+      },
+      {
+        title: "Transport status",
+        caption: "Trip status families see when Transport is on.",
+        image: "/screenshots/connect/transport.jpg",
+        panel: "connect-home",
+        device: "phone",
+      },
+      {
+        title: "Notifications",
+        caption: "In-app alerts — not a public SMS gateway claim.",
+        image: "/screenshots/connect/notify.jpg",
+        panel: "connect-notify",
+        device: "phone",
+      },
     ],
     getStarted: {
       title: "Give families and teachers their own door.",
@@ -437,11 +581,30 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       },
     ],
     previewTabs: [
-      { id: "trip", label: "Trip", panel: "transport-trip" },
-      { id: "stops", label: "Stops", panel: "transport-stops" },
-      { id: "board", label: "Boarding", panel: "transport-boarding" },
-      { id: "gps", label: "GPS", panel: "transport-gps" },
-      { id: "sos", label: "Emergency", panel: "transport-sos" },
+      {
+        id: "trip",
+        label: "Driver home",
+        panel: "transport-trip",
+        image: "/screenshots/transport/driver-home.jpg",
+      },
+      {
+        id: "board",
+        label: "Boarding",
+        panel: "transport-boarding",
+        image: "/screenshots/transport/boarding.jpg",
+      },
+      {
+        id: "sos",
+        label: "Emergency",
+        panel: "transport-sos",
+        image: "/screenshots/transport/emergency.jpg",
+      },
+      {
+        id: "parent",
+        label: "Parent trip",
+        panel: "transport-trip",
+        image: "/screenshots/transport/parent-trip.jpg",
+      },
     ],
     workflows: [
       { title: "Assign", body: "Admin assigns students to routes, stops, and vehicles." },
@@ -476,9 +639,34 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Emergency that reaches the office", body: "A note, not a claimed SMS or dispatch network." },
     ],
     shots: [
-      { title: "Today’s trip", caption: "Driver home — illustrative.", panel: "transport-trip", device: "phone" },
-      { title: "Boarding", caption: "Counts the office can read.", panel: "transport-boarding", device: "phone" },
-      { title: "Emergency", caption: "SOS note — not SMS or a phone call.", panel: "transport-sos", device: "phone" },
+      {
+        title: "Parent trip status",
+        caption: "Families follow trip status in Connect when Transport is on.",
+        image: "/screenshots/transport/parent-trip.jpg",
+        panel: "transport-trip",
+        device: "phone",
+      },
+      {
+        title: "Today’s trip",
+        caption: "Driver home — start the shift when you are at the first stop.",
+        image: "/screenshots/transport/driver-home.jpg",
+        panel: "transport-trip",
+        device: "phone",
+      },
+      {
+        title: "Boarding",
+        caption: "Pickup attendance — tap boarded, hold not boarded.",
+        image: "/screenshots/transport/boarding.jpg",
+        panel: "transport-boarding",
+        device: "phone",
+      },
+      {
+        title: "Emergency",
+        caption: "SOS note to school Admin with bus and location — not SMS.",
+        image: "/screenshots/transport/emergency.jpg",
+        panel: "transport-sos",
+        device: "phone",
+      },
     ],
     getStarted: {
       title: "Give drivers their own app.",
@@ -513,10 +701,18 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Conversion", body: "Admin converts accepted intake to a student record. The family then uses Connect." },
     ],
     previewTabs: [
-      { id: "discover", label: "Discover", panel: "admissions-discover" },
-      { id: "apply", label: "Apply", panel: "admissions-apply" },
-      { id: "pipeline", label: "Pipeline", panel: "admissions-pipeline" },
-      { id: "waitlist", label: "Waitlist", panel: "admissions-waitlist" },
+      {
+        id: "signin",
+        label: "Sign in",
+        panel: "admissions-discover",
+        image: "/screenshots/admissions/signin.jpg",
+      },
+      {
+        id: "institute",
+        label: "Institute",
+        panel: "admissions-apply",
+        image: "/screenshots/admissions/institute-access.jpg",
+      },
     ],
     workflows: [
       { title: "Apply", body: "The applicant finds the institute and program, then submits through the Admissions portal." },
@@ -546,9 +742,20 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Honest interviews", body: "Outcomes on the file. No invented interview scheduler on this site." },
     ],
     shots: [
-      { title: "Discovery", caption: "Institutes and programs — illustrative.", panel: "admissions-discover", device: "tablet" },
-      { title: "Pipeline", caption: "Office review of applications.", panel: "admissions-pipeline", device: "browser" },
-      { title: "Waitlist", caption: "A stage on the same file.", panel: "admissions-waitlist", device: "tablet" },
+      {
+        title: "Sign in",
+        caption: "Parent / applicant or institute — one Admissions portal.",
+        image: "/screenshots/admissions/signin.jpg",
+        panel: "admissions-discover",
+        device: "phone",
+      },
+      {
+        title: "Institute access",
+        caption: "Admin handoff, institute login, or standalone signup.",
+        image: "/screenshots/admissions/institute-access.jpg",
+        panel: "admissions-apply",
+        device: "phone",
+      },
     ],
     getStarted: {
       title: "Take applications into the same institute record.",
@@ -579,10 +786,24 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Hiring", body: "Admin converts an approved hire to a teacher record the rest of the platform can use." },
     ],
     previewTabs: [
-      { id: "jobs", label: "Jobs", panel: "careers-jobs" },
-      { id: "apply", label: "Apply", panel: "careers-apply" },
-      { id: "recruiter", label: "Recruiter", panel: "careers-recruiter" },
-      { id: "interview", label: "Interviews", panel: "careers-interview" },
+      {
+        id: "jobs",
+        label: "Home",
+        panel: "careers-jobs",
+        image: "/screenshots/careers/home.jpg",
+      },
+      {
+        id: "signin",
+        label: "Sign in",
+        panel: "careers-apply",
+        image: "/screenshots/careers/signin.jpg",
+      },
+      {
+        id: "account",
+        label: "Account type",
+        panel: "careers-recruiter",
+        image: "/screenshots/careers/account-type.jpg",
+      },
     ],
     workflows: [
       { title: "Post", body: "The recruiter publishes a job from the Careers portal." },
@@ -617,9 +838,27 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Hire becomes a teacher", body: "Conversion writes the directory Connect teachers will use." },
     ],
     shots: [
-      { title: "Jobs", caption: "Openings — illustrative.", panel: "careers-jobs", device: "tablet" },
-      { title: "Recruiter", caption: "Applications in the Careers workspace.", panel: "careers-recruiter", device: "browser" },
-      { title: "Interviews", caption: "Detail on the application, not a campus calendar claim.", panel: "careers-interview", device: "phone" },
+      {
+        title: "Find roles",
+        caption: "Careers home — search jobs and create an account.",
+        image: "/screenshots/careers/home.jpg",
+        panel: "careers-jobs",
+        device: "phone",
+      },
+      {
+        title: "Sign in",
+        caption: "Mobile number and password — email is for recovery only.",
+        image: "/screenshots/careers/signin.jpg",
+        panel: "careers-apply",
+        device: "phone",
+      },
+      {
+        title: "Account type",
+        caption: "Job seeker or recruiter — institute staff can continue from Admin.",
+        image: "/screenshots/careers/account-type.jpg",
+        panel: "careers-recruiter",
+        device: "phone",
+      },
     ],
     getStarted: {
       title: "Hire into the same institute directory.",
@@ -675,12 +914,8 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
         body: "Analytics across institutes for operators and groups — not class attendance for a single school.",
       },
     ],
-    previewTabs: [
-      { id: "support", label: "Support", panel: "nexus-support" },
-      { id: "institutes", label: "Institutes", panel: "nexus-institutes" },
-      { id: "license", label: "Licensing", panel: "nexus-sub" },
-      { id: "modules", label: "Modules", panel: "nexus-modules" },
-    ],
+    // No product screenshots yet — hero preview and Look gallery stay hidden.
+    previewTabs: [],
     workflows: [
       {
         title: "Onboard",
@@ -751,26 +986,7 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
         body: "Per student, with a campus starting price. Choose monthly, 6 months, or yearly. Modules turn on when the institute needs them.",
       },
     ],
-    shots: [
-      {
-        title: "Support",
-        caption: "Platform support and feedback — illustrative.",
-        panel: "nexus-support",
-        device: "browser",
-      },
-      {
-        title: "Institutes",
-        caption: "Service directory across campuses.",
-        panel: "nexus-institutes",
-        device: "browser",
-      },
-      {
-        title: "Licensing",
-        caption: "Rate and tenure, not plan cards.",
-        panel: "nexus-sub",
-        device: "browser",
-      },
-    ],
+    shots: [],
     getStarted: {
       title: "Put service quality on the same platform as licensing.",
       body: "Groups and operators use Nexus for entitlements, support, and feedback. A single campus lives in Admin. Talk to us after verification.",

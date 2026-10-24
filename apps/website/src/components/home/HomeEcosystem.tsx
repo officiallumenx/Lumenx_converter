@@ -13,6 +13,7 @@ export function HomeEcosystem() {
   return (
     <Section
       id="ecosystem"
+      align="center"
       eyebrow="Connected platform"
       title="One LumenX. Five surfaces that share one institute record."
       lede="Admin writes the source of truth. Connect is how families and staff use it. Transport, Admissions, and Careers turn on when the campus needs them — still part of the same platform."

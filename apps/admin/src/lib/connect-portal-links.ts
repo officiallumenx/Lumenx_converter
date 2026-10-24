@@ -45,7 +45,7 @@ export function getCareersOrigin(): string {
       return `${protocol}//${hostname}:5176`;
     }
   }
-  return "https://careers.lumenx.app";
+  return "https://careers.lumenxtech.in";
 }
 
 export function careersPortalUrl(path: string): string {
@@ -62,7 +62,7 @@ export function getAdmissionsOrigin(): string {
       return `${protocol}//${hostname}:5177`;
     }
   }
-  return "https://admissions.lumenx.app";
+  return "https://admissions.lumenxtech.in";
 }
 
 export function admissionsPortalUrl(path: string): string {

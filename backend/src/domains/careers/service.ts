@@ -3,6 +3,7 @@ import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
   actorHasInstituteRole,
+  parseInstituteId,
   requireInstituteId,
 } from "../../authorization/index.js";
 import {
@@ -277,33 +278,35 @@ function isMember(actor: Actor, instituteId: string): boolean {
 }
 
 function canReadJob(actor: Actor, row: CareerJobRow): boolean {
-  if (!isMember(actor, row.institute_id)) return false;
+  // Open roles are public to any authenticated Careers user (job-seeker market).
+  if (row.status === "open") return true;
   if (isStaffReader(actor, row.institute_id)) return true;
-  return row.status === "open" || row.status === "closed";
+  if (!isMember(actor, row.institute_id)) return false;
+  return row.status === "closed";
 }
 
 function canReadApplication(
   actor: Actor,
   row: CareerApplicationRow,
 ): boolean {
+  if (row.applicant_user_id === actor.userId) return true;
   if (!isMember(actor, row.institute_id)) return false;
-  if (isStaffReader(actor, row.institute_id)) return true;
-  return row.applicant_user_id === actor.userId;
+  return isStaffReader(actor, row.institute_id);
 }
 
 function canReadInquiry(actor: Actor, row: CareerInquiryRow): boolean {
+  if (row.requested_by_user_id === actor.userId) return true;
   if (!isMember(actor, row.institute_id)) return false;
-  if (isStaffReader(actor, row.institute_id)) return true;
-  return row.requested_by_user_id === actor.userId;
+  return isStaffReader(actor, row.institute_id);
 }
 
 function canReadCandidateProfile(
   actor: Actor,
   row: CandidateProfileRow,
 ): boolean {
+  if (row.user_profile_id === actor.userId) return true;
   if (!isMember(actor, row.institute_id)) return false;
-  if (isStaffReader(actor, row.institute_id)) return true;
-  return row.user_profile_id === actor.userId;
+  return isStaffReader(actor, row.institute_id);
 }
 
 function canReadTalentPool(actor: Actor, row: TalentPoolEntryRow): boolean {
@@ -312,7 +315,6 @@ function canReadTalentPool(actor: Actor, row: TalentPoolEntryRow): boolean {
 }
 
 function canReadSavedItem(actor: Actor, row: UserSavedItemRow): boolean {
-  if (!isMember(actor, row.institute_id)) return false;
   return row.user_profile_id === actor.userId;
 }
 
@@ -331,7 +333,7 @@ export async function listJobsForActor(
   actor: Actor,
   instituteIdRaw: string,
 ): Promise<CareerJobDto[]> {
-  const instituteId = requireInstituteId(actor, instituteIdRaw);
+  const instituteId = parseInstituteId(instituteIdRaw);
   const rows = await listJobs(admin, instituteId);
   return rows.filter((r) => canReadJob(actor, r)).map(toJobDto);
 }
@@ -438,10 +440,7 @@ export async function getMyCandidateProfileForActor(
   actor: Actor,
   instituteIdRaw: string,
 ): Promise<CandidateProfileDto | null> {
-  const instituteId = requireInstituteId(actor, instituteIdRaw);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(instituteIdRaw);
   const row = await findCandidateProfile(admin, instituteId, actor.userId);
   if (!row) return null;
   return toCandidateProfileDto(row);
@@ -464,10 +463,7 @@ export async function upsertCandidateProfileForActor(
   actor: Actor,
   input: UpsertCandidateProfileInput,
 ): Promise<CandidateProfileDto> {
-  const instituteId = requireInstituteId(actor, input.instituteId);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(input.instituteId);
   const displayName = input.displayName.trim();
   if (!displayName) {
     throw AppError.validation("Referenced resource is invalid", {
@@ -510,7 +506,7 @@ export async function listApplicationsForActor(
   actor: Actor,
   instituteIdRaw: string,
 ): Promise<CareerApplicationDto[]> {
-  const instituteId = requireInstituteId(actor, instituteIdRaw);
+  const instituteId = parseInstituteId(instituteIdRaw);
   const rows = await listApplications(admin, instituteId);
   return rows
     .filter((r) => canReadApplication(actor, r))
@@ -534,10 +530,7 @@ export async function createApplicationForActor(
   actor: Actor,
   input: CreateApplicationInput,
 ): Promise<CareerApplicationDto> {
-  const instituteId = requireInstituteId(actor, input.instituteId);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(input.instituteId);
 
   const job = await findJobById(admin, input.jobId);
   if (!job || job.institute_id !== instituteId || !canReadJob(actor, job)) {
@@ -705,7 +698,7 @@ export async function listInquiriesForActor(
   actor: Actor,
   instituteIdRaw: string,
 ): Promise<CareerInquiryDto[]> {
-  const instituteId = requireInstituteId(actor, instituteIdRaw);
+  const instituteId = parseInstituteId(instituteIdRaw);
   const rows = await listInquiries(admin, instituteId);
   return rows.filter((r) => canReadInquiry(actor, r)).map(toInquiryDto);
 }
@@ -715,10 +708,7 @@ export async function createInquiryForActor(
   actor: Actor,
   input: CreateInquiryInput,
 ): Promise<CareerInquiryDto> {
-  const instituteId = requireInstituteId(actor, input.instituteId);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(input.instituteId);
   const subject = input.subject.trim();
   const body = input.body.trim();
   const contactName = input.contactName.trim();
@@ -838,10 +828,7 @@ export async function listSavedItemsForActor(
   actor: Actor,
   instituteIdRaw: string,
 ): Promise<UserSavedItemDto[]> {
-  const instituteId = requireInstituteId(actor, instituteIdRaw);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(instituteIdRaw);
   const rows = await listSavedItems(admin, instituteId, actor.userId);
   return rows.filter((r) => canReadSavedItem(actor, r)).map(toSavedItemDto);
 }
@@ -851,10 +838,7 @@ export async function createSavedItemForActor(
   actor: Actor,
   input: CreateSavedItemInput,
 ): Promise<UserSavedItemDto> {
-  const instituteId = requireInstituteId(actor, input.instituteId);
-  if (!isMember(actor, instituteId)) {
-    throw AppError.forbidden("Insufficient careers access");
-  }
+  const instituteId = parseInstituteId(input.instituteId);
   if (input.itemKind !== "career_job") {
     throw AppError.validation("Referenced resource is invalid", {
       item_kind: ["Unsupported item kind"],

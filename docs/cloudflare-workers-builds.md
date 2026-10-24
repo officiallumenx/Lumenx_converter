@@ -1,6 +1,6 @@
 # Cloudflare Workers Builds (LumenX apps)
 
-Shared deploy model for `lumenx-admin`, `lumenx-nexus`, `lumenx-connect`, `lumenx-transport`, and `lumenx-website`.
+Shared deploy model for `lumenx-admin`, `lumenx-nexus`, `lumenx-connect`, `lumenx-transport`, `lumenx-careers`, `lumenx-admissions`, and `lumenx-website`.
 
 ## Root cause (fixed in repo)
 
@@ -31,7 +31,7 @@ All five Workers Builds (`lumenx-admin`, `lumenx-connect`, `lumenx-nexus`, `lume
 
 | Setting | Value |
 |---------|--------|
-| Root directory | `apps/<name>` (`admin`, `nexus`, `connect`, `transport`, `website`) |
+| Root directory | `apps/<name>` (`admin`, `nexus`, `connect`, `transport`, `careers`, `admissions`, `website`) |
 | Install command | Monorepo-capable install (npm workspaces must resolve `@lumenx/*`) |
 | Build command | `npm run build` |
 | Deploy / Preview (incl. non-production) | Default `npx wrangler versions upload` works after this fix. Prefer `npm run cf:upload` when customizing. |
@@ -42,6 +42,8 @@ All five Workers Builds (`lumenx-admin`, `lumenx-connect`, `lumenx-nexus`, `lume
 | `apps/nexus` | `lumenx-nexus` |
 | `apps/connect` | `lumenx-connect` |
 | `apps/transport` | `lumenx-transport` |
+| `apps/careers` | `lumenx-careers` |
+| `apps/admissions` | `lumenx-admissions` |
 | `apps/website` | `lumenx-website` |
 
 ### Admin heap

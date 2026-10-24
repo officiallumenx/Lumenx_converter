@@ -159,11 +159,9 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
       if (!isApiAuthMode()) {
         throw new Error("Admissions authentication requires API mode.");
       }
-      const email = identifier.trim().toLowerCase();
-      if (!email.includes("@")) {
-        throw new Error("Sign in with your email address.");
-      }
-      const result = await apiSignInWithPassword(email, password);
+      const result = await apiSignInWithPassword(identifier, password, {
+        accountType: expectedAccountType,
+      });
       if (expectedAccountType && result.user.accountType !== expectedAccountType) {
         await apiSignOut();
         throw new Error(`This account is not registered as ${expectedAccountType.replace("_", " ")}.`);

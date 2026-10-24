@@ -4,6 +4,8 @@ import { PRODUCT_FAMILY } from "@/theme/products";
 import { ScreenshotFrame } from "../visual/ScreenshotFrame";
 import { DeviceMockup, type DeviceKind } from "../visual/DeviceMockup";
 import { BrowserMockup } from "../visual/BrowserMockup";
+import { LaptopMockup } from "../visual/LaptopMockup";
+import { PhoneMockup } from "../visual/PhoneMockup";
 
 export function ProductScreenshot({
   product,
@@ -22,29 +24,39 @@ export function ProductScreenshot({
   children?: ReactNode;
 }) {
   const label = title ?? (product ? PRODUCT_FAMILY[product].name : "Preview");
-  const content = image ? (
-    <img
-      src={image}
-      alt={label}
-      className="block h-auto w-full object-cover object-top"
-      loading="lazy"
-      decoding="async"
-      onError={(event) => {
-        const target = event.currentTarget;
-        target.style.display = "none";
-        const fallback = target.nextElementSibling;
-        if (fallback instanceof HTMLElement) fallback.hidden = false;
-      }}
-    />
-  ) : null;
+  const isDesktop = device === "browser";
 
-  const frameBody = (
-    <>
-      {content}
-      <div hidden={Boolean(image)}>{children}</div>
-    </>
-  );
+  if (image) {
+    return (
+      <div data-product={product} className="site-crossfade">
+        <ScreenshotFrame caption={caption}>
+          {isDesktop ? (
+            <LaptopMockup title={label}>
+              <img
+                src={image}
+                alt={label}
+                className="block h-auto w-full object-cover object-top"
+                loading="lazy"
+                decoding="async"
+              />
+            </LaptopMockup>
+          ) : (
+            <PhoneMockup title={label}>
+              <img
+                src={image}
+                alt={label}
+                className="block h-auto w-full object-cover object-top"
+                loading="lazy"
+                decoding="async"
+              />
+            </PhoneMockup>
+          )}
+        </ScreenshotFrame>
+      </div>
+    );
+  }
 
+  const frameBody = <div>{children}</div>;
   const frame =
     device === "browser" ? (
       <BrowserMockup title={label}>{frameBody}</BrowserMockup>
@@ -53,6 +65,7 @@ export function ProductScreenshot({
         {frameBody}
       </DeviceMockup>
     );
+
   return (
     <div data-product={product} className="site-crossfade">
       <ScreenshotFrame caption={caption}>{frame}</ScreenshotFrame>

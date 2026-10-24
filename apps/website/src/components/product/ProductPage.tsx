@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import type { ProductPageContent } from "@/content/product-pages";
 import { relatedProductPages } from "@/content/product-pages";
 import { contactSearch } from "@/lib/search";
-import { isDemoExploreId } from "@/content/demos";
 import { PRODUCT_FAMILY_LIST } from "@/theme/products";
 import { SiteShell } from "../SiteShell";
 import { Container } from "../layout/Container";
@@ -20,7 +19,6 @@ import { ProductRoles } from "./ProductRoles";
 import { ProductConnections } from "./ProductConnections";
 import { ProductSurfaceGallery } from "./ProductSurfaceGallery";
 import { CTAButton } from "../conversion/CTAButton";
-import { DemoCTA } from "../conversion/DemoCTA";
 import { DownloadProduct } from "../conversion/DownloadProduct";
 
 function deliveryEyebrow(content: ProductPageContent) {
@@ -44,6 +42,8 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         label: p.shortName,
       }))
     : [];
+  const previewTabs = content.previewTabs.filter((tab) => Boolean(tab.image));
+  const surfaceShots = content.shots.filter((shot) => Boolean(shot.image));
 
   return (
     <SiteShell>
@@ -70,31 +70,34 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
                 Book a Demo
               </Link>
             </CTAButton>
-            {isDemoExploreId(content.id) ? (
-              <DemoCTA product={content.id} variant="secondary">
-                Book a Demo
-              </DemoCTA>
-            ) : null}
+            <CTAButton asChild variant="secondary">
+              <Link to="/resources/downloads" search={{ product: content.id }}>
+                Downloads
+              </Link>
+            </CTAButton>
           </>
         }
         visual={
-          <ProductPreview
-            product={content.id}
-            tabs={content.previewTabs.slice(0, 3)}
-            device={content.device === "browser" ? "tablet" : content.device}
-            interactiveChild={content.id === "connect"}
-            compact
-          />
+          previewTabs.length > 0 ? (
+            <ProductPreview
+              product={content.id}
+              tabs={previewTabs.slice(0, 3)}
+              device={content.device}
+              interactiveChild={content.id === "connect"}
+              compact={content.device !== "browser"}
+            />
+          ) : undefined
         }
       />
 
       <Section
         id="purpose"
+        className="site-section--flush"
         eyebrow="Purpose"
         title={`What ${content.shortName} is for.`}
         lede={content.purpose}
       >
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <p className="site-purpose-note max-w-2xl text-[0.9375rem] leading-relaxed text-muted-foreground">
           Replaces {content.replaces.toLowerCase()}. Does not replace {content.doesNotReplace.toLowerCase()}.
         </p>
       </Section>
@@ -106,11 +109,11 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         lede="Only surfaces that exist in the product — not a catalogue of hoped-for modules."
         tone="muted"
       >
-        <Grid columns={3} stagger>
+        <Grid columns={3} stagger className="site-capability-grid">
           {content.capabilities.map((item) => (
-            <FeatureCard key={item.title} product={content.id} title={item.title}>
+            <FeatureCard key={item.title} product={content.id} title={item.title} className="site-capability-card">
               {item.points?.length ? (
-                <ul className="mt-1 list-disc space-y-1 pl-4">
+                <ul className="site-capability-list">
                   {item.points.map((point) => (
                     <li key={point}>{point}</li>
                   ))}
@@ -123,19 +126,21 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         </Grid>
       </Section>
 
-      <Section
-        id="preview"
-        eyebrow="Preview"
-        title="Use it without an account."
-        lede="Sample screens for exploration. Not live institute data, and not a real account login."
-      >
-        <ProductPreview
-          product={content.id}
-          tabs={content.previewTabs}
-          device={content.device}
-          interactiveChild={content.id === "connect"}
-        />
-      </Section>
+      {previewTabs.length > 0 ? (
+        <Section
+          id="preview"
+          eyebrow="Preview"
+          title="Real product screens."
+          lede="Captured from the live apps — not illustrative mocks."
+        >
+          <ProductPreview
+            product={content.id}
+            tabs={previewTabs}
+            device={content.device}
+            interactiveChild={content.id === "connect"}
+          />
+        </Section>
+      ) : null}
 
       <Section
         id="workflows"
@@ -181,23 +186,25 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         </Section>
       ) : null}
 
-      <Section
-        id="screens"
-        eyebrow="Look"
-        title="More of the surface."
-        lede={
-          content.id === "admin"
-            ? "One screen at a time — use the arrows to move through Admin surfaces."
-            : "One screen at a time — use the arrows to browse the surface."
-        }
-        tone="muted"
-      >
-        <ProductSurfaceGallery
-          product={content.id}
-          shots={content.shots}
-          defaultDevice={content.device}
-        />
-      </Section>
+      {surfaceShots.length > 0 ? (
+        <Section
+          id="screens"
+          eyebrow="Look"
+          title="More of the surface."
+          lede={
+            content.id === "admin"
+              ? "One screen at a time — use the arrows to move through Admin surfaces."
+              : "One screen at a time — use the arrows to browse the surface."
+          }
+          tone="muted"
+        >
+          <ProductSurfaceGallery
+            product={content.id}
+            shots={surfaceShots}
+            defaultDevice={content.device}
+          />
+        </Section>
+      ) : null}
 
       {content.id !== "nexus" ? (
         <Section

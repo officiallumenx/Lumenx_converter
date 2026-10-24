@@ -8,18 +8,17 @@ export function HomeFaq() {
   return (
     <Section
       id="faq"
+      align="center"
       eyebrow="Questions"
       title="Common questions from institutes."
       lede="Clear answers about products, pricing, trial, and getting started. Still unsure? Contact us."
       tone="muted"
     >
-      <FAQList items={HOME_FAQ} defaultOpenFirst />
-      <p className="mt-8 text-sm text-muted-foreground">
+      <div className="mx-auto max-w-3xl text-left">
+        <FAQList items={HOME_FAQ} defaultOpenFirst />
+      </div>
+      <p className="mt-8 text-center text-sm text-muted-foreground">
         Still have a question?{" "}
-        <a href="#leave-a-message" className="font-medium text-foreground underline-offset-4 hover:underline">
-          Leave a message
-        </a>
-        {" · "}
         <Link to="/contact" search={contactSearch("question")} className="font-medium text-foreground underline-offset-4 hover:underline">
           Contact us
         </Link>

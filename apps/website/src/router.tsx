@@ -11,10 +11,10 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreload: "intent",
-    defaultPreloadDelay: 40,
-    defaultPreloadStaleTime: 30_000,
-    defaultPendingMinMs: 240,
-    defaultPendingMs: 500,
+    defaultPreloadDelay: 20,
+    defaultPreloadStaleTime: 60_000,
+    defaultPendingMinMs: 0,
+    defaultPendingMs: 120,
     defaultPendingComponent: SitePending,
   });
 
