@@ -20,7 +20,7 @@ function ProfileSettingsPage() {
         eyebrow="Settings"
         title={M.profileSettings}
         subtitle="Your profile, appearance, lock, and device preferences"
-      />
+       helpKey="profile-settings" />
       <PersonalSettingsWorkspace />
     </AppShell>
   );

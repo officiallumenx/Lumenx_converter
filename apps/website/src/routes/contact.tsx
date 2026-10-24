@@ -4,6 +4,7 @@ import { Input, Label, Textarea } from "@lumenx/ui";
 import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
 import { CTAButton } from "@/components/conversion/CTAButton";
+import { HoneypotField } from "@/components/conversion/HoneypotField";
 import { LeaveMessageForm } from "@/components/conversion/LeaveMessageForm";
 import { submitWebsiteLead, type WebsiteLeadIntent } from "@/lib/leads";
 import { contactSearch, parseContactSearch } from "@/lib/search";
@@ -49,7 +50,7 @@ export const Route = createFileRoute("/contact")({
 
 function ContactPage() {
   const search = Route.useSearch();
-  const intent = search.intent;
+  const intent = search.intent ?? "question";
   const copy = INTENT_COPY[intent];
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -84,15 +85,11 @@ function ContactPage() {
       studentCount: String(form.get("studentCount") ?? "").trim(),
       message: String(form.get("message") ?? "").trim(),
       intent,
+      companyWebsite: String(form.get("company_website") ?? "").trim(),
     });
     if (result.ok) {
       setStatus("ok");
       setFeedback("Thank you. We’ll reach you at the email you provided.");
-    } else if (result.mode === "needs-activation") {
-      setStatus("error");
-      setFeedback(
-        `Almost ready: open ${result.inbox ?? "lumenxtech.official@gmail.com"} (check Spam) for an email from FormSubmit titled “Activate Form”, click the link once, then press Send again. ${result.message}`,
-      );
     } else {
       setStatus("error");
       setFeedback(result.message);
@@ -129,6 +126,7 @@ function ContactPage() {
           </p>
         ) : (
           <form className="space-y-4" onSubmit={onSubmit} noValidate autoComplete="on">
+            <HoneypotField />
             <Field id="name" label="Your name" autoComplete="name" required />
             <Field id="institute" label="Institute name" autoComplete="organization" required />
             <Field id="role" label="Your role" placeholder="Principal, trustee, …" />
@@ -151,7 +149,7 @@ function ContactPage() {
             />
             <div>
               <Label htmlFor="message">Message</Label>
-              <Textarea id="message" name="message" className="site-textarea mt-1.5" defaultValue={defaultMessage} />
+              <Textarea id="message" name="message" className="mt-1.5 min-h-28" defaultValue={defaultMessage} />
             </div>
             {error ? (
               <p id="contact-error" className="text-sm text-destructive" role="alert">
@@ -223,7 +221,7 @@ function Field({
         placeholder={placeholder}
         inputMode={inputMode}
         defaultValue={defaultValue}
-        className="site-input mt-1.5"
+        className="mt-1.5 min-h-11"
       />
     </div>
   );

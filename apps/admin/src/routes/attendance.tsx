@@ -68,7 +68,7 @@ function AttendancePage() {
           eyebrow="Academics"
           title={VIEW_TITLES[view]}
           subtitle={`Read-only · ${VIEW_SUBTITLES[view]}`}
-        />
+         helpKey="attendance" />
         <AttendanceHubNav active={view} />
         <AttendanceHubApiView view={view} />
       </AppShell>
@@ -81,7 +81,7 @@ function AttendancePage() {
         eyebrow="Academics"
         title={VIEW_TITLES[view]}
         subtitle={VIEW_SUBTITLES[view]}
-      />
+       helpKey="attendance" />
       <AttendanceHubNav active={view} />
       <Suspense fallback={<RouteChunkFallback label="Loading view…" />}>
         {view === "monitor" ? <AttendanceMonitorView /> : null}

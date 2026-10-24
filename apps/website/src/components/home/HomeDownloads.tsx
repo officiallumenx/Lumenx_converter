@@ -10,8 +10,8 @@ export function HomeDownloads() {
     <Section
       id="downloads"
       eyebrow="Downloads"
-      title="Open the apps that exist. Do not wait on a fake store listing."
-      lede="Android and iOS listings are not published from this site. Admissions and Careers are Connect portals — they do not have a separate download."
+      title="Get the apps your campus needs."
+      lede="Admin and Nexus: web, Android, and Windows. Connect and Transport: Android only. Admissions and Careers: web plus Android. File downloads stay off until a verified public APK or installer URL is published."
       tone="muted"
     >
       <Grid columns={2} stagger>

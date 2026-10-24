@@ -23,10 +23,10 @@ import {
 } from "@lumenx/module-certificates";
 import { Award, Eye } from "lucide-react";
 import { useDemoProfile } from "@/lib/demo-profile-context";
+import { WorkflowStepBar } from "@/components/docs-certs/WorkflowStepBar";
 import { CertificateHistoryPanel } from "@/components/templates/CertificateHistoryPanel";
 import { CertificateNumberingConfig } from "@/components/templates/CertificateNumberingConfig";
 import { CertificateRecommendationsPanel } from "@/components/templates/CertificateRecommendationsPanel";
-import { CertificatesIdCardPanel } from "@/components/templates/CertificatesIdCardPanel";
 import { CertificateStudentPopulatePanel } from "@/components/templates/views/CertificateStudentPopulatePanel";
 import { categoryLabel } from "@/lib/template-management/categories";
 import type { IssuedCertificateHistoryItem } from "@/lib/certificates";
@@ -34,12 +34,7 @@ import type { TemplateRecord, TemplateStatus } from "@/lib/template-management/t
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { listPublishedPlatformCertificateTemplates } from "@/lib/certificates/platform-templates-api";
 
-type CertificateSection =
-  | "overview"
-  | "templates"
-  | "issue"
-  | "issued"
-  | "verify";
+type CertificateSection = "templates" | "published";
 
 type PublishedCertificateCatalogViewProps = {
   /** Which hub section to show (defaults to full overview stack). */
@@ -114,7 +109,7 @@ function PublishedTemplatePreview({
 }
 
 export function PublishedCertificateCatalogView({
-  section = "overview",
+  section = "templates",
   catalogTemplates,
   catalogBlocked = false,
   catalogHint = null,
@@ -230,38 +225,23 @@ export function PublishedCertificateCatalogView({
       ? categoryNameById.get(selected.categoryId) ?? selected.categoryId
       : "";
 
-  const showTemplates = section === "overview" || section === "templates";
-  const showIssue = section === "overview" || section === "issue";
-  const showIssued = section === "overview" || section === "issued";
-  const showVerify = section === "verify";
-  const showIdCards = section === "overview";
-  const showRecommendations = section === "overview" || section === "issue";
-
-  if (showVerify) {
-    return <PageStack>{verifyPanel}</PageStack>;
-  }
+  const showTemplates = section === "templates";
+  const showIssue = section === "templates";
+  const showIssued = section === "published";
+  const showVerify = section === "published";
+  const showRecommendations = section === "templates";
 
   if (catalogBlocked && showTemplates) {
     return (
       <PageStack>
         <Card>
-          <CardHeader title="Published templates" hint="Certificate template library" />
+          <CardHeader title="Certificate templates" hint="Certificate template library" />
           <CardBody>
             <div className="py-8 text-center text-sm text-muted-foreground">
               {catalogHint ?? "Loading certificate templates…"}
             </div>
           </CardBody>
         </Card>
-        {showIssued ? (
-          <CertificateHistoryPanel
-            records={issuedRecords}
-            listBlocked={issuedListBlocked}
-            listHint={issuedListHint}
-            writesEnabled={writesEnabled}
-            onRevokeCertificate={onRevokeCertificate}
-          />
-        ) : null}
-        {showIdCards ? <CertificatesIdCardPanel apiMode={apiCatalogMode} /> : null}
       </PageStack>
     );
   }
@@ -272,10 +252,22 @@ export function PublishedCertificateCatalogView({
         <>
           <Card>
             <CardHeader
-              title="Published templates"
+              title="Generate certificates"
+              hint="Template → students → preview → publish (issue). Shared Documents preview workspace is not used here because PPTX issue/revoke/supersede stay on the certificate ledger."
+            />
+            <CardBody>
+              <WorkflowStepBar
+                steps={["Template", "Students", "Preview", "Publish"]}
+                current={nexusSelected || selected ? 2 : 1}
+              />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader
+              title="Certificate templates"
               hint={
                 apiCatalogMode
-                  ? "Active certificate templates from the institute library"
+                  ? "Select a template, then choose students below to generate and publish"
                   : "Nexus publishes these versions · Admin cannot edit templates or mappings"
               }
             />
@@ -480,10 +472,10 @@ export function PublishedCertificateCatalogView({
 
           {apiCatalogMode && !nexusSelected ? (
             <Card>
-              <CardHeader title="Generate & issue" />
+              <CardHeader title="Generate certificates" />
               <CardBody className="text-sm text-muted-foreground">
-                Select a certificate template under Templates, then return here to issue.
-                Official Transfer Certificates are created under Documents → Official docs.
+                Select a certificate template above to populate students and publish.
+                Official Transfer Certificates are created under Documents → Templates.
               </CardBody>
             </Card>
           ) : null}
@@ -497,10 +489,14 @@ export function PublishedCertificateCatalogView({
           listHint={issuedListHint}
           writesEnabled={writesEnabled}
           onRevokeCertificate={onRevokeCertificate}
+          templateOptions={
+            catalogTemplates?.map((t) => ({ id: t.id, name: t.name })) ??
+            templates.map((t) => ({ id: t.id, name: t.name }))
+          }
         />
       ) : null}
 
-      {showIdCards ? <CertificatesIdCardPanel apiMode={apiCatalogMode} /> : null}
+      {showVerify && verifyPanel ? verifyPanel : null}
 
       {!apiCatalogMode ? (
         <Modal

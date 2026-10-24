@@ -299,7 +299,7 @@ function baseDb(): MockDb {
       recipient_ref: "STU-A",
       status: "ready",
       workflow_state: "published",
-      certificate_number: "CERT-1",
+      certificate_number: "DOC/2026/0001",
       portal_student: true,
       portal_parent: true,
       portal_teacher: false,
@@ -530,6 +530,7 @@ describe("documents api", () => {
     expect(gen.status).toBe(201);
     const doc = (await json(gen)).data;
     expect(doc.workflowState).toBe("draft");
+    expect(doc.certificateNumber).toBeNull();
 
     const published = await app.request(
       `/api/v1/documents/generated/${doc.id}/transition`,
@@ -545,10 +546,104 @@ describe("documents api", () => {
     expect(published.status).toBe(200);
     const pubBody = await json(published);
     expect(pubBody.data.workflowState).toBe("published");
+    expect(pubBody.data.certificateNumber).toMatch(/^DOC\/\d{4}\/\d+$/);
     expect(pubBody.data.portalVisibility.parent).toBe(true);
     expect(pubBody.data.assetPath).toMatch(
       new RegExp(`^${INST_A}/[0-9a-f-]+/${doc.id}\\.pdf$`),
     );
+  });
+
+  it("ignores client-supplied permanent numbers on draft create", async () => {
+    const db = baseDb();
+    db.generated_document = [];
+    const app = appWithDb(db);
+    const gen = await app.request("/api/v1/documents/generated", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_ACTIVE,
+        recipient_name: "Student A",
+        student_id: STUDENT_A,
+        payload: {
+          certificateNumber: "DOC/2099/9999",
+          certificate_number: "DOC/2099/9999",
+          documentNumber: "DOC/2099/9999",
+        },
+      }),
+    });
+    expect(gen.status).toBe(201);
+    const body = await json(gen);
+    expect(body.data.certificateNumber).toBeNull();
+    expect(body.data.payload?.certificateNumber).toBeUndefined();
+    expect(body.data.payload?.documentNumber).toBeUndefined();
+    expect(db.generated_document[0]?.certificate_number).toBeNull();
+  });
+
+  it("reject transition does not allocate a document number", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/documents/generated/${GEN_DRAFT}/transition`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          workflow_state: "rejected",
+          rejection_reason: "Incomplete details",
+        }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect((await json(res)).data.workflowState).toBe("rejected");
+    expect(db.generated_document.find((r) => r.id === GEN_DRAFT)?.certificate_number).toBeNull();
+  });
+
+  it("rejects publish when draft has a malformed legacy number", async () => {
+    const db = baseDb();
+    db.generated_document[0]!.certificate_number = "CERT-1";
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/documents/generated/${GEN_DRAFT}/transition`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ workflow_state: "published" }),
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(db.generated_document[0]!.certificate_number).toBe("CERT-1");
+  });
+
+  it("republish preserves DOC number", async () => {
+    const db = baseDb();
+    // asset_path required so republish can regenerate via storage mock
+    db.generated_document.find((r) => r.id === GEN_PUBLISHED)!.asset_path =
+      `${INST_A}/x/${GEN_PUBLISHED}.pdf`;
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/documents/generated/${GEN_PUBLISHED}/republish`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notify: false }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.certificateNumber).toBe("DOC/2026/0001");
   });
 
   it("parent reads published generated docs only", async () => {

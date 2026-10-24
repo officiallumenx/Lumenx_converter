@@ -1,6 +1,8 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  // Force Nitro cloudflare-module output so Workers Builds can upload dist/server.
+  nitro: true,
   // Lighter dev server — skip SSR/server-fn transform hooks used for Lovable sandbox tooling
   serverFnErrorLogger: false,
   ssrErrorLogger: false,

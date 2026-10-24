@@ -1,6 +1,8 @@
 /** Leave Center — teacher leave managed by Admin; student leave is teacher-managed in Connect. */
 
-export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled" | "ignored";
+import type { LeaveStatus } from "@lumenx/types";
+
+export type { LeaveStatus };
 
 export type StudentLeave = {
   id: string;

@@ -10,10 +10,10 @@ export function SiteLogo({
   return (
     <span className={cn("inline-flex items-center", className)}>
       <img
-        src="/brand/lumenx-logo.png"
+        src="/brand/lumenx-mark.png"
         alt="LumenX"
-        width={256}
-        height={256}
+        width={160}
+        height={160}
         decoding="async"
         fetchPriority="low"
         className={cn("h-10 w-auto object-contain object-left", markOnly && "h-9")}

@@ -24,6 +24,7 @@ function toRequestBody(input: SubmitRegistrationInput): Record<string, unknown> 
     phone: input.phone?.trim() || null,
     pin: input.pin?.trim() || undefined,
     payload: input.payload,
+    legal_consent: input.legalConsent,
   };
 }
 
@@ -60,6 +61,7 @@ export async function resubmitRegistration(
       applicant_name: input.applicantName?.trim() || undefined,
       phone: input.phone?.trim() || null,
       payload: input.payload,
+      legal_consent: input.legalConsent,
     },
   );
 }

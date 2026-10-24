@@ -37,6 +37,7 @@ const ADMIN_PASSWORD = process.env.E2E_SMOKE_PASSWORD?.trim() || "E2eSmoke!2026"
 const ADMIN_PIN = (process.env.E2E_TRANSPORT_ADMIN_PIN ?? "1234").trim();
 const STUDENT_EMAIL = "smoke.transport.pw.student@lumenx.test";
 const STUDENT2_EMAIL = "smoke.transport.pw.student2@lumenx.test";
+const STUDENT3_EMAIL = "smoke.transport.pw.student3@lumenx.test";
 const VEHICLE_NUMBER = "E2E-BUS-01";
 const ROUTE_NAME = "E2E Playwright Route";
 const ADMIN_PHONE = "9000000095";
@@ -148,6 +149,61 @@ async function ensureMembership(userId, instituteId, roleCode) {
   }
 }
 
+function addUtcDays(iso, days) {
+  const d = new Date(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+/**
+ * Dedicated Playwright institute only — writable trial subscription.
+ * Does not touch other institutes. Does not bypass the write gate in API code.
+ */
+async function ensureWritableTrialSubscription(instituteId) {
+  const trialStartAt = new Date().toISOString();
+  const trialEndAt = addUtcDays(trialStartAt, 60);
+  const graceEndsAt = addUtcDays(trialEndAt, 7);
+
+  const { data: existing } = await admin
+    .from("subscription")
+    .select("id, lifecycle_status, trial_start_at, trial_end_at")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await admin
+      .from("subscription")
+      .update({
+        lifecycle_status: "trial_active",
+        trial_start_at: trialStartAt,
+        trial_end_at: trialEndAt,
+        grace_ends_at: graceEndsAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+      .eq("institute_id", instituteId);
+    if (error) throw new Error(`subscription update: ${error.message}`);
+    return { id: existing.id, created: false, lifecycle: "trial_active" };
+  }
+
+  const { data, error } = await admin
+    .from("subscription")
+    .insert({
+      institute_id: instituteId,
+      lifecycle_status: "trial_active",
+      assigned_rate_inr: 99,
+      active_student_count: 0,
+      trial_start_at: trialStartAt,
+      trial_end_at: trialEndAt,
+      grace_ends_at: graceEndsAt,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`subscription insert: ${error.message}`);
+  return { id: data.id, created: true, lifecycle: "trial_active" };
+}
+
 async function ensureInstitute() {
   const { data: existing } = await admin
     .from("institute")
@@ -176,6 +232,33 @@ async function ensureInstitute() {
     },
     { onConflict: "institute_id" },
   );
+  return data.id;
+}
+
+/** Active academic year required for Admin write surfaces (assign students). */
+async function ensureActiveAcademicYear(instituteId) {
+  const { data: existing } = await admin
+    .from("academic_year")
+    .select("id, status")
+    .eq("institute_id", instituteId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (existing?.id) return existing.id;
+
+  const { data, error } = await admin
+    .from("academic_year")
+    .insert({
+      institute_id: instituteId,
+      name: "2026-2027",
+      code: "AY-2026-27",
+      starts_on: "2026-04-01",
+      ends_on: "2027-03-31",
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`academic_year: ${error.message}`);
   return data.id;
 }
 
@@ -406,16 +489,22 @@ async function ensureInstituteAdmin(instituteId) {
 }
 
 async function softDeleteE2ePendingStops(routeId) {
-  const { data, error } = await admin
-    .from("stop")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("route_id", routeId)
-    .in("approval_status", ["pending", "rejected"])
-    .ilike("name", "E2E QA%")
-    .is("deleted_at", null)
-    .select("id, name, approval_status");
-  if (error) throw new Error(`cleanup pending stops: ${error.message}`);
-  return data ?? [];
+  const now = new Date().toISOString();
+  const patterns = ["E2E QA%", "P3%", "HotReload%"];
+  const cleared = [];
+  for (const pattern of patterns) {
+    const { data, error } = await admin
+      .from("stop")
+      .update({ deleted_at: now })
+      .eq("route_id", routeId)
+      .in("approval_status", ["pending", "rejected"])
+      .ilike("name", pattern)
+      .is("deleted_at", null)
+      .select("id, name, approval_status");
+    if (error) throw new Error(`cleanup pending stops (${pattern}): ${error.message}`);
+    cleared.push(...(data ?? []));
+  }
+  return cleared;
 }
 
 async function ensureEnrollment(
@@ -515,6 +604,8 @@ async function main() {
   const resetTrips = process.argv.includes("--reset-trips");
   const resetPending = process.argv.includes("--reset-pending-stops");
   const instituteId = await ensureInstitute();
+  const academicYearId = await ensureActiveAcademicYear(instituteId);
+  const subscription = await ensureWritableTrialSubscription(instituteId);
   const vehicle = await ensureVehicle(instituteId);
   const driverUserId = await ensureAuthUser(DRIVER_EMAIL, "E2E Transport Driver");
   await ensureUserProfile(driverUserId, DRIVER_EMAIL, "E2E Transport Driver");
@@ -552,6 +643,30 @@ async function main() {
     null,
     stops.schoolStopId,
   );
+  // Unassigned student for Admin Step 1 assign UI (no enrollment yet).
+  const student3Id = await ensureStudent(
+    instituteId,
+    STUDENT3_EMAIL,
+    "E2E Rider Three",
+    "E2E",
+    "Three",
+  );
+  await admin
+    .from("student")
+    .update({
+      class_label: "E2E",
+      section_label: "A",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", student3Id)
+    .eq("institute_id", instituteId);
+  // Ensure student3 has no active enrollment on this route.
+  await admin
+    .from("transport_enrollment")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("institute_id", instituteId)
+    .eq("student_id", student3Id)
+    .is("deleted_at", null);
 
   const adminUserId = await ensureInstituteAdmin(instituteId);
 
@@ -570,6 +685,9 @@ async function main() {
   const fixture = {
     instituteId,
     instituteName: INST_NAME,
+    academicYearId,
+    subscriptionId: subscription.id,
+    subscriptionLifecycle: subscription.lifecycle,
     driverPhone: DRIVER_PHONE,
     driverPin: DRIVER_PIN,
     driverId,
@@ -588,6 +706,8 @@ async function main() {
     student2Id,
     enrollment2Id,
     student2Name: "E2E Rider Two",
+    student3Id,
+    student3Name: "E2E Rider Three",
     serviceDate: todayKolkata(),
     apiBaseUrl: API,
     adminBaseUrl: "http://127.0.0.1:4181",
@@ -605,6 +725,9 @@ async function main() {
         ok: true,
         fixturePath: FIXTURE_PATH,
         instituteId: fixture.instituteId,
+        academicYearId: fixture.academicYearId,
+        subscriptionId: fixture.subscriptionId,
+        subscriptionLifecycle: fixture.subscriptionLifecycle,
         vehicleNumber: fixture.vehicleNumber,
         serviceDate: fixture.serviceDate,
         clearedTrips: fixture.clearedTripSlots.length,

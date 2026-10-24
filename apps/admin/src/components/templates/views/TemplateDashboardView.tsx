@@ -53,8 +53,8 @@ const STEPS = [
     n: "4",
     title: "Issue to students",
     body: "Pick an active template, choose students, generate certificates.",
-    to: "issue" as const,
-    cta: "Issue now",
+    to: "templates" as const,
+    cta: "Generate now",
   },
 ];
 
@@ -114,7 +114,7 @@ export function TemplateDashboardView() {
           <CardHeader title="Quick actions" />
           <CardBody>
             <div className="grid gap-2">
-              <Link to="/templates" search={{ view: "issue" }}>
+              <Link to="/templates" search={{ view: "templates" }}>
                 <Button className="w-full justify-start" variant="primary">
                   <FileCheck className="size-3.5" /> Issue to students
                 </Button>
@@ -129,17 +129,17 @@ export function TemplateDashboardView() {
                   <Wand2 className="size-3.5" /> New / edit in builder
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "issued" }}>
+              <Link to="/templates" search={{ view: "published" }}>
                 <Button className="w-full justify-start">
                   <FileCheck className="size-3.5" /> Student records
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "issued" }}>
+              <Link to="/templates" search={{ view: "published" }}>
                 <Button className="w-full justify-start">
                   <FolderOpen className="size-3.5" /> Generated certificates
                 </Button>
               </Link>
-              <Link to="/templates" search={{ view: "overview" }}>
+              <Link to="/templates" search={{ view: "templates" }}>
                 <Button className="w-full justify-start" variant="ghost">
                   <Upload className="size-3.5" /> Import · Categories · Settings
                 </Button>

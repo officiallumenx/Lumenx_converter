@@ -13,7 +13,7 @@ import {
 
 export type ContactIntent = "trial" | "quote" | "partner" | "question" | "demo";
 
-export function parseContactIntent(value: unknown): ContactIntent {
+export function parseContactIntent(value: unknown): ContactIntent | undefined {
   if (
     value === "quote" ||
     value === "partner" ||
@@ -23,7 +23,7 @@ export function parseContactIntent(value: unknown): ContactIntent {
   ) {
     return value;
   }
-  return "trial";
+  return undefined;
 }
 
 export function parseStudentQuery(value: unknown): number | undefined {
@@ -36,7 +36,7 @@ export function parseStudentQuery(value: unknown): number | undefined {
 }
 
 export type ContactSearch = {
-  intent: ContactIntent;
+  intent?: ContactIntent;
   students?: number;
 };
 
@@ -45,11 +45,19 @@ export type PricingSearch = {
 };
 
 export function contactSearch(intent: ContactIntent, students?: number): ContactSearch {
-  return students === undefined ? { intent } : { intent, students };
+  return {
+    ...(intent === "question" ? {} : { intent }),
+    ...(students === undefined ? {} : { students }),
+  };
 }
 
 export function parseContactSearch(search: Record<string, unknown>): ContactSearch {
-  return contactSearch(parseContactIntent(search.intent), parseStudentQuery(search.students));
+  const intent = parseContactIntent(search.intent);
+  const students = parseStudentQuery(search.students);
+  return {
+    ...(intent ? { intent } : {}),
+    ...(students === undefined ? {} : { students }),
+  };
 }
 
 export function parsePricingSearch(search: Record<string, unknown>): PricingSearch {

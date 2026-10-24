@@ -1,6 +1,7 @@
 import { type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
+import { Button } from "@lumenx/ui";
 import { Section } from "../layout/Section";
 import { SiteCard } from "../SiteCard";
 import { ProductMark } from "../product/ProductMark";
@@ -93,14 +94,12 @@ export function HomeShowcase() {
                 <div className="home-showcase-preview">
                   <Preview kind={item.preview} />
                 </div>
-                <Link
-                  to="/platform/$slug"
-                  params={{ slug: item.id }}
-                  className="site-btn site-btn--ghost mt-2 h-auto justify-start px-0 text-foreground"
-                >
-                  Explore {meta.shortName}
-                  <ArrowRight className="size-4" />
-                </Link>
+                <Button asChild variant="ghost" className="mt-2 h-auto justify-start px-0 text-foreground">
+                  <Link to="/platform/$slug" params={{ slug: item.id }}>
+                    Explore {meta.shortName}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
               </SiteCard>
             </div>
           );

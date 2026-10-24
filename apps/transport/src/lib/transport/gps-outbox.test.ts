@@ -12,14 +12,14 @@ const getOpsOutboxSnapshot = vi.fn(() => ({
   gpsStaleRejectedCount: 0,
   lastGpsStaleRejectMessage: null,
 }));
-const subscribeOpsOutbox = vi.fn(() => () => undefined);
+const subscribeOpsOutbox = vi.fn((_fn?: () => void) => () => undefined);
 const captureCurrentGps = vi.fn();
 const getTripSessionSnapshot = vi.fn();
-const subscribeTripSession = vi.fn(() => () => undefined);
+const subscribeTripSession = vi.fn((_fn?: () => void) => () => undefined);
 
 vi.mock("./ops-outbox", () => ({
-  enqueueOpsEvent: (...args: unknown[]) => enqueueOpsEvent(...args),
-  flushOpsOutbox: (...args: unknown[]) => flushOpsOutbox(...args),
+  enqueueOpsEvent: (event: unknown) => enqueueOpsEvent(event),
+  flushOpsOutbox: () => flushOpsOutbox(),
   getOpsOutboxSnapshot: () => getOpsOutboxSnapshot(),
   subscribeOpsOutbox: (fn: () => void) => subscribeOpsOutbox(fn),
 }));
@@ -32,7 +32,7 @@ vi.mock("./capture-gps", () => ({
       this.code = code;
     }
   },
-  captureCurrentGps: (...args: unknown[]) => captureCurrentGps(...args),
+  captureCurrentGps: () => captureCurrentGps(),
 }));
 
 vi.mock("./trip/store", () => ({

@@ -121,6 +121,7 @@ describe("hydrateActiveTripFromApi day-state", () => {
           notificationRadiusM: 80,
           kind: "waypoint",
           approvalStatus: "approved",
+          createdAt: "2026-01-01T00:00:00.000Z",
         },
         {
           id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
@@ -132,14 +133,15 @@ describe("hydrateActiveTripFromApi day-state", () => {
           notificationRadiusM: 80,
           kind: "school",
           approvalStatus: "approved",
+          createdAt: "2026-01-01T00:00:00.000Z",
         },
       ],
       students: [
         {
+          enrollmentId: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
           studentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
           studentName: "loki vella",
           classLabel: "10-A",
-          rollNo: "1",
           pickupStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
           dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
           approvalStatus: "approved",
@@ -149,6 +151,7 @@ describe("hydrateActiveTripFromApi day-state", () => {
     const { setApiDriverRoster } = await import("../api-roster");
     setApiDriverRoster(
       {
+        driverId: DRIVER,
         routeId: ROUTE,
         routeName: "bus-01 route",
         vehicleId: VEHICLE,
@@ -168,6 +171,7 @@ describe("hydrateActiveTripFromApi day-state", () => {
             pickupStopName: "Gate",
             dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
             dropStopName: "Gate",
+            status: "active",
             approvalStatus: "approved",
             notRidingToday: false,
             rideExceptionId: null,
@@ -220,6 +224,7 @@ describe("hydrateActiveTripFromApi day-state", () => {
 
     const blockedPickup = beginStartTripSession("morning");
     expect(blockedPickup.ok).toBe(false);
+    if (blockedPickup.ok) throw new Error("expected morning start to be blocked");
     expect(blockedPickup.reason).toMatch(/Pickup is already completed/i);
 
     const dropStart = beginStartTripSession("evening");

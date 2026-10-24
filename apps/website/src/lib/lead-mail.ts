@@ -27,26 +27,34 @@ export function isWebsiteLeadIntent(value: unknown): value is WebsiteLeadIntent 
   return typeof value === "string" && INTENTS.has(value as WebsiteLeadIntent);
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function clip(value: unknown, max: number): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
 export function parseWebsiteLeadPayload(raw: unknown): WebsiteLeadPayload | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const body = raw as Record<string, unknown>;
-  const email = String(body.email ?? "").trim();
-  const name = String(body.name ?? "").trim();
-  if (!email.includes("@") || !name) return null;
+  const email = clip(body.email, 254);
+  const name = clip(body.name, 120);
+  const message = String(body.message ?? "").trim();
+  if (!EMAIL_PATTERN.test(email) || !name) return null;
+  if (message.length > 4000) return null;
   if (!isWebsiteLeadIntent(body.intent)) return null;
 
   return {
     name,
-    institute: String(body.institute ?? "").trim(),
-    role: String(body.role ?? "").trim(),
+    institute: clip(body.institute, 160),
+    role: clip(body.role, 80),
     email,
-    phone: String(body.phone ?? "").trim(),
-    studentCount: String(body.studentCount ?? "").trim(),
-    message: String(body.message ?? "").trim(),
+    phone: clip(body.phone, 40),
+    studentCount: clip(body.studentCount, 12),
+    message,
     intent: body.intent,
     submittedAt:
       typeof body.submittedAt === "string" && body.submittedAt.trim()
-        ? body.submittedAt.trim()
+        ? body.submittedAt.trim().slice(0, 40)
         : undefined,
   };
 }

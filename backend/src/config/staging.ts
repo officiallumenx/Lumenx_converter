@@ -1,9 +1,12 @@
 /**
- * Staging fail-closed checks so a laptop never points the API or smokes
- * at production Supabase by accident.
+ * Staging fail-closed checks so a laptop or Railway staging service never
+ * points the API or smokes at production Supabase by accident.
  *
- * Active only when LUMENX_ENV=staging (set via backend/.env.staging or
- * `node --env-file=.env.staging`).
+ * Active only when LUMENX_ENV=staging (Railway-injected vars, local
+ * `.env.staging`, or `node --env-file=.env.staging`).
+ *
+ * Validates the real Supabase project ref from SUPABASE_URL — not merely
+ * the LUMENX_ENV label — and refuses denylisted production refs.
  */
 
 export type StagingEnvIssue = {
@@ -102,6 +105,21 @@ export function collectStagingEnvIssues(
     issues.push({
       code: "SUPABASE_SERVICE_ROLE_KEY",
       message: "SUPABASE_SERVICE_ROLE_KEY is required when LUMENX_ENV=staging",
+    });
+  }
+
+  // Never allow a staging-labeled process to drain a production FCM outbox.
+  const allowProdOutbox = (raw.FCM_ALLOW_PROD_OUTBOX ?? "").trim().toLowerCase();
+  if (
+    allowProdOutbox === "true" ||
+    allowProdOutbox === "1" ||
+    allowProdOutbox === "on" ||
+    allowProdOutbox === "yes"
+  ) {
+    issues.push({
+      code: "FCM_ALLOW_PROD_OUTBOX",
+      message:
+        "FCM_ALLOW_PROD_OUTBOX must be false/unset when LUMENX_ENV=staging",
     });
   }
 

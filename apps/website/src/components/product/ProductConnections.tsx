@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, ArrowRight } from "lucide-react";
+import { Button } from "@lumenx/ui";
 import type { ProductPageConnection } from "@/content/product-pages";
 import { PRODUCT_FAMILY, type ProductId } from "@/theme/products";
 import { Grid } from "../layout/Grid";
@@ -128,14 +129,12 @@ export function ProductConnections({
             <ProductMark product={item.product} />
             <h3 className="mt-4 text-base font-semibold tracking-tight">{meta.name}</h3>
             <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
-            <Link
-              to="/platform/$slug"
-              params={{ slug: item.product }}
-              className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
-            >
-              Explore {meta.shortName}
-              <ArrowRight className="size-4" />
-            </Link>
+            <Button asChild variant="ghost" className="mt-4 h-auto justify-start px-0 text-foreground">
+              <Link to="/platform/$slug" params={{ slug: item.product }}>
+                Explore {meta.shortName}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </SiteCard>
         );
       })}

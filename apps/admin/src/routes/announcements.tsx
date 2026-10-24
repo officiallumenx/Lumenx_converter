@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAnnouncementsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
@@ -518,17 +518,21 @@ function AnnouncementsPage() {
       subtitle="Long-form institute notices, pinnable to portals"
       actions={
         writesEnabled ? (
-          <Button variant="primary" onClick={() => setOpen(true)}>
+          <Link
+            to="/send"
+            search={{ category: "announcements" }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
             <Plus className="size-3.5" /> New announcement
-          </Button>
+          </Link>
         ) : null
       }
     >
       <ModuleHero
         eyebrow="Communications"
         title="Announcements"
-        subtitle="Long-form institute notices, pinnable to portals"
-      />
+        subtitle="History and management · compose from Send"
+       helpKey="announcements" />
       <Card>
         <CardHeader title="Recent" hint={listHint} />
         <div className="divide-y divide-border">

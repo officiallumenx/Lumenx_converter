@@ -233,7 +233,8 @@ export function toTransportSettingsDto(
     schoolLocationLabel: row.school_location_label ?? null,
     schoolLatitude: row.school_latitude ?? null,
     schoolLongitude: row.school_longitude ?? null,
-    schoolNotificationRadiusM: row.school_notification_radius_m ?? 150,
+    schoolNotificationRadiusM:
+      row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1376,7 +1377,7 @@ export async function getTransportSettingsForActor(
   if (!row) {
     return {
       instituteId: id,
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       defaultPickupBufferMins: 5,
       workingDays: [1, 2, 3, 4, 5],
       notificationsEnabled: true,
@@ -1385,7 +1386,7 @@ export async function getTransportSettingsForActor(
       schoolLocationLabel: null,
       schoolLatitude: null,
       schoolLongitude: null,
-      schoolNotificationRadiusM: 150,
+      schoolNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
@@ -1411,7 +1412,7 @@ async function upsertSchoolStopOnRoute(
   const label =
     settings.school_location_label?.trim() ||
     `${settings.school_latitude.toFixed(5)}, ${settings.school_longitude.toFixed(5)}`;
-  const radius = settings.school_notification_radius_m ?? 150;
+  const radius = settings.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M;
   const existing = await findStopByKindOnRoute(admin, route.id, "school");
   if (existing) {
     await updateStopFields(admin, existing.id, {

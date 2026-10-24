@@ -57,10 +57,11 @@ export function resolveTargetApps(
 }
 
 export function targetAppsForTransportAudience(
-  audience: "parent" | "driver" | "admin",
+  audience: "parent" | "driver" | "admin" | "student",
 ): DeviceApp[] {
   switch (audience) {
     case "parent":
+    case "student":
       return ["connect"];
     case "driver":
       return ["transport"];

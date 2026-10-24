@@ -1,13 +1,14 @@
 {
   "name": "@lumenx/app-transport",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "sideEffects": false,
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node ./scripts/prepare-cf-deploy.mjs",
+    "build": "vite build && node ../../scripts/prepare-cf-worker-deploy.mjs",
     "deploy": "wrangler deploy --config dist/server/wrangler.json",
+    "cf:upload": "wrangler versions upload --config dist/server/wrangler.json",
     "build:capacitor": "node scripts/sync-app-version.mjs && vite build --config vite.config.capacitor.ts --mode capacitor && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "version:sync": "node scripts/sync-app-version.mjs",
     "version:bump": "node scripts/bump-app-version.mjs",
@@ -16,10 +17,13 @@
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
     "android:aab": "cd android && gradlew.bat bundleRelease",
+    "android:apk": "cd android && gradlew.bat assembleRelease",
     "cap:aab": "npm run build:capacitor && npx cap sync android && npm run android:aab",
+    "cap:apk": "npm run build:capacitor && npx cap sync android && npm run android:apk",
     "icons:android": "node scripts/generate-launcher-icons.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
@@ -36,6 +40,7 @@
     "@lumenx/capacitor": "*",
     "@lumenx/config": "*",
     "@lumenx/legal": "*",
+    "@lumenx/module-help": "*",
     "@lumenx/module-notifications": "*",
     "@lumenx/notifications": "*",
     "@lumenx/types": "*",

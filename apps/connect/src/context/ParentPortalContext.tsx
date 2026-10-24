@@ -78,18 +78,33 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
     return cached.child.id === activeChildId ? cached : null;
   }, [isParent, cached, activeChildId, isFetchingNewChild, query.isLoading]);
 
+  // Treat IndexedDB restore as loading so child portals do not flash empty state.
   const isLoading =
     isParent &&
-    canRun &&
-    !isRestoring &&
-    ((query.isLoading && !snapshot) || isFetchingNewChild);
+    (isRestoring ||
+      (canRun && ((query.isLoading && !snapshot) || isFetchingNewChild)));
 
   // Warm common parent modules once the active child snapshot is ready.
   useEffect(() => {
-    if (!isParent || !snapshot || !activeInstituteId || !activeChildId) return;
+    if (!isParent || isRestoring || !snapshot || !activeInstituteId || !activeChildId) {
+      return;
+    }
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(activeChildId)) return;
-    prefetchParentModuleQueries(queryClient, userId, activeInstituteId, activeChildId);
-  }, [isParent, snapshot, activeInstituteId, activeChildId, queryClient, userId]);
+    return prefetchParentModuleQueries(
+      queryClient,
+      userId,
+      activeInstituteId,
+      activeChildId,
+    );
+  }, [
+    isParent,
+    isRestoring,
+    snapshot,
+    activeInstituteId,
+    activeChildId,
+    queryClient,
+    userId,
+  ]);
 
   const value = useMemo<ParentPortalState>(() => {
     if (!isParent) {

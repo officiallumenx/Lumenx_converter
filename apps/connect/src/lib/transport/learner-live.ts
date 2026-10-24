@@ -319,11 +319,9 @@ export async function loadLearnerTransportLive(input: {
   studentId: string;
 }): Promise<LearnerTransportLiveDto | null> {
   if (!isApiAuthMode()) return null;
-  try {
-    return await getLearnerTransportLive(input);
-  } catch {
-    return null;
-  }
+  // Propagate API failures so React Query can show recoverable error UI.
+  // Do not swallow into null (that looked like "driver not started").
+  return await getLearnerTransportLive(input);
 }
 
 export function subscribeLearnerLiveTrip(_listener: () => void): () => void {

@@ -157,7 +157,7 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
         eyebrow="Academics"
         title={displaySubject?.name ?? "Subject"}
         subtitle="Subject catalog record"
-      />
+       helpKey="subjects" />
       <PageStack>
         {detailView.status !== "ready" || !displaySubject ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>

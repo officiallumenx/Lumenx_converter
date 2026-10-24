@@ -4,7 +4,6 @@ import { SkipLink } from "./SkipLink";
 import { SiteHeader } from "./SiteHeader";
 import { SiteFooter } from "./SiteFooter";
 import { enableSiteMotion } from "@/motion/enable";
-import { useMenuFocusTrap } from "./navigation/useMenuFocusTrap";
 
 function PageMotion({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -21,9 +20,7 @@ function PageMotion({ children }: { children: ReactNode }) {
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const chromeRef = useRef<HTMLDivElement>(null);
   useEffect(() => enableSiteMotion(), []);
-  useMenuFocusTrap(menuOpen, chromeRef);
 
   return (
     <div className="site-shell flex min-h-svh flex-col">
@@ -33,7 +30,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="site-atmosphere__blob site-atmosphere__blob--b" />
         <div className="site-atmosphere__blob site-atmosphere__blob--c" />
       </div>
-      <div className="site-chrome" ref={chromeRef}>
+      <div className="site-chrome">
         <SkipLink />
         <SiteHeader menuOpen={menuOpen} onMenuOpenChange={setMenuOpen} />
       </div>

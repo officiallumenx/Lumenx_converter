@@ -37,12 +37,11 @@ function verificationGrantParams(
 ) {
   const email = normalizeEmail(input.email);
   const phone = phoneDigits(input.phone);
-  const requiredDestinations =
-    input.app === "admissions" && input.accountType === "parent"
-      ? [phone]
-      : [email, phone];
-  if (requiredDestinations.some((value) => !value)) {
-    throw AppError.validation("Verified email and mobile are required for this signup");
+  // Careers + Admissions collect email for the account, but only mobile OTP is required.
+  // (Supabase confirms email at provision time; no email OTP challenge.)
+  const requiredDestinations = [phone];
+  if (!email || requiredDestinations.some((value) => !value)) {
+    throw AppError.validation("Email and a verified mobile number are required for this signup");
   }
   return {
     p_token_hashes: [...new Set(input.verificationGrants.map((grant) =>

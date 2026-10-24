@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Input, Label, Textarea } from "@lumenx/ui";
 import { CTAButton } from "./CTAButton";
+import { HoneypotField } from "./HoneypotField";
 import { submitWebsiteLead } from "@/lib/leads";
 import { cn } from "@lumenx/ui";
 
@@ -52,6 +53,7 @@ export function LeaveMessageForm({
       studentCount: "",
       message,
       intent: "question",
+      companyWebsite: String(form.get("company_website") ?? "").trim(),
     });
 
     if (result.ok) {
@@ -73,6 +75,7 @@ export function LeaveMessageForm({
 
   return (
     <form className={cn("space-y-4", className)} onSubmit={onSubmit} noValidate autoComplete="on">
+      <HoneypotField />
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="leave-name">Name *</Label>
@@ -83,7 +86,7 @@ export function LeaveMessageForm({
             autoComplete="name"
             required
             aria-required
-            className="site-input mt-1.5"
+            className="mt-1.5 min-h-11"
             placeholder="Your full name"
           />
         </div>
@@ -96,7 +99,7 @@ export function LeaveMessageForm({
             autoComplete="tel"
             required
             aria-required
-            className="site-input mt-1.5"
+            className="mt-1.5 min-h-11"
             placeholder="Mobile number"
           />
         </div>
@@ -112,7 +115,7 @@ export function LeaveMessageForm({
           aria-required
           aria-invalid={Boolean(error?.toLowerCase().includes("email")) || undefined}
           aria-describedby={error ? "leave-message-error" : undefined}
-          className="site-input mt-1.5"
+          className="mt-1.5 min-h-11"
           placeholder="you@institute.edu"
         />
       </div>
@@ -123,7 +126,7 @@ export function LeaveMessageForm({
           name="message"
           required
           aria-required
-          className="site-textarea mt-1.5"
+          className="mt-1.5 min-h-28"
           placeholder="Ask anything about LumenX — products, pricing, trial, Transport, Admissions, Careers…"
         />
       </div>

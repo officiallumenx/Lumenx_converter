@@ -1,21 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { useDiaryDaysQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
-import { invalidateAdminCache } from "@/lib/admin-resource-cache";
+import { useDiaryDaysQuery } from "@/lib/admin-queries";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
-import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
   Card,
   DataTable,
   EmptyState,
-  Field,
   Modal,
   Pill,
-  Select,
-  TextArea,
-  TextInput,
   Th,
 } from "@lumenx/ui-admin";
 import {
@@ -24,23 +17,14 @@ import {
   type DiarySubmissionLog,
 } from "@lumenx/utils";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
-import { BookMarked, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookMarked, Eye } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
-import { listClassesCatalog } from "@/lib/classes/api";
-import type { SectionDto } from "@/lib/classes/types";
-import { listTeachers, teacherDtosToListItems, type TeacherListItem } from "@/lib/teachers";
 import {
-  createDiaryDay,
-  deleteDiaryDay,
   resolveDiaryListView,
-  submitDiaryDay,
-  updateDiaryDay,
   type DiaryListItem,
   type DiaryListStatus,
-  type DiaryRowInput,
-  type DiaryScope,
 } from "@/lib/diary";
 
 export const Route = createFileRoute("/diary")({
@@ -49,12 +33,6 @@ export const Route = createFileRoute("/diary")({
 });
 
 type DiaryRow = DiarySubmissionLog | DiaryListItem;
-
-type DraftRow = {
-  sectionId: string;
-  classLabel: string;
-  description: string;
-};
 
 function formatSubmittedAt(iso: string): string {
   if (!iso) return "Draft";
@@ -69,20 +47,13 @@ function scopeDisplay(scope: string): string {
   return (scope ?? "").replace(/-/g, " ") || "—";
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function emptyDraftRow(): DraftRow {
-  return { sectionId: "", classLabel: "", description: "" };
-}
-
+/**
+ * Admin Diary is a monitoring surface: list + view submitted/draft days.
+ * Teachers author diary in Connect; Admin never creates/edits/deletes here.
+ */
 function DiaryViewPage() {
-  const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  // Admin Diary is view-only: list/detail only (no create / edit / delete).
-  const writesEnabled = false;
 
   const [demoLogs] = useState<DiarySubmissionLog[]>(() => {
     if (apiMode) return [];
@@ -98,7 +69,6 @@ function DiaryViewPage() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const [detailId, setDetailId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
   const listEnabled =
     apiMode &&
     instituteCtx.status === "ready" &&
@@ -107,24 +77,6 @@ function DiaryViewPage() {
     instituteCtx.activeInstituteId,
     listEnabled,
   );
-  const bumpDiaryReload = () => {
-    invalidateAdminCache("admin:diary");
-    if (instituteCtx.activeInstituteId) {
-      void queryClient.invalidateQueries({
-        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.diary),
-      });
-    }
-  };
-  const [mutating, setMutating] = useState(false);
-
-  const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
-  const [sections, setSections] = useState<SectionDto[]>([]);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formTeacherId, setFormTeacherId] = useState("");
-  const [formDate, setFormDate] = useState(todayIso);
-  const [formScope, setFormScope] = useState<DiaryScope>("activity");
-  const [formRows, setFormRows] = useState<DraftRow[]>([emptyDraftRow()]);
 
   const listView = resolveDiaryListView({
     apiMode,
@@ -149,7 +101,6 @@ function DiaryViewPage() {
       setListError(null);
       setResolvedForInstituteId(null);
       setDetailId(null);
-      setFormOpen(false);
       return;
     }
 
@@ -159,7 +110,6 @@ function DiaryViewPage() {
       setListError(instituteCtx.errorMessage);
       setResolvedForInstituteId(null);
       setDetailId(null);
-      setFormOpen(false);
       return;
     }
 
@@ -173,15 +123,23 @@ function DiaryViewPage() {
       setListError(null);
       setResolvedForInstituteId(null);
       setDetailId(null);
-      setFormOpen(false);
-      setTeachers([]);
-      setSections([]);
       return;
     }
 
     if (diaryQuery.isLoading && !diaryQuery.data) {
       setListStatus("loading");
       setListError(null);
+      return;
+    }
+    if (diaryQuery.isError && !diaryQuery.data) {
+      setApiItems([]);
+      setListStatus("error");
+      setListError(
+        diaryQuery.error instanceof Error
+          ? diaryQuery.error.message
+          : "Failed to load diary days",
+      );
+      setResolvedForInstituteId(instituteCtx.activeInstituteId);
       return;
     }
     if (!diaryQuery.data) return;
@@ -198,28 +156,9 @@ function DiaryViewPage() {
     instituteCtx.errorMessage,
     diaryQuery.data,
     diaryQuery.isLoading,
+    diaryQuery.isError,
+    diaryQuery.error,
   ]);
-
-  useEffect(() => {
-    if (!listEnabled || !instituteCtx.activeInstituteId) {
-      setTeachers([]);
-      setSections([]);
-      return;
-    }
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    void Promise.all([
-      listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
-      listClassesCatalog({ instituteId: requestInstituteId }),
-    ]).then(([teacherRows, catalog]) => {
-      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-      setTeachers(teacherRows);
-      setSections(catalog.sections);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [listEnabled, instituteCtx.activeInstituteId]);
 
   const displayItems: DiaryRow[] = apiMode ? listView.items : demoLogs;
   const sorted = useMemo(
@@ -230,151 +169,19 @@ function DiaryViewPage() {
     [displayItems],
   );
 
+  const submittedCount = useMemo(
+    () => sorted.filter((row) => Boolean(row.submittedAt)).length,
+    [sorted],
+  );
+  const draftCount = useMemo(
+    () => sorted.filter((row) => !row.submittedAt).length,
+    [sorted],
+  );
+
   const detail = useMemo(
     () => (detailId ? sorted.find((row) => row.id === detailId) ?? null : null),
     [sorted, detailId],
   );
-
-  const sectionOptions = useMemo(
-    () =>
-      sections.map((section) => ({
-        id: section.id,
-        label: `${section.name || section.code} (${section.id.slice(0, 8)})`,
-      })),
-    [sections],
-  );
-
-  const resetForm = () => {
-    setEditingId(null);
-    setFormTeacherId(teachers[0]?.id ?? "");
-    setFormDate(todayIso());
-    setFormScope("activity");
-    setFormRows([emptyDraftRow()]);
-  };
-
-  const openCreate = () => {
-    if (!writesEnabled || !apiMode) return;
-    resetForm();
-    setFormOpen(true);
-  };
-
-  const openEdit = (row: DiaryListItem) => {
-    if (!writesEnabled || !apiMode) return;
-    setEditingId(row.id);
-    setFormTeacherId(row.teacherId);
-    setFormDate(row.date);
-    setFormScope(row.scope);
-    setFormRows(
-      row.rows.length > 0
-        ? row.rows.map((r) => ({
-            sectionId: r.sectionId ?? "",
-            classLabel: r.className,
-            description: r.description,
-          }))
-        : [emptyDraftRow()],
-    );
-    setDetailId(null);
-    setFormOpen(true);
-  };
-
-  const buildRowsPayload = (): DiaryRowInput[] =>
-    formRows
-      .map((row, index) => ({
-        sectionId: formScope === "subject" ? row.sectionId || null : row.sectionId || null,
-        classLabel: row.classLabel.trim(),
-        description: row.description.trim(),
-        sortOrder: index,
-      }))
-      .filter((row) => row.classLabel && row.description);
-
-  const saveForm = (andSubmit: boolean) => {
-    if (!writesEnabled || !apiMode || mutating) return;
-    const instituteId = instituteCtx.activeInstituteId;
-    if (!instituteId) {
-      notify("Select an institute before saving diary");
-      return;
-    }
-    const rows = buildRowsPayload();
-    if (rows.length === 0) {
-      notify("Add at least one class label and description");
-      return;
-    }
-    if (formScope === "subject" && rows.some((r) => !r.sectionId)) {
-      notify("Subject diary rows require a section");
-      return;
-    }
-
-    setMutating(true);
-    const done = (message: string) => {
-      if (activeInstituteIdRef.current !== instituteId) return;
-      setFormOpen(false);
-      resetForm();
-      bumpDiaryReload();
-      notify(message);
-    };
-
-    if (editingId) {
-      void updateDiaryDay(editingId, { rows })
-        .then(async (updated) => {
-          if (andSubmit && !updated.submittedAt) {
-            await submitDiaryDay(editingId);
-            done("Diary updated and submitted");
-            return;
-          }
-          done("Diary updated");
-        })
-        .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to update diary");
-        })
-        .finally(() => setMutating(false));
-      return;
-    }
-
-    if (!formTeacherId) {
-      setMutating(false);
-      notify("Select a teacher for this diary day");
-      return;
-    }
-
-    void createDiaryDay({
-      instituteId,
-      teacherId: formTeacherId,
-      diaryDate: formDate,
-      scope: formScope,
-      rows,
-    })
-      .then(async (created) => {
-        if (andSubmit) {
-          await submitDiaryDay(created.id);
-          done("Diary created and submitted");
-          return;
-        }
-        done("Diary draft created");
-      })
-      .catch((err) => {
-        notify(err instanceof Error ? err.message : "Failed to create diary");
-      })
-      .finally(() => setMutating(false));
-  };
-
-  const removeDiary = (id: string) => {
-    if (!writesEnabled || !apiMode || mutating) return;
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    if (!requestInstituteId) return;
-    setMutating(true);
-    void deleteDiaryDay(id)
-      .then(() => {
-        if (activeInstituteIdRef.current !== requestInstituteId) return;
-        setDetailId(null);
-        setFormOpen(false);
-        bumpDiaryReload();
-        notify("Diary day deleted");
-      })
-      .catch((err) => {
-        notify(err instanceof Error ? err.message : "Failed to delete diary day");
-      })
-      .finally(() => setMutating(false));
-  };
 
   const listHint =
     displayStatus === "loading"
@@ -386,8 +193,29 @@ function DiaryViewPage() {
           : displayStatus === "error"
             ? displayError ?? "Failed to load diary days"
             : displayStatus === "empty"
-              ? "No diary days yet"
+              ? "No diary days for this institute yet"
               : null;
+
+  const emptyTitle =
+    displayStatus === "error"
+      ? "Diary unavailable"
+      : displayStatus === "forbidden"
+        ? "Access denied"
+        : displayStatus === "needs_institute"
+          ? "Select an institute"
+          : "No diary days yet";
+
+  const emptyHint =
+    displayStatus === "error"
+      ? (displayError ??
+        "Could not load diary. This is not the same as teachers having no submissions.")
+      : displayStatus === "forbidden"
+        ? "You do not have access to diary for this institute."
+        : displayStatus === "needs_institute"
+          ? "Select an active institute to monitor diary submissions."
+          : apiMode
+            ? "Submitted and draft teacher diary days from Connect appear here for viewing only."
+            : "Submitted teacher diary days from Connect appear here for viewing only.";
 
   return (
     <AppShell
@@ -399,7 +227,16 @@ function DiaryViewPage() {
         eyebrow="Academics"
         title={M.diary}
         subtitle="Teacher submits · Admin view only (no add, edit, or delete)"
-      />
+       helpKey="diary" />
+      {apiMode && listView.rowsValid && sorted.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <Pill tone="success">{submittedCount} submitted</Pill>
+          <Pill tone="warning">{draftCount} draft</Pill>
+          <span className="self-center">
+            Counts are unique diary days (no double-count).
+          </span>
+        </div>
+      ) : null}
       <Card>
         {apiMode && !listView.rowsValid ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">
@@ -408,13 +245,8 @@ function DiaryViewPage() {
         ) : sorted.length === 0 ? (
           <EmptyState
             icon={<BookMarked className="size-5" />}
-            title="No diary days yet"
-            hint={
-              apiMode
-                ? listHint ??
-                  "Submitted teacher diary days from Connect appear here for viewing only."
-                : "Submitted teacher diary days from Connect appear here for viewing only."
-            }
+            title={emptyTitle}
+            hint={emptyHint}
           />
         ) : (
           <DataTable>
@@ -429,61 +261,36 @@ function DiaryViewPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((row) => {
-                const apiRow = apiMode ? (row as DiaryListItem) : null;
-                return (
-                  <tr key={row.id}>
-                    <td className="px-5 py-3 font-mono text-xs">{row.date}</td>
-                    <td className="px-5 py-3">
-                      {row.submittedAt ? (
-                        <Pill tone="success">submitted</Pill>
-                      ) : (
-                        <Pill tone="warning">draft</Pill>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-sm font-medium">
-                      {row.teacherName || "—"}
-                    </td>
-                    <td className="px-5 py-3 text-sm capitalize">
-                      {scopeDisplay(row.scope)}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs">
-                      {(row.rows ?? []).length}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setDetailId(row.id)}
-                        >
-                          <Eye className="size-3.5" /> View
-                        </Button>
-                        {apiMode && writesEnabled && apiRow ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={mutating}
-                              onClick={() => openEdit(apiRow)}
-                            >
-                              <Pencil className="size-3.5" /> Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={mutating}
-                              onClick={() => removeDiary(row.id)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {sorted.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-5 py-3 font-mono text-xs">{row.date}</td>
+                  <td className="px-5 py-3">
+                    {row.submittedAt ? (
+                      <Pill tone="success">submitted</Pill>
+                    ) : (
+                      <Pill tone="warning">draft</Pill>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-sm font-medium">
+                    {row.teacherName || "—"}
+                  </td>
+                  <td className="px-5 py-3 text-sm capitalize">
+                    {scopeDisplay(row.scope)}
+                  </td>
+                  <td className="px-5 py-3 font-mono text-xs">
+                    {(row.rows ?? []).length}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDetailId(row.id)}
+                    >
+                      <Eye className="size-3.5" /> View
+                    </Button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </DataTable>
         )}
@@ -499,29 +306,7 @@ function DiaryViewPage() {
             : undefined
         }
         size="lg"
-        footer={
-          <>
-            {apiMode && writesEnabled && detail && "instituteId" in detail ? (
-              <>
-                <Button
-                  variant="outline"
-                  disabled={mutating}
-                  onClick={() => openEdit(detail as DiaryListItem)}
-                >
-                  <Pencil className="size-3.5" /> Edit
-                </Button>
-                <Button
-                  variant="danger"
-                  disabled={mutating}
-                  onClick={() => removeDiary(detail.id)}
-                >
-                  <Trash2 className="size-3.5" /> Delete
-                </Button>
-              </>
-            ) : null}
-            <Button onClick={() => setDetailId(null)}>Close</Button>
-          </>
-        }
+        footer={<Button onClick={() => setDetailId(null)}>Close</Button>}
       >
         {detail ? (
           <div className="space-y-3">
@@ -531,198 +316,29 @@ function DiaryViewPage() {
               </Pill>
               <Pill tone="neutral">{scopeDisplay(detail.scope)}</Pill>
             </div>
-            <div className="space-y-2">
-              {(detail.rows ?? []).map((r, i) => (
-                <div
-                  key={`${r.className ?? "class"}-${i}`}
-                  className="rounded-lg border border-border bg-muted/20 px-3 py-2"
-                >
-                  <div className="text-xs font-semibold">{r.className || "Class"}</div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">
-                    {r.description || "—"}
-                  </p>
-                </div>
-              ))}
-            </div>
+            {(detail.rows ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Diary day has no entry rows.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {(detail.rows ?? []).map((r, i) => (
+                  <div
+                    key={`${r.className ?? "class"}-${i}`}
+                    className="rounded-lg border border-border bg-muted/20 px-3 py-2"
+                  >
+                    <div className="text-xs font-semibold">
+                      {r.className || "Class"}
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">
+                      {r.description || "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : null}
-      </Modal>
-
-      <Modal
-        open={formOpen}
-        onClose={() => {
-          if (mutating) return;
-          setFormOpen(false);
-          resetForm();
-        }}
-        title={editingId ? "Edit diary day" : "New diary day"}
-        subtitle="Institute staff create or update on behalf of a teacher"
-        size="lg"
-        footer={
-          <>
-            <Button
-              variant="outline"
-              disabled={mutating}
-              onClick={() => {
-                setFormOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              disabled={mutating}
-              onClick={() => saveForm(false)}
-            >
-              Save draft
-            </Button>
-            <Button
-              variant="primary"
-              disabled={mutating}
-              onClick={() => saveForm(true)}
-            >
-              Save & submit
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {!editingId ? (
-            <Field label="Teacher">
-              <Select
-                value={formTeacherId}
-                onChange={(e) => setFormTeacherId(e.target.value)}
-                disabled={mutating}
-              >
-                <option value="">Select teacher</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          {!editingId ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Diary date">
-                <TextInput
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  disabled={mutating}
-                />
-              </Field>
-              <Field label="Scope">
-                <Select
-                  value={formScope}
-                  onChange={(e) => setFormScope(e.target.value as DiaryScope)}
-                  disabled={mutating}
-                >
-                  <option value="activity">Activity</option>
-                  <option value="subject">Subject</option>
-                </Select>
-              </Field>
-            </div>
-          ) : null}
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Entries
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={mutating}
-                onClick={() => setFormRows((prev) => [...prev, emptyDraftRow()])}
-              >
-                Add row
-              </Button>
-            </div>
-            {formRows.map((row, index) => (
-              <div
-                key={`draft-row-${index}`}
-                className="space-y-2 rounded-lg border border-border p-3"
-              >
-                {formScope === "subject" ? (
-                  <Field label="Section">
-                    <Select
-                      value={row.sectionId}
-                      onChange={(e) => {
-                        const sectionId = e.target.value;
-                        const section = sections.find((s) => s.id === sectionId);
-                        setFormRows((prev) =>
-                          prev.map((r, i) =>
-                            i === index
-                              ? {
-                                  ...r,
-                                  sectionId,
-                                  classLabel:
-                                    r.classLabel ||
-                                    section?.name ||
-                                    section?.code ||
-                                    "",
-                                }
-                              : r,
-                          ),
-                        );
-                      }}
-                      disabled={mutating}
-                    >
-                      <option value="">Select section</option>
-                      {sectionOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                ) : null}
-                <Field label="Class label">
-                  <TextInput
-                    value={row.classLabel}
-                    onChange={(e) =>
-                      setFormRows((prev) =>
-                        prev.map((r, i) =>
-                          i === index ? { ...r, classLabel: e.target.value } : r,
-                        ),
-                      )
-                    }
-                    disabled={mutating}
-                  />
-                </Field>
-                <Field label="Description">
-                  <TextArea
-                    rows={3}
-                    value={row.description}
-                    onChange={(e) =>
-                      setFormRows((prev) =>
-                        prev.map((r, i) =>
-                          i === index ? { ...r, description: e.target.value } : r,
-                        ),
-                      )
-                    }
-                    disabled={mutating}
-                  />
-                </Field>
-                {formRows.length > 1 ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={mutating}
-                    onClick={() =>
-                      setFormRows((prev) => prev.filter((_, i) => i !== index))
-                    }
-                  >
-                    Remove row
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
       </Modal>
     </AppShell>
   );

@@ -78,35 +78,40 @@ export function StudentAttendanceCard({
       : droppingMeta[student.dropping]) ?? boardingMeta.pending;
   const stamp =
     mode === "boarding" ? formatStamp(student.boardedAt) : formatStamp(student.droppedAt);
+  const syncing = student.syncStatus === "syncing";
+  const cardDisabled = disabled || syncing;
   const press = useTapLongPress(
     () => {
-      if (!disabled) onTap();
+      if (!cardDisabled) onTap();
     },
     () => {
-      if (!disabled) onLongPress();
+      if (!cardDisabled) onLongPress();
     },
   );
   const hint = disabled
     ? "Location is off. Turn on GPS to mark attendance."
-    : mode === "boarding"
-      ? "Tap to board or undo. Long press for not boarded."
-      : "Tap to drop or undo. Long press for not dropped.";
+    : syncing
+      ? "Saving mark to server."
+      : mode === "boarding"
+        ? "Tap to board or undo. Long press for not boarded."
+        : "Tap to drop or undo. Long press for not dropped.";
 
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={cardDisabled}
       className={cn(
         "transport-pressable w-full rounded-2xl border p-4 text-left shadow-soft sm:p-4",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         "select-none",
         meta.card,
-        disabled && "cursor-not-allowed opacity-60",
+        cardDisabled && "cursor-not-allowed opacity-60",
       )}
       aria-label={`${student.name}. ${meta.label}. ${hint}`}
+      aria-busy={syncing || undefined}
       {...press}
       onKeyDown={(event) => {
-        if (disabled) return;
+        if (cardDisabled) return;
         if (event.key === "Enter" && event.shiftKey) {
           event.preventDefault();
           onLongPress();
@@ -140,24 +145,24 @@ export function StudentAttendanceCard({
             <p className="mt-1 text-xs tabular-nums text-muted-foreground">
               {mode === "boarding" ? "Boarded" : "Dropped"} at {stamp}
             </p>
-          ) : !disabled ? (
+          ) : !cardDisabled ? (
             <p className="mt-1 text-xs text-muted-foreground">
               {mode === "boarding" ? "Tap = Boarded · Hold = Not boarded" : "Tap = Dropped · Hold = Not dropped"}
             </p>
           ) : null}
           {student.syncStatus === "syncing" ? (
             <p className="mt-1 text-xs font-medium text-transport" role="status">
-              Syncing
+              Saving…
             </p>
           ) : null}
           {student.syncStatus === "confirmed" ? (
             <p className="mt-1 text-xs font-medium text-success" role="status">
-              Confirmed
+              Saved
             </p>
           ) : null}
           {student.syncStatus === "error" ? (
             <p className="mt-1 text-xs font-medium text-destructive" role="status">
-              Failed — retry
+              Failed — tap to retry
             </p>
           ) : null}
         </div>

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { StudentStopAssignment } from "./types";
 
 const submitTransportStop = vi.fn();
 const updateTransportStop = vi.fn();
@@ -78,14 +79,14 @@ describe("syncStopAndEnrollmentsToApi", () => {
     updateTransportEnrollment.mockResolvedValue({ id: enrollmentId });
 
     const { syncStopAndEnrollmentsToApi } = await import("./api-sync");
-    const assignment = {
+    const assignment: StudentStopAssignment = {
       id: "asn-1",
       studentId,
       studentName: "Kid",
       studentClass: "5A",
       stopId: STOP.id,
       stopName: STOP.name,
-      status: "pending" as const,
+      status: "pending",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     };

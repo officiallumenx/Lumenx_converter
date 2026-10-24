@@ -1,13 +1,10 @@
 /** Mirrors backend leave DTOs — keep in sync with domains/leave/types.ts. */
 
-export type LeaveSubjectKind = "student" | "teacher";
+import type { LeaveStatus } from "@lumenx/types";
 
-export type LeaveStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "ignored"
-  | "cancelled";
+export type { LeaveStatus };
+
+export type LeaveSubjectKind = "student" | "teacher";
 
 export type TeacherLeaveType = "sick" | "casual" | "emergency" | "permission";
 

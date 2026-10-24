@@ -25,6 +25,7 @@ function NavDropdown({
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonId = useId();
   const panelId = useId();
+  const keyboardOpen = useRef(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const active = menuIsActive(item, pathname);
 
@@ -44,10 +45,45 @@ function NavDropdown({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !keyboardOpen.current) return;
+    keyboardOpen.current = false;
+    wrapRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+  }, [open]);
+
+  function menuItems(): HTMLElement[] {
+    return Array.from(wrapRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
+  }
+
   function onButtonKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      if (open) {
+        wrapRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+        return;
+      }
+      keyboardOpen.current = true;
       setOpen(true);
+    }
+  }
+
+  function onPanelKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const items = menuItems();
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (items.length === 0) return;
+      const next =
+        event.key === "ArrowDown"
+          ? items[(index + 1 + items.length) % items.length]
+          : items[(index - 1 + items.length) % items.length];
+      next?.focus();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      wrapRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     }
   }
 
@@ -72,7 +108,13 @@ function NavDropdown({
         <ChevronDown className={cn("size-3.5 opacity-70 transition-transform", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div id={panelId} role="menu" aria-labelledby={buttonId} className="site-nav-panel">
+        <div
+          id={panelId}
+          role="menu"
+          aria-labelledby={buttonId}
+          className="site-nav-panel"
+          onKeyDown={onPanelKeyDown}
+        >
           {item.overview ? (
             <Link
               to={item.overview.to}

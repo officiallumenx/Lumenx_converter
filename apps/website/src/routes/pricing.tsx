@@ -7,7 +7,7 @@ import { QuoteCalculator } from "@/components/QuoteCalculator";
 import { ConversionNav } from "@/components/conversion/ConversionNav";
 import { GetStartedCTA } from "@/components/conversion/GetStartedCTA";
 import { CTAButton } from "@/components/conversion/CTAButton";
-import { FAQItem } from "@/components/content/FAQItem";
+import { FAQList } from "@/components/content/FAQList";
 import { SiteCard } from "@/components/SiteCard";
 import { contactSearch, parsePricingSearch } from "@/lib/search";
 import {
@@ -97,11 +97,7 @@ function PricingPage() {
       </Section>
 
       <Section title="Common questions" narrow>
-        {PRICING_FAQ.map((item, i) => (
-          <FAQItem key={item.q} question={item.q} defaultOpen={i === 0}>
-            {item.a}
-          </FAQItem>
-        ))}
+        <FAQList items={PRICING_FAQ} defaultOpenFirst />
       </Section>
 
       <GetStartedCTA

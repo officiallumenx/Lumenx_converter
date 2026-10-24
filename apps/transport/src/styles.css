@@ -1,8 +1,10 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @source "../../../packages/ui/src";
+@source "../../../packages/module-help/src";
 @import "tw-animate-css";
 @import "@lumenx/ui/theme/typography.css";
+@import "@lumenx/module-help/styles.css";
 @import "./theme/tokens.css";
 
 @custom-variant dark (&:is(.dark *));

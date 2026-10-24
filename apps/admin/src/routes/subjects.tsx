@@ -22,12 +22,21 @@ import {
   EmptyState,
   Th,
 } from "@lumenx/ui-admin";
-import { BookOpen, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BookOpen, MoreHorizontal, Plus, Trash2, Upload } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import type { SubjectImportRow } from "@/lib/academics/bulk-import-parse";
+import { formatApiClientError } from "@/lib/api";
+import { RouteChunkFallback } from "@/components/RouteChunkFallback";
+
+const AcademicsBulkImportDialog = lazy(() =>
+  import("@/components/academics/AcademicsBulkImportDialog").then((m) => ({
+    default: m.AcademicsBulkImportDialog,
+  })),
+);
 import {
   gradesDisplayLabel,
   resolveSubjectsListView,
@@ -37,6 +46,16 @@ import {
   type SubjectListItem,
   type SubjectsListStatus,
 } from "@/lib/subjects";
+import {
+  buildClassPeriodsMap,
+  parseClassPeriods,
+  periodsForClass,
+} from "@/lib/subjects/class-periods";
+import {
+  outcomeAfterSuccessfulCreate,
+  shouldIgnoreDuplicateCreateClick,
+  type CreateSubmitMode,
+} from "@/lib/forms/create-and-add-another";
 import { useSubjectsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import {
@@ -127,6 +146,8 @@ function SubjectsPage() {
     string | null
   >(null);
   const [auxReload, setAuxReload] = useState(0);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const listEnabled =
     apiMode &&
     instituteCtx.status === "ready" &&
@@ -184,9 +205,14 @@ function SubjectsPage() {
   const [code, setCode] = useState("");
   const [category, setCategory] = useState<string>(SUBJECT_CATEGORIES[0]!);
   const [periods, setPeriods] = useState("5");
+  const [capacity, setCapacity] = useState("");
+  const [classPeriodByCode, setClassPeriodByCode] = useState<Record<string, string>>(
+    {},
+  );
   const [status, setStatus] = useState<SubjectCatalogItem["status"]>("active");
   const [selectedGrades, setSelectedGrades] = useState<string[]>([defaultGrade]);
   const [assignIds, setAssignIds] = useState<string[]>([]);
+  const [formSaving, setFormSaving] = useState(false);
   const [apiAssignYearId, setApiAssignYearId] = useState("");
   const [apiAssignClassId, setApiAssignClassId] = useState("");
   const [apiAssignSectionId, setApiAssignSectionId] = useState("");
@@ -356,14 +382,18 @@ function SubjectsPage() {
     });
   }, [apiMode, displayItems, catalog, q, categoryFilter]);
 
-  const resetForm = () => {
+  const resetForm = (opts?: { keepClassContext?: boolean }) => {
     const e = emptyForm(defaultGrade);
     setName(e.name);
     setCode(e.code);
     setCategory(e.category);
     setPeriods(e.periods);
+    setCapacity("");
+    setClassPeriodByCode({});
     setStatus(e.status);
-    setSelectedGrades(e.selectedGrades);
+    setSelectedGrades(
+      opts?.keepClassContext ? selectedGrades : e.selectedGrades,
+    );
     setAssignIds([]);
     setEditingId(null);
   };
@@ -403,13 +433,25 @@ function SubjectsPage() {
     setCategory(option.category);
   };
 
-  const openEdit = (subject: SubjectCatalogItem) => {
+  const openEdit = (subject: SubjectCatalogItem | SubjectListItem) => {
     setFormMode("edit");
     setEditingId(subject.id);
     setName(subject.name);
     setCode(subject.code);
     setCategory(subject.category);
     setPeriods(String(subject.periodsPerWeek));
+    const listItem = subject as SubjectListItem;
+    setCapacity(
+      listItem.capacity != null && listItem.capacity >= 0
+        ? String(listItem.capacity)
+        : "",
+    );
+    const periodsMap = parseClassPeriods(listItem.classPeriods);
+    const nextInputs: Record<string, string> = {};
+    for (const g of subject.grades) {
+      nextInputs[g] = String(periodsForClass(periodsMap, g, subject.periodsPerWeek));
+    }
+    setClassPeriodByCode(nextInputs);
     setStatus(subject.status);
     setSelectedGrades([...subject.grades]);
     setFormOpen(true);
@@ -514,21 +556,38 @@ function SubjectsPage() {
     setActiveSubject(null);
   };
 
-  const saveForm = () => {
+  const saveForm = (mode: CreateSubmitMode = "create") => {
+    if (shouldIgnoreDuplicateCreateClick(formSaving)) return;
     if (!name.trim() || !code.trim()) return;
-    if (!apiMode && selectedGrades.length === 0) return;
+    if (formMode === "edit" && !apiMode && selectedGrades.length === 0) return;
+
+    const fallbackPeriods = Math.max(1, Number(periods) || 5);
+    const capacityValue =
+      capacity.trim() === "" ? null : Math.max(0, Math.floor(Number(capacity)));
+    if (capacity.trim() !== "" && !Number.isFinite(Number(capacity))) {
+      notify("Capacity must be a number");
+      return;
+    }
+    const gradesForSave =
+      formMode === "create" && apiMode
+        ? []
+        : apiMode
+          ? selectedGrades
+          : selectedGrades;
+    const classPeriods =
+      formMode === "edit"
+        ? buildClassPeriodsMap(selectedGrades, classPeriodByCode, fallbackPeriods)
+        : {};
 
     const payload = {
       name: name.trim(),
       code: code.trim(),
       category: category || "Core",
-      periodsPerWeek: Number(periods) || 5,
-      grades: apiMode
-        ? selectedGrades.length > 0
-          ? selectedGrades
-          : grades.slice(0, 1)
-        : selectedGrades,
+      periodsPerWeek: fallbackPeriods,
+      grades: gradesForSave,
       status,
+      capacity: capacityValue,
+      classPeriods,
     };
 
     if (apiMode) {
@@ -537,6 +596,7 @@ function SubjectsPage() {
         notify("Select an institute first");
         return;
       }
+      setFormSaving(true);
       const request =
         formMode === "edit" && editingId
           ? updateSubjectApi(editingId, {
@@ -545,6 +605,8 @@ function SubjectsPage() {
               category: payload.category,
               periodsPerWeek: payload.periodsPerWeek,
               applicableClassCodes: payload.grades,
+              capacity: payload.capacity,
+              classPeriods: payload.classPeriods,
               status: payload.status,
             })
           : createSubjectApi({
@@ -553,15 +615,28 @@ function SubjectsPage() {
               code: payload.code,
               category: "Core",
               periodsPerWeek: payload.periodsPerWeek,
-              applicableClassCodes: payload.grades.length > 0 ? payload.grades : [],
+              applicableClassCodes: [],
+              capacity: payload.capacity,
+              classPeriods: {},
               status: payload.status,
             });
       void request
         .then(() => {
+          bumpSubjectsReload();
+          if (formMode === "edit") {
+            setFormOpen(false);
+            resetForm();
+            notify("Subject updated");
+            return;
+          }
+          const outcome = outcomeAfterSuccessfulCreate(mode);
+          notify("Subject created");
+          if (outcome.stayOpen) {
+            resetForm({ keepClassContext: true });
+            return;
+          }
           setFormOpen(false);
           resetForm();
-          bumpSubjectsReload();
-          notify(formMode === "edit" ? "Subject updated" : "Subject created");
         })
         .catch((err) => {
           const message =
@@ -569,30 +644,39 @@ function SubjectsPage() {
           notify(
             /already exists/i.test(message) ? "subject is already exists" : message,
           );
-        });
+        })
+        .finally(() => setFormSaving(false));
       return;
     }
 
     if (formMode === "edit" && editingId) {
       updateSubject(editingId, payload);
-    } else {
-      const nameKey = payload.name.toLowerCase();
-      const codeKey = payload.code.toLowerCase();
-      const duplicate = catalog.some(
-        (s) =>
-          s.name.toLowerCase() === nameKey || s.code.toLowerCase() === codeKey,
-      );
-      if (duplicate) {
-        notify("subject is already exists");
-        return;
-      }
-      const created = addSubject(payload);
-      if (assignIds.length > 0) {
-        assignTeachersToSubject(created.id, assignIds);
-      }
+      refresh();
+      setFormOpen(false);
+      resetForm();
+      return;
     }
-
+    const nameKey = payload.name.toLowerCase();
+    const codeKey = payload.code.toLowerCase();
+    const duplicate = catalog.some(
+      (s) =>
+        s.name.toLowerCase() === nameKey || s.code.toLowerCase() === codeKey,
+    );
+    if (duplicate) {
+      notify("subject is already exists");
+      return;
+    }
+    const created = addSubject(payload);
+    if (assignIds.length > 0) {
+      assignTeachersToSubject(created.id, assignIds);
+    }
     refresh();
+    const outcome = outcomeAfterSuccessfulCreate(mode);
+    notify("Subject created");
+    if (outcome.stayOpen) {
+      resetForm({ keepClassContext: true });
+      return;
+    }
     setFormOpen(false);
     resetForm();
   };
@@ -658,6 +742,58 @@ function SubjectsPage() {
     void navigate({ to: "/subjects/$id", params: { id } });
   };
 
+  const importSubjects = (importRows: SubjectImportRow[]) => {
+    if (!apiMode) {
+      notify("Bulk import is available in API mode");
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId || !writesEnabled) {
+      notify("Select an institute before importing subjects");
+      return;
+    }
+    setBulkImporting(true);
+    void (async () => {
+      let created = 0;
+      let failed = 0;
+      const failures: string[] = [];
+      for (const row of importRows) {
+        try {
+          const capacityValue =
+            row.capacity.trim() === ""
+              ? null
+              : Math.max(0, Math.floor(Number(row.capacity)));
+          await createSubjectApi({
+            instituteId,
+            name: row.name.trim(),
+            code: row.code.trim(),
+            category: row.category.trim() || "Core",
+            periodsPerWeek: 5,
+            applicableClassCodes: [],
+            capacity: capacityValue,
+            classPeriods: {},
+            status: "active",
+          });
+          created += 1;
+        } catch (err) {
+          failed += 1;
+          failures.push(
+            `${row.code || row.name}: ${formatApiClientError(err, "create failed")}`,
+          );
+        }
+      }
+      setBulkImporting(false);
+      setBulkImportOpen(false);
+      bumpSubjectsReload();
+      const summary = `${created} subjects created${failed ? ` · ${failed} failed` : ""}`;
+      notify(
+        failures.length > 0
+          ? `${summary}. ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? "…" : ""}`
+          : summary,
+      );
+    })();
+  };
+
   if (pathname.startsWith("/subjects/")) return <Outlet />;
 
   return (
@@ -670,15 +806,26 @@ function SubjectsPage() {
       }
       actions={
         writesEnabled ? (
-          <Button
-            variant="primary"
-            data-admin-write
-            disabled={!writesAllowed}
-            title={!writesAllowed ? reason ?? undefined : undefined}
-            onClick={() => guardWriteAction(openCreate)}
-          >
-            <Plus className="size-3.5" /> New subject
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {apiMode ? (
+              <Button
+                onClick={() => setBulkImportOpen(true)}
+                disabled={bulkImporting || !writesAllowed}
+                title={!writesAllowed ? reason ?? undefined : undefined}
+              >
+                <Upload className="size-3.5" /> Bulk Import
+              </Button>
+            ) : null}
+            <Button
+              variant="primary"
+              data-admin-write
+              disabled={!writesAllowed}
+              title={!writesAllowed ? reason ?? undefined : undefined}
+              onClick={() => guardWriteAction(openCreate)}
+            >
+              <Plus className="size-3.5" /> New subject
+            </Button>
+          </div>
         ) : null
       }
     >
@@ -690,7 +837,7 @@ function SubjectsPage() {
             ? `${countLabel(displayItems.length)} subjects · institute catalog`
             : `${catalog.length} subjects · create, edit, and assign teachers`
         }
-      />
+       helpKey="subjects" />
       <Card>
         <PageToolbar className="!flex-row flex-nowrap items-center gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -857,6 +1004,21 @@ function SubjectsPage() {
         )}
       </Card>
 
+      {apiMode && writesEnabled && bulkImportOpen ? (
+        <Suspense fallback={<RouteChunkFallback label="Loading importer…" />}>
+          <AcademicsBulkImportDialog
+            open={bulkImportOpen}
+            onClose={() => {
+              if (!bulkImporting) setBulkImportOpen(false);
+            }}
+            entity="subjects"
+            title="Import subjects"
+            importing={bulkImporting}
+            onImportSubjects={importSubjects}
+          />
+        </Suspense>
+      ) : null}
+
       {writesEnabled ? (
       <>
       <Modal
@@ -880,17 +1042,30 @@ function SubjectsPage() {
                 resetForm();
               }}
               className="mr-auto"
+              disabled={formSaving}
             >
               Cancel
             </Button>
+            {formMode === "create" ? (
+              <Button
+                data-admin-write
+                disabled={formSaving || !name.trim() || !code.trim()}
+                onClick={() =>
+                  guardWriteAction(() => saveForm("create_and_add_another"))
+                }
+              >
+                Create &amp; Add Another
+              </Button>
+            ) : null}
             <Button
               variant="primary"
               data-admin-write
-              onClick={() => guardWriteAction(saveForm)}
+              onClick={() => guardWriteAction(() => saveForm("create"))}
               disabled={
+                formSaving ||
                 !name.trim() ||
                 !code.trim() ||
-                (!apiMode && selectedGrades.length === 0)
+                (formMode === "edit" && !apiMode && selectedGrades.length === 0)
               }
             >
               {formMode === "edit" ? "Save changes" : "Create subject"}
@@ -905,6 +1080,7 @@ function SubjectsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Mathematics"
+                autoFocus={formMode === "create"}
               />
             </Field>
           ) : (
@@ -929,101 +1105,129 @@ function SubjectsPage() {
               onChange={(e) => setCode(e.target.value)}
             />
           </Field>
-          {apiMode && formMode === "create" ? (
-            <p className="sm:col-span-2 text-xs text-muted-foreground">
-              Only name and code are required. Assign teachers from Teachers or Timetable later.
-            </p>
-          ) : (
-            <>
           {formMode === "create" ? (
-            <div className="sm:col-span-2">
-              <Field label="Assign teachers">
-                {createTeacherChoices.length === 0 ? (
-                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                    No teachers in demo directory.
-                  </div>
-                ) : (
-                  <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                    {createTeacherChoices.map((t) => {
-                      const checked = assignIds.includes(t.id);
-                      return (
-                        <label
-                          key={t.id}
-                          className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs ${
-                            checked ? "border-primary bg-primary/5" : "border-border"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleTeacher(t.id)}
-                          />
-                          <span className="font-medium">{t.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </Field>
-            </div>
-          ) : null}
-          <Field label="Periods per week">
-            <TextInput
-              type="number"
-              min={1}
-              max={12}
-              value={periods}
-              onChange={(e) => setPeriods(e.target.value)}
-            />
-          </Field>
-          <Field label="Category">
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {SUBJECT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Select classes" required>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {grades.map((g) => (
-                  <label
-                    key={g}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs cursor-pointer ${selectedGrades.includes(g) ? "border-primary bg-primary/5" : "border-border"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedGrades.includes(g)}
-                      onChange={() => toggleGrade(g)}
-                    />
-                    {gradeLabels[g] && gradeLabels[g] !== g
-                      ? `${gradeLabels[g]} · ${g}`
-                      : g}
-                  </label>
-                ))}
-                {grades.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">
-                    {apiMode
-                      ? "Create classes first, then select them here."
-                      : "No grades configured."}
-                  </span>
-                ) : null}
-              </div>
-            </Field>
-          </div>
-          <Field label="Status">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as SubjectCatalogItem["status"])}
+            <Field
+              label="Capacity"
+              hint="Optional seat limit for this subject (leave blank if unused)"
             >
-              <option value="active">Active</option>
-              <option value="draft">Draft</option>
-            </Select>
-          </Field>
+              <TextInput
+                type="number"
+                min={0}
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="e.g. 40"
+              />
+            </Field>
+          ) : null}
+          {formMode === "edit" ? (
+            <>
+              <Field label="Default periods / week">
+                <TextInput
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={periods}
+                  onChange={(e) => setPeriods(e.target.value)}
+                />
+              </Field>
+              <Field label="Capacity">
+                <TextInput
+                  type="number"
+                  min={0}
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  placeholder="Optional"
+                />
+              </Field>
+              <Field label="Category">
+                <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {SUBJECT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Status">
+                <Select
+                  value={status}
+                  onChange={(e) =>
+                    setStatus(e.target.value as SubjectCatalogItem["status"])
+                  }
+                >
+                  <option value="active">Active</option>
+                  <option value="draft">Draft</option>
+                </Select>
+              </Field>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Class assignment"
+                  hint="Toggle each class and set periods per week independently"
+                >
+                  <div className="mt-2 space-y-2">
+                    {grades.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        {apiMode
+                          ? "Create classes first, then assign them here."
+                          : "No grades configured."}
+                      </span>
+                    ) : (
+                      grades.map((g) => {
+                        const checked = selectedGrades.includes(g);
+                        const label =
+                          gradeLabels[g] && gradeLabels[g] !== g
+                            ? `${gradeLabels[g]} · ${g}`
+                            : g;
+                        return (
+                          <div
+                            key={g}
+                            className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2"
+                          >
+                            <label className="inline-flex min-w-[8rem] flex-1 items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  toggleGrade(g);
+                                  if (!checked) {
+                                    setClassPeriodByCode((prev) => ({
+                                      ...prev,
+                                      [g]: prev[g] ?? periods,
+                                    }));
+                                  }
+                                }}
+                              />
+                              <span className="font-medium">{label}</span>
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+                              Periods/week
+                              <TextInput
+                                type="number"
+                                min={1}
+                                max={12}
+                                className="w-20"
+                                disabled={!checked}
+                                value={
+                                  classPeriodByCode[g] ??
+                                  String(Math.max(1, Number(periods) || 5))
+                                }
+                                onChange={(e) =>
+                                  setClassPeriodByCode((prev) => ({
+                                    ...prev,
+                                    [g]: e.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </Field>
+              </div>
             </>
-          )}
+          ) : null}
         </div>
       </Modal>
 

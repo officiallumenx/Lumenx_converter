@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import {
+  classifyAllocateRpcError,
+  type AllocateRpcOutcome,
+} from "./numbering.js";
 import type {
   CreateTemplateInput,
   GeneratedDocumentRow,
@@ -13,11 +17,11 @@ import type {
 
 /** Columns present on committed `public.template` (pre–PPTX catalog migration). */
 export const TEMPLATE_COLS =
-  "id, owner_scope, institute_id, type, name, description, category, status, source, version, preview_aspect, layout_mode, blocks, visual_theme, visual_fields, tags, created_by_user_id, created_at, updated_at, deleted_at";
+  "id, family_id, owner_scope, institute_id, type, name, description, category, status, source, version, preview_aspect, layout_mode, blocks, visual_theme, visual_fields, tags, created_by_user_id, created_at, updated_at, deleted_at";
 
-/** PPTX catalog columns — must not appear in Documents select/insert until migration is applied. */
+/** PPTX catalog columns — must not appear in Documents select/insert until migration is applied.
+ * Note: `family_id` is NOT in this list — it is NOT NULL on the base template schema (versioning group). */
 export const TEMPLATE_PPTX_CATALOG_COLS = [
-  "family_id",
   "asset_path",
   "file_name",
   "file_byte_size",
@@ -106,9 +110,13 @@ export async function insertTemplate(
     status: TemplateStatus;
   },
 ): Promise<TemplateRow> {
+  // family_id is NOT NULL (versioning group); first version defaults to its own id.
+  const id = crypto.randomUUID();
   const result = await admin
     .from("template")
     .insert({
+      id,
+      family_id: id,
       owner_scope: "institute",
       institute_id: input.instituteId,
       type: input.type,
@@ -205,6 +213,92 @@ export async function listGeneratedDocuments(
 
   const result = await query;
   return ensureDbOk(result) as GeneratedDocumentRow[];
+}
+
+/**
+ * All historically reserved document numbers for an institute (including
+ * soft-deleted and unpublished stamped drafts). Used for max+1 fallback seeding
+ * under the no-reuse policy.
+ */
+export async function listReservedDocumentNumbers(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<string[]> {
+  const result = await admin
+    .from("generated_document")
+    .select("certificate_number")
+    .eq("institute_id", instituteId)
+    .not("certificate_number", "is", null);
+  const rows = ensureDbOk(result) as Array<{ certificate_number: string | null }>;
+  return rows
+    .map((row) => row.certificate_number?.trim() || "")
+    .filter(Boolean);
+}
+
+/** @deprecated Prefer listReservedDocumentNumbers (no-reuse policy). */
+export async function listPublishedDocumentNumbers(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<string[]> {
+  return listReservedDocumentNumbers(admin, instituteId);
+}
+
+/**
+ * Atomic DOC/{year}/{seq} via proposed RPC.
+ * Distinguishes confirmed missing function from permission/unexpected errors.
+ */
+export async function allocateDocumentNumberRpc(
+  admin: SupabaseClient,
+  instituteId: string,
+  year: number,
+): Promise<AllocateRpcOutcome> {
+  try {
+    const result = await admin.rpc("allocate_document_number", {
+      p_institute_id: instituteId,
+      p_year: year,
+    });
+    if (result.error) {
+      const message = result.error.message ?? String(result.error);
+      const code =
+        typeof (result.error as { code?: string }).code === "string"
+          ? (result.error as { code?: string }).code
+          : null;
+      const kind = classifyAllocateRpcError(message, code);
+      return { kind, message };
+    }
+    const value = typeof result.data === "string" ? result.data.trim() : "";
+    if (!value) {
+      return {
+        kind: "error",
+        message: "allocate_document_number returned an empty number",
+      };
+    }
+    return { kind: "allocated", number: value };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const kind = classifyAllocateRpcError(message, null);
+    return { kind, message };
+  }
+}
+
+/** Find an existing draft by client generationKey (payload.generationKey). */
+export async function findGeneratedByGenerationKey(
+  admin: SupabaseClient,
+  instituteId: string,
+  generationKey: string,
+): Promise<GeneratedDocumentRow | null> {
+  const result = await admin
+    .from("generated_document")
+    .select(GENERATED_COLS)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .eq("workflow_state", "draft")
+    .filter("payload->>generationKey", "eq", generationKey.trim())
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as GeneratedDocumentRow | null) ?? null;
 }
 
 export async function findGeneratedDocumentById(

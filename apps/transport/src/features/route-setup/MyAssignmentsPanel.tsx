@@ -92,12 +92,24 @@ export function MyAssignmentsPanel({
       <li key={assignment.id}>
         <Card
           className={
-            needsPickup || needsDrop ? "border-amber-500/40 bg-amber-500/5" : undefined
+            assignment.status === "rejected"
+              ? "border-muted bg-muted/40 opacity-75"
+              : needsPickup || needsDrop
+                ? "border-amber-500/40 bg-amber-500/5"
+                : undefined
           }
         >
           <CardContent className="space-y-2 p-3 sm:p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">{assignment.studentName}</p>
+              <p
+                className={
+                  assignment.status === "rejected"
+                    ? "text-sm font-semibold text-muted-foreground"
+                    : "text-sm font-semibold text-foreground"
+                }
+              >
+                {assignment.studentName}
+              </p>
               <SubmissionStatusChip status={assignment.status} />
               {needsPickup ? (
                 <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
@@ -122,9 +134,12 @@ export function MyAssignmentsPanel({
                 {assignment.dropStopName || DROP_STOP_NOT_ASSIGNED_LABEL}
               </span>
             </p>
-            {assignment.status === "rejected" && assignment.rejectionReason ? (
-              <p className="text-xs text-destructive">
-                Declined · {assignment.rejectionReason}
+            {assignment.status === "rejected" ? (
+              <p className="text-xs font-medium text-muted-foreground">
+                Rejected
+                {assignment.rejectionReason
+                  ? ` · ${assignment.rejectionReason}`
+                  : ""}
               </p>
             ) : null}
 

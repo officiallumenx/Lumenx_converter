@@ -33,6 +33,7 @@ import {
   getModuleNavDirection,
 } from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
+import { ModuleHelpRouteControl } from "@/components/module-help";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { useCareersTheme } from "@/careers-portal/core/CareersThemeProvider";
 import { LumenXLogo } from "@/components/app/LumenXLogo";
@@ -207,7 +208,10 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
                 <p className="text-sm font-bold leading-tight truncate">LumenX Careers</p>
               </div>
             </Link>
-            <ThemeToggle />
+            <div className="flex items-center gap-1.5">
+              <ModuleHelpRouteControl />
+              <ThemeToggle />
+            </div>
           </div>
         </header>
         <main ref={mainRef} className="mx-auto max-w-lg px-4 py-6">
@@ -232,6 +236,7 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-1.5">
             <PendingSyncBadge />
+            <ModuleHelpRouteControl />
             <ThemeToggle />
           </div>
         </div>
@@ -283,6 +288,7 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-1">
             <PendingSyncBadge />
+            <ModuleHelpRouteControl />
             <ThemeToggle />
             {user && !isRecruiter(user) && (
               <Link

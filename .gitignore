@@ -22,6 +22,11 @@ build/
 # ─── Cloudflare Wrangler ────────────────────────────────────────────────────
 .wrangler/
 .dev.vars
+# Post-build deploy configs written by scripts/prepare-cf-worker-deploy.mjs
+apps/*/wrangler.json
+# Written when prepare detects a monorepo root (Cloudflare deploy cwd may be /).
+/wrangler.json
+/wrangler.jsonc
 
 # ─── Environment & secrets ──────────────────────────────────────────────────
 .env

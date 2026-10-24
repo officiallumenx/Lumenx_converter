@@ -84,7 +84,9 @@ const sourceBuf = await prepareSource();
 await sharp(await paddedSquare(1024, sourceBuf, { contentRatio: 0.7 }))
   .png()
   .toFile(path.join(STORE, "launcher-icon-master-1024.png"));
-await sharp(await paddedSquare(512, sourceBuf, { contentRatio: 0.68 }))
+// Play Console store listing wants a full-bleed 512×512 (no extra safe-zone pad).
+await sharp(sourceBuf)
+  .resize(512, 512, { fit: "cover" })
   .png()
   .toFile(path.join(STORE, "play-icon-512.png"));
 await sharp(sourceBuf)

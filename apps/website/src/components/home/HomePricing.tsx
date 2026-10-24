@@ -2,10 +2,8 @@ import { Link } from "@tanstack/react-router";
 import {
   DEFAULT_PER_STUDENT_RATE_INR,
   DEFAULT_TRIAL_DAYS,
-  MIN_MONTHLY_CHARGE_INR,
-  NORMAL_PER_STUDENT_RATE_MAX_INR,
-  NORMAL_PER_STUDENT_RATE_MIN_INR,
 } from "@lumenx/utils/subscription/policy";
+import { Badge } from "@lumenx/ui";
 import { Section } from "../layout/Section";
 import { CTAButton } from "../conversion/CTAButton";
 import { SiteCard } from "../SiteCard";
@@ -17,28 +15,35 @@ export function HomePricing() {
     <Section
       id="pricing"
       eyebrow="Pricing"
-      title="One monthly bill — not two."
-      lede={`Per-student rate is set for your campus (often ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}). You pay that × students, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} — whichever is higher. ${DEFAULT_TRIAL_DAYS}-day free trial.`}
+      title={`Starts from ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / month.`}
+      lede={`First ${DEFAULT_TRIAL_DAYS} days free on your first use. Choose an annual plan and get another ${DEFAULT_TRIAL_DAYS} days free.`}
     >
-      <SiteCard quiet className="mx-auto max-w-2xl">
-        <p className="text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-          {formatInr(DEFAULT_PER_STUDENT_RATE_INR)} on this site is only a starting estimate — not the only
-          rate. Example at {formatInr(DEFAULT_PER_STUDENT_RATE_INR)}: 400 students →{" "}
-          <span className="font-medium text-foreground">{formatInr(MIN_MONTHLY_CHARGE_INR)}</span>{" "}
-          minimum; 1,000 students →{" "}
-          <span className="font-medium text-foreground">
-            {formatInr(1000 * DEFAULT_PER_STUDENT_RATE_INR)}
-          </span>
-          .
-        </p>
-        <p className="mt-3 text-center text-sm text-muted-foreground">
-          Admin and Connect included. No payment on this website.
-        </p>
-      </SiteCard>
+      <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+        <SiteCard quiet className="text-center">
+          <Badge variant="secondary" className="mx-auto">
+            First use
+          </Badge>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            {DEFAULT_TRIAL_DAYS} days free
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Full trial when your institute starts — then from {formatInr(DEFAULT_PER_STUDENT_RATE_INR)} / month
+          </p>
+        </SiteCard>
+        <SiteCard quiet className="text-center border-[var(--border-brand)]">
+          <Badge className="mx-auto">Annual plan</Badge>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            {DEFAULT_TRIAL_DAYS} days free
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Extra free period on yearly billing — best value for the campus
+          </p>
+        </SiteCard>
+      </div>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <CTAButton asChild>
           <Link to="/pricing" search={{}}>
-            Estimate your price
+            See full pricing
           </Link>
         </CTAButton>
         <CTAButton asChild variant="secondary">

@@ -319,7 +319,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
         eyebrow="People"
         title={displayParent?.name ?? "Parent profile"}
         subtitle="Guardian directory record"
-      />
+       helpKey="parents" />
       <PageStack>
         {saveError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">

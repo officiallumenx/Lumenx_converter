@@ -1,0 +1,9 @@
+{
+  "name": "lumenx-downloads",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "workers_dev": true,
+  "vars": {
+    "RELEASE_TAG": "downloads-v1.0.2"
+  }
+}

@@ -837,7 +837,7 @@ function MarksPage() {
               : `Read-only · ${countLabel(activeEntries.length)} entries`
             : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
         }
-      />
+       helpKey="marks" />
       {/* Institute snapshot */}
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Snapshot label="Classes" value={countLabel(summary.classes)} />

@@ -31,12 +31,36 @@ export const AUTH_ROUTES = [
 
 export type AuthRoutePath = (typeof AUTH_ROUTES)[number];
 
+/**
+ * Legal documents shown during institute registration.
+ * Must be reachable without auth — otherwise signup links bounce to /welcome.
+ */
+export const LEGAL_PUBLIC_ROUTES = ["/terms", "/privacy", "/cookies"] as const;
+
+export type LegalPublicRoute = (typeof LEGAL_PUBLIC_ROUTES)[number];
+
+/** Auth chrome + legal docs (unauthenticated-safe). */
+export function isUnauthenticatedAllowedPath(pathname: string): boolean {
+  return (
+    (AUTH_ROUTES as readonly string[]).includes(pathname) ||
+    (LEGAL_PUBLIC_ROUTES as readonly string[]).includes(pathname) ||
+    pathname === "/welcome"
+  );
+}
+
 /** Authenticated users hitting these should redirect into the app. */
 export const POST_AUTH_LANDING_ROUTES = ["/welcome", "/login", "/splash"] as const;
 
 export function isPostAuthLanding(pathname: string): boolean {
   return (POST_AUTH_LANDING_ROUTES as readonly string[]).includes(pathname);
 }
+
+/** Legal documents linked from institute registration consent. */
+export const SIGNUP_LEGAL_LINKS = [
+  { to: "/privacy" as const, label: "Privacy Policy" },
+  { to: "/terms" as const, label: "Terms of Service" },
+  { to: "/cookies" as const, label: "Cookie Policy" },
+] as const;
 
 export const DEFAULT_AFTER_LOGIN  = "/" as const;
 export const DEFAULT_AFTER_LOGOUT = "/welcome" as const;

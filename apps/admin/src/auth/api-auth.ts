@@ -1,5 +1,6 @@
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
+import { getApiBaseUrl } from "@/lib/admin-api";
 import { getSupabaseAccessToken, getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   clearStoredActiveInstituteId,
@@ -219,10 +220,7 @@ export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
 export async function apiSignOut(): Promise<void> {
   await invalidatePushDeviceTokensBeforeSignOut({
     app: "admin",
-    apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
-      /\/+$/,
-      "",
-    ),
+    apiBaseUrl: getApiBaseUrl(),
     getAccessToken: async () => {
       const { data } = await getSupabaseBrowserClient().auth.getSession();
       return data.session?.access_token;

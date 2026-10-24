@@ -9,25 +9,26 @@ import {
 } from "./doc-hub-views";
 
 describe("documents hub views", () => {
-  it("defaults to overview", () => {
-    expect(parseHubView(undefined, DOCUMENTS_VIEW_CONFIG)).toBe("overview");
-    expect(parseHubView("nope", DOCUMENTS_VIEW_CONFIG)).toBe("overview");
+  it("defaults to templates", () => {
+    expect(parseHubView(undefined, DOCUMENTS_VIEW_CONFIG)).toBe("templates");
+    expect(parseHubView("nope", DOCUMENTS_VIEW_CONFIG)).toBe("templates");
   });
 
-  it("aliases legacy tabs to the simplified IA", () => {
-    expect(parseHubView("dashboard", DOCUMENTS_VIEW_CONFIG)).toBe("overview");
-    expect(parseHubView("generate", DOCUMENTS_VIEW_CONFIG)).toBe("official");
-    expect(parseHubView("published", DOCUMENTS_VIEW_CONFIG)).toBe("official");
-    expect(parseHubView("generated", DOCUMENTS_VIEW_CONFIG)).toBe("archive");
+  it("aliases legacy tabs to Templates or Published", () => {
+    expect(parseHubView("overview", DOCUMENTS_VIEW_CONFIG)).toBe("templates");
+    expect(parseHubView("dashboard", DOCUMENTS_VIEW_CONFIG)).toBe("templates");
+    expect(parseHubView("generate", DOCUMENTS_VIEW_CONFIG)).toBe("templates");
+    expect(parseHubView("official", DOCUMENTS_VIEW_CONFIG)).toBe("templates");
+    expect(parseHubView("published", DOCUMENTS_VIEW_CONFIG)).toBe("published");
+    expect(parseHubView("archive", DOCUMENTS_VIEW_CONFIG)).toBe("published");
+    expect(parseHubView("generated", DOCUMENTS_VIEW_CONFIG)).toBe("published");
+    expect(parseHubView("student-docs", DOCUMENTS_VIEW_CONFIG)).toBe("published");
   });
 
-  it("keeps primary nav to five clear sections", () => {
+  it("keeps primary nav to exactly two sections", () => {
     expect(DOC_HUB_PRIMARY_NAV.map((n) => n.view)).toEqual([
-      "overview",
-      "official",
-      "student-docs",
       "templates",
-      "archive",
+      "published",
     ]);
   });
 

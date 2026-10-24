@@ -22,6 +22,7 @@ const EVENT_SEVERITY: Partial<Record<TransportEventKind | string, TransportSever
   [TRANSPORT_EVENT.NOT_RIDING_CREATED]: "info",
   [TRANSPORT_EVENT.NOT_RIDING_CANCELLED]: "info",
   [TRANSPORT_EVENT.STOP_APPROACHING]: "attention",
+  [TRANSPORT_EVENT.STOP_NEXT]: "attention",
   [TRANSPORT_EVENT.TRIP_DELAYED]: "attention",
   [TRANSPORT_EVENT.STUDENT_NOT_BOARDED]: "attention",
   [TRANSPORT_EVENT.EMERGENCY_CREATED]: "critical",
@@ -86,11 +87,11 @@ export function isCriticalTransportBypass(severity: TransportSeverity): boolean 
 /** Deterministic deep links by event kind. */
 export function deepLinkForTransportEvent(
   kind: string,
-  audience: "parent" | "driver" | "admin",
+  audience: "parent" | "driver" | "admin" | "student",
 ): string {
   switch (kind) {
     case TRANSPORT_EVENT.STOP_ARRIVED:
-      return audience === "parent"
+      return audience === "parent" || audience === "student"
         ? "/transport/live"
         : audience === "driver"
           ? "/attendance"
@@ -98,18 +99,23 @@ export function deepLinkForTransportEvent(
     case TRANSPORT_EVENT.STUDENT_BOARDED:
       return "/transport";
     case TRANSPORT_EVENT.STUDENT_DROPPED:
-      return audience === "parent" ? "/transport/history" : "/transport";
+      return audience === "parent" || audience === "student"
+        ? "/transport/history"
+        : "/transport";
     case TRANSPORT_EVENT.EMERGENCY_CREATED:
     case TRANSPORT_EVENT.EMERGENCY_RESOLVED:
       return audience === "driver"
         ? "/emergency"
-        : audience === "parent"
+        : audience === "parent" || audience === "student"
           ? "/transport/live"
           : "/transport";
     case TRANSPORT_EVENT.STOP_APPROACHING:
-      return audience === "parent" ? "/transport/live" : "/transport";
+    case TRANSPORT_EVENT.STOP_NEXT:
+      return audience === "parent" || audience === "student"
+        ? "/transport/live"
+        : "/transport";
     case TRANSPORT_EVENT.SCHOOL_ARRIVED:
-      return audience === "parent"
+      return audience === "parent" || audience === "student"
         ? "/transport/live"
         : audience === "driver"
           ? "/attendance"
@@ -123,14 +129,24 @@ export function deepLinkForTransportEvent(
 export const transportDedupe = {
   arrived: (tripId: string, stopId: string) =>
     `transport:${tripId}:stop:${stopId}:arrived`,
+  /** One sequential “next stop” announce per trip×upcoming stop (not per child). */
+  stopNext: (tripId: string, stopId: string) =>
+    `transport:${tripId}:stop:${stopId}:next`,
   boarded: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:boarded`,
+  /** Trip-level parent reminder — unique recipient, not per sibling. */
+  reminderParent: (
+    tripOrRouteKey: string,
+    reminderType: string,
+    serviceDate: string,
+  ) => `transport:${tripOrRouteKey}:reminder:${reminderType}:${serviceDate}`,
   notBoarded: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:not_boarded`,
   dropped: (tripId: string, studentId: string) =>
     `transport:${tripId}:student:${studentId}:dropped`,
-  approach: (tripId: string, studentId: string, thresholdMin: number) =>
-    `transport:${tripId}:student:${studentId}:approach:${thresholdMin}`,
+  /** Parent-level approach: one notification per trip+stop+threshold (not per child). */
+  approach: (tripId: string, stopId: string, thresholdMin: number) =>
+    `transport:${tripId}:stop:${stopId}:approach:${thresholdMin}`,
   reminder: (
     tripOrRouteKey: string,
     studentId: string,

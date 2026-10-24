@@ -38,4 +38,43 @@ describe("transport RLS policy source (defense in depth)", () => {
     expect(daily).toContain("transport_daily_exception_select_scoped");
     expect(daily).toContain("is_guardian_of_student(student_id)");
   });
+
+  it("formalizes guardian vehicle_location Realtime via SECURITY DEFINER helper", () => {
+    const guardianRls = readMigration(
+      "20261020160000_transport_vehicle_location_guardian_realtime_rls.sql",
+    );
+
+    expect(guardianRls).toContain("CREATE OR REPLACE FUNCTION public.can_learner_read_vehicle_location");
+    expect(guardianRls).toMatch(/SECURITY DEFINER/);
+    expect(guardianRls).toMatch(/SET search_path\s*=\s*public/);
+    expect(guardianRls).toContain("public.is_institute_member(p_institute_id)");
+    expect(guardianRls).toContain("te.approval_status IN ('pending', 'approved')");
+    expect(guardianRls).toContain("te.status = 'active'");
+    expect(guardianRls).toContain("tt.finalized = false");
+    expect(guardianRls).toContain("tt.phase <> 'completed'");
+    expect(guardianRls).toContain("tt.deleted_at IS NULL");
+    expect(guardianRls).toContain("public.is_own_student_row(te.student_id)");
+    expect(guardianRls).toContain("public.is_guardian_of_student(te.student_id)");
+    expect(guardianRls).toContain(
+      "REVOKE ALL ON FUNCTION public.can_learner_read_vehicle_location(uuid, uuid) FROM anon",
+    );
+    expect(guardianRls).toContain(
+      "GRANT EXECUTE ON FUNCTION public.can_learner_read_vehicle_location(uuid, uuid) TO authenticated",
+    );
+    expect(guardianRls).toContain(
+      "GRANT EXECUTE ON FUNCTION public.can_learner_read_vehicle_location(uuid, uuid) TO service_role",
+    );
+    expect(guardianRls).toContain("public.is_staff_of_institute(institute_id)");
+    expect(guardianRls).toContain("public.is_platform_operator()");
+    expect(guardianRls).toContain("public.has_institute_role(institute_id, 'driver')");
+    expect(guardianRls).toContain(
+      "public.can_learner_read_vehicle_location(institute_id, trip_id)",
+    );
+
+    // Guardian branch must not reintroduce the phase9 bare trip join inside the policy.
+    const policyBody = guardianRls.slice(
+      guardianRls.indexOf("CREATE POLICY vehicle_location_select_scoped"),
+    );
+    expect(policyBody).not.toMatch(/FROM\s+public\.transport_trip\s+tt/);
+  });
 });

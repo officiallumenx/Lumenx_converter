@@ -5,6 +5,7 @@ import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
 import { ConversionNav } from "@/components/conversion/ConversionNav";
 import { CTAButton } from "@/components/conversion/CTAButton";
+import { HoneypotField } from "@/components/conversion/HoneypotField";
 import { SiteCard } from "@/components/SiteCard";
 import { submitWebsiteLead } from "@/lib/leads";
 import { PAGE_SEO, pageHead } from "@/lib/seo";
@@ -73,6 +74,7 @@ function GetStartedPage() {
         .filter(Boolean)
         .join("\n"),
       intent: "trial",
+      companyWebsite: String(form.get("company_website") ?? "").trim(),
     });
     if (result.ok) {
       setStatus("ok");
@@ -111,6 +113,7 @@ function GetStartedPage() {
           </SiteCard>
         ) : (
           <form className="mx-auto max-w-2xl space-y-5" onSubmit={onSubmit} noValidate>
+            <HoneypotField />
             <Field id="institute" label="Institution name" required autoComplete="organization" />
             <Field
               id="instituteType"
@@ -149,7 +152,7 @@ function GetStartedPage() {
 
             <div>
               <Label htmlFor="notes">Anything else?</Label>
-              <Input id="notes" name="notes" className="site-input mt-1.5" placeholder="Optional notes" />
+              <Input id="notes" name="notes" className="mt-1.5 min-h-11" placeholder="Optional notes" />
             </div>
 
             {feedback ? (
@@ -213,7 +216,7 @@ function Field({
         aria-required={required || undefined}
         placeholder={placeholder}
         inputMode={inputMode}
-        className="site-input mt-1.5"
+        className="mt-1.5 min-h-11"
       />
     </div>
   );

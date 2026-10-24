@@ -61,6 +61,10 @@ export type SubjectRow = {
   category: string;
   periods_per_week: number;
   applicable_class_codes: string[];
+  /** Optional catalog capacity (elective seats, etc.). */
+  capacity: number | null;
+  /** class_code → periods_per_week overrides; empty = use periods_per_week. */
+  class_periods: Record<string, number>;
   status: SubjectStatus;
   created_at: string;
   updated_at: string;
@@ -231,6 +235,8 @@ export type SubjectDto = {
   category: string;
   periodsPerWeek: number;
   applicableClassCodes: string[];
+  capacity: number | null;
+  classPeriods: Record<string, number>;
   status: SubjectStatus;
   createdAt: string;
   updatedAt: string;
@@ -322,6 +328,8 @@ export type CreateSubjectInput = {
   category: string;
   periodsPerWeek: number;
   applicableClassCodes: string[];
+  capacity?: number | null;
+  classPeriods?: Record<string, number>;
   status?: SubjectStatus;
   /** Teachers qualified for this subject at create time (subject_teacher). */
   teacherIds?: string[];
@@ -333,5 +341,7 @@ export type UpdateSubjectInput = {
   category?: string;
   periodsPerWeek?: number;
   applicableClassCodes?: string[];
+  capacity?: number | null;
+  classPeriods?: Record<string, number>;
   status?: SubjectStatus;
 };

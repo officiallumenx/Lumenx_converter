@@ -1,27 +1,25 @@
 import { lazy, Suspense } from "react";
-import { cn } from "@lumenx/ui";
+import { Button, cn } from "@lumenx/ui";
 import type { ProductId } from "@/theme/products";
 import {
   DOWNLOADS,
   androidButtonLabel,
   androidHref,
+  desktopButtonLabel,
+  desktopHref,
   downloadTitle,
-  iosButtonLabel,
-  iosHref,
   platformStateLabel,
   qrHref,
   releaseLabel,
   webButtonLabel,
 } from "@/content/downloads";
-import { isDemoExploreId } from "@/content/demos";
 import { ProductMark } from "../product/ProductMark";
 import { CTAButton } from "./CTAButton";
-import { DemoCTA } from "./DemoCTA";
 import { SiteCard } from "../SiteCard";
 
 const DownloadQr = lazy(() => import("./DownloadQr").then((m) => ({ default: m.DownloadQr })));
 
-const PLATFORM_ORDER = ["web", "android", "ios"] as const;
+const PLATFORM_ORDER = ["web", "android", "desktop"] as const;
 
 export function DownloadProduct({
   id,
@@ -35,7 +33,7 @@ export function DownloadProduct({
   const channel = DOWNLOADS[id];
   const web = channel.webUrl;
   const android = androidHref(channel);
-  const ios = iosHref(channel);
+  const desktop = desktopHref(channel);
   const qr = compact ? null : qrHref(channel);
   const version = channel.version;
   const state = releaseLabel(channel);
@@ -68,9 +66,10 @@ export function DownloadProduct({
             {PLATFORM_ORDER.map((key) => {
               const offer = channel.platforms[key];
               if (offer === "not-offered") return null;
-              const href = key === "web" ? web : key === "android" ? android : ios;
-              const label = key === "ios" ? "iOS" : key === "web" ? "Web" : "Android";
-              const state = platformStateLabel(offer, href);
+              const href = key === "web" ? web : key === "android" ? android : desktop;
+              const label = key === "web" ? "Web" : key === "desktop" ? "Windows" : "Android";
+              const statusText = platformStateLabel(offer, href);
+              const statusKind = href ? "live" : "pending";
               return (
                 <div
                   key={key}
@@ -80,7 +79,7 @@ export function DownloadProduct({
                   )}
                 >
                   <dt>{label}</dt>
-                  <dd>{state}</dd>
+                  <dd data-status={statusKind}>{statusText}</dd>
                   {key === "web" && href ? (
                     <a
                       href={href}
@@ -95,22 +94,38 @@ export function DownloadProduct({
 
           <div className="mt-5 flex flex-wrap gap-2">
             {channel.platforms.web !== "not-offered" && web ? (
-              <a href={web} className="site-btn site-btn--primary">
-                {webButtonLabel(channel)}
-              </a>
-            ) : channel.platforms.web !== "not-offered" && isDemoExploreId(id) ? (
-              <>
-                <CTAButton type="button" size="md" disabled>
-                  Coming soon
-                </CTAButton>
-                <DemoCTA product={id} variant="ghost">
-                  Preview
-                </DemoCTA>
-              </>
+              <Button asChild className="font-semibold">
+                <a href={web}>{webButtonLabel(channel)}</a>
+              </Button>
             ) : null}
 
-            <PlatformButton href={android} label={androidButtonLabel(channel)} />
-            <PlatformButton href={ios} label={iosButtonLabel(channel)} />
+            {channel.platforms.android !== "not-offered" ? (
+              android ? (
+                <CTAButton asChild variant="secondary" size="md">
+                  <a href={android} download>
+                    {androidButtonLabel(channel)}
+                  </a>
+                </CTAButton>
+              ) : (
+                <CTAButton type="button" variant="secondary" size="md" disabled>
+                  {androidButtonLabel(channel)}
+                </CTAButton>
+              )
+            ) : null}
+
+            {channel.platforms.desktop !== "not-offered" ? (
+              desktop ? (
+                <CTAButton asChild variant="secondary" size="md">
+                  <a href={desktop} download>
+                    {desktopButtonLabel(channel)}
+                  </a>
+                </CTAButton>
+              ) : (
+                <CTAButton type="button" variant="secondary" size="md" disabled>
+                  {desktopButtonLabel(channel)}
+                </CTAButton>
+              )
+            ) : null}
           </div>
         </div>
 
@@ -121,28 +136,5 @@ export function DownloadProduct({
         ) : null}
       </div>
     </SiteCard>
-  );
-}
-
-function PlatformButton({
-  href,
-  label,
-}: {
-  href: string | null;
-  label: string;
-}) {
-  if (href) {
-    return (
-      <CTAButton asChild variant="secondary" size="md">
-        <a href={href} target="_blank" rel="noreferrer">
-          {label}
-        </a>
-      </CTAButton>
-    );
-  }
-  return (
-    <CTAButton type="button" variant="secondary" size="md" disabled>
-      {label}
-    </CTAButton>
   );
 }

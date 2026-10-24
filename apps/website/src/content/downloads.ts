@@ -7,182 +7,222 @@ function readUrl(value: string | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** Ignore Cloudflare preview hosts so the marketing site never links to workers.dev. */
+export function marketingWebUrl(value: string | undefined, fallback: string | null): string | null {
+  const trimmed = value?.trim().replace(/\/$/, "") ?? "";
+  if (!trimmed) return fallback;
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase();
+    if (host === "workers.dev" || host.endsWith(".workers.dev")) return fallback;
+    return trimmed;
+  } catch {
+    return fallback;
+  }
+}
+
 function readVersion(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
 
-/** How this product is offered on a platform — not whether a public URL exists yet. */
-export type PlatformOffer = "web" | "android" | "ios-later" | "via-connect" | "not-offered";
+export type PlatformOffer = "web" | "android" | "desktop" | "via-connect" | "not-offered";
 
 export type DownloadChannel = {
   id: ProductId;
-  /** @deprecated use id — kept for existing call sites */
   slug: ProductId;
   description: string;
   webNote: string;
   webUrl: string | null;
   apkUrl: string | null;
   playStoreUrl: string | null;
-  appStoreUrl: string | null;
-  iosUrl: string | null;
+  desktopUrl: string | null;
   version: string | null;
   platforms: {
     web: PlatformOffer;
     android: PlatformOffer;
-    ios: PlatformOffer;
+    desktop: PlatformOffer;
   };
 };
 
-const CONNECT_WEB = readUrl(import.meta.env.VITE_CONNECT_ORIGIN);
-const CAREERS_WEB = readUrl(import.meta.env.VITE_CAREERS_ORIGIN) ?? CONNECT_WEB;
-/**
- * Public Admin console.
- * Override with VITE_ADMIN_ORIGIN when needed.
- */
-const ADMIN_WEB =
-  readUrl(import.meta.env.VITE_ADMIN_ORIGIN) ?? "https://admin.lumenxtech.in";
+const CONNECT_WEB = marketingWebUrl(import.meta.env.VITE_CONNECT_ORIGIN, "https://connect.lumenxtech.in");
+const CAREERS_STANDALONE = marketingWebUrl(import.meta.env.VITE_CAREERS_ORIGIN, null);
+const ADMISSIONS_STANDALONE = marketingWebUrl(import.meta.env.VITE_ADMISSIONS_ORIGIN, null);
+const TRANSPORT_WEB = marketingWebUrl(
+  import.meta.env.VITE_TRANSPORT_ORIGIN,
+  "https://transport.lumenxtech.in",
+);
+const ADMIN_WEB = marketingWebUrl(import.meta.env.VITE_ADMIN_ORIGIN, "https://admin.lumenxtech.in");
+const NEXUS_WEB = marketingWebUrl(import.meta.env.VITE_NEXUS_ORIGIN, "https://nexus.lumenxtech.in");
 
+/**
+ * Exact product/platform matrix for the marketing download center.
+ * Download CTAs must use androidHref / desktopHref (null until a real HTTPS artifact URL is set).
+ */
 export const DOWNLOADS: Record<ProductId, DownloadChannel> = {
-  connect: {
-    id: "connect",
-    slug: "connect",
-    description: PRODUCT_PAGES.connect.purpose,
-    webNote: "Parent, teacher, and student app — Android and iOS.",
-    webUrl: null,
-    apkUrl: readUrl(import.meta.env.VITE_CONNECT_APK_URL),
-    playStoreUrl: readUrl(import.meta.env.VITE_CONNECT_PLAY_URL),
-    appStoreUrl: readUrl(import.meta.env.VITE_CONNECT_APP_STORE_URL),
-    iosUrl: readUrl(import.meta.env.VITE_CONNECT_IOS_URL),
-    version: readVersion(import.meta.env.VITE_CONNECT_VERSION),
-    platforms: { web: "not-offered", android: "android", ios: "ios-later" },
-  },
-  transport: {
-    id: "transport",
-    slug: "transport",
-    description: PRODUCT_PAGES.transport.purpose,
-    webNote: "Driver and fleet app — Android and iOS.",
-    webUrl: null,
-    apkUrl: readUrl(import.meta.env.VITE_TRANSPORT_APK_URL),
-    playStoreUrl: readUrl(import.meta.env.VITE_TRANSPORT_PLAY_URL),
-    appStoreUrl: readUrl(import.meta.env.VITE_TRANSPORT_APP_STORE_URL),
-    iosUrl: readUrl(import.meta.env.VITE_TRANSPORT_IOS_URL),
-    version: readVersion(import.meta.env.VITE_TRANSPORT_VERSION),
-    platforms: { web: "not-offered", android: "android", ios: "ios-later" },
-  },
   admin: {
     id: "admin",
     slug: "admin",
     description: PRODUCT_PAGES.admin.purpose,
-    webNote: "Browser console for the institute office.",
+    webNote: "Institute office console — web app, Android APK, and Windows installer when published.",
     webUrl: ADMIN_WEB,
     apkUrl: readUrl(import.meta.env.VITE_ADMIN_APK_URL),
     playStoreUrl: readUrl(import.meta.env.VITE_ADMIN_PLAY_URL),
-    appStoreUrl: readUrl(import.meta.env.VITE_ADMIN_APP_STORE_URL),
-    iosUrl: readUrl(import.meta.env.VITE_ADMIN_IOS_URL),
+    desktopUrl: readUrl(import.meta.env.VITE_ADMIN_DESKTOP_URL),
     version: readVersion(import.meta.env.VITE_ADMIN_VERSION),
-    platforms: { web: "web", android: "android", ios: "ios-later" },
-  },
-  admissions: {
-    id: "admissions",
-    slug: "admissions",
-    description: PRODUCT_PAGES.admissions.purpose,
-    webNote: "Connect portal. There is no separate APK or store listing.",
-    webUrl: CONNECT_WEB,
-    apkUrl: null,
-    playStoreUrl: null,
-    appStoreUrl: null,
-    iosUrl: null,
-    version: null,
-    platforms: { web: "via-connect", android: "via-connect", ios: "via-connect" },
-  },
-  careers: {
-    id: "careers",
-    slug: "careers",
-    description: PRODUCT_PAGES.careers.purpose,
-    webNote: "Standalone Careers web app. No separate APK or store listing yet.",
-    webUrl: CAREERS_WEB,
-    apkUrl: null,
-    playStoreUrl: null,
-    appStoreUrl: null,
-    iosUrl: null,
-    version: null,
-    platforms: { web: "web", android: "not-offered", ios: "not-offered" },
+    platforms: { web: "web", android: "android", desktop: "desktop" },
   },
   nexus: {
     id: "nexus",
     slug: "nexus",
     description: PRODUCT_PAGES.nexus.purpose,
-    webNote: "Service platform — web only in this release.",
-    webUrl: readUrl(import.meta.env.VITE_NEXUS_ORIGIN),
-    apkUrl: null,
-    playStoreUrl: null,
-    appStoreUrl: null,
-    iosUrl: null,
+    webNote: "Service platform — web app, Android APK, and Windows installer when published.",
+    webUrl: NEXUS_WEB,
+    apkUrl: readUrl(import.meta.env.VITE_NEXUS_APK_URL),
+    playStoreUrl: readUrl(import.meta.env.VITE_NEXUS_PLAY_URL),
+    desktopUrl: readUrl(import.meta.env.VITE_NEXUS_DESKTOP_URL),
     version: readVersion(import.meta.env.VITE_NEXUS_VERSION),
-    platforms: { web: "web", android: "not-offered", ios: "not-offered" },
+    platforms: { web: "web", android: "android", desktop: "desktop" },
+  },
+  connect: {
+    id: "connect",
+    slug: "connect",
+    description: PRODUCT_PAGES.connect.purpose,
+    webNote: "Parent, teacher, and student app — Android APK download only on this site.",
+    webUrl: null,
+    apkUrl: readUrl(import.meta.env.VITE_CONNECT_APK_URL),
+    playStoreUrl: readUrl(import.meta.env.VITE_CONNECT_PLAY_URL),
+    desktopUrl: null,
+    version: readVersion(import.meta.env.VITE_CONNECT_VERSION),
+    platforms: { web: "not-offered", android: "android", desktop: "not-offered" },
+  },
+  transport: {
+    id: "transport",
+    slug: "transport",
+    description: PRODUCT_PAGES.transport.purpose,
+    webNote: "Driver and fleet app — Android APK download only on this site.",
+    webUrl: null,
+    apkUrl: readUrl(import.meta.env.VITE_TRANSPORT_APK_URL),
+    playStoreUrl: readUrl(import.meta.env.VITE_TRANSPORT_PLAY_URL),
+    desktopUrl: null,
+    version: readVersion(import.meta.env.VITE_TRANSPORT_VERSION),
+    platforms: { web: "not-offered", android: "android", desktop: "not-offered" },
+  },
+  admissions: {
+    id: "admissions",
+    slug: "admissions",
+    description: PRODUCT_PAGES.admissions.purpose,
+    webNote: ADMISSIONS_STANDALONE
+      ? "Admissions portal — web and Android APK when published."
+      : "Admissions web opens via Connect until a standalone origin is public. Android APK when published.",
+    webUrl: ADMISSIONS_STANDALONE ?? CONNECT_WEB,
+    apkUrl: readUrl(import.meta.env.VITE_ADMISSIONS_APK_URL),
+    playStoreUrl: readUrl(import.meta.env.VITE_ADMISSIONS_PLAY_URL),
+    desktopUrl: null,
+    version: null,
+    platforms: {
+      web: ADMISSIONS_STANDALONE ? "web" : "via-connect",
+      android: "android",
+      desktop: "not-offered",
+    },
+  },
+  careers: {
+    id: "careers",
+    slug: "careers",
+    description: PRODUCT_PAGES.careers.purpose,
+    webNote: CAREERS_STANDALONE
+      ? "Careers portal — web and Android APK when published."
+      : "Careers web opens via Connect until a standalone origin is public. Android APK when published.",
+    webUrl: CAREERS_STANDALONE ?? CONNECT_WEB,
+    apkUrl: readUrl(import.meta.env.VITE_CAREERS_APK_URL),
+    playStoreUrl: readUrl(import.meta.env.VITE_CAREERS_PLAY_URL),
+    desktopUrl: null,
+    version: null,
+    platforms: {
+      web: CAREERS_STANDALONE ? "web" : "via-connect",
+      android: "android",
+      desktop: "not-offered",
+    },
   },
 };
 
-export const DOWNLOAD_LIST = (["connect", "transport", "admin", "admissions", "careers"] as const).map(
-  (id) => DOWNLOADS[id],
-);
+export const DOWNLOAD_LIST = (
+  ["admin", "nexus", "connect", "transport", "admissions", "careers"] as const
+).map((id) => DOWNLOADS[id]);
 
+/** Real Play / APK URL only — never fall back to web for a download CTA. */
 export function androidHref(channel: DownloadChannel): string | null {
+  if (channel.platforms.android === "not-offered") return null;
   return channel.playStoreUrl ?? channel.apkUrl;
 }
 
-export function iosHref(channel: DownloadChannel): string | null {
-  return channel.appStoreUrl ?? channel.iosUrl;
+/** Real Windows installer URL only. */
+export function desktopHref(channel: DownloadChannel): string | null {
+  if (channel.platforms.desktop === "not-offered") return null;
+  return channel.desktopUrl;
 }
 
-/** QR is only useful when a real URL exists — never encode a placeholder. */
 export function qrHref(channel: DownloadChannel): string | null {
-  return channel.webUrl ?? androidHref(channel) ?? iosHref(channel);
+  return channel.webUrl ?? androidHref(channel) ?? desktopHref(channel);
 }
 
 export function platformStateLabel(offer: PlatformOffer, href: string | null): string {
   if (offer === "not-offered") return "Not offered";
-  if (offer === "via-connect") return href ? "Via Connect" : "Coming soon";
-  if (href) return "Available";
-  if (offer === "ios-later") return "Coming soon";
-  return "Coming soon";
+  if (offer === "via-connect") return href ? "Via Connect" : "Not published";
+  if (href) return "Live";
+  return "Not published";
 }
 
 export function releaseLabel(channel: DownloadChannel): string {
-  if (channel.platforms.web === "via-connect") {
-    return channel.webUrl ? "Connect portal" : "Coming soon";
-  }
-  if (channel.platforms.web === "not-offered") {
-    if (androidHref(channel) || iosHref(channel)) return "Mobile app";
-    return "Coming soon";
-  }
-  if (channel.webUrl) return "Web available";
-  if (channel.platforms.android === "android") return "Coming soon";
-  if (channel.platforms.android === "not-offered") return "Web only";
-  return "Coming soon";
+  const hasWeb = Boolean(channel.webUrl);
+  const hasApk = Boolean(androidHref(channel));
+  const hasDesktop = Boolean(desktopHref(channel));
+  if (hasApk || hasDesktop) return "Downloads live";
+  if (hasWeb) return "Web live";
+  return "Not published";
 }
 
 export function webButtonLabel(channel: DownloadChannel): string {
-  if (channel.platforms.web === "via-connect") return "Open Connect";
-  return "Open web app";
+  if (channel.platforms.web === "via-connect") return "Open via Connect";
+  return "Open Web App";
 }
 
 export function androidButtonLabel(channel: DownloadChannel): string {
   if (channel.playStoreUrl) return "Get on Google Play";
-  if (channel.apkUrl) return "Download Android";
-  if (channel.platforms.android === "via-connect") return "No separate app";
+  if (channel.apkUrl) return "Download for Android";
   if (channel.platforms.android === "not-offered") return "Not on Android";
-  return "Coming soon";
+  return "Android not published";
 }
 
-export function iosButtonLabel(channel: DownloadChannel): string {
-  if (channel.appStoreUrl || channel.iosUrl) return "Download on the App Store";
-  if (channel.platforms.ios === "via-connect") return "No separate app";
-  if (channel.platforms.ios === "not-offered") return "Not on iOS";
-  return "Coming soon";
+export function desktopButtonLabel(channel: DownloadChannel): string {
+  if (channel.desktopUrl) return "Download for Windows";
+  if (channel.platforms.desktop === "not-offered") return "Not on Windows";
+  return "Windows not published";
+}
+
+/** @deprecated iOS not in the approved matrix — kept for older call sites. */
+export function iosHref(_channel: DownloadChannel): string | null {
+  return null;
+}
+
+/** @deprecated */
+export function iosButtonLabel(_channel: DownloadChannel): string {
+  return "Not on iOS";
 }
 
 export function downloadTitle(id: ProductId): string {
   return PRODUCT_FAMILY[id].name;
 }
+
+/** Stable CDN paths once R2 is live (set via VITE_* env; do not invent live URLs). */
+export const DOWNLOADS_CDN_BASE = "https://downloads.lumenxtech.in";
+
+export function expectedApkPath(product: ProductId): string {
+  return `${DOWNLOADS_CDN_BASE}/android/${product}.apk`;
+}
+
+export function expectedDesktopPath(product: "admin" | "nexus"): string {
+  return `${DOWNLOADS_CDN_BASE}/windows/${product}-setup.exe`;
+}
+
+/** Unused transport web helper retained for login-apps if needed. */
+export { TRANSPORT_WEB };

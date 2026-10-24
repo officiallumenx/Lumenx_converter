@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   HardDrive,
   Settings,
-  Siren,
   Megaphone,
   Layers,
   ClipboardList,
@@ -89,8 +88,7 @@ export const adminNav: readonly AdminNavGroup[] = [
     items: [
       { to: "/notifications", label: L["/notifications"], icon: Bell                 },
       { to: "/messages",      label: L["/messages"],      icon: MessageSquare        },
-      { to: "/announcements", label: L["/announcements"], icon: Megaphone            },
-      { to: "/alerts",        label: L["/alerts"],        icon: Siren                },
+      { to: "/send",          label: L["/send"],          icon: Megaphone            },
       { to: "/complaints",    label: L["/complaints"],    icon: MessageSquareWarning },
     ],
   },

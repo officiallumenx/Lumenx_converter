@@ -5,6 +5,7 @@ import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
 import { SiteCard } from "@/components/SiteCard";
 import { CTAButton } from "@/components/conversion/CTAButton";
+import { HoneypotField } from "@/components/conversion/HoneypotField";
 import { submitWebsiteLead } from "@/lib/leads";
 import { PAGE_SEO, pageHead } from "@/lib/seo";
 
@@ -37,6 +38,7 @@ function DataRequestPage() {
       studentCount: "",
       message: String(form.get("message") ?? "").trim(),
       intent: "question",
+      companyWebsite: String(form.get("company_website") ?? "").trim(),
     });
     if (result.ok) {
       setStatus("ok");
@@ -89,21 +91,22 @@ function DataRequestPage() {
               Optional form — if online delivery is not configured, we will tell you honestly and ask you to email us
               instead. Filling this form does not guarantee backend deletion.
             </p>
+            <HoneypotField />
             <div>
               <Label htmlFor="name">Your name</Label>
-              <Input id="name" name="name" autoComplete="name" required className="site-input mt-1.5" />
+              <Input id="name" name="name" autoComplete="name" required className="mt-1.5 min-h-11" />
             </div>
             <div>
               <Label htmlFor="email">Email *</Label>
-              <Input id="email" name="email" type="email" autoComplete="email" required className="site-input mt-1.5" />
+              <Input id="email" name="email" type="email" autoComplete="email" required className="mt-1.5 min-h-11" />
             </div>
             <div>
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" type="tel" autoComplete="tel" className="site-input mt-1.5" />
+              <Input id="phone" name="phone" type="tel" autoComplete="tel" className="mt-1.5 min-h-11" />
             </div>
             <div>
               <Label htmlFor="institute">Institute (if applicable)</Label>
-              <Input id="institute" name="institute" autoComplete="organization" className="site-input mt-1.5" />
+              <Input id="institute" name="institute" autoComplete="organization" className="mt-1.5 min-h-11" />
             </div>
             <div>
               <Label htmlFor="role">Your relationship to the data</Label>
@@ -111,7 +114,7 @@ function DataRequestPage() {
                 id="role"
                 name="role"
                 placeholder="Parent, teacher, applicant, …"
-                className="site-input mt-1.5"
+                className="mt-1.5 min-h-11"
               />
             </div>
             <div>
@@ -120,7 +123,7 @@ function DataRequestPage() {
                 id="message"
                 name="message"
                 required
-                className="site-textarea mt-1.5"
+                className="mt-1.5 min-h-28"
                 placeholder="Access, correction, erasure, or a question about account deletion…"
               />
             </div>

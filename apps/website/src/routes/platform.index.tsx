@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@lumenx/ui";
 import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
+import { Container } from "@/components/layout/Container";
 import { Grid } from "@/components/layout/Grid";
 import { SiteCard } from "@/components/SiteCard";
 import { ProductMark } from "@/components/product/ProductMark";
@@ -19,23 +21,39 @@ export const Route = createFileRoute("/platform/")({
 function PlatformIndexPage() {
   return (
     <SiteShell>
-      <Section
-        headingAs="h1"
-        eyebrow={PLATFORM_HERO.eyebrow}
-        title={PLATFORM_HERO.title}
-        lede={PLATFORM_HERO.lede}
-      >
-        <div className="mt-8 flex flex-wrap gap-3">
-          <CTAButton asChild>
-            <Link to="/contact" search={contactSearch("demo")}>
-              Book a Demo
-            </Link>
-          </CTAButton>
-          <CTAButton asChild variant="secondary">
-            <Link to="/modules">Explore modules</Link>
-          </CTAButton>
-        </div>
-      </Section>
+      <section className="site-section pt-10 md:pt-14 pb-6 md:pb-10">
+        <Container>
+          <div className="platform-hero-split">
+            <div className="platform-hero__copy">
+              <p className="site-kicker">{PLATFORM_HERO.eyebrow}</p>
+              <h1 className="platform-hero__title mt-3">{PLATFORM_HERO.title}</h1>
+              <p className="site-lede platform-hero__lede">{PLATFORM_HERO.lede}</p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <CTAButton asChild>
+                  <Link to="/contact" search={contactSearch("demo")}>
+                    Book a Demo
+                  </Link>
+                </CTAButton>
+                <CTAButton asChild variant="secondary">
+                  <Link to="/modules">Explore modules</Link>
+                </CTAButton>
+              </div>
+            </div>
+
+            <div className="platform-hero__media">
+              <img
+                src="/brand/lumenx-platform-hub.jpg"
+                alt="LumenX Admin at the center, connected to Connect, Transport, Admissions, Careers, and related modules"
+                width={1024}
+                height={576}
+                decoding="async"
+                fetchPriority="high"
+                className="platform-hero__img"
+              />
+            </div>
+          </div>
+        </Container>
+      </section>
 
       <Section
         eyebrow="Products"
@@ -52,14 +70,12 @@ function PlatformIndexPage() {
                 {product.role}
               </p>
               <p className="mt-2 text-sm text-muted-foreground">{product.body}</p>
-              <Link
-                to="/platform/$slug"
-                params={{ slug: product.id }}
-                className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
-              >
-                Explore {product.name}
-                <ArrowRight className="size-4" />
-              </Link>
+              <Button asChild variant="ghost" className="mt-4 h-auto justify-start px-0 text-foreground">
+                <Link to="/platform/$slug" params={{ slug: product.id }}>
+                  Explore {product.name}
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
             </SiteCard>
           ))}
         </Grid>

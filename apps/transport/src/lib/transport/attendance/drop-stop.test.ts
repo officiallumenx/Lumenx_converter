@@ -27,26 +27,25 @@ describe("resolveDropStopIdForMark", () => {
     ).toBe("drop-school");
   });
 
-  it("uses last route stop when dropStopId is missing (not pickup first)", () => {
-    // Regression: falling back to pickup stop fails backend drop-stop validation
-    // when enrollment.drop_stop_id is set server-side but omitted from client roster.
+  it("prefers pickup (home) over last route stop when dropStopId is missing", () => {
+    // Avoid labeling home drops as School when enrollment drop_stop_id was omitted.
     expect(
       resolveDropStopIdForMark({
         dropStopId: null,
         pickupStopId: "pickup-gate",
         routeStopIds: ["pickup-gate", "mid", "school"],
       }),
-    ).toBe("school");
+    ).toBe("pickup-gate");
   });
 
-  it("falls back to pickup only when no route stops exist", () => {
+  it("falls back to last route stop when neither drop nor pickup is set", () => {
     expect(
       resolveDropStopIdForMark({
         dropStopId: "  ",
-        pickupStopId: "pickup-gate",
-        routeStopIds: [],
+        pickupStopId: null,
+        routeStopIds: ["a", "b", "school"],
       }),
-    ).toBe("pickup-gate");
+    ).toBe("school");
   });
 
   it("returns null when no stop context exists", () => {

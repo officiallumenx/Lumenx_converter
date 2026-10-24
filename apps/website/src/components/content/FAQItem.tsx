@@ -1,23 +1,23 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { AccordionContent, AccordionItem, AccordionTrigger } from "@lumenx/ui";
 
 export function FAQItem({
   question,
   children,
-  defaultOpen = false,
+  value,
 }: {
   question: string;
   children: ReactNode;
-  defaultOpen?: boolean;
+  value: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <details
-      className="site-faq"
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary>{question}</summary>
-      <div className="site-faq__body">{children}</div>
-    </details>
+    <AccordionItem value={value} className="border-border px-1">
+      <AccordionTrigger className="text-base font-semibold text-foreground hover:no-underline">
+        {question}
+      </AccordionTrigger>
+      <AccordionContent className="text-muted-foreground leading-relaxed">
+        {children}
+      </AccordionContent>
+    </AccordionItem>
   );
 }

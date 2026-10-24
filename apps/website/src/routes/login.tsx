@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@lumenx/ui";
 import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
 import { SiteCard } from "@/components/SiteCard";
@@ -51,14 +52,11 @@ function LoginPage() {
                 <SiteCard quiet>
                   <h2 className="text-base font-semibold tracking-tight">{app.name}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">{app.note}</p>
-                  <a
-                    href={app.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="site-btn site-btn--primary mt-4 inline-flex"
-                  >
-                    Open {app.name}
-                  </a>
+                  <Button asChild className="mt-4 font-semibold">
+                    <a href={app.href} target="_blank" rel="noopener noreferrer">
+                      Open {app.name}
+                    </a>
+                  </Button>
                 </SiteCard>
               </li>
             ))}

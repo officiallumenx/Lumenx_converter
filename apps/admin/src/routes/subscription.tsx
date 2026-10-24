@@ -221,7 +221,7 @@ function SubscriptionRoutePage() {
           eyebrow="Operations"
           title={adminPageTitle("/subscription")}
           subtitle="Renewal & offline payment"
-        />
+         helpKey="subscription" />
         <SubscriptionApiPage />
       </AppShell>
     );
@@ -408,7 +408,7 @@ function SubscriptionDemoPage() {
           eyebrow="Operations"
           title={M.subscription}
           subtitle="Renewal and trial status"
-        />
+         helpKey="subscription" />
         <Card className="p-6 text-sm text-muted-foreground">
           No subscription is bound to this Admin session yet. After Nexus approves your
           institute, trial and renewal details appear here.
@@ -448,7 +448,7 @@ function SubscriptionDemoPage() {
         eyebrow="Operations"
         title={M.subscription}
         subtitle="Trial · renewal quote · offline payment"
-      />
+       helpKey="subscription" />
       {error ? (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {error}

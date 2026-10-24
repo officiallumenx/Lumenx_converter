@@ -6,7 +6,11 @@ import {
   requireInstituteId,
 } from "../../authorization/index.js";
 import { findStudentById, listGuardianStudentIds } from "../students/repository.js";
-import { isDriverForInstitute, isTransportWriter } from "./approval.js";
+import {
+  isDriverForInstitute,
+  isOperationallyUsable,
+  isTransportWriter,
+} from "./approval.js";
 import {
   assertAuthenticatedDriverId,
   assertBoardingTargetAllowed,
@@ -221,12 +225,18 @@ async function enrichTrip(
     latestLocation?.capturedAt ?? null,
   );
 
+  // Rejected stops/enrollments are not operationally usable — exclude from trip plans.
+  // Pending remains usable (same contract as isOperationallyUsable / Connect).
   const ordered = stops
+    .filter((s) => isOperationallyUsable(s.approval_status))
     .slice()
     .sort((a, b) => a.route_order - b.route_order);
   const enrollments = await listEnrollments(admin, row.institute_id);
   const routeEnrollments = enrollments.filter(
-    (e) => e.route_id === row.route_id && e.status === "active",
+    (e) =>
+      e.route_id === row.route_id &&
+      e.status === "active" &&
+      isOperationallyUsable(e.approval_status),
   );
   const stopRefs = ordered.map((s) => ({
     id: s.id,
@@ -826,8 +836,10 @@ async function maybeMarkSchoolArrivedOnPing(
   location: { latitude: number; longitude: number },
   createdByUserId: string,
 ): Promise<void> {
-  if (trip.school_arrived_at) return;
-  if (!isPickupPhase(trip.phase)) return;
+  // Starting a pickup at school must not imply "children reached school".
+  // Require an active pickup phase past trip-start, and honor approach start grace.
+  const { canEvaluateSchoolArrivalOnPing } = await import("./approach.js");
+  if (!canEvaluateSchoolArrivalOnPing(trip)) return;
 
   const stops = await listStopsForRoute(admin, trip.route_id);
   const schoolStop = stops.find((s) => (s.kind ?? "waypoint") === "school");
@@ -835,7 +847,8 @@ async function maybeMarkSchoolArrivedOnPing(
 
   let latitude: number | null = null;
   let longitude: number | null = null;
-  let radiusM: number = 150;
+  /** Prefer per-stop school radius (e.g. configured 100m); else settings; else product default via resolveStopGeofenceM. */
+  let radiusM: number | null = null;
 
   if (
     schoolStop &&
@@ -844,19 +857,20 @@ async function maybeMarkSchoolArrivedOnPing(
   ) {
     latitude = schoolStop.latitude;
     longitude = schoolStop.longitude;
-    radiusM = Number(schoolStop.notification_radius_m) || 150;
+    radiusM = schoolStop.notification_radius_m;
   } else if (
     settings?.school_latitude != null &&
     settings?.school_longitude != null
   ) {
     latitude = settings.school_latitude;
     longitude = settings.school_longitude;
-    radiusM = settings.school_notification_radius_m ?? 150;
+    radiusM = settings.school_notification_radius_m;
   }
 
   if (latitude == null || longitude == null) return;
 
   const distanceM = haversineMeters(location, { latitude, longitude });
+  // isBusWithinStopRadius → resolveStopGeofenceM preserves configured radius (default 100m).
   if (!isBusWithinStopRadius(distanceM, radiusM)) return;
 
   const now = new Date().toISOString();
@@ -925,6 +939,10 @@ export async function upsertBoardingForActor(
     return enrichBoarding(admin, existingByEvent);
   }
 
+  const prior = await findBoardingEvent(admin, tripId, input.studentId);
+  const boardingStatusChanged =
+    !prior || prior.boarding_status !== input.boardingStatus;
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -941,23 +959,25 @@ export async function upsertBoardingForActor(
           : undefined,
   });
 
-  await appendTripTimeline(admin, tripId, timelineEvent({
-    kind:
-      input.boardingStatus === "boarded"
-        ? TRANSPORT_EVENT.STUDENT_BOARDED
-        : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
-    label:
-      input.boardingStatus === "boarded" ? "Student boarded" : "Student not boarded",
-    stopId: input.stopId,
-    studentId: input.studentId,
-  }));
+  if (boardingStatusChanged) {
+    await appendTripTimeline(admin, tripId, timelineEvent({
+      kind:
+        input.boardingStatus === "boarded"
+          ? TRANSPORT_EVENT.STUDENT_BOARDED
+          : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
+      label:
+        input.boardingStatus === "boarded" ? "Student boarded" : "Student not boarded",
+      stopId: input.stopId,
+      studentId: input.studentId,
+    }));
 
-  await notifyBoardingMarked(admin, {
-    trip,
-    studentId: input.studentId,
-    boardingStatus: input.boardingStatus,
-    createdByUserId: actor.userId,
-  });
+    await notifyBoardingMarked(admin, {
+      trip,
+      studentId: input.studentId,
+      boardingStatus: input.boardingStatus,
+      createdByUserId: actor.userId,
+    });
+  }
   return enrichBoarding(admin, row);
 }
 
@@ -996,6 +1016,10 @@ export async function upsertDroppingForActor(
     return enrichBoarding(admin, existingByEvent);
   }
 
+  const prior = await findBoardingEvent(admin, tripId, input.studentId);
+  const droppingStatusChanged =
+    !prior || prior.dropping_status !== input.droppingStatus;
+
   const now = new Date().toISOString();
   const row = await upsertBoardingEvent(admin, {
     instituteId: trip.institute_id,
@@ -1012,23 +1036,25 @@ export async function upsertDroppingForActor(
           : undefined,
   });
 
-  await appendTripTimeline(admin, tripId, timelineEvent({
-    kind: TRANSPORT_EVENT.STUDENT_DROPPED,
-    label:
-      input.droppingStatus === "dropped"
-        ? "Student dropped"
-        : "Student not dropped",
-    stopId: input.stopId,
-    studentId: input.studentId,
-  }));
+  if (droppingStatusChanged) {
+    await appendTripTimeline(admin, tripId, timelineEvent({
+      kind: TRANSPORT_EVENT.STUDENT_DROPPED,
+      label:
+        input.droppingStatus === "dropped"
+          ? "Student dropped"
+          : "Student not dropped",
+      stopId: input.stopId,
+      studentId: input.studentId,
+    }));
 
-  await notifyDroppingMarked(admin, {
-    trip,
-    studentId: input.studentId,
-    stopId: input.stopId,
-    droppingStatus: input.droppingStatus,
-    createdByUserId: actor.userId,
-  });
+    await notifyDroppingMarked(admin, {
+      trip,
+      studentId: input.studentId,
+      stopId: input.stopId,
+      droppingStatus: input.droppingStatus,
+      createdByUserId: actor.userId,
+    });
+  }
 
   // Parent notification only after backend confirmation (notifyDroppingMarked above).
   const refreshed = await findTripById(admin, tripId);

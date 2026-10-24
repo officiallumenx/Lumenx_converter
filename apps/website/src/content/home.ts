@@ -297,7 +297,14 @@ export const HOME_ROLES: {
   },
 ];
 
-export const HOME_DOWNLOAD_ORDER: ProductId[] = ["connect", "transport", "admin", "admissions", "careers"];
+export const HOME_DOWNLOAD_ORDER: ProductId[] = [
+  "admin",
+  "nexus",
+  "connect",
+  "transport",
+  "admissions",
+  "careers",
+];
 
 export const HOME_FAQ: { q: string; a: string }[] = [
   {
@@ -330,7 +337,7 @@ export const HOME_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How is pricing calculated?",
-    a: "One monthly bill — not two. Your institute gets a per-student rate (often ₹12–₹15, set for your campus). You pay whichever is higher: students × that rate, or ₹8,000 minimum. They are never added. You can choose monthly, 6-month, or yearly tenure.",
+    a: "Monthly pricing starts from ₹12 per student. Your campus rate is set for your institute (often ₹12–₹15). You pay whichever is higher: students × that rate, or ₹8,000 minimum — never both. Choose monthly, 6-month, or yearly tenure.",
   },
   {
     q: "Is there a trial?",

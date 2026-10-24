@@ -52,9 +52,10 @@ function SolutionsIndexPage() {
     <SiteShell>
       <section className="site-section site-section--flush">
         <Container>
-          <h1 className="sr-only">
-            LumenX solutions — institutions, administrators, teachers, parents, students, and drivers
-          </h1>
+          <h1 className="site-section-title">Solutions for every role</h1>
+          <p className="mt-3 mb-8 max-w-2xl text-muted-foreground">
+            Institutions, administrators, teachers, parents, students, and drivers.
+          </p>
           <SolutionsExplorer role={role} onRoleChange={onRoleChange} />
           <div className="mt-8 flex flex-wrap gap-3">
             <CTAButton asChild>

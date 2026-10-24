@@ -2,7 +2,7 @@
 
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
-import { getApiBaseUrl } from "@/lib/nexus-api";
+import { bumpNexusAuthSessionGeneration, getApiBaseUrl } from "@/lib/nexus-api";
 import {
   getSupabaseBrowserClient,
   syncSupabaseBrowserClientFromApi,
@@ -192,6 +192,7 @@ export async function completeNexusLogin(input: {
     throw cause instanceof Error ? cause : new Error(message);
   }
   markNexusOperatorLogin();
+  bumpNexusAuthSessionGeneration();
   return data;
 }
 
@@ -299,11 +300,13 @@ export async function completeNexusPinReset(input: {
     });
     if (error) throw new Error(error.message || "Unable to establish Nexus session.");
     markNexusOperatorLogin();
+    bumpNexusAuthSessionGeneration();
   }
   return data;
 }
 
 export async function nexusSignOut(): Promise<void> {
+  bumpNexusAuthSessionGeneration();
   clearNexusOperatorLoginMarker();
   await invalidatePushDeviceTokensBeforeSignOut({
     app: "nexus",

@@ -18,6 +18,8 @@ function dto(overrides: Partial<SubjectDto> = {}): SubjectDto {
     category: "Sciences",
     periodsPerWeek: 5,
     applicableClassCodes: ["Grade 10", "G11"],
+    capacity: null,
+    classPeriods: {},
     status: "active",
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
@@ -35,6 +37,17 @@ describe("subjects DTO mapping", () => {
     expect(item.grades).toEqual(["Grade 10", "G11"]);
     expect(item.status).toBe("active");
     expect(item.assignedTeacherIds).toEqual([]);
+  });
+
+  it("passes through capacity and independent classPeriods", () => {
+    const item = subjectDtoToListItem(
+      dto({
+        capacity: 40,
+        classPeriods: { "6": 4, "7": 5, "8": 3 },
+      }),
+    );
+    expect(item.capacity).toBe(40);
+    expect(item.classPeriods).toEqual({ "6": 4, "7": 5, "8": 3 });
   });
 
   it("falls back name when blank", () => {

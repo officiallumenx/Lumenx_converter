@@ -6,31 +6,28 @@ interface ImportMetaEnv {
   readonly VITE_TRANSPORT_ORIGIN?: string;
   readonly VITE_NEXUS_ORIGIN?: string;
   readonly VITE_CAREERS_ORIGIN?: string;
+  readonly VITE_ADMISSIONS_ORIGIN?: string;
   readonly VITE_ADMIN_APK_URL?: string;
   readonly VITE_CONNECT_APK_URL?: string;
   readonly VITE_TRANSPORT_APK_URL?: string;
+  readonly VITE_ADMISSIONS_APK_URL?: string;
+  readonly VITE_CAREERS_APK_URL?: string;
+  readonly VITE_NEXUS_APK_URL?: string;
+  readonly VITE_ADMIN_DESKTOP_URL?: string;
+  readonly VITE_NEXUS_DESKTOP_URL?: string;
   readonly VITE_ADMIN_PLAY_URL?: string;
   readonly VITE_CONNECT_PLAY_URL?: string;
   readonly VITE_TRANSPORT_PLAY_URL?: string;
-  readonly VITE_ADMIN_APP_STORE_URL?: string;
-  readonly VITE_CONNECT_APP_STORE_URL?: string;
-  readonly VITE_TRANSPORT_APP_STORE_URL?: string;
-  readonly VITE_ADMIN_IOS_URL?: string;
-  readonly VITE_CONNECT_IOS_URL?: string;
-  readonly VITE_TRANSPORT_IOS_URL?: string;
+  readonly VITE_ADMISSIONS_PLAY_URL?: string;
+  readonly VITE_CAREERS_PLAY_URL?: string;
+  readonly VITE_NEXUS_PLAY_URL?: string;
   readonly VITE_ADMIN_VERSION?: string;
   readonly VITE_CONNECT_VERSION?: string;
   readonly VITE_TRANSPORT_VERSION?: string;
   readonly VITE_NEXUS_VERSION?: string;
   readonly VITE_LEAD_ENDPOINT?: string;
-  /** Web3Forms access key (public by design) — Book a Demo / contact leads. */
   readonly VITE_WEB3FORMS_ACCESS_KEY?: string;
-  /** Absolute public origin (no trailing slash), e.g. https://www.example.com. Prefer this in production so canonical/OG URLs stay stable. */
   readonly VITE_SITE_ORIGIN?: string;
-  /**
-   * Set to 1/true/yes on preview/staging hosts so robots disallow indexing.
-   * Ignored for lumenxtech.in / www.lumenxtech.in (production always stays crawlable).
-   */
   readonly VITE_NOINDEX?: string;
 }
 

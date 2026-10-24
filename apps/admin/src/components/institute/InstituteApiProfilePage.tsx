@@ -417,7 +417,7 @@ export function InstituteApiProfilePage({ embedded = false }: { embedded?: boole
         eyebrow="Settings"
         title="Institute profile"
         subtitle="Institute identity and settings"
-      />
+       helpKey="institute" />
       {body}
     </AppShell>
   );

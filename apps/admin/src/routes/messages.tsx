@@ -12,10 +12,15 @@ import {
   Field,
   PageStack,
   Pill,
-  Select,
   TextArea,
   TextInput,
 } from "@lumenx/ui-admin";
+import { MessageRecipientPicker } from "@/components/messages/MessageRecipientPicker";
+import {
+  planDirectMultiSend,
+  summarizeMultiSendResults,
+} from "@/lib/messages/compose-multi-send";
+import { resolvedRecipientCount } from "@/lib/messages/recipient-targeting";
 import { Archive, Loader2, Mail, MessageSquare, PenLine, Send, XCircle } from "lucide-react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAuth } from "@/auth/AuthContext";
@@ -75,7 +80,9 @@ function MessagesPage() {
   const [composeMode, setComposeMode] = useState<"direct" | "group">("direct");
   const [recipients, setRecipients] = useState<MessageRecipientDto[]>([]);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
-  const [recipientUserId, setRecipientUserId] = useState("");
+  const [selectedRecipients, setSelectedRecipients] = useState<
+    MessageRecipientDto[]
+  >([]);
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [groupClassLabel, setGroupClassLabel] = useState("");
@@ -189,7 +196,6 @@ function MessagesPage() {
       .then((rows) => {
         if (cancelled) return;
         setRecipients(rows);
-        setRecipientUserId(rows[0]?.userId ?? "");
         setRecipientsLoading(false);
       })
       .catch(() => {
@@ -222,27 +228,50 @@ function MessagesPage() {
     if (!writesEnabled || !instituteCtx.activeInstituteId) return;
 
     if (composeMode === "direct") {
-      if (!recipientUserId || !composeBody.trim()) {
-        notify("Choose a recipient and write a message");
+      if (!composeBody.trim()) {
+        notify("Write a message");
+        return;
+      }
+      const plan = planDirectMultiSend(selectedRecipients);
+      if (!plan.ok) {
+        notify(plan.error);
         return;
       }
       setComposing(true);
+      const subject = composeSubject.trim() || null;
+      const body = composeBody.trim();
+      const results: { userId: string; ok: boolean; error?: string }[] = [];
+      let lastThreadId: string | null = null;
       try {
-        const thread = await createDirectThread({
-          instituteId: instituteCtx.activeInstituteId,
-          counterpartUserId: recipientUserId,
-          subject: composeSubject.trim() || null,
-          body: composeBody.trim(),
-        });
-        setComposeOpen(false);
-        setComposeSubject("");
-        setComposeBody("");
-        setSelectedId(thread.id);
-        bumpMessagesReload();
-      setThreadReloadKey((k) => k + 1);
-        notify("Conversation started");
-      } catch (err) {
-        notify(err instanceof Error ? err.message : "Failed to start conversation");
+        for (const counterpartUserId of plan.userIds) {
+          try {
+            const thread = await createDirectThread({
+              instituteId: instituteCtx.activeInstituteId,
+              counterpartUserId,
+              subject,
+              body,
+            });
+            results.push({ userId: counterpartUserId, ok: true });
+            lastThreadId = thread.id;
+          } catch (err) {
+            results.push({
+              userId: counterpartUserId,
+              ok: false,
+              error:
+                err instanceof Error ? err.message : "Failed to start conversation",
+            });
+          }
+        }
+        notify(summarizeMultiSendResults(results));
+        if (lastThreadId) {
+          setComposeOpen(false);
+          setComposeSubject("");
+          setComposeBody("");
+          setSelectedRecipients([]);
+          setSelectedId(lastThreadId);
+          bumpMessagesReload();
+          setThreadReloadKey((k) => k + 1);
+        }
       } finally {
         setComposing(false);
       }
@@ -290,7 +319,7 @@ function MessagesPage() {
 
   return (
     <AppShell title="Messages">
-      <ModuleHero eyebrow="Communications" title="Messages" />
+      <ModuleHero eyebrow="Communications" title="Messages"  helpKey="messages" />
       <PageStack>
         <Card>
           <CardHeader
@@ -498,7 +527,7 @@ function MessagesPage() {
 
         {composeOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <Card className="w-full max-w-lg p-5">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5">
               <h3 className="mb-4 flex items-center gap-2 font-semibold">
                 <MessageSquare className="size-5" /> Compose message
               </h3>
@@ -512,37 +541,20 @@ function MessagesPage() {
                     variant={composeMode === mode ? "default" : "outline"}
                     onClick={() => setComposeMode(mode)}
                   >
-                    {mode === "direct" ? "Direct" : "Class group"}
+                    {mode === "direct" ? "Direct message" : "Class group thread"}
                   </Button>
                 ))}
               </div>
 
               {composeMode === "direct" ? (
-                <Field label="To" className="mb-3">
-                  {recipientsLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading recipients…</p>
-                  ) : (
-                    <Select
-                      value={recipientUserId}
-                      onChange={(e) => setRecipientUserId(e.target.value)}
-                    >
-                      <option value="">Choose recipient</option>
-                      {recipients.map((r) => {
-                        const cls = r.classLabel?.trim();
-                        const sec = r.sectionLabel?.trim();
-                        const classBit =
-                          r.role === "student" && (cls || sec)
-                            ? ` · ${cls ?? ""}${cls && sec ? "-" : ""}${sec ?? ""}`
-                            : "";
-                        return (
-                          <option key={r.userId} value={r.userId}>
-                            {r.displayName} · {r.role}
-                            {classBit}
-                          </option>
-                        );
-                      })}
-                    </Select>
-                  )}
+                <Field label="Recipients" className="mb-3">
+                  <MessageRecipientPicker
+                    recipients={recipients}
+                    loading={recipientsLoading}
+                    selected={selectedRecipients}
+                    onChange={setSelectedRecipients}
+                    disabled={composing}
+                  />
                 </Field>
               ) : (
                 <div className="mb-3 grid grid-cols-2 gap-2">
@@ -583,14 +595,25 @@ function MessagesPage() {
                   onChange={(e) => setComposeBody(e.target.value)}
                   placeholder="Write your message…"
                   rows={4}
+                  disabled={composing}
                 />
               </Field>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {composeMode === "direct" && selectedRecipients.length > 0 ? (
+                  <p className="mr-auto text-xs text-muted-foreground">
+                    Will start {resolvedRecipientCount(selectedRecipients)}{" "}
+                    conversation
+                    {resolvedRecipientCount(selectedRecipients) === 1 ? "" : "s"}
+                  </p>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setComposeOpen(false)}
+                  onClick={() => {
+                    setComposeOpen(false);
+                    setSelectedRecipients([]);
+                  }}
                   disabled={composing}
                 >
                   Cancel
@@ -599,10 +622,18 @@ function MessagesPage() {
                   type="button"
                   className="gap-2"
                   onClick={() => void handleCompose()}
-                  disabled={composing}
+                  disabled={
+                    composing ||
+                    (composeMode === "direct" &&
+                      resolvedRecipientCount(selectedRecipients) === 0) ||
+                    !composeBody.trim()
+                  }
                 >
                   {composing ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                  Send
+                  {composeMode === "direct" &&
+                  resolvedRecipientCount(selectedRecipients) > 0
+                    ? `Send to ${resolvedRecipientCount(selectedRecipients)}`
+                    : "Send"}
                 </Button>
               </div>
             </Card>

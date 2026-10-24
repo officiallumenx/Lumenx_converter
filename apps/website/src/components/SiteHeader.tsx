@@ -1,6 +1,13 @@
-import { useEffect } from "react";
 import { Link } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
+import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@lumenx/ui";
 import { SiteLogo } from "./SiteLogo";
 import { CTAButton } from "./conversion/CTAButton";
 import { Navbar } from "./navigation/Navbar";
@@ -15,15 +22,6 @@ export function SiteHeader({
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
 }) {
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onMenuOpenChange(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [menuOpen, onMenuOpenChange]);
-
   return (
     <header className="site-header">
       <Container className="site-header-bar">
@@ -37,13 +35,11 @@ export function SiteHeader({
         </Link>
         <Navbar onNavigate={() => onMenuOpenChange(false)} />
         <div className="flex items-center gap-2">
-          <Link
-            to="/login"
-            className="site-nav-link hidden sm:inline-flex"
-            onClick={() => onMenuOpenChange(false)}
-          >
-            Login
-          </Link>
+          <Button asChild variant="ghost" className="hidden sm:inline-flex">
+            <Link to="/login" onClick={() => onMenuOpenChange(false)}>
+              Login
+            </Link>
+          </Button>
           <CTAButton asChild size="md">
             <Link
               to="/contact"
@@ -53,23 +49,28 @@ export function SiteHeader({
               Book a Demo
             </Link>
           </CTAButton>
-          <div className="lg:hidden">
-            <CTAButton
-              type="button"
-              variant="secondary"
-              size="icon"
-              aria-expanded={menuOpen}
-              aria-controls="mobile-nav"
-              aria-haspopup="dialog"
-              onClick={() => onMenuOpenChange(!menuOpen)}
-            >
-              {menuOpen ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
-              <span className="sr-only">{menuOpen ? "Close menu" : "Open menu"}</span>
-            </CTAButton>
-          </div>
+          <Sheet open={menuOpen} onOpenChange={onMenuOpenChange}>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-11 lg:hidden"
+                aria-controls="mobile-nav"
+              >
+                <Menu className="size-5" aria-hidden />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="flex w-full flex-col sm:max-w-sm">
+              <SheetHeader className="text-left">
+                <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
+              <MobileNavbar onNavigate={() => onMenuOpenChange(false)} />
+            </SheetContent>
+          </Sheet>
         </div>
       </Container>
-      <MobileNavbar open={menuOpen} onNavigate={() => onMenuOpenChange(false)} />
     </header>
   );
 }

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import { AppError } from "../../errors/app-error.js";
+import { createLogger } from "../../logger/logger.js";
 import {
   clampListLimit,
   decodeNameIdCursor,
@@ -13,8 +15,72 @@ import type {
   UpdateStudentInput,
 } from "./types.js";
 
+const log = createLogger("info");
+
+/** Full select once migration 20261014120000 is applied. */
 const STUDENT_COLS =
   "id, institute_id, user_profile_id, legacy_code, admission_number, source_admission_application_id, first_name, surname, display_name, gender, date_of_birth, address, class_label, section_label, roll_no, status, access_status, blood_group, emergency_contact, house, photo_asset_path, id_card_issued_on, id_card_valid_till, graduated_on, created_at, updated_at, deleted_at";
+
+/**
+ * Compat select when hosted DB has not yet applied records retention migration.
+ * Does not weaken auth — only omits a nullable retention column.
+ */
+const STUDENT_COLS_WITHOUT_GRADUATED_ON =
+  "id, institute_id, user_profile_id, legacy_code, admission_number, source_admission_application_id, first_name, surname, display_name, gender, date_of_birth, address, class_label, section_label, roll_no, status, access_status, blood_group, emergency_contact, house, photo_asset_path, id_card_issued_on, id_card_valid_till, created_at, updated_at, deleted_at";
+
+/** Process-local: prefer full cols until Postgres 42703 proves column missing. */
+let studentColsMode: "full" | "compat_missing_graduated_on" = "full";
+let loggedMissingGraduatedOn = false;
+
+/** Test/ops: whether selects are running without graduated_on. */
+export function isStudentGraduatedOnSelectCompatActive(): boolean {
+  return studentColsMode === "compat_missing_graduated_on";
+}
+
+/** Test helper — reset compat detection between cases. */
+export function resetStudentSelectCompatForTests(): void {
+  studentColsMode = "full";
+  loggedMissingGraduatedOn = false;
+}
+
+function studentSelectCols(): string {
+  return studentColsMode === "full"
+    ? STUDENT_COLS
+    : STUDENT_COLS_WITHOUT_GRADUATED_ON;
+}
+
+function isMissingGraduatedOnColumn(error: {
+  code?: string;
+  message?: string;
+} | null): boolean {
+  if (!error) return false;
+  if (error.code !== "42703" && error.code !== "PGRST204") return false;
+  return /graduated_on/i.test(error.message ?? "");
+}
+
+function normalizeStudentRow(row: StudentRow | Record<string, unknown>): StudentRow {
+  const r = row as StudentRow;
+  return {
+    ...r,
+    graduated_on: r.graduated_on ?? null,
+  };
+}
+
+function normalizeStudentRows(rows: StudentRow[]): StudentRow[] {
+  return rows.map((r) => normalizeStudentRow(r));
+}
+
+function noteMissingGraduatedOnColumn(): void {
+  studentColsMode = "compat_missing_graduated_on";
+  if (loggedMissingGraduatedOn) return;
+  loggedMissingGraduatedOn = true;
+  log.warn({
+    msg: "student_schema_missing_graduated_on",
+    migration: "20261014120000_records_retention_transfer.sql",
+    action:
+      "Apply pending Supabase migration; transport roster uses temporary select without graduated_on",
+  });
+}
 
 export async function listGuardianStudentIds(
   admin: SupabaseClient,
@@ -45,16 +111,17 @@ function sanitizeIlikeTerm(raw: string): string {
   return raw.replace(/[%_,]/g, " ").trim().slice(0, 200);
 }
 
-export async function listStudentsPage(
+async function runStudentListPageQuery(
   admin: SupabaseClient,
   filter: ListStudentsFilter,
-): Promise<StudentListPage> {
+  cols: string,
+) {
   const limit = clampListLimit(filter.limit);
   const cursor = decodeNameIdCursor(filter.cursor);
 
   let query = admin
     .from("student")
-    .select(STUDENT_COLS)
+    .select(cols)
     .eq("institute_id", filter.instituteId)
     .is("deleted_at", null);
 
@@ -82,11 +149,29 @@ export async function listStudentsPage(
     query = query.or(nameIdCursorOrFilter(cursor, "display_name"));
   }
 
-  const result = await query
+  return query
     .order("display_name", { ascending: true })
     .order("id", { ascending: true })
     .limit(limit + 1);
-  const fetched = ensureDbOk(result) as StudentRow[];
+}
+
+export async function listStudentsPage(
+  admin: SupabaseClient,
+  filter: ListStudentsFilter,
+): Promise<StudentListPage> {
+  const limit = clampListLimit(filter.limit);
+  let result = await runStudentListPageQuery(admin, filter, studentSelectCols());
+  if (result.error && isMissingGraduatedOnColumn(result.error)) {
+    noteMissingGraduatedOnColumn();
+    result = await runStudentListPageQuery(
+      admin,
+      filter,
+      STUDENT_COLS_WITHOUT_GRADUATED_ON,
+    );
+  }
+  const fetched = normalizeStudentRows(
+    ensureDbOk(result) as unknown as StudentRow[],
+  );
   const page = nextNameIdCursorFromRows(fetched, limit, (r) => r.display_name);
   return {
     rows: page.items,
@@ -119,21 +204,31 @@ export async function findStudentById(
   admin: SupabaseClient,
   id: string,
 ): Promise<StudentRow | null> {
-  const result = await admin
+  let result = await admin
     .from("student")
-    .select(STUDENT_COLS)
+    .select(studentSelectCols())
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (result.error && isMissingGraduatedOnColumn(result.error)) {
+    noteMissingGraduatedOnColumn();
+    result = await admin
+      .from("student")
+      .select(STUDENT_COLS_WITHOUT_GRADUATED_ON)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle();
+  }
   if (result.error) ensureDbOk(result);
-  return (result.data as StudentRow | null) ?? null;
+  const row = (result.data as StudentRow | null) ?? null;
+  return row ? normalizeStudentRow(row) : null;
 }
 
 export async function insertStudent(
   admin: SupabaseClient,
   input: CreateStudentInput & { displayName: string },
 ): Promise<StudentRow> {
-  const result = await admin
+  const inserted = await admin
     .from("student")
     .insert({
       institute_id: input.instituteId,
@@ -159,9 +254,28 @@ export async function insertStudent(
       id_card_issued_on: input.idCardIssuedOn ?? null,
       id_card_valid_till: input.idCardValidTill ?? null,
     })
-    .select(STUDENT_COLS)
+    .select("id")
     .single();
-  return ensureDbOk(result) as StudentRow;
+  const row = ensureDbOk(inserted) as { id: string };
+  const full = await findStudentById(admin, row.id);
+  if (!full) {
+    throw AppError.internal("Student insert succeeded but row could not be reloaded");
+  }
+  return full;
+}
+
+async function selectStudentAfterWrite(
+  admin: SupabaseClient,
+  build: (cols: string) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+): Promise<StudentRow | null> {
+  let result = await build(studentSelectCols());
+  if (result.error && isMissingGraduatedOnColumn(result.error)) {
+    noteMissingGraduatedOnColumn();
+    result = await build(STUDENT_COLS_WITHOUT_GRADUATED_ON);
+  }
+  if (result.error) ensureDbOk(result);
+  const row = (result.data as StudentRow | null) ?? null;
+  return row ? normalizeStudentRow(row) : null;
 }
 
 export async function updateStudentFields(
@@ -169,30 +283,30 @@ export async function updateStudentFields(
   id: string,
   patch: Record<string, unknown>,
 ): Promise<StudentRow | null> {
-  const result = await admin
-    .from("student")
-    .update(patch)
-    .eq("id", id)
-    .is("deleted_at", null)
-    .select(STUDENT_COLS)
-    .maybeSingle();
-  if (result.error) ensureDbOk(result);
-  return (result.data as StudentRow | null) ?? null;
+  return selectStudentAfterWrite(admin, (cols) =>
+    admin
+      .from("student")
+      .update(patch)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select(cols)
+      .maybeSingle(),
+  );
 }
 
 export async function softDeleteStudent(
   admin: SupabaseClient,
   id: string,
 ): Promise<StudentRow | null> {
-  const result = await admin
-    .from("student")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id)
-    .is("deleted_at", null)
-    .select(STUDENT_COLS)
-    .maybeSingle();
-  if (result.error) ensureDbOk(result);
-  return (result.data as StudentRow | null) ?? null;
+  return selectStudentAfterWrite(admin, (cols) =>
+    admin
+      .from("student")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select(cols)
+      .maybeSingle(),
+  );
 }
 
 /** Build DB patch from update input (camel → snake). */

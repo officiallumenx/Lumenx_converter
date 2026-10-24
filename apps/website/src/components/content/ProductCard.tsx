@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@lumenx/ui";
+import { Button, cn } from "@lumenx/ui";
 import type { ProductId } from "@/theme/products";
 import { SiteCard } from "../SiteCard";
 import { ProductMark } from "../product/ProductMark";
@@ -40,19 +40,19 @@ export function ProductCard({
         ) : null}
         {action ?? (
           product === "nexus" ? (
-            <Link to="/about" className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground">
-              About LumenX
-              <ArrowRight className="size-4" />
-            </Link>
+            <Button asChild variant="ghost" className="mt-4 h-auto justify-start px-0 text-foreground">
+              <Link to="/about">
+                About LumenX
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           ) : (
-            <Link
-              to="/platform/$slug"
-              params={{ slug: product }}
-              className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
-            >
-              Explore {name}
-              <ArrowRight className="size-4" />
-            </Link>
+            <Button asChild variant="ghost" className="mt-4 h-auto justify-start px-0 text-foreground">
+              <Link to="/platform/$slug" params={{ slug: product }}>
+                Explore {name}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           )
         )}
       </SiteCard>
