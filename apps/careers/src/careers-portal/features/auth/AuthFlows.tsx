@@ -245,7 +245,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [email, setEmail] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
-  const [emailOtp, setEmailOtp] = useState("");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -262,7 +261,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const [organizationType, setOrganizationType] = useState<OrganizationType>("education");
   const [loading, setLoading] = useState(false);
   const [phoneGrant, setPhoneGrant] = useState("");
-  const [emailGrant, setEmailGrant] = useState("");
   const [createdRoute, setCreatedRoute] = useState<
     "/dashboard" | "/recruiter" | null
   >(null);
@@ -272,7 +270,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
   const stepLabels = useMemo(() => {
     const recruiter = accountType === "recruiter";
-    const base = ["Account type", "Contact", "Verify phone", "Verify email", "Profile"];
+    const base = ["Account type", "Contact", "Verify phone", "Profile"];
     if (recruiter) base.push("Organization");
     base.push("Password");
     return base;
@@ -283,11 +281,12 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
       accountType: 0,
       contact: 1,
       verifyPhone: 2,
-      verifyEmail: 3,
-      profile: 4,
-      organization: isRecruiter ? 5 : 4,
-      password: isRecruiter ? 6 : 5,
-      complete: isRecruiter ? 6 : 5,
+      // Email OTP is not used — keep index aligned with verifyPhone for dead steps.
+      verifyEmail: 2,
+      profile: 3,
+      organization: isRecruiter ? 4 : 3,
+      password: isRecruiter ? 5 : 4,
+      complete: isRecruiter ? 5 : 4,
     };
     return map[step];
   }, [step, isRecruiter]);
@@ -295,8 +294,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const goBack = () => {
     if (step === "contact") setStep("accountType");
     else if (step === "verifyPhone") setStep("contact");
-    else if (step === "verifyEmail") setStep("verifyPhone");
-    else if (step === "profile") setStep("verifyEmail");
+    else if (step === "profile") setStep("verifyPhone");
     else if (step === "organization") setStep("profile");
     else if (step === "password") setStep(isRecruiter ? "organization" : "profile");
   };
@@ -347,38 +345,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
         });
         setPhoneGrant(verified.grant);
         toast.success("Mobile number verified");
-        const result = await requestSignupOtp({
-          subjectKey: email.trim().toLowerCase(),
-          channel: "email",
-          destination: email.trim().toLowerCase(),
-          apiBaseUrl: careersApiBase(),
-        });
-        toast.message(
-          result.devOtp
-            ? `OTP sent to ${email.trim()} (demo: ${result.devOtp})`
-            : `OTP sent to ${result.maskedDestination}`,
-        );
-        setEmailOtp("");
-        setStep("verifyEmail");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Invalid OTP");
-      }
-      return;
-    }
-    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
-  };
-
-  const verifyEmailOtp = async () => {
-    if (isApiAuthMode()) {
-      try {
-        const verified = await verifySignupOtp({
-          subjectKey: email.trim().toLowerCase(),
-          channel: "email",
-          otp: emailOtp,
-          apiBaseUrl: careersApiBase(),
-        });
-        setEmailGrant(verified.grant);
-        toast.success("Email verified");
         setStep("profile");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Invalid OTP");
@@ -430,13 +396,13 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
       email: email.trim(),
       phone: phoneFull,
       password,
-      emailVerified: true,
+      emailVerified: false,
       phoneVerified: true,
       accountType,
       organizationId: linked?.instituteId ?? (isRecruiter ? `org-${Date.now()}` : undefined),
       organizationName: linked?.name ?? (isRecruiter ? organizationName.trim() : undefined),
       organizationType: isRecruiter ? organizationType : undefined,
-      verificationGrants: [phoneGrant, emailGrant],
+      verificationGrants: [phoneGrant].filter(Boolean),
     })
       .then((user) => {
         if (accountType === "job_seeker") {
@@ -587,7 +553,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            You will verify both with a one-time code on the next steps.
+            Mobile is verified with a one-time code. Email is used to sign in — no email OTP.
           </p>
           <div className="flex gap-2">
             <Button variant="outline" className="h-11" onClick={goBack}>
@@ -618,32 +584,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             </Button>
             <Button className="flex-1 h-11" onClick={verifyPhoneOtp}>
               Verify mobile
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "verifyEmail" && (
-        <div className="mt-8 space-y-4">
-          <div className="rounded-xl bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-muted-foreground">
-            <span className="text-primary font-medium">Mobile verified</span> · {phoneFull}
-          </div>
-          <p className="text-sm text-muted-foreground rounded-xl bg-muted/50 px-3 py-2">
-            Code sent to <span className="font-medium text-foreground">{email.trim()}</span>
-          </p>
-          <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
-            <InputOTPGroup className="justify-center w-full">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <InputOTPSlot key={i} index={i} />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
-          <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>
-              Back
-            </Button>
-            <Button className="flex-1 h-11" onClick={verifyEmailOtp}>
-              Verify email
             </Button>
           </div>
         </div>
