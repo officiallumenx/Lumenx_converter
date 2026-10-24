@@ -11,11 +11,9 @@ export function ModuleHelpControl({ helpKey }: { helpKey: string }) {
   return (
     <>
       <ModuleHelpButton title={content.title} onClick={() => setOpen(true)} />
-      <ModuleHelpModal
-        open={open}
-        onClose={() => setOpen(false)}
-        content={content}
-      />
+      {open ? (
+        <ModuleHelpModal open={open} onClose={() => setOpen(false)} content={content} />
+      ) : null}
     </>
   );
 }

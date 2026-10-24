@@ -17,7 +17,10 @@ export function ModuleHelpControl({
   return (
     <>
       <ModuleHelpButton title={content.title} onClick={() => setOpen(true)} />
-      <ModuleHelpModal open={open} onClose={() => setOpen(false)} content={content} />
+      {/* Mount dialog only when open — avoids SSR/client hydration mismatches from Radix portals. */}
+      {open ? (
+        <ModuleHelpModal open={open} onClose={() => setOpen(false)} content={content} />
+      ) : null}
     </>
   );
 }
