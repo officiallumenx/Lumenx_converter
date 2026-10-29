@@ -125,10 +125,59 @@ export async function listNotificationsByIds(
   return ensureDbOk(result) as NotificationRow[];
 }
 
+/** Live row for institute + dedupe_key (matches notification_institute_dedupe_uidx). */
+export async function findNotificationByInstituteDedupeKey(
+  admin: SupabaseClient,
+  instituteId: string,
+  dedupeKey: string,
+): Promise<NotificationRow | null> {
+  const key = dedupeKey.trim();
+  if (!key) return null;
+  const result = await admin
+    .from("notification")
+    .select(NOTIFICATION_COLS)
+    .eq("institute_id", instituteId)
+    .eq("dedupe_key", key)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as NotificationRow | null) ?? null;
+}
+
+export function isNotificationInstituteDedupeConflict(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+} | null): boolean {
+  if (!error || error.code !== "23505") return false;
+  const hay = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return (
+    hay.includes("notification_institute_dedupe_uidx") ||
+    (hay.includes("notification") && hay.includes("dedupe"))
+  );
+}
+
+/**
+ * Insert a notification. When `dedupeKey` is set, honors
+ * `notification_institute_dedupe_uidx` without treating conflicts as failures:
+ * pre-read existing, insert, and on concurrent 23505 re-read the winner.
+ */
 export async function insertNotification(
   admin: SupabaseClient,
   input: EmitNotificationInput & { createdByUserProfileId: string },
-): Promise<NotificationRow> {
+): Promise<{ notification: NotificationRow; created: boolean }> {
+  const dedupeKey = input.dedupeKey?.trim() ? input.dedupeKey.trim() : null;
+
+  if (dedupeKey) {
+    const existing = await findNotificationByInstituteDedupeKey(
+      admin,
+      input.instituteId,
+      dedupeKey,
+    );
+    if (existing) return { notification: existing, created: false };
+  }
+
   const result = await admin
     .from("notification")
     .insert({
@@ -141,12 +190,25 @@ export async function insertNotification(
       payload: input.payload ?? {},
       deep_link: input.deepLink ?? null,
       due_at: input.dueAt ?? null,
-      dedupe_key: input.dedupeKey ?? null,
+      dedupe_key: dedupeKey,
       created_by_user_profile_id: input.createdByUserProfileId,
     })
     .select(NOTIFICATION_COLS)
     .single();
-  return ensureDbOk(result) as NotificationRow;
+
+  if (result.error) {
+    if (dedupeKey && isNotificationInstituteDedupeConflict(result.error)) {
+      const raced = await findNotificationByInstituteDedupeKey(
+        admin,
+        input.instituteId,
+        dedupeKey,
+      );
+      if (raced) return { notification: raced, created: false };
+    }
+    ensureDbOk(result);
+  }
+
+  return { notification: result.data as NotificationRow, created: true };
 }
 
 export async function insertRecipients(
@@ -288,20 +350,17 @@ export async function reclaimStaleSendingFcmAttempts(
   admin: SupabaseClient,
   olderThanMs = 120_000,
 ): Promise<number> {
+  // Filter stale candidates in SQL so empty ticks do not pull every `sending` row.
+  const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
   const listed = await admin
     .from("notification_delivery_attempt")
     .select("id, attempted_at")
     .eq("channel", "fcm")
     .eq("status", "sending")
+    .lt("attempted_at", cutoffIso)
     .limit(200);
   const rows = ensureDbOk(listed) as Array<{ id: string; attempted_at: string }>;
-  const cutoff = Date.now() - olderThanMs;
-  const staleIds = rows
-    .filter((row) => {
-      const at = new Date(row.attempted_at).getTime();
-      return Number.isFinite(at) && at < cutoff;
-    })
-    .map((row) => row.id);
+  const staleIds = rows.map((row) => row.id);
   if (staleIds.length === 0) return 0;
   const result = await admin
     .from("notification_delivery_attempt")

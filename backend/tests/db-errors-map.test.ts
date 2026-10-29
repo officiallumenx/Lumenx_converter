@@ -3,6 +3,23 @@ import { mapDbError } from "../src/db/errors.js";
 import { AppError } from "../src/errors/app-error.js";
 
 describe("mapDbError unique conflicts", () => {
+  it("maps notification_institute_dedupe_uidx to a generic notification conflict", () => {
+    try {
+      mapDbError({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "notification_institute_dedupe_uidx"',
+        details:
+          "Key (institute_id, dedupe_key)=(aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa, fee-publish:1) already exists.",
+      });
+    } catch (err) {
+      expect(err).toBeInstanceOf(AppError);
+      const appErr = err as AppError;
+      expect(appErr.status).toBe(409);
+      expect(appErr.message).toBe("Notification already recorded");
+    }
+  });
+
   it("does not map diary-reminder dedupe (scope=subject) to subject-catalog conflict", () => {
     expect(() =>
       mapDbError({

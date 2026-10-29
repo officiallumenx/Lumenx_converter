@@ -17,6 +17,11 @@ export function mapDbError(error: { code?: string; message?: string; details?: s
     if (/transport_trip_client_event/.test(hay)) {
       throw AppError.conflict("Trip start already recorded for this client event");
     }
+    // Institute notification dedupe (partial unique index). Prefer specific copy
+    // before diary / subject heuristics that also mention "dedupe" or "subject".
+    if (/notification_institute_dedupe_uidx/.test(hay)) {
+      throw AppError.conflict("Notification already recorded");
+    }
     // Diary / reminder unique keys often include scope value "subject" in DETAIL —
     // match those before the subject-catalog heuristic below.
     if (

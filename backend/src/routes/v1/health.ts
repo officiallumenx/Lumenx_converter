@@ -19,7 +19,7 @@ function fcmHealthSnapshot() {
     /** Env intent: FCM_WORKER_ENABLED (not process gate). */
     workerEnabled: configEnabled,
     firebaseConfigured,
-    /** True only when this process owns an active setInterval worker. */
+    /** True only when this process owns an active FCM worker schedule. */
     workerRunning: runtime.workerRunning,
     messagingReady: configEnabled && firebaseConfigured && runtime.workerRunning,
     projectId: env.FIREBASE_PROJECT_ID ?? null,
