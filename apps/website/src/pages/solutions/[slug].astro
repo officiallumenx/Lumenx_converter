@@ -1,0 +1,34 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import ContentPage from "../../components/ContentPage.astro";
+import { ROLES } from "../../data/lumenx.js";
+
+export function getStaticPaths() {
+  return ROLES.map((role) => {
+    const slug = role.href.replace("/solutions/", "");
+    return { params: { slug }, props: { role } };
+  });
+}
+
+const { role } = Astro.props;
+---
+
+<Layout
+  description={`LumenX for ${role.title}: ${role.body}`}
+  title={`Solutions — ${role.title}`}
+>
+  <ContentPage title={role.title} description={role.body}>
+    <p class="text-base leading-relaxed text-body-color dark:text-dark-6">{role.body}</p>
+    <p class="mt-6 text-base leading-relaxed text-body-color dark:text-dark-6">
+      Each role sees only what they need — configured by your institute in LumenX Admin and delivered through Connect, Transport, Admissions, or Careers as appropriate.
+    </p>
+    <div class="mt-10">
+      <a
+        href="/platform"
+        class="inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+      >
+        Explore the platform
+      </a>
+    </div>
+  </ContentPage>
+</Layout>

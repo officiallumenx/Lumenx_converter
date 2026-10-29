@@ -1,0 +1,29 @@
+# Cloudflare Pages legacy redirects — verified against live lumenx-website Worker behaviour.
+# Do not add a catch-all /* → / (unknown URLs should 404).
+
+# Products → platform (nexus matches live Worker: /products/nexus → /about)
+/products              /platform              301
+/products/admin        /platform/admin        301
+/products/connect      /platform/connect      301
+/products/transport    /platform/transport    301
+/products/admissions   /platform/admissions   301
+/products/careers      /platform/careers      301
+/products/nexus        /about                 301
+
+# Downloads aliases
+/download              /downloads             301
+/resources/downloads   /downloads             301
+
+# Legacy narrative / CTA paths
+/features              /modules               301
+/how-it-works          /platform              301
+/demo                  /contact?intent=demo   301
+/demos                 /contact?intent=demo   301
+
+# Retired resource stubs (live Worker redirected these to /resources)
+/resources/blog        /resources             301
+/resources/demo        /resources             301
+
+# Module category deep links → modules index
+# Use :category (not /*) so /modules/ itself is not matched (avoids trailing-slash loop).
+/modules/:category     /modules/              301

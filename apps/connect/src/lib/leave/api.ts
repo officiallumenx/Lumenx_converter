@@ -107,6 +107,9 @@ export async function cancelLeave(
   );
 }
 
+/** Coalesce concurrent GETs for the same leave decision (Home + Leave remounts). */
+const leaveDecisionInflight = new Map<string, Promise<LeaveDecisionDto>>();
+
 export async function getLeaveDecision(
   leaveId: string,
   client: ConnectApiClient = getConnectApiClient(),
@@ -115,7 +118,20 @@ export async function getLeaveDecision(
   if (!isInstituteUuid(leaveId)) {
     throw new Error("leave_id must be a valid UUID");
   }
-  return client.get<LeaveDecisionDto>(
-    `/api/v1/leave/requests/${leaveId.trim()}/decision`,
-  );
+  const id = leaveId.trim();
+  const existing = leaveDecisionInflight.get(id);
+  if (existing) return existing;
+
+  const task = client
+    .get<LeaveDecisionDto>(`/api/v1/leave/requests/${id}/decision`)
+    .finally(() => {
+      leaveDecisionInflight.delete(id);
+    });
+  leaveDecisionInflight.set(id, task);
+  return task;
+}
+
+/** Test helper — clears in-flight decision coalescing. */
+export function __clearLeaveDecisionInflightForTests(): void {
+  leaveDecisionInflight.clear();
 }

@@ -1,0 +1,18 @@
+---
+import Aboutsection from '../components/Aboutsection.astro';
+import Breadcrumb from '../components/layout/Breadcrumb.astro';
+import Layout from '../layouts/Layout.astro';
+import CTAsection from '../components/CTAsection.astro';
+import { SITE } from '../data/lumenx.js';
+---
+
+<Layout
+  description="LumenX brings institutional workflows into a connected ecosystem — Admin, Connect, Transport, Admissions, Careers, and Nexus — each with a defined purpose."
+  title="About"
+>
+  <Breadcrumb description="Built around the way institutions work — a connected ecosystem, not another isolated school app.">
+    <Fragment slot="title">About LumenX</Fragment>
+  </Breadcrumb>
+  <Aboutsection />
+  <CTAsection />
+</Layout>

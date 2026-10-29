@@ -1,0 +1,42 @@
+---
+import Breadcrumb from "../components/layout/Breadcrumb.astro";
+import Layout from "../layouts/Layout.astro";
+import { CAPABILITIES } from "../data/lumenx.js";
+---
+
+<Layout
+  description="LumenX modules span academics, administration, fees, attendance, people, exams, homework, notices, timetable, transport, admissions, and careers."
+  title="Modules"
+>
+  <Breadcrumb>
+    <Fragment slot="title">Modules</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-12 mx-auto max-w-[560px] text-center lg:mb-[70px]">
+        <span class="mb-2 block text-lg font-semibold text-primary">Capabilities</span>
+        <h2 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+          What institutes run on LumenX
+        </h2>
+        <p class="text-base text-body-color dark:text-dark-6">
+          Core workflows map to platform products — explore each module to see where it lives in the ecosystem.
+        </p>
+      </div>
+      <ul class="-mx-4 flex flex-wrap">
+        {
+          CAPABILITIES.map((cap) => (
+            <li class="w-full px-4 md:w-1/2 lg:w-1/3 xl:w-1/4">
+              <div class="mb-10 rounded-xl bg-white p-8 shadow-testimonial dark:bg-dark-2 sm:p-10">
+                <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">{cap.title}</h3>
+                <p class="mb-6 text-base text-body-color dark:text-dark-6">{cap.description}</p>
+                <a href={cap.href} class="text-base font-medium text-primary hover:underline">
+                  View product
+                </a>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</Layout>

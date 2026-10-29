@@ -8,6 +8,7 @@ import { loadLearnerExamSchedules } from "@/lib/exams";
 import { loadStudentReportCards } from "@/lib/marks";
 import { loadLearnerAttendancePortal } from "@/lib/attendance/load";
 import { loadLearnerTimetable } from "@/lib/timetable";
+import type { AppNotification } from "@lumenx/types";
 import {
   connectEventsToSchoolEvents,
   learnerSchedulesToStudentExams,
@@ -23,10 +24,20 @@ import {
 export async function enrichStudentDashboardSnapshot(input: {
   instituteId: string;
   snapshot: StudentSnapshot;
+  /** Shared inbox (value or in-flight Promise) — avoids a second `/notifications` GET. */
+  inbox?: AppNotification[] | Promise<AppNotification[]>;
 }): Promise<StudentSnapshot> {
   const { instituteId, snapshot } = input;
   const studentId = snapshot.profile.id;
-  const classGrade = snapshot.profile.class;
+  const rawClass = snapshot.profile.class?.trim() ?? "";
+  // Placeholder "—" from missing labels must not be sent as a class filter.
+  const classGrade =
+    rawClass && rawClass !== "—" ? rawClass : undefined;
+
+  const inboxPromise =
+    input.inbox != null
+      ? Promise.resolve(input.inbox)
+      : loadConnectPortalInbox(instituteId);
 
   const [
     reportCardsResult,
@@ -40,7 +51,7 @@ export async function enrichStudentDashboardSnapshot(input: {
     loadLearnerExamSchedules({ instituteId, classGrade }),
     loadConnectEvents({ instituteId }),
     loadLearnerTimetable({ instituteId, studentId }),
-    loadConnectPortalInbox(instituteId),
+    inboxPromise,
     loadLearnerAttendancePortal({ instituteId, studentId }),
   ]);
 

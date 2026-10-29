@@ -1,0 +1,27 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import LegalDocument from "../components/LegalDocument.astro";
+import { PLATFORM_PRIVACY } from "../data/legal.js";
+---
+
+<Layout
+  description="LumenX Privacy Policy: how we collect, use, and protect personal data across the platform and this marketing website."
+  title="Privacy Policy"
+>
+  <ContentPage title="Privacy Policy" description={`Last updated ${PLATFORM_PRIVACY.lastUpdated}.`} showCta={false}>
+    <LegalDocument
+      title={PLATFORM_PRIVACY.title}
+      lastUpdated={PLATFORM_PRIVACY.lastUpdated}
+      intro={PLATFORM_PRIVACY.intro}
+      websiteNote={PLATFORM_PRIVACY.websiteNote}
+      sections={PLATFORM_PRIVACY.sections}
+    />
+    <p class="mx-auto mt-10 max-w-[800px] text-base text-body-color dark:text-dark-6">
+      Related:
+      <a class="text-primary hover:underline" href="/cookies">Cookie Policy</a>,
+      <a class="text-primary hover:underline" href="/terms">Terms</a>,
+      <a class="text-primary hover:underline" href="/data-request">Data request</a>.
+    </p>
+  </ContentPage>
+</Layout>

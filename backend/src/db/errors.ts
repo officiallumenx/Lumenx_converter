@@ -17,10 +17,28 @@ export function mapDbError(error: { code?: string; message?: string; details?: s
     if (/transport_trip_client_event/.test(hay)) {
       throw AppError.conflict("Trip start already recorded for this client event");
     }
+    // Diary / reminder unique keys often include scope value "subject" in DETAIL —
+    // match those before the subject-catalog heuristic below.
+    if (
+      /diary-reminder/.test(hay) ||
+      ((/notification|dedupe_key|dedupe/.test(hay) && /diary/.test(hay)))
+    ) {
+      throw AppError.conflict("Diary reminder already recorded");
+    }
+    if (/diary_day|diary_day_institute_teacher_date_scope/.test(hay)) {
+      throw AppError.conflict(
+        "A diary day already exists for this teacher, date, and scope",
+      );
+    }
     if (/class|section|classes|sections/.test(hay)) {
       throw AppError.conflict("This class or section already exists — change the name");
     }
-    if (/subject/.test(hay)) {
+    // Subject catalog only — do not match diary scope=subject DETAIL payloads.
+    if (
+      /subject/.test(hay) &&
+      !/diary/.test(hay) &&
+      !/\bscope\b/.test(hay)
+    ) {
       throw AppError.conflict("This subject already exists — change the name or code");
     }
     if (/membership|user_profile|email|auth/.test(hay)) {

@@ -10,13 +10,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
-import { loadStudentPortalSnapshot } from "@/lib/students";
+import { loadStudentPortalBase } from "@/lib/students";
 import { studentRepository } from "@/lib/student/repositories";
 import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
 import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import { prefetchStudentModuleQueries } from "@/lib/connect-queries/prefetch-student";
+import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
+import { enrichStudentDashboardSnapshot } from "@/lib/dashboard";
 import type { StudentSnapshot } from "@/lib/student/types";
+import type { AppNotification } from "@lumenx/types";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
 export type StudentPortalState = {
@@ -40,20 +43,22 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
     Boolean(activeInstituteId) &&
     (isApiAuthMode() ? isInstituteUuid(activeInstituteId ?? "") : true);
 
-  const query = useQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.studentPortal(activeInstituteId ?? "_"),
-    ),
+  const portalKey = scopedConnectKey(
+    userId,
+    connectQueryKeys.studentPortal(activeInstituteId ?? "_"),
+  );
+
+  // Phase 1: profile shell — unblocks Home greeting without waiting on widgets.
+  const baseQuery = useQuery({
+    queryKey: [...portalKey, "base"],
     queryFn: async () => {
       if (isApiAuthMode()) {
-        const result = await loadStudentPortalSnapshot({
+        const result = await loadStudentPortalBase({
           instituteId: activeInstituteId,
           userDisplayName: user?.name,
           userEmail: user?.email,
         });
         if (result.status === "ready" && result.snapshot) return result.snapshot;
-        // Empty linkage is a stable outcome; other statuses are retried by React Query.
         if (result.status === "empty" || result.status === "needs_institute") {
           return null;
         }
@@ -63,6 +68,27 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
     },
     enabled: canRun && !isRestoring,
     retry: 2,
+  });
+
+  // Phase 2: marks/exams/events/timetable/attendance/inbox — must not block greeting.
+  const enrichQuery = useQuery({
+    queryKey: [...portalKey, "enrich"],
+    queryFn: async () => {
+      const inboxPromise = queryClient.ensureQueryData({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.inbox(activeInstituteId!, "student"),
+        ),
+        queryFn: () => loadConnectPortalInbox(activeInstituteId!),
+      }) as Promise<AppNotification[]>;
+      return enrichStudentDashboardSnapshot({
+        instituteId: activeInstituteId!,
+        snapshot: baseQuery.data!,
+        inbox: inboxPromise,
+      });
+    },
+    enabled: canRun && !isRestoring && isApiAuthMode() && Boolean(baseQuery.data),
+    placeholderData: (previous) => previous,
   });
 
   useEffect(() => {
@@ -80,16 +106,16 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
     });
   }, [activeInstituteId, queryClient, userId]);
 
-  const snapshot = query.data ?? null;
-  // While IndexedDB restore blocks the query (`enabled: !isRestoring`), keep portals in a
-  // loading state — otherwise consumers flash "No linked student" for up to the restore window.
+  // Prefer enriched widgets; keep profile shell while enrich lags or fails.
+  const snapshot = enrichQuery.data ?? baseQuery.data ?? null;
   const isLoading =
     isStudent &&
-    (isRestoring || (canRun && !snapshot && (query.isLoading || query.isPending)));
+    (isRestoring ||
+      (canRun && !snapshot && (baseQuery.isLoading || baseQuery.isPending)));
 
   useEffect(() => {
-    if (!isStudent || isRestoring || !snapshot || !activeInstituteId) return;
-    const studentId = snapshot.profile.id;
+    if (!isStudent || isRestoring || !baseQuery.data || !activeInstituteId) return;
+    const studentId = baseQuery.data.profile.id;
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(studentId)) return;
     return prefetchStudentModuleQueries(
       queryClient,
@@ -97,7 +123,7 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
       activeInstituteId,
       studentId,
     );
-  }, [isStudent, isRestoring, snapshot, activeInstituteId, queryClient, userId]);
+  }, [isStudent, isRestoring, baseQuery.data, activeInstituteId, queryClient, userId]);
 
   const value = useMemo<StudentPortalState>(() => {
     if (!isStudent) {

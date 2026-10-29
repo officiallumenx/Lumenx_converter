@@ -180,26 +180,59 @@ export function useTeacherLeaveQuery(
   instituteId: string | null | undefined,
   teacherId: string | null | undefined,
   enabled: boolean,
+  options?: {
+    refetchInterval?: number | false;
+    /** Fetch reviewer notes via /decision (Leave history). Default false for Home/Sync. */
+    includeDecisions?: boolean;
+  },
 ) {
   const userId = useConnectQueryUserId();
   const qc = useQueryClient();
+  const includeDecisions = Boolean(options?.includeDecisions);
   const query = useQuery({
-    queryKey: scopedConnectKey(userId, connectQueryKeys.leaveTeacher(instituteId ?? "_", teacherId ?? "_")),
-    queryFn: () =>
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.leaveTeacher(
+        instituteId ?? "_",
+        teacherId ?? "_",
+        includeDecisions,
+      ),
+    ),
+    queryFn: ({ signal }) =>
       loadTeacherLeavePortal({
         instituteId: instituteId!,
         teacherId: teacherId ?? null,
+        signal,
+        includeDecisions,
       }),
     enabled:
       enabled &&
       Boolean(instituteId) &&
-      isInstituteUuid(instituteId ?? ""),
+      Boolean(teacherId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(teacherId ?? ""),
+    // Shared with ConnectSchoolAlertsSync poll — keep shorter than module default staleTime.
+    staleTime: options?.refetchInterval ? 30_000 : undefined,
+    refetchInterval: options?.refetchInterval,
+    placeholderData: (previous) => previous,
   });
   const refresh = () => {
-    if (!instituteId) return;
+    if (!instituteId || !teacherId) return;
     void qc.invalidateQueries({
-      queryKey: scopedConnectKey(userId, connectQueryKeys.leaveTeacher(instituteId, teacherId ?? "_")),
+      queryKey: scopedConnectKey(
+        userId,
+        connectQueryKeys.leaveTeacher(instituteId, teacherId, includeDecisions),
+      ),
     });
+    // Keep Home/Sync list in sync after decide mutations from the Leave page.
+    if (includeDecisions) {
+      void qc.invalidateQueries({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.leaveTeacher(instituteId, teacherId, false),
+        ),
+      });
+    }
   };
   return { ...query, refresh };
 }
@@ -767,17 +800,23 @@ export function useTeacherStudentDetailQuery(
 export function useSchoolAlertsQuery(
   instituteId: string | null | undefined,
   enabled: boolean,
+  options?: { refetchInterval?: number | false },
 ) {
   const userId = useConnectQueryUserId();
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: scopedConnectKey(userId, connectQueryKeys.schoolAlerts(instituteId ?? "_")),
-    queryFn: () => loadPortalSchoolAlerts({ instituteId: instituteId ?? null }),
+    queryFn: ({ signal }) =>
+      loadPortalSchoolAlerts({ instituteId: instituteId ?? null, signal }),
     enabled:
       enabled &&
       isApiAuthMode() &&
       Boolean(instituteId) &&
       isInstituteUuid(instituteId ?? ""),
+    // Shared with ConnectSchoolAlertsSync poll — keep shorter than module default staleTime.
+    staleTime: options?.refetchInterval ? 30_000 : undefined,
+    refetchInterval: options?.refetchInterval,
+    placeholderData: (previous) => previous,
   });
   const refresh = () => {
     if (!instituteId) return;

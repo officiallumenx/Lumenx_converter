@@ -1,5 +1,4 @@
 import type { DiaryDayDto, DiaryRowInput, DiarySectionOption } from "./types";
-import type { ClassDto, SectionDto, TeacherAssignmentDto } from "./types";
 import type { DiaryDay, DiaryRow, DiaryScope } from "@/lib/teacher/diary/types";
 import { newDiaryRow } from "@/lib/teacher/diary/store";
 
@@ -43,9 +42,14 @@ export function diaryRowsToApiInput(rows: DiaryRow[], scope: DiaryScope): DiaryR
 }
 
 export function buildSectionOptions(input: {
-  assignments: TeacherAssignmentDto[];
-  sections: SectionDto[];
-  classes: ClassDto[];
+  assignments: Array<{ sectionId: string }>;
+  sections: Array<{
+    id: string;
+    classId: string;
+    name?: string | null;
+    code?: string | null;
+  }>;
+  classes: Array<{ id: string; name?: string | null; code?: string | null }>;
 }): DiarySectionOption[] {
   const classById = new Map(input.classes.map((c) => [c.id, c]));
   const sectionById = new Map(input.sections.map((s) => [s.id, s]));

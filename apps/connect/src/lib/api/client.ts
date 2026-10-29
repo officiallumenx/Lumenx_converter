@@ -52,6 +52,8 @@ function transientRefreshError(): ApiClientError {
 
 export function createApiClient(config: ApiClientConfig) {
   const fetchImpl = config.fetchImpl ?? fetch;
+  /** Concurrent identical GETs share one network round-trip (AbortSignal is local-only). */
+  const inflightGets = new Map<string, Promise<unknown>>();
 
   function captureGeneration(options: ApiRequestOptions): number | undefined {
     if (options._sessionGeneration !== undefined) return options._sessionGeneration;
@@ -125,12 +127,10 @@ export function createApiClient(config: ApiClientConfig) {
     return token;
   }
 
-  async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-    const requestOptions: ApiRequestOptions = {
-      ...options,
-      _sessionGeneration:
-        options._sessionGeneration ?? config.getSessionGeneration?.(),
-    };
+  async function requestOnce<T>(
+    path: string,
+    requestOptions: ApiRequestOptions,
+  ): Promise<T> {
     const base = resolveBaseUrl(config.getBaseUrl());
     if (!base) {
       throw new ApiClientError({
@@ -152,69 +152,128 @@ export function createApiClient(config: ApiClientConfig) {
       headers["Content-Type"] = "application/json";
     }
 
+    let authKey = "anon";
     if (!requestOptions.skipAuth) {
       const token = await resolveAccessToken(requestOptions);
       headers.Authorization = `Bearer ${token}`;
+      authKey = token;
     }
 
-    let response: Response;
-    try {
-      response = await fetchImpl(url, {
-        method: requestOptions.method ?? (requestOptions.body !== undefined ? "POST" : "GET"),
-        headers,
-        body:
-          requestOptions.body !== undefined
-            ? JSON.stringify(requestOptions.body)
-            : undefined,
-        signal: requestOptions.signal,
-      });
-    } catch {
-      throw new ApiClientError({
-        status: 0,
-        code: "NETWORK_ERROR",
-        message: "Network request failed",
-      });
-    }
+    const method =
+      requestOptions.method ?? (requestOptions.body !== undefined ? "POST" : "GET");
+    const coalesceKey =
+      method === "GET"
+        ? `${authKey}|${url}|${requestOptions.envelope ? "1" : "0"}|${
+            requestOptions._authRetried ? "r" : "0"
+          }`
+        : null;
 
-    const text = await response.text();
-    let json: unknown = null;
-    if (text) {
+    const runFetch = async (): Promise<T> => {
+      let response: Response;
       try {
-        json = JSON.parse(text) as unknown;
+        response = await fetchImpl(url, {
+          method,
+          headers,
+          body:
+            requestOptions.body !== undefined
+              ? JSON.stringify(requestOptions.body)
+              : undefined,
+          // Shared GET must not abort when one waiter cancels.
+          signal: coalesceKey ? undefined : requestOptions.signal,
+        });
       } catch {
-        json = null;
+        throw new ApiClientError({
+          status: 0,
+          code: "NETWORK_ERROR",
+          message: "Network request failed",
+        });
       }
-    }
 
-    if (!response.ok) {
-      const err = normalizeApiError(
-        response.status,
-        json,
-        response.statusText || "Request failed",
-      );
-      if (response.status === 401) {
-        const retry = await shouldRetryAfterUnauthorized(requestOptions);
-        if (retry) {
-          return request<T>(path, {
-            ...requestOptions,
-            accessToken: undefined,
-            _authRetried: true,
-          });
+      const text = await response.text();
+      let json: unknown = null;
+      if (text) {
+        try {
+          json = JSON.parse(text) as unknown;
+        } catch {
+          json = null;
         }
       }
-      throw err;
+
+      if (!response.ok) {
+        const err = normalizeApiError(
+          response.status,
+          json,
+          response.statusText || "Request failed",
+        );
+        if (response.status === 401) {
+          const retry = await shouldRetryAfterUnauthorized(requestOptions);
+          if (retry) {
+            return request<T>(path, {
+              ...requestOptions,
+              accessToken: undefined,
+              _authRetried: true,
+            });
+          }
+        }
+        throw err;
+      }
+
+      if (
+        !requestOptions.envelope &&
+        json &&
+        typeof json === "object" &&
+        "data" in json
+      ) {
+        return (json as { data: T }).data;
+      }
+
+      return json as T;
+    };
+
+    if (!coalesceKey) {
+      return runFetch();
     }
 
-    if (
-      !requestOptions.envelope &&
-      json &&
-      typeof json === "object" &&
-      "data" in json
-    ) {
-      return (json as { data: T }).data;
-    }
+    const existing = inflightGets.get(coalesceKey);
+    const shared =
+      existing ??
+      (() => {
+        const p = runFetch().finally(() => {
+          if (inflightGets.get(coalesceKey) === p) inflightGets.delete(coalesceKey);
+        });
+        inflightGets.set(coalesceKey, p);
+        return p;
+      })();
 
-    return json as T;
+    if (!requestOptions.signal) {
+      return shared as Promise<T>;
+    }
+    if (requestOptions.signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+      requestOptions.signal!.addEventListener("abort", onAbort, { once: true });
+      (shared as Promise<T>).then(
+        (value) => {
+          requestOptions.signal!.removeEventListener("abort", onAbort);
+          resolve(value);
+        },
+        (err) => {
+          requestOptions.signal!.removeEventListener("abort", onAbort);
+          reject(err);
+        },
+      );
+    });
+  }
+
+  async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const requestOptions: ApiRequestOptions = {
+      ...options,
+      _sessionGeneration:
+        options._sessionGeneration ?? config.getSessionGeneration?.(),
+    };
+    return requestOnce<T>(path, requestOptions);
   }
 
   async function uploadForm<T>(

@@ -1,0 +1,25 @@
+/**
+ * Optional Luma Studio @font-face rules.
+ * Keep DISABLED until licensed WOFF2 files exist under public/fonts/luma-studio/.
+ * Do not invent or point at missing files (causes 404s).
+ *
+ * When licensed files are in place, uncomment the blocks below.
+ */
+
+/*
+@font-face {
+  font-family: "Luma Studio";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/luma-studio/LumaStudio-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Luma Studio";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/luma-studio/LumaStudio-Bold.woff2") format("woff2");
+}
+*/

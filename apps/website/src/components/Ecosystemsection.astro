@@ -1,0 +1,302 @@
+---
+import { PRODUCTS } from "../data/lumenx.js";
+
+const hub = PRODUCTS.find((p) => p.id === "admin");
+const orbit = PRODUCTS.filter((p) =>
+  ["connect", "transport", "admissions", "careers"].includes(p.id)
+);
+const nexus = PRODUCTS.find((p) => p.id === "nexus");
+
+const nodes = [
+  hub && {
+    ...hub,
+    layer: "hub",
+    blurb: "Central operational hub — people, classes, fees, and campus records.",
+  },
+  ...orbit.map((p) => ({
+    ...p,
+    layer: "orbit",
+    blurb: p.role,
+  })),
+  nexus && {
+    ...nexus,
+    layer: "outer",
+    blurb: "Platform services layer — licensing, modules, and operator support around Admin.",
+  },
+].filter(Boolean);
+
+const orbitAngles = {
+  connect: -40,
+  transport: 50,
+  admissions: 140,
+  careers: 230,
+};
+
+/** Place satellites on a circle (% of stage) — avoids CSS translate % pitfalls. */
+const ORBIT_RADIUS = 34;
+function satPosition(id) {
+  const rad = (orbitAngles[id] * Math.PI) / 180;
+  return {
+    left: `${50 + ORBIT_RADIUS * Math.cos(rad)}%`,
+    top: `${50 + ORBIT_RADIUS * Math.sin(rad)}%`,
+    x2: 50 + 32 * Math.cos(rad),
+    y2: 50 + 32 * Math.sin(rad),
+  };
+}
+---
+
+<section id="ecosystem" class="lx-eco-section" aria-labelledby="lx-eco-heading">
+  <div class="container">
+    <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
+      <span class="lx-section-eyebrow lx-eco-eyebrow">How it works together</span>
+      <h2 id="lx-eco-heading" class="lx-section-title lx-eco-title">
+        Each product helps a defined part of campus life.
+      </h2>
+      <p class="lx-section-lead lx-eco-lead">
+        Admin sits at the centre. Connect, Transport, Admissions, and Careers orbit that record for
+        clear audiences. Nexus supports licensing and platform service around the institute —
+        shown as a conceptual map, not a claim of live data sync.
+      </p>
+    </div>
+
+    <!-- Desktop / tablet orbital diagram -->
+    <div
+      class="lx-orbit"
+      data-lx-orbit
+      data-reveal
+      role="group"
+      aria-label="LumenX product ecosystem diagram"
+    >
+      <div class="lx-orbit__stage" aria-hidden="true">
+        <div class="lx-orbit__glow"></div>
+        <div class="lx-orbit__ring lx-orbit__ring--outer"></div>
+        <div class="lx-orbit__ring lx-orbit__ring--mid"></div>
+        <div class="lx-orbit__ring lx-orbit__ring--inner"></div>
+
+        <svg class="lx-orbit__paths" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="lx-orbit-line" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#3758F9" stop-opacity="0.15" />
+              <stop offset="50%" stop-color="#22D3EE" stop-opacity="0.55" />
+              <stop offset="100%" stop-color="#3758F9" stop-opacity="0.15" />
+            </linearGradient>
+            <linearGradient id="lx-orbit-line-active" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#3758F9" stop-opacity="0.2" />
+              <stop offset="50%" stop-color="#34D399" stop-opacity="0.9" />
+              <stop offset="100%" stop-color="#3758F9" stop-opacity="0.2" />
+            </linearGradient>
+          </defs>
+          {
+            orbit.map((p) => {
+              const pos = satPosition(p.id);
+              return (
+                <g class="lx-orbit__path-group" data-path={p.id}>
+                  <line
+                    class="lx-orbit__path"
+                    x1="50"
+                    y1="50"
+                    x2={pos.x2}
+                    y2={pos.y2}
+                    stroke="url(#lx-orbit-line)"
+                  />
+                  <circle class="lx-orbit__particle" r="0.7" fill="#67E8F9">
+                    <animateMotion
+                      dur="6s"
+                      repeatCount="indefinite"
+                      path={`M50,50 L${pos.x2},${pos.y2}`}
+                    />
+                  </circle>
+                </g>
+              );
+            })
+          }
+          {
+            nexus && (
+              <g class="lx-orbit__path-group" data-path="nexus">
+                <circle
+                  class="lx-orbit__nexus-ring"
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="url(#lx-orbit-line)"
+                  stroke-dasharray="1.2 2.4"
+                />
+              </g>
+            )
+          }
+        </svg>
+
+        {
+          hub && (
+            <a
+              href={hub.href}
+              class="lx-orbit__node lx-orbit__node--hub"
+              data-node="admin"
+              data-blurb={hub.role}
+              aria-label={`${hub.name}: ${hub.role}`}
+            >
+              <span class="lx-orbit__node-core">
+                {hub.image ? (
+                  <img
+                    src={hub.image}
+                    alt=""
+                    class="lx-orbit__hub-preview"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : null}
+                <span class="lx-orbit__hub-mark">
+                  <img src="/assets/logo/lumenx-logo-white.svg" alt="" width="120" height="26" />
+                </span>
+              </span>
+              <span class="lx-orbit__node-label">
+                <span class="lx-orbit__node-name">{hub.shortName}</span>
+                <span class="lx-orbit__node-role">Operational hub</span>
+              </span>
+            </a>
+          )
+        }
+
+        {
+          orbit.map((p) => {
+            const pos = satPosition(p.id);
+            return (
+              <a
+                href={p.href}
+                class="lx-orbit__node lx-orbit__node--sat"
+                data-node={p.id}
+                data-blurb={p.role}
+                style={`left: ${pos.left}; top: ${pos.top};`}
+                aria-label={`${p.name}: ${p.role}`}
+              >
+                <span class="lx-orbit__node-core">
+                  <span class="lx-orbit__initial">{p.shortName.slice(0, 1)}</span>
+                </span>
+                <span class="lx-orbit__node-label">
+                  <span class="lx-orbit__node-name">{p.shortName}</span>
+                  <span class="lx-orbit__node-role">{p.category}</span>
+                </span>
+              </a>
+            );
+          })
+        }
+
+        {
+          nexus && (
+            <a
+              href={nexus.href}
+              class="lx-orbit__node lx-orbit__node--nexus"
+              data-node="nexus"
+              data-blurb={nexus.role}
+              aria-label={`${nexus.name}: ${nexus.role}`}
+            >
+              <span class="lx-orbit__node-core">
+                <span class="lx-orbit__initial">N</span>
+              </span>
+              <span class="lx-orbit__node-label">
+                <span class="lx-orbit__node-name">{nexus.shortName}</span>
+                <span class="lx-orbit__node-role">Platform services</span>
+              </span>
+            </a>
+          )
+        }
+      </div>
+
+      <p class="lx-orbit__caption" data-orbit-caption aria-live="polite">
+        Hover or focus a product to see how it relates to Admin.
+      </p>
+    </div>
+
+    <!-- Mobile simplified connected layout -->
+    <div class="lx-orbit-mobile" data-reveal>
+      <ol class="lx-orbit-mobile__list">
+        {
+          nodes.map((node, index) => (
+            <li class={`lx-orbit-mobile__item lx-orbit-mobile__item--${node.layer}`}>
+              {index > 0 && <span class="lx-orbit-mobile__connector" aria-hidden="true" />}
+              <a href={node.href} class="lx-orbit-mobile__card">
+                <span class="lx-orbit-mobile__badge" aria-hidden="true">
+                  {node.shortName.slice(0, 1)}
+                </span>
+                <span class="lx-orbit-mobile__copy">
+                  <span class="lx-orbit-mobile__name">{node.name}</span>
+                  <span class="lx-orbit-mobile__blurb">{node.blurb}</span>
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </div>
+</section>
+
+<script>
+  function initOrbit() {
+    const root = document.querySelector("[data-lx-orbit]");
+    if (!root || root.dataset.lxOrbitReady === "1") return;
+    root.dataset.lxOrbitReady = "1";
+
+    const caption = root.querySelector("[data-orbit-caption]");
+    const defaultCaption = caption ? caption.textContent.trim() : "";
+    const nodes = Array.from(root.querySelectorAll("[data-node]"));
+    const paths = Array.from(root.querySelectorAll("[data-path]"));
+
+    function setActive(id) {
+      root.setAttribute("data-active", id || "");
+      nodes.forEach((node) => {
+        const nodeId = node.getAttribute("data-node");
+        const match = nodeId === id;
+        node.classList.toggle("is-active", match);
+        if (!id) {
+          node.classList.remove("is-dimmed");
+        } else if (id === "admin") {
+          node.classList.toggle("is-dimmed", nodeId !== "admin");
+        } else {
+          node.classList.toggle("is-dimmed", !match);
+        }
+      });
+      paths.forEach((path) => {
+        const pathId = path.getAttribute("data-path");
+        const match = id === "admin" || pathId === id;
+        path.classList.toggle("is-active", Boolean(id) && match);
+      });
+
+      if (!caption) return;
+      if (!id) {
+        caption.textContent = defaultCaption;
+        return;
+      }
+      const active = nodes.find((n) => n.getAttribute("data-node") === id);
+      const blurb = active?.getAttribute("data-blurb") || "";
+      const name = active?.querySelector(".lx-orbit__node-name")?.textContent?.trim() || "";
+      caption.textContent = blurb ? `${name}: ${blurb}` : defaultCaption;
+    }
+
+    nodes.forEach((node) => {
+      if (!node.hasAttribute("tabindex")) node.setAttribute("tabindex", "0");
+      const id = node.getAttribute("data-node");
+      node.addEventListener("pointerenter", () => setActive(id));
+      node.addEventListener("mouseenter", () => setActive(id));
+      node.addEventListener("focusin", () => setActive(id));
+      node.addEventListener("pointerleave", () => {
+        if (document.activeElement !== node) setActive("");
+      });
+      node.addEventListener("mouseleave", () => {
+        if (document.activeElement !== node) setActive("");
+      });
+      node.addEventListener("focusout", () => {
+        window.setTimeout(() => {
+          if (!root.contains(document.activeElement)) setActive("");
+        }, 0);
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initOrbit);
+  } else {
+    initOrbit();
+  }
+</script>

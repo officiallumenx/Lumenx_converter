@@ -23,7 +23,6 @@ import {
   softDeleteDiaryDay,
   updateDiaryDayFields,
 } from "./repository.js";
-import { processDiaryRemindersForActor } from "./reminders.js";
 import type {
   CreateDiaryDayInput,
   DiaryDayDto,
@@ -347,7 +346,8 @@ export async function listDiaryDaysForActor(
   filter: ListDiaryFilter,
 ): Promise<DiaryDayDto[]> {
   const instituteId = requireInstituteId(actor, filter.instituteId);
-  await processDiaryRemindersForActor(admin, actor, instituteId);
+  // GET must not emit reminders / mutate notification tables. Reminders run in
+  // processDiaryRemindersSystem (background worker) only.
 
   const listFilter: ListDiaryFilter = { ...filter, instituteId };
   // Learners/parents only see submitted class diary for their sections.

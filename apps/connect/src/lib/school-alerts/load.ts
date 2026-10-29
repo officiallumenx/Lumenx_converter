@@ -20,6 +20,7 @@ export type SchoolAlertsLoadStatus =
 
 export async function loadPortalSchoolAlerts(input: {
   instituteId: string | null;
+  signal?: AbortSignal;
 }): Promise<{
   status: SchoolAlertsLoadStatus;
   alerts: SchoolAlert[];
@@ -31,8 +32,14 @@ export async function loadPortalSchoolAlerts(input: {
   if (!input.instituteId || !isInstituteUuid(input.instituteId)) {
     return { status: "needs_institute", alerts: [], errorMessage: null };
   }
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   try {
     const dtos = await listPortalSchoolAlerts({ instituteId: input.instituteId });
+    if (input.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     const alerts = portalSchoolAlertsToSchoolAlerts(dtos);
     return {
       status: alerts.length === 0 ? "empty" : "ready",
@@ -40,6 +47,7 @@ export async function loadPortalSchoolAlerts(input: {
       errorMessage: null,
     };
   } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
     const status =
       err instanceof ApiClientError
         ? err.status

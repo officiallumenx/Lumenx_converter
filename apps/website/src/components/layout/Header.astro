@@ -1,0 +1,239 @@
+---
+import { NAV } from "../../data/lumenx.js";
+
+const menuitems = [
+  { title: "Home", path: "/" },
+  ...NAV,
+  { title: "About", path: "/about" },
+];
+
+const isHome = Astro.url.pathname === "/" || Astro.url.pathname === "";
+
+const navBase =
+  "ud-menu-scroll inline-flex shrink-0 items-center whitespace-nowrap py-2 text-sm font-medium leading-none transition-colors duration-200";
+const navHome = `${navBase} px-1.5 text-dark hover:text-primary dark:text-white lg:px-1.5 lg:text-white/95 lg:hover:text-white xl:px-2`;
+const navInner = `${navBase} px-1.5 text-dark hover:text-primary dark:text-white lg:px-1.5 lg:text-body-color dark:lg:text-dark-6 xl:px-2`;
+---
+
+<header
+  class:list={[
+    "ud-header absolute top-0 left-0 z-40 flex w-full items-center bg-transparent",
+    isHome && "ud-header--home",
+  ]}
+>
+  <div class="container">
+    <div class="lx-header-bar relative flex min-h-[70px] items-center gap-2 overflow-visible lg:min-h-[76px] lg:gap-2 xl:gap-3">
+      <!-- Left: authentic mark + clear wordmark -->
+      <a
+        href="/"
+        class="navbar-logo inline-flex shrink-0 items-center gap-2 py-2"
+        aria-label="LumenX home"
+      >
+        <span
+          class:list={[
+            "inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-md sm:h-10 sm:w-10",
+            isHome ? "bg-white" : "bg-white dark:bg-white",
+          ]}
+        >
+          <img
+            src="/assets/logo/lumenx-mark.png"
+            alt=""
+            class="header-logo h-full w-full object-contain object-center p-0.5"
+            width="40"
+            height="40"
+            aria-hidden="true"
+          />
+        </span>
+        <span
+          class:list={[
+            "lx-logo-word font-heading text-lg font-bold leading-none tracking-tight sm:text-xl",
+            isHome ? "text-white" : "text-dark dark:text-white",
+          ]}
+        >
+          LumenX
+        </span>
+      </a>
+
+      <!-- Center nav: single row on desktop -->
+      <nav
+        id="navbarCollapse"
+        class="lx-nav absolute right-0 top-[calc(100%-0.25rem)] z-30 hidden w-[min(100%,20rem)] rounded-lg bg-white py-3 shadow-lg dark:bg-dark-2 lg:static lg:z-auto lg:flex lg:min-w-0 lg:flex-1 lg:items-center lg:justify-center lg:overflow-visible lg:bg-transparent lg:py-0 lg:shadow-none dark:lg:bg-transparent"
+      >
+        <ul class="lx-nav-list flex flex-col lg:flex-row lg:flex-nowrap lg:items-center lg:justify-center lg:gap-0">
+          {
+            menuitems.map((item) => {
+              if (!item.children) {
+                return (
+                  <li class="shrink-0">
+                    <a
+                      href={item.path}
+                      class={`mx-3 lg:mx-0 ${isHome ? navHome : navInner}`}
+                    >
+                      {item.title}
+                    </a>
+                  </li>
+                );
+              }
+              return (
+                <li class="submenu-item group relative shrink-0">
+                  <a
+                    href={item.path === "javascript:void(0)" ? "#solutions" : item.path}
+                    class={`mx-3 inline-flex items-center gap-0.5 whitespace-nowrap lg:mx-0 ${isHome ? navHome : navInner}`}
+                    aria-haspopup="true"
+                  >
+                    <span class="whitespace-nowrap">{item.title}</span>
+                    <svg
+                      class="shrink-0 fill-current opacity-80"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                    >
+                      <path d="M3.2 5.6a.8.8 0 0 1 1.13-.07L8 8.9l3.67-3.37a.8.8 0 1 1 1.06 1.2l-4.2 3.85a.8.8 0 0 1-1.06 0L3.27 6.73a.8.8 0 0 1-.07-1.13z" />
+                    </svg>
+                  </a>
+                  <div class="submenu relative top-full left-0 hidden w-[220px] rounded-lg bg-white p-2 dark:bg-dark-2 lg:invisible lg:absolute lg:top-[110%] lg:block lg:opacity-0 lg:shadow-lg lg:group-hover:visible lg:group-hover:top-full lg:group-hover:opacity-100 lg:group-focus-within:visible lg:group-focus-within:top-full lg:group-focus-within:opacity-100">
+                    {item.children.map((child) => (
+                      <a
+                        href={child.path}
+                        class="block rounded-md px-3 py-2 text-sm text-body-color transition-colors hover:bg-primary/5 hover:text-primary dark:text-dark-6 dark:hover:text-primary"
+                      >
+                        {child.title}
+                      </a>
+                    ))}
+                  </div>
+                </li>
+              );
+            })
+          }
+
+          <li class="mt-2 space-y-1 border-t border-stroke px-3 pt-3 dark:border-dark-3 lg:hidden">
+            <a href="/contact" class="block py-2 text-sm font-medium text-dark dark:text-white">Contact</a>
+            <a href="/login" class="block py-2 text-sm font-medium text-dark dark:text-white">Login</a>
+            <a
+              href="/contact?intent=demo#enquiry"
+              class="mt-1 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white"
+            >
+              Book a Demo
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Right actions -->
+      <div class="lx-header-actions ml-auto flex shrink-0 items-center gap-1 lg:gap-1 xl:gap-1.5">
+        <button
+          id="themeSwitcher"
+          type="button"
+          class:list={[
+            "lx-theme-btn inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition",
+            isHome
+              ? "border-white/30 bg-white/10 text-white hover:bg-white/20"
+              : "border-stroke bg-white text-dark hover:border-primary/40 hover:text-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white",
+          ]}
+          aria-label="Toggle color theme"
+        >
+          <span class="hidden dark:block" aria-hidden="true">
+            <svg class="fill-current" width="16" height="16" viewBox="0 0 24 24"><path d="M13.3125 1.5c-.6375-.1875-1.275-.3375-1.95-.45-.4875-.075-1.0125.1875-1.2.6375-.225.45-.1125 1.0125.2625 1.3125 2.6625 2.475 3.6375 6.1125 2.55 9.525-1.2 3.7875-4.725 6.45-8.8125 6.5625-.525 0-.9375.3375-1.0875.825-.15.4875.075 1.0125.4875 1.275.9375.5625 1.875 1.0125 2.8125 1.3125 1.0875.3375 2.2125.4875 3.3375.4875 1.9125 0 3.7875-.4875 5.475-1.425 2.6625-1.4625 4.5375-3.825 5.3625-6.675C22.1625 9.2625 18.975 3.375 13.3125 1.5Zm5.625 12.9c-.675 2.4375-2.325 4.425-4.5375 5.6625-2.325 1.275-4.9875 1.5375-7.5.7875-.2625-.075-.5625-.1875-.825-.3 3.975-.7875 7.275-3.6375 8.5125-7.5375 1.0875-3.45.4125-7.0875-1.8-9.9375 4.8 1.6125 7.5 6.6 6.15 11.325Z"/></svg>
+          </span>
+          <span class="block dark:hidden" aria-hidden="true">
+            <svg class="fill-current" width="16" height="16" viewBox="0 0 24 24"><path d="M12 6.9A5.1 5.1 0 1 0 12 17.1 5.1 5.1 0 0 0 12 6.9Zm0 8.512a3.412 3.412 0 1 1 0-6.825 3.412 3.412 0 0 1 0 6.825ZM12 4.238c.45 0 .863-.375.863-.863V1.5c0-.45-.375-.863-.863-.863s-.863.375-.863.863v1.913c.038.45.413.825.863.825Zm0 15.525c-.45 0-.863.375-.863.862V22.5c0 .45.375.863.863.863s.863-.375.863-.863v-1.912c0-.45-.413-.825-.863-.825ZM22.5 11.175h-1.913c-.45 0-.862.375-.862.863s.375.862.862.862H22.5c.45 0 .863-.375.863-.862s-.413-.863-.863-.863ZM4.238 12c0-.45-.375-.863-.863-.863H1.5c-.45 0-.863.375-.863.863s.375.862.863.862h1.913c.45 0 .825-.412.825-.862Z"/></svg>
+          </span>
+        </button>
+
+        <div class="hidden items-center lg:flex lg:gap-0.5 xl:gap-1">
+          <a
+            href="/contact"
+            class:list={[
+              "inline-flex h-9 items-center whitespace-nowrap rounded-md px-2 text-sm font-medium transition",
+              isHome
+                ? "text-white/95 hover:bg-white/10 hover:text-white"
+                : "text-dark hover:text-primary dark:text-white",
+            ]}
+          >
+            Contact
+          </a>
+          <a
+            href="/login"
+            class:list={[
+              "loginBtn inline-flex h-9 items-center whitespace-nowrap rounded-md px-2 text-sm font-medium transition",
+              isHome
+                ? "text-white/95 hover:bg-white/10 hover:text-white"
+                : "text-dark hover:text-primary dark:text-white",
+            ]}
+          >
+            Login
+          </a>
+          <a
+            href="/contact?intent=demo#enquiry"
+            class:list={[
+              "signUpBtn lx-btn inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition xl:px-3.5",
+              isHome
+                ? "bg-white text-primary hover:bg-white/90"
+                : "bg-primary text-white hover:bg-blue-dark",
+            ]}
+          >
+            Book a Demo
+          </a>
+        </div>
+
+        <button
+          id="navbarToggler"
+          type="button"
+          class="relative inline-flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-md ring-primary focus:ring-2 lg:hidden"
+          aria-label="Toggle navigation"
+          aria-controls="navbarCollapse"
+          aria-expanded="false"
+        >
+          <span class={`relative my-[4px] block h-[2px] w-[20px] ${isHome ? "bg-white" : "bg-dark dark:bg-white"}`}></span>
+          <span class={`relative my-[4px] block h-[2px] w-[20px] ${isHome ? "bg-white" : "bg-dark dark:bg-white"}`}></span>
+          <span class={`relative my-[4px] block h-[2px] w-[20px] ${isHome ? "bg-white" : "bg-dark dark:bg-white"}`}></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<style is:global>
+  .lx-header-bar {
+    flex-wrap: nowrap;
+  }
+
+  @media (min-width: 960px) {
+    .lx-nav-list {
+      flex-wrap: nowrap !important;
+    }
+
+    .lx-nav-list > li > a {
+      white-space: nowrap;
+    }
+  }
+
+  .sticky-header .lx-logo-word {
+    color: #111928 !important;
+  }
+
+  html.dark .sticky-header .lx-logo-word {
+    color: #fff !important;
+  }
+
+  .sticky-header.ud-header--home .lx-header-actions a:not(.signUpBtn) {
+    color: #111928;
+  }
+
+  html.dark .sticky-header.ud-header--home .lx-header-actions a:not(.signUpBtn) {
+    color: #fff;
+  }
+
+  .sticky-header .lx-theme-btn {
+    border-color: #e5e7eb;
+    background: #fff;
+    color: #111928;
+  }
+
+  html.dark .sticky-header .lx-theme-btn {
+    border-color: #374151;
+    background: #1f2937;
+    color: #fff;
+  }
+</style>

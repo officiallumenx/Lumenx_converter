@@ -1,0 +1,43 @@
+---
+interface Section {
+  title: string;
+  paragraphs: string[];
+}
+
+interface Props {
+  title: string;
+  lastUpdated: string;
+  intro: string;
+  websiteNote?: string;
+  sections: Section[];
+}
+
+const { title, lastUpdated, intro, websiteNote, sections } = Astro.props;
+---
+
+<article class="mx-auto max-w-[800px] space-y-8 text-base leading-relaxed text-body-color dark:text-dark-6">
+  <header class="space-y-3 border-b border-stroke pb-6 dark:border-dark-3">
+    <h2 class="text-2xl font-bold text-dark dark:text-white">{title}</h2>
+    <p class="text-sm text-body-color dark:text-dark-6">Last updated: {lastUpdated}</p>
+    <p>{intro}</p>
+    {
+      websiteNote && (
+        <p class="rounded-lg border border-stroke bg-[#F8FAFC] p-4 text-sm dark:border-dark-3 dark:bg-dark-2">
+          <strong class="text-dark dark:text-white">Website note: </strong>
+          {websiteNote}
+        </p>
+      )
+    }
+  </header>
+
+  {
+    sections.map((section) => (
+      <section class="space-y-3">
+        <h3 class="text-xl font-bold text-dark dark:text-white">{section.title}</h3>
+        {section.paragraphs.map((p) => (
+          <p>{p}</p>
+        ))}
+      </section>
+    ))
+  }
+</article>

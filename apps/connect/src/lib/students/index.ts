@@ -1,5 +1,6 @@
 export { getStudent, getStudentGuardians, listStudents } from "./api";
 export {
+  loadStudentPortalBase,
   loadStudentPortalSnapshot,
   loadStudentsForInstitute,
   loadTeacherStudentDetail,

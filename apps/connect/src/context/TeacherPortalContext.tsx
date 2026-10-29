@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -15,13 +16,18 @@ import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-u
 import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import {
   bindTeacherPortalQueryClient,
+  fetchTeacherPortalRoster,
   invalidateTeacherPortalQueries,
   removeTeacherPortalQueries,
+  teacherPortalQueryKey,
   useTeacherPortalRosterQuery,
   useTeacherPortalQueryClient,
 } from "@/lib/teacher-classes/use-teacher-portal-query";
+import { bumpTeacherPortalRosterEpoch } from "@/lib/teacher-classes/load";
 import { prefetchTeacherModuleQueries } from "@/lib/connect-queries/prefetch-teacher";
-import { loadTeacherPortalBundle } from "@/lib/teachers/load";
+import { enrichTeacherDashboardSnapshot } from "@/lib/dashboard";
+import { loadTeacherPortalBase } from "@/lib/teachers/load";
+import { loadTeacherTimetable } from "@/lib/timetable/load";
 import type {
   DashboardSnapshot,
   TeacherClass,
@@ -35,6 +41,9 @@ export type TeacherPortalState = {
   /** Linked teacher id for the active institute (from roster query). */
   teacherId: string | null;
   profile: TeacherProfile | null;
+  /** From roster/base portal self — hydrates TeacherSession without a third portal/me. */
+  teachingScope: "subject_teacher" | "activity_coordinator" | "dual_role" | null;
+  portalAccessLevel: "faculty_grading" | "faculty_only" | "read_only" | null;
   classes: TeacherClass[];
   dashboard: DashboardSnapshot | null;
   students: TeacherStudent[];
@@ -63,10 +72,31 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     return () => bindTeacherPortalQueryClient(null);
   }, [queryClient]);
 
+  // Home shell roster: catalog + portalSelf only (no enrollments/photos on critical path).
   const rosterQuery = useTeacherPortalRosterQuery({
     instituteId: activeInstituteId,
     userId,
-    enabled: isTeacher && !isRestoring && Boolean(user?.id),
+    enabled: isTeacher && Boolean(user?.id),
+    includeStudents: false,
+  });
+
+  // Timetable only needs instituteId — start in parallel with roster (not after it).
+  const timetableQuery = useQuery({
+    queryKey: scopedConnectKey(
+      userId,
+      connectQueryKeys.timetableTeacher(activeInstituteId ?? "_", "self"),
+    ),
+    queryFn: () =>
+      loadTeacherTimetable({
+        instituteId: activeInstituteId!,
+      }),
+    enabled:
+      isTeacher &&
+      isApiAuthMode() &&
+      instituteOk &&
+      Boolean(user?.id) &&
+      Boolean(activeInstituteId),
+    placeholderData: (previous) => previous,
   });
 
   // Leave teacher role / logout: drop cached roster so institutes cannot leak.
@@ -74,6 +104,17 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     if (isTeacher) return;
     removeTeacherPortalQueries(queryClient);
   }, [isTeacher, queryClient]);
+
+  // Institute switch: invalidate module roster so an in-flight prior load cannot publish.
+  const prevInstituteRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevInstituteRef.current;
+    const next = activeInstituteId ?? null;
+    prevInstituteRef.current = next;
+    if (prev && next && prev !== next) {
+      bumpTeacherPortalRosterEpoch();
+    }
+  }, [activeInstituteId]);
 
   const roster = rosterQuery.data ?? null;
   const classes = roster?.classes ?? EMPTY_CLASSES;
@@ -83,30 +124,90 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const bundleEnabled =
     isTeacher &&
-    !isRestoring &&
     isApiAuthMode() &&
     instituteOk &&
     Boolean(roster) &&
     Boolean(activeInstituteId);
 
-  const bundleQuery = useQuery({
-    queryKey: [
-      ...scopedConnectKey(
-        userId,
-        connectQueryKeys.teacherPortalBundle(activeInstituteId ?? "_"),
-      ),
-      classSig,
-    ],
-    queryFn: () =>
-      loadTeacherPortalBundle({
+  // Base waits for roster shell + timetable (timetable likely already in flight/done).
+  const timetableReady =
+    timetableQuery.isFetched ||
+    timetableQuery.isError ||
+    Boolean(timetableQuery.data);
+
+  const bundleKeyBase = [
+    ...scopedConnectKey(
+      userId,
+      connectQueryKeys.teacherPortalBundle(activeInstituteId ?? "_"),
+    ),
+    classSig,
+  ] as const;
+
+  // Phase 1: profile + timetable shell — unblocks first usable Home paint.
+  const baseQuery = useQuery({
+    queryKey: [...bundleKeyBase, "base", timetableQuery.dataUpdatedAt],
+    queryFn: ({ signal }) =>
+      loadTeacherPortalBase({
         instituteId: activeInstituteId!,
         classes: roster!.classes,
+        signal,
+        schedule: timetableQuery.data?.schedule,
       }),
-    enabled: bundleEnabled,
+    enabled: bundleEnabled && timetableReady,
+    placeholderData: (previous) => previous,
   });
 
-  const profile = bundleQuery.data?.profile ?? null;
-  const dashboard = bundleQuery.data?.dashboard ?? null;
+  // Phase 2: homework/exams/inbox/attendance widgets — must not block shell paint.
+  const enrichQuery = useQuery({
+    queryKey: [...bundleKeyBase, "enrich"],
+    queryFn: () =>
+      enrichTeacherDashboardSnapshot({
+        instituteId: activeInstituteId!,
+        teacherId: baseQuery.data!.teacherId,
+        classes: roster!.classes,
+        base: baseQuery.data!.dashboard,
+      }),
+    enabled: bundleEnabled && Boolean(baseQuery.data),
+    placeholderData: (previous) => previous,
+  });
+
+  const profile = baseQuery.data?.profile ?? null;
+  // Prefer enriched widgets when ready; keep base schedule/classes if enrich fails/lags.
+  const dashboard = enrichQuery.data ?? baseQuery.data?.dashboard ?? null;
+  const teachingScope =
+    baseQuery.data?.portalSelf?.teachingScope ??
+    roster?.portalSelf?.teachingScope ??
+    null;
+  const portalAccessLevel =
+    baseQuery.data?.portalSelf?.portalAccessLevel ??
+    roster?.portalSelf?.portalAccessLevel ??
+    null;
+
+  // Upgrade shell roster with enrollments/photos in the background (My Classes / search).
+  useEffect(() => {
+    if (!isTeacher || !activeInstituteId || !instituteOk || !roster) return;
+    if (roster.studentsLoaded) return;
+    let cancelled = false;
+    void fetchTeacherPortalRoster(activeInstituteId, { includeStudents: true }).then(
+      (full) => {
+        if (cancelled || !full) return;
+        queryClient.setQueryData(
+          teacherPortalQueryKey(userId, activeInstituteId),
+          full,
+        );
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isTeacher,
+    activeInstituteId,
+    instituteOk,
+    roster,
+    queryClient,
+    userId,
+  ]);
 
   // Warm module caches once roster identity is known (background; no UI block).
   useEffect(() => {
@@ -153,9 +254,9 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
       : null;
 
   const bundleError =
-    bundleQuery.isError && !bundleQuery.data
-      ? bundleQuery.error instanceof Error
-        ? bundleQuery.error.message
+    baseQuery.isError && !baseQuery.data
+      ? baseQuery.error instanceof Error
+        ? baseQuery.error.message
         : "Failed to load teacher profile"
       : !isApiAuthMode() && isTeacher
         ? "Connect teacher portal requires API authentication."
@@ -163,11 +264,14 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const errorMessage = rosterError ?? noIdentityError ?? bundleError;
 
+  // Treat IDB restore as loading only when we have nothing to show yet (avoids empty flash
+  // and avoids blocking forever when dehydrated cache already has roster/dashboard).
+  // Enrichment lag must not keep the whole Home in loading — base shell is usable.
   const isLoading =
     isTeacher &&
-    !isRestoring &&
-    ((rosterQuery.isLoading && !roster) ||
-      (bundleEnabled && bundleQuery.isLoading && !profile && !dashboard));
+    ((isRestoring && !roster && !dashboard) ||
+      (rosterQuery.isLoading && !roster) ||
+      (bundleEnabled && baseQuery.isLoading && !profile && !dashboard));
 
   const value = useMemo<TeacherPortalState>(() => {
     if (!isTeacher) {
@@ -175,6 +279,8 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
         isTeacher: false,
         teacherId: null,
         profile: null,
+        teachingScope: null,
+        portalAccessLevel: null,
         classes: [],
         dashboard: null,
         students: [],
@@ -187,6 +293,8 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
       isTeacher: true,
       teacherId,
       profile,
+      teachingScope,
+      portalAccessLevel,
       classes,
       dashboard,
       students,
@@ -198,6 +306,8 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     isTeacher,
     teacherId,
     profile,
+    teachingScope,
+    portalAccessLevel,
     classes,
     dashboard,
     students,

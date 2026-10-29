@@ -356,8 +356,8 @@ function LoginPage() {
           otpGrant,
           pin: apiConnectPin,
         })
-          .then((session) => {
-            signInApi(session.user, role, session.instituteId);
+          .then(async (session) => {
+            await signInApi(session.user, role, session.instituteId);
             setOtpGrant("");
             setLoginIntent("signIn");
             toast.success("Login PIN updated");
@@ -403,8 +403,8 @@ function LoginPage() {
           role,
           pin: apiConnectPin,
         })
-          .then((session) => {
-            signInApi(session.user, role, session.instituteId);
+          .then(async (session) => {
+            await signInApi(session.user, role, session.instituteId);
             setLoginIntent("signIn");
             toast.success(`Welcome to ${roleLabel(role)}`);
             nav({ to: "/" });

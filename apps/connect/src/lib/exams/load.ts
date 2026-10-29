@@ -66,6 +66,10 @@ export async function loadLearnerExamSchedules(input: {
 export async function loadTeacherExamPapers(input: {
   instituteId: string | null;
   defaultClassId?: string;
+  /** When provided (Home enrich / prefetch), skip a redundant /me lookup. */
+  teacherId?: string | null;
+  /** Roster class labels — skip assignment catalog when present. */
+  classLabels?: Map<string, string>;
 }): Promise<{
   status: ExamsLoadStatus;
   papers: TeacherExamPaperItem[];
@@ -83,33 +87,36 @@ export async function loadTeacherExamPapers(input: {
       listExams({ instituteId: input.instituteId }),
       listSubjects(input.instituteId),
     ]);
-    const me = await fetchMe();
-    const teacherId =
-      me.identities.teachers.find((t) => t.instituteId === input.instituteId)?.teacherId ??
-      null;
-    const assignments = teacherId
-      ? await listTeacherAssignments({
-          instituteId: input.instituteId,
-          teacherId,
-        })
-      : [];
+    let teacherId = input.teacherId?.trim() || null;
+    if (!teacherId) {
+      const me = await fetchMe();
+      teacherId =
+        me.identities.teachers.find((t) => t.instituteId === input.instituteId)?.teacherId ??
+        null;
+    }
+    const classLabels = new Map<string, string>(input.classLabels ?? []);
+    if (classLabels.size === 0 && teacherId) {
+      const assignments = await listTeacherAssignments({
+        instituteId: input.instituteId,
+        teacherId,
+      });
+      for (const assignment of assignments) {
+        classLabels.set(
+          assignment.sectionId,
+          `Class ${assignment.classId.slice(0, 8)} · Sec ${assignment.sectionId.slice(0, 8)}`,
+        );
+      }
+    }
     const subjectLabels = new Map(
       subjects.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
     );
-    const classLabels = new Map<string, string>();
-    for (const assignment of assignments) {
-      classLabels.set(
-        assignment.sectionId,
-        `Class ${assignment.classId.slice(0, 8)} · Sec ${assignment.sectionId.slice(0, 8)}`,
-      );
-    }
     const papers = examDtosToTeacherExamPapers({
       exams,
       subjectLabels,
-      teacherId: me.identities.teachers.find((t) => t.instituteId === input.instituteId)
-        ?.teacherId ?? null,
+      teacherId,
       classLabels,
-      defaultClassId: input.defaultClassId ?? assignments[0]?.sectionId ?? "",
+      defaultClassId:
+        input.defaultClassId ?? [...classLabels.keys()][0] ?? "",
     });
     return {
       status: papers.length === 0 ? "empty" : "ready",

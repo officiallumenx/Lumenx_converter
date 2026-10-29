@@ -1,0 +1,217 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import { LEGAL_COMPANY } from "../data/legal.js";
+
+const inbox = LEGAL_COMPANY.privacyEmail;
+const mailto = `mailto:${inbox}?subject=${encodeURIComponent("LumenX data request")}`;
+---
+
+<Layout
+  description="Request access, correction, or erasure of personal data held by LumenX. Account deletion for product logins is handled through your institute."
+  title="Data request"
+>
+  <ContentPage
+    title="Data and account requests"
+    description="Use this page to ask about access, correction, or erasure of personal data. This website does not delete institute accounts or live campus records by itself."
+    showCta={false}
+  >
+    <div class="mx-auto max-w-[720px] space-y-8 text-base leading-relaxed text-body-color dark:text-dark-6">
+      <div class="space-y-4 rounded-xl border border-stroke p-6 dark:border-dark-3">
+        <h3 class="text-xl font-bold text-dark dark:text-white">Account deletion vs data request</h3>
+        <p>
+          <strong class="text-dark dark:text-white">Account deletion</strong> for Admin, Connect, Transport,
+          Admissions, or Careers is handled by your institute office (or by LumenX support when the institute asks us).
+          Closing a marketing form here does not remove a live login.
+        </p>
+        <p>
+          <strong class="text-dark dark:text-white">Data access, correction, or erasure</strong> requests for personal
+          data held by LumenX are handled through our published privacy contacts. Prefer emailing
+          <a class="text-primary hover:underline" href={`mailto:${inbox}`}>{inbox}</a>
+          with enough detail for us to identify the request. Also see our
+          <a class="text-primary hover:underline" href="/privacy">Privacy Policy</a>.
+        </p>
+        <p>
+          Institute-controlled student or staff records should typically go through the school or campus administrator
+          first.
+        </p>
+      </div>
+
+      <div id="data-request-success" class="hidden rounded-xl border border-stroke bg-[#F8FAFC] p-6 dark:border-dark-3 dark:bg-dark-2" role="status">
+        <p class="m-0 text-dark dark:text-white">
+          Thank you. We received your request and will follow up at the email you provided.
+        </p>
+      </div>
+
+      <form id="data-request-form" class="space-y-4" novalidate autocomplete="on">
+        <p class="text-sm">
+          Optional form — if online delivery is not configured, we will tell you honestly and ask you to email us
+          instead. Filling this form does not guarantee backend deletion.
+        </p>
+
+        <!-- Honeypot -->
+        <div class="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+          <label>
+            Company website
+            <input type="text" name="companyWebsite" tabindex="-1" autocomplete="off" />
+          </label>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-name">Your name</label>
+          <input
+            id="dr-name"
+            name="name"
+            required
+            autocomplete="name"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-email">Email *</label>
+          <input
+            id="dr-email"
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-phone">Phone</label>
+          <input
+            id="dr-phone"
+            name="mobile"
+            type="tel"
+            autocomplete="tel"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-institute"
+            >Institute (if applicable)</label
+          >
+          <input
+            id="dr-institute"
+            name="instituteName"
+            autocomplete="organization"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-role"
+            >Your relationship to the data</label
+          >
+          <input
+            id="dr-role"
+            name="role"
+            placeholder="Parent, teacher, applicant, …"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+        <div>
+          <label class="mb-2 block text-sm font-medium text-dark dark:text-white" for="dr-message"
+            >What are you requesting? *</label
+          >
+          <textarea
+            id="dr-message"
+            name="description"
+            required
+            rows="5"
+            placeholder="Access, correction, erasure, or a question about account deletion…"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-dark outline-none focus:border-primary dark:border-dark-3 dark:text-white"
+          ></textarea>
+        </div>
+
+        <p id="data-request-error" class="hidden text-sm text-red-600" role="alert"></p>
+
+        <div class="flex flex-wrap items-center gap-4">
+          <button
+            type="submit"
+            id="data-request-submit"
+            class="inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+          >
+            Submit request
+          </button>
+          <a class="text-primary hover:underline" href={mailto}>Or email {inbox}</a>
+        </div>
+      </form>
+    </div>
+  </ContentPage>
+</Layout>
+
+<script>
+  const form = document.getElementById("data-request-form");
+  const success = document.getElementById("data-request-success");
+  const errorEl = document.getElementById("data-request-error");
+  const submitBtn = document.getElementById("data-request-submit");
+  const inbox = "lumenxtech.official@gmail.com";
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form || !(form instanceof HTMLFormElement)) return;
+    errorEl?.classList.add("hidden");
+    if (errorEl) errorEl.textContent = "";
+    if (submitBtn instanceof HTMLButtonElement) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending…";
+    }
+
+    const data = new FormData(form);
+    const messageBody = [
+      "Data request via /data-request",
+      `Role/relationship: ${String(data.get("role") ?? "").trim() || "—"}`,
+      "",
+      String(data.get("description") ?? "").trim(),
+    ].join("\n");
+
+    // Legacy-compatible payload (same shape as the live Worker /api/leads form).
+    const payload = {
+      intent: "question",
+      name: String(data.get("name") ?? "").trim(),
+      email: String(data.get("email") ?? "").trim(),
+      phone: String(data.get("mobile") ?? "").trim(),
+      institute: String(data.get("instituteName") ?? "").trim(),
+      role: String(data.get("role") ?? "").trim(),
+      studentCount: "",
+      message: messageBody,
+      company_website: String(data.get("companyWebsite") ?? "").trim(),
+    };
+
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => null);
+
+      if (response.ok && body?.ok) {
+        form.classList.add("hidden");
+        success?.classList.remove("hidden");
+        return;
+      }
+
+      const code = body?.code;
+      const message =
+        code === "not_configured"
+          ? `Online delivery is not configured on this host. Please email ${inbox}.`
+          : body?.error || `We could not send your request. Please email ${inbox}.`;
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.classList.remove("hidden");
+      }
+    } catch {
+      if (errorEl) {
+        errorEl.textContent = `We could not reach the server. Please email ${inbox}.`;
+        errorEl.classList.remove("hidden");
+      }
+    } finally {
+      if (submitBtn instanceof HTMLButtonElement) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit request";
+      }
+    }
+  });
+</script>

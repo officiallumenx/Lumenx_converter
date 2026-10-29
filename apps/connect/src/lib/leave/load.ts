@@ -73,6 +73,11 @@ async function loadDecisions(
 export async function loadParentLeaveRequests(input: {
   instituteId: string | null;
   studentId?: string | null;
+  /**
+   * When false (default), skip per-request `/decision` GETs.
+   * Pending rows never need notes; decided notes load only when the Leave UI asks.
+   */
+  includeDecisions?: boolean;
 }): Promise<{
   status: LeaveLoadStatus;
   items: ConnectLeaveRequest[];
@@ -96,7 +101,7 @@ export async function loadParentLeaveRequests(input: {
       }),
     ]);
     const lookup = buildStudentLookup(students);
-    const decisions = await loadDecisions(dtos);
+    const decisions = input.includeDecisions ? await loadDecisions(dtos) : undefined;
     const items = leaveDtosToConnectRequests(dtos, lookup, decisions);
     return {
       status: items.length === 0 ? "empty" : "ready",
@@ -118,6 +123,12 @@ export async function loadParentLeaveRequests(input: {
 export async function loadTeacherLeavePortal(input: {
   instituteId: string | null;
   teacherId: string | null;
+  signal?: AbortSignal;
+  /**
+   * When false (default), skip per-request `/decision` GETs used only for reviewer notes.
+   * Home badge / Sync / pending cards share this lighter payload.
+   */
+  includeDecisions?: boolean;
 }): Promise<{
   status: LeaveLoadStatus;
   studentRequests: ConnectLeaveRequest[];
@@ -140,6 +151,9 @@ export async function loadTeacherLeavePortal(input: {
       errorMessage: null,
     };
   }
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   try {
     const [students, studentDtos, teacherDtos] = await Promise.all([
@@ -154,9 +168,14 @@ export async function loadTeacherLeavePortal(input: {
         teacherId: input.teacherId ?? undefined,
       }),
     ]);
+    if (input.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     const lookup = buildStudentLookup(students);
-    const studentDecisions = await loadDecisions(studentDtos);
-    const teacherDecisions = await loadDecisions(teacherDtos);
+    const includeDecisions = Boolean(input.includeDecisions);
+    const [studentDecisions, teacherDecisions] = includeDecisions
+      ? await Promise.all([loadDecisions(studentDtos), loadDecisions(teacherDtos)])
+      : [undefined, undefined];
     const studentRequests = leaveDtosToConnectRequests(
       studentDtos,
       lookup,
@@ -171,6 +190,7 @@ export async function loadTeacherLeavePortal(input: {
       errorMessage: null,
     };
   } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
     const mapped = mapError(err, "leave requests");
     return {
       status: mapped.status,

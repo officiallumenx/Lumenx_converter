@@ -1,16 +1,16 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { listSubjects, listTeacherAssignments } from "@/lib/teacher-classes/api";
 import { loadTeacherHomeworkList } from "@/lib/homework";
-import { loadTeacherTimetable } from "@/lib/timetable";
 import { loadTeacherExamPapers } from "@/lib/exams";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { connectQueryKeys } from "./keys";
 import { scopedConnectKey } from "./scope";
 import { runPrefetchTiers, type IdleCancel } from "./schedule-idle";
 
 /**
- * Warm common teacher module caches after roster/bundle is ready.
- * Homework + timetable are critical; exams defer to idle.
+ * Warm teacher module caches after roster is ready.
+ * Timetable is already loaded by the Home bundle — do not prefetch it again as critical.
+ * Subjects/assignments resolve from the roster catalog TTL cache (no duplicate network).
+ * Homework warm runs idle so it does not compete with Home enrichment.
  */
 export function prefetchTeacherModuleQueries(
   queryClient: QueryClient,
@@ -19,7 +19,8 @@ export function prefetchTeacherModuleQueries(
   teacherId: string,
 ): IdleCancel {
   return runPrefetchTiers({
-    critical: [
+    critical: [],
+    deferred: [
       () => {
         void queryClient.prefetchQuery({
           queryKey: scopedConnectKey(
@@ -40,26 +41,9 @@ export function prefetchTeacherModuleQueries(
         void queryClient.prefetchQuery({
           queryKey: scopedConnectKey(
             userId,
-            connectQueryKeys.timetableTeacher(instituteId, "mine"),
-          ),
-          queryFn: async () => {
-            const token = await getSupabaseAccessToken();
-            if (!token) {
-              throw new Error("Authentication required");
-            }
-            return loadTeacherTimetable({ instituteId });
-          },
-        });
-      },
-    ],
-    deferred: [
-      () => {
-        void queryClient.prefetchQuery({
-          queryKey: scopedConnectKey(
-            userId,
             connectQueryKeys.examsTeacher(instituteId),
           ),
-          queryFn: () => loadTeacherExamPapers({ instituteId }),
+          queryFn: () => loadTeacherExamPapers({ instituteId, teacherId }),
         });
       },
     ],

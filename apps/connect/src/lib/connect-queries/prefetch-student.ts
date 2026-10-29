@@ -1,10 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { loadLearnerTeachers } from "@/lib/teachers";
-import { loadLearnerTimetable } from "@/lib/timetable";
-import { loadConnectEvents } from "@/lib/events";
-import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import { loadLearnerTransport } from "@/lib/transport";
-import { loadStudentReportCards } from "@/lib/marks";
 import { loadStudentHomeworkItems } from "@/lib/homework";
 import { listDiaryDays } from "@/lib/diary/api";
 import { loadLearnerActivities } from "@/lib/activity/learner-load";
@@ -14,8 +10,11 @@ import { scopedConnectKey } from "./scope";
 import { runPrefetchTiers, type IdleCancel } from "./schedule-idle";
 
 /**
- * Warm common student module caches after the portal snapshot is ready.
- * Critical modules run immediately; lower-priority modules wait for idle.
+ * Warm student module caches after the portal profile shell is ready.
+ *
+ * Home enrich already loads timetable / marks / events / attendance / inbox.
+ * Do not prefetch those — they duplicated cold Home GETs.
+ * Alerts are owned by ConnectSchoolAlertsSync (shared React Query source).
  */
 export function prefetchStudentModuleQueries(
   queryClient: QueryClient,
@@ -23,7 +22,8 @@ export function prefetchStudentModuleQueries(
   instituteId: string,
   studentId: string,
 ): IdleCancel {
-  const critical = [
+  // Do not prefetch events/marks — Home enrich already loads them (dupes on cold).
+  const deferred = [
     () => {
       void queryClient.prefetchQuery({
         queryKey: scopedConnectKey(
@@ -37,45 +37,9 @@ export function prefetchStudentModuleQueries(
       void queryClient.prefetchQuery({
         queryKey: scopedConnectKey(
           userId,
-          connectQueryKeys.timetableLearner(instituteId, studentId),
-        ),
-        queryFn: () => loadLearnerTimetable({ instituteId, studentId }),
-      });
-    },
-    () => {
-      void queryClient.prefetchQuery({
-        queryKey: scopedConnectKey(
-          userId,
-          connectQueryKeys.schoolAlerts(instituteId),
-        ),
-        queryFn: () => loadPortalSchoolAlerts({ instituteId }),
-      });
-    },
-    () => {
-      void queryClient.prefetchQuery({
-        queryKey: scopedConnectKey(
-          userId,
           connectQueryKeys.transportLearner(instituteId, studentId),
         ),
         queryFn: () => loadLearnerTransport({ instituteId, studentId }),
-      });
-    },
-  ];
-
-  const deferred = [
-    () => {
-      void queryClient.prefetchQuery({
-        queryKey: scopedConnectKey(userId, connectQueryKeys.events(instituteId)),
-        queryFn: () => loadConnectEvents({ instituteId }),
-      });
-    },
-    () => {
-      void queryClient.prefetchQuery({
-        queryKey: scopedConnectKey(
-          userId,
-          connectQueryKeys.marksStudent(instituteId, studentId),
-        ),
-        queryFn: () => loadStudentReportCards({ instituteId, studentId }),
       });
     },
     () => {
@@ -119,5 +83,5 @@ export function prefetchStudentModuleQueries(
     },
   ];
 
-  return runPrefetchTiers({ critical, deferred });
+  return runPrefetchTiers({ critical: [], deferred });
 }

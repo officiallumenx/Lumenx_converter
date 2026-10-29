@@ -2,6 +2,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { getPhotoSignedUrl } from "@/lib/photos/api";
+import { getTeacherPortalApiCache } from "@/lib/teacher-classes/load";
 import { getLearnerFacultyPortal, getTeacherSelfPortal } from "./api";
 import {
   buildTeacherDashboardFromApi,
@@ -115,18 +116,62 @@ export async function loadLearnerTeachers(input: {
 
 export async function loadTeacherPortalProfile(input: {
   instituteId: string;
+  teacherId?: string;
 }): Promise<PortalTeacherSelfDto> {
-  return getTeacherSelfPortal({ instituteId: input.instituteId });
+  const roster = getTeacherPortalApiCache();
+  if (
+    roster?.instituteId === input.instituteId &&
+    roster.portalSelf &&
+    (!input.teacherId || roster.portalSelf.teacherId === input.teacherId)
+  ) {
+    return roster.portalSelf;
+  }
+  return getTeacherSelfPortal({
+    instituteId: input.instituteId,
+    teacherId: input.teacherId,
+  });
 }
 
-export async function loadTeacherPortalBundle(input: {
+/** Profile + timetable shell — enough for first usable Teacher Home paint. */
+export async function loadTeacherPortalBase(input: {
   instituteId: string;
   classes: import("@/lib/teacher/types").TeacherClass[];
-}): Promise<{ profile: TeacherProfile; dashboard: DashboardSnapshot }> {
+  signal?: AbortSignal;
+  /**
+   * When the Home context already started timetable in parallel with roster,
+   * pass the schedule here to avoid a second `/timetable/portal/teacher` wait.
+   */
+  schedule?: import("@/lib/timetable/types").WeeklyTimetable;
+}): Promise<{
+  profile: TeacherProfile;
+  dashboard: DashboardSnapshot;
+  teacherId: string;
+  portalSelf: PortalTeacherSelfDto;
+}> {
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+  const roster = getTeacherPortalApiCache();
+  const teacherIdHint =
+    roster?.instituteId === input.instituteId ? roster.teacherId : undefined;
+  const portalSelfPromise = loadTeacherPortalProfile({
+    instituteId: input.instituteId,
+    teacherId: teacherIdHint,
+  });
+  const timetablePromise =
+    input.schedule != null
+      ? Promise.resolve({ schedule: input.schedule, status: "ready" as const })
+      : loadTeacherTimetable({
+          instituteId: input.instituteId,
+          teacherId: teacherIdHint,
+        });
   const [portalSelf, timetable] = await Promise.all([
-    loadTeacherPortalProfile({ instituteId: input.instituteId }),
-    loadTeacherTimetable({ instituteId: input.instituteId }),
+    portalSelfPromise,
+    timetablePromise,
   ]);
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   // Prefer portal-provided signed URL; fall back to photos signed-url endpoint.
   let photoUrl = portalSelf.photoSignedUrl?.trim() || undefined;
   if (!photoUrl && portalSelf.photoAssetPath?.trim()) {
@@ -136,16 +181,29 @@ export async function loadTeacherPortalBundle(input: {
     );
   }
   const profile = portalTeacherSelfToProfile(portalSelf, photoUrl);
-  const base = buildTeacherDashboardFromApi({
+  const dashboard = buildTeacherDashboardFromApi({
     schedule: timetable.schedule,
     todayName: getTodayDayName(),
     classes: input.classes,
   });
+  return { profile, dashboard, teacherId: portalSelf.teacherId, portalSelf };
+}
+
+/** Full bundle (base + enrichment). Prefer split base/enrich queries on Home. */
+export async function loadTeacherPortalBundle(input: {
+  instituteId: string;
+  classes: import("@/lib/teacher/types").TeacherClass[];
+  signal?: AbortSignal;
+}): Promise<{ profile: TeacherProfile; dashboard: DashboardSnapshot }> {
+  const base = await loadTeacherPortalBase(input);
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   const dashboard = await enrichTeacherDashboardSnapshot({
     instituteId: input.instituteId,
-    teacherId: portalSelf.teacherId,
+    teacherId: base.teacherId,
     classes: input.classes,
-    base,
+    base: base.dashboard,
   });
-  return { profile, dashboard };
+  return { profile: base.profile, dashboard };
 }

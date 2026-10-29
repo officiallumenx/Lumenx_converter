@@ -243,4 +243,31 @@ describe("Connect createApiClient auth handling", () => {
     });
     expect(onUnauthorized).not.toHaveBeenCalled();
   });
+
+  it("coalesces concurrent identical GETs into one fetch", async () => {
+    let resolveFetch: ((value: unknown) => void) | null = null;
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const a = api.get<{ id: string }>("/api/v1/subjects?institute_id=x");
+    const b = api.get<{ id: string }>("/api/v1/subjects?institute_id=x");
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(resolveFetch).toBeTruthy();
+    resolveFetch!({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: [{ id: "1" }] }),
+    });
+    await expect(Promise.all([a, b])).resolves.toEqual([[{ id: "1" }], [{ id: "1" }]]);
+  });
 });

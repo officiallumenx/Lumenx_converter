@@ -372,6 +372,32 @@ async function main() {
     enrollment = ins.data;
   }
 
+  // Keep student denormalized labels in sync with enrollment (Connect Home reads these).
+  {
+    const { data: klassRow } = await admin
+      .from("class")
+      .select("name, code")
+      .eq("id", klass.id)
+      .maybeSingle();
+    const { data: sectionRow } = await admin
+      .from("section")
+      .select("name, code")
+      .eq("id", section.id)
+      .maybeSingle();
+    const classLabel = (klassRow?.name || klassRow?.code || "E2E Class 1").trim();
+    const sectionLabel = (sectionRow?.name || sectionRow?.code || "A").trim();
+    const patch = await admin
+      .from("student")
+      .update({
+        class_label: classLabel,
+        section_label: sectionLabel,
+        roll_no: "E2E-01",
+      })
+      .eq("id", studentRow.id)
+      .is("deleted_at", null);
+    if (patch.error) throw new Error(`student labels: ${patch.error.message}`);
+  }
+
   // Subject + teacher assignment
   let { data: subject } = await admin
     .from("subject")

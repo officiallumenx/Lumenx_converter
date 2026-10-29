@@ -1,0 +1,63 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import { PRICING } from "../data/lumenx.js";
+---
+
+<Layout
+  description={`Start with LumenX: book a demo, complete verification, enjoy a ${PRICING.trialDays}-day trial, then go live with your institute.`}
+  title="Get started"
+>
+  <ContentPage
+    title="Get started"
+    description="A clear path from first conversation to live campus use — no self-serve checkout on this site."
+    showCta={false}
+  >
+    <ol class="space-y-10">
+      <li class="rounded-xl bg-gray-1 p-8 dark:bg-dark-2">
+        <span class="mb-2 block text-sm font-semibold text-primary">Step 1</span>
+        <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">Book a demo</h3>
+        <p class="mb-4 text-base text-body-color dark:text-dark-6">
+          Tell us about your institute and the workflows you want to connect. We walk through Admin, Connect, and the products you need.
+        </p>
+        <a href="/contact?intent=demo#enquiry" class="font-medium text-primary hover:underline">Book a demo →</a>
+      </li>
+      <li class="rounded-xl bg-gray-1 p-8 dark:bg-dark-2">
+        <span class="mb-2 block text-sm font-semibold text-primary">Step 2</span>
+        <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">Verification</h3>
+        <p class="text-base text-body-color dark:text-dark-6">
+          We confirm institute details and scope so your trial environment matches how you will operate day to day.
+        </p>
+      </li>
+      <li class="rounded-xl bg-gray-1 p-8 dark:bg-dark-2">
+        <span class="mb-2 block text-sm font-semibold text-primary">Step 3</span>
+        <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">{PRICING.trialDays}-day trial</h3>
+        <p class="text-base text-body-color dark:text-dark-6">
+          After verification you receive full access for {PRICING.trialDays} days. When you go live, student subtotal = students × a custom rate of ₹{PRICING.rateMin} or more, and monthly payable = max(₹{PRICING.minimumMonthly.toLocaleString("en-IN")}, subtotal). ₹{PRICING.minimumMonthly.toLocaleString("en-IN")} is a minimum monthly amount — not a fixed institute price. Bill for 3, 6, or 12 months — annual billing provides 12 months of service for the price of 10.
+        </p>
+        <a href="/pricing" class="mt-4 inline-block font-medium text-primary hover:underline">See pricing →</a>
+      </li>
+      <li class="rounded-xl bg-gray-1 p-8 dark:bg-dark-2">
+        <span class="mb-2 block text-sm font-semibold text-primary">Step 4</span>
+        <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">Go live</h3>
+        <p class="text-base text-body-color dark:text-dark-6">
+          Your institute office issues login links and credentials to staff, parents, students, and drivers. Onboarding continues with your LumenX contact — not through public sign-up on this website.
+        </p>
+      </li>
+    </ol>
+    <div class="mt-12 flex flex-wrap justify-center gap-4">
+      <a
+        href="/contact?intent=demo#enquiry"
+        class="inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+      >
+        Book a Demo
+      </a>
+      <a
+        href="/pricing"
+        class="inline-flex items-center justify-center rounded-md border border-stroke px-7 py-3 text-base font-medium text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+      >
+        Pricing
+      </a>
+    </div>
+  </ContentPage>
+</Layout>

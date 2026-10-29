@@ -1,0 +1,17 @@
+---
+import Breadcrumb from '../components/layout/Breadcrumb.astro';
+import Layout from '../layouts/Layout.astro';
+import Enquirysection from '../components/Enquirysection.astro';
+import Contactsection from '../components/Contactsection.astro';
+---
+
+<Layout
+  description="Book a LumenX demo or contact us about trials, quotes, and partnerships at lumenxtech.official@gmail.com."
+  title="Contact"
+>
+  <Breadcrumb description="Book a demo, ask about a trial, or reach the LumenX team.">
+    <Fragment slot="title">Contact</Fragment>
+  </Breadcrumb>
+  <Enquirysection />
+  <Contactsection />
+</Layout>

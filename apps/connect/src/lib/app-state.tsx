@@ -39,6 +39,7 @@ import {
 } from "@/lib/parents/load-linked-children";
 import { clearPhotoSignedUrlCache } from "@/lib/photos/api";
 import { clearTeacherPortalApiCache } from "@/lib/teacher-classes/load";
+import { clearStudentDtoCache } from "@/lib/students/api";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
@@ -75,7 +76,7 @@ interface AppState {
   setActiveChildId: (id: string) => void;
   setStudentIncludedMode: (value: boolean) => void;
   signIn: (phone: string, role: Role, instituteId: string, opts?: { displayName?: string }) => void;
-  signInApi: (user: User, role: Role, instituteId: string) => void;
+  signInApi: (user: User, role: Role, instituteId: string) => Promise<void>;
   updateProfile: (
     patch: Partial<Pick<User, "name" | "phone" | "email" | "address" | "avatar">>,
   ) => void;
@@ -181,6 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               setActiveInstituteIdState(null);
               clearPhotoSignedUrlCache();
               clearTeacherPortalApiCache();
+              clearStudentDtoCache();
               clearAllLinkedChildrenCaches();
             }
           }
@@ -328,7 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     throw new Error("Demo sign-in has been removed. Use signInApi with an API session.");
   }, []);
 
-  const signInApi = useCallback((u: User, r: Role, instituteId: string) => {
+  const signInApi = useCallback(async (u: User, r: Role, instituteId: string) => {
     bumpConnectAuthSessionGeneration();
     let previousUserId: string | null = null;
     try {
@@ -338,30 +340,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       previousUserId = null;
     }
-    const apply = () => {
-      setUser(u);
-      setRoleState(r);
-      setActiveInstituteIdState(instituteId);
-      localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
-      localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
-      localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
-    };
-    void awaitConnectStoreReset()
-      .then(() =>
-        import("@/lib/connect-queries").then(
-          ({ clearConnectQueryClient, clearPersistedConnectCache }) => {
-            // Drop prior session in-memory cache; keep the new user's persisted warm cache.
-            clearConnectQueryClient();
-            clearPhotoSignedUrlCache();
-            clearTeacherPortalApiCache();
-            if (previousUserId && previousUserId !== u.id) {
-              void clearPersistedConnectCache(previousUserId);
-              clearLinkedChildrenCacheForUser(previousUserId);
-            }
-          },
-        ),
-      )
-      .then(apply);
+    // Apply session synchronously first so protected navigation does not race a null user.
+    setUser(u);
+    setRoleState(r);
+    setActiveInstituteIdState(instituteId);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
+    localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
+
+    await awaitConnectStoreReset();
+    const { clearConnectQueryClient, clearPersistedConnectCache } = await import(
+      "@/lib/connect-queries"
+    );
+    // Drop prior session in-memory cache; keep the new user's persisted warm cache.
+    clearConnectQueryClient();
+    clearPhotoSignedUrlCache();
+    clearTeacherPortalApiCache();
+    clearStudentDtoCache();
+    if (previousUserId && previousUserId !== u.id) {
+      await clearPersistedConnectCache(previousUserId);
+      clearLinkedChildrenCacheForUser(previousUserId);
+    }
   }, []);
 
   const signOut = useCallback(() => {
@@ -387,6 +386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void resetAllConnectStores();
     clearPhotoSignedUrlCache();
     clearTeacherPortalApiCache();
+    clearStudentDtoCache();
     clearAllLinkedChildrenCaches();
     // Drop in-memory + persisted server-state so the next account cannot see prior data.
     void import("@/lib/connect-queries").then(
