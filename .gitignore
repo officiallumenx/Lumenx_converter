@@ -85,3 +85,5 @@ apps/admin/.theme-verify-*/
 tmp/
 .temp/
 .tmp-apk-inspect/
+# Local portable JDK / SDK downloads (never upload to Railway or commit)
+.tools/
