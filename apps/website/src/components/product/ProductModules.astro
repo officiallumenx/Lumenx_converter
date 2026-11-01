@@ -1,0 +1,66 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const modules = page.modules || [];
+---
+
+<section id="modules" class="py-16 dark:bg-dark lg:py-[100px]">
+  <div class="container">
+    <div class="mx-auto mb-12 max-w-[640px] text-center lg:mb-16" data-reveal>
+      <span class="mb-2 block text-lg font-semibold text-primary">Modules & capabilities</span>
+      <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+        What {page.product.shortName} helps you run
+      </h2>
+      <p class="text-base text-body-color dark:text-dark-6">
+        Each card reflects a verified workspace in the product — not a generic feature list shared across LumenX apps.
+      </p>
+    </div>
+
+    <div class="-mx-4 flex flex-wrap" data-stagger>
+      {
+        modules.map((mod) => (
+          <div class="mb-8 w-full px-4 md:w-1/2 xl:w-1/3">
+            <article
+              id={`module-${mod.id}`}
+              class="lx-card flex h-full flex-col overflow-hidden rounded-xl border border-transparent bg-white shadow-1 hover:border-primary/20 dark:bg-dark-2 dark:hover:border-primary/30"
+            >
+              {mod.image ? (
+                <div class={`lx-shot-stage shrink-0 ${mod.image.includes("/admin/") ? "aspect-[16/10]" : "aspect-[4/5]"}`}>
+                  <div class="lx-shot-frame">
+                    <img
+                      src={mod.image}
+                      alt={`${mod.name} — ${page.product.name}`}
+                      class="lx-shot"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div class="flex flex-1 flex-col p-6 sm:p-8">
+                {mod.category ? (
+                  <span class="mb-2 block text-sm font-medium text-primary">{mod.category}</span>
+                ) : null}
+                <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">{mod.name}</h3>
+                <p class="mb-4 flex-1 text-base text-body-color dark:text-dark-6">{mod.description}</p>
+                <dl class="space-y-2 border-t border-stroke pt-4 text-sm dark:border-dark-3">
+                  <div>
+                    <dt class="font-semibold text-dark dark:text-white">Who uses it</dt>
+                    <dd class="text-body-color dark:text-dark-6">{mod.users}</dd>
+                  </div>
+                  <div>
+                    <dt class="font-semibold text-dark dark:text-white">Workflow it simplifies</dt>
+                    <dd class="text-body-color dark:text-dark-6">{mod.workflow}</dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

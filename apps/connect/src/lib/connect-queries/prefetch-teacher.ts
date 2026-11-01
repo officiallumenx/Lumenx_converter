@@ -1,54 +1,51 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { listSubjects, listTeacherAssignments } from "@/lib/teacher-classes/api";
 import { loadTeacherHomeworkList } from "@/lib/homework";
-import { loadTeacherTimetable } from "@/lib/timetable";
 import { loadTeacherExamPapers } from "@/lib/exams";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 import { connectQueryKeys } from "./keys";
 import { scopedConnectKey } from "./scope";
+import { runPrefetchTiers, type IdleCancel } from "./schedule-idle";
 
 /**
- * Warm common teacher module caches after roster/bundle is ready so navigating
- * between modules hits React Query instead of a cold skeleton.
+ * Warm teacher module caches after roster is ready.
+ * Timetable is already loaded by the Home bundle — do not prefetch it again as critical.
+ * Subjects/assignments resolve from the roster catalog TTL cache (no duplicate network).
+ * Homework warm runs idle so it does not compete with Home enrichment.
  */
 export function prefetchTeacherModuleQueries(
   queryClient: QueryClient,
   userId: string,
   instituteId: string,
   teacherId: string,
-): void {
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.homeworkTeacher(instituteId, teacherId),
-    ),
-    queryFn: async () => {
-      const [subjects, assignments, list] = await Promise.all([
-        listSubjects(instituteId),
-        listTeacherAssignments({ instituteId, teacherId }),
-        loadTeacherHomeworkList({ instituteId, teacherId }),
-      ]);
-      return { subjects, assignments, list };
-    },
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(
-      userId,
-      connectQueryKeys.timetableTeacher(instituteId, "mine"),
-    ),
-    queryFn: async () => {
-      // Avoid caching "Authentication required" when session hydrate lags roster.
-      const token = await getSupabaseAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-      return loadTeacherTimetable({ instituteId });
-    },
-  });
-
-  void queryClient.prefetchQuery({
-    queryKey: scopedConnectKey(userId, connectQueryKeys.examsTeacher(instituteId)),
-    queryFn: () => loadTeacherExamPapers({ instituteId }),
+): IdleCancel {
+  return runPrefetchTiers({
+    critical: [],
+    deferred: [
+      () => {
+        void queryClient.prefetchQuery({
+          queryKey: scopedConnectKey(
+            userId,
+            connectQueryKeys.homeworkTeacher(instituteId, teacherId),
+          ),
+          queryFn: async () => {
+            const [subjects, assignments, list] = await Promise.all([
+              listSubjects(instituteId),
+              listTeacherAssignments({ instituteId, teacherId }),
+              loadTeacherHomeworkList({ instituteId, teacherId }),
+            ]);
+            return { subjects, assignments, list };
+          },
+        });
+      },
+      () => {
+        void queryClient.prefetchQuery({
+          queryKey: scopedConnectKey(
+            userId,
+            connectQueryKeys.examsTeacher(instituteId),
+          ),
+          queryFn: () => loadTeacherExamPapers({ instituteId, teacherId }),
+        });
+      },
+    ],
   });
 }

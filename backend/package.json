@@ -21,6 +21,7 @@
     "smoke": "node scripts/prod-smoke.mjs",
     "smoke:login": "node scripts/e2e-login-smoke.mjs",
     "smoke:login:staging": "node --env-file=.env.staging scripts/e2e-login-smoke.mjs --staging",
+    "smoke:login:staging:with-shells": "node --env-file=.env.staging scripts/run-smoke-login-with-shells.mjs --staging",
     "smoke:tenant": "node scripts/e2e-cross-tenant-probe.mjs",
     "smoke:tenant:staging": "node --env-file=.env.staging scripts/e2e-cross-tenant-probe.mjs --staging",
     "verify:auth:live": "node scripts/verify-live-auth.mjs",

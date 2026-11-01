@@ -1,16 +1,28 @@
+import { lazy, Suspense, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { useApp } from "@/lib/app-state";
-import { ParentLeavePage } from "@/components/app/leave/ParentLeavePage";
-import { TeacherLeavePage } from "@/teacher-portal/features/leave";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { leaveStore } from "@/lib/leave-store";
 import { teacherLeaveStore } from "@/lib/teacher-leave-store";
+import { RouteLazyFallback } from "@/components/app/RouteLazyFallback";
+
+const ParentLeavePage = lazy(() =>
+  import("@/components/app/leave/ParentLeavePage").then((m) => ({
+    default: m.ParentLeavePage,
+  })),
+);
+const TeacherLeavePage = lazy(() =>
+  import("@/teacher-portal/features/leave").then((m) => ({
+    default: m.TeacherLeavePage,
+  })),
+);
 
 export const Route = createFileRoute("/_authenticated/leave")({
   head: () => ({ meta: [{ title: "Leave — LumenX Connect" }] }),
   component: () => (
-    <LeaveRoutePage />
+    <Suspense fallback={<RouteLazyFallback />}>
+      <LeaveRoutePage />
+    </Suspense>
   ),
 });
 

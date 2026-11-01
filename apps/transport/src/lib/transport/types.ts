@@ -56,6 +56,8 @@ export type RosterStudent = {
   name: string;
   grade: string;
   stopName: string;
+  /** Human location label for the pickup stop (Route Setup / stop.location_label). */
+  stopLocationLabel?: string | null;
   /** Enrollment stop id when assigned */
   stopId?: string;
   rollNo: string;

@@ -19,6 +19,7 @@ import type {
   UpsertTransportSettingsInput,
   VehicleRow,
 } from "./types.js";
+import { STOP_RADIUS_DEFAULT_M } from "./stop-radius.js";
 
 const VEHICLE_COLS =
   "id, institute_id, vehicle_number, registration_number, capacity, status, notes, created_at, updated_at, deleted_at";
@@ -33,7 +34,7 @@ const STOP_COLS =
   "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, kind, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const ENROLLMENT_COLS =
-  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
+  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, next_pickup_stop_id, next_drop_stop_id, next_stops_pending_at, location_changed_at, location_changed_by_driver_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
   "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, school_notification_radius_m, created_at, updated_at";
@@ -706,7 +707,8 @@ export async function findTransportSettings(
     school_location_label: row.school_location_label ?? null,
     school_latitude: row.school_latitude ?? null,
     school_longitude: row.school_longitude ?? null,
-    school_notification_radius_m: row.school_notification_radius_m ?? 150,
+    school_notification_radius_m:
+      row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
   };
 }
 
@@ -764,7 +766,8 @@ export async function upsertTransportSettings(
       school_location_label: row.school_location_label ?? null,
       school_latitude: row.school_latitude ?? null,
       school_longitude: row.school_longitude ?? null,
-      school_notification_radius_m: row.school_notification_radius_m ?? 150,
+      school_notification_radius_m:
+        row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
     };
   }
 
@@ -772,7 +775,8 @@ export async function upsertTransportSettings(
     .from("transport_settings")
     .insert({
       institute_id: input.instituteId,
-      default_notification_radius_m: input.defaultNotificationRadiusM ?? 150,
+      default_notification_radius_m:
+        input.defaultNotificationRadiusM ?? STOP_RADIUS_DEFAULT_M,
       default_pickup_buffer_mins: input.defaultPickupBufferMins ?? 5,
       working_days: input.workingDays ?? [1, 2, 3, 4, 5],
       notifications_enabled: input.notificationsEnabled ?? true,
@@ -781,7 +785,8 @@ export async function upsertTransportSettings(
       school_location_label: input.schoolLocationLabel ?? null,
       school_latitude: input.schoolLatitude ?? null,
       school_longitude: input.schoolLongitude ?? null,
-      school_notification_radius_m: input.schoolNotificationRadiusM ?? 150,
+      school_notification_radius_m:
+        input.schoolNotificationRadiusM ?? STOP_RADIUS_DEFAULT_M,
     })
     .select(SETTINGS_COLS)
     .single();
@@ -795,7 +800,8 @@ export async function upsertTransportSettings(
     school_location_label: row.school_location_label ?? null,
     school_latitude: row.school_latitude ?? null,
     school_longitude: row.school_longitude ?? null,
-    school_notification_radius_m: row.school_notification_radius_m ?? 150,
+    school_notification_radius_m:
+      row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
   };
 }
 

@@ -168,6 +168,17 @@ export function isCriticalOpsEvent(eventType: OpsEventType): boolean {
   return CRITICAL_EVENT_TYPES.has(eventType);
 }
 
+/** Flush order: critical attendance/lifecycle before GPS (Issue 4). */
+export function compareOpsFlushPriority(
+  a: { eventType: OpsEventType; sequence: number },
+  b: { eventType: OpsEventType; sequence: number },
+): number {
+  const aCrit = isCriticalOpsEvent(a.eventType) ? 0 : 1;
+  const bCrit = isCriticalOpsEvent(b.eventType) ? 0 : 1;
+  if (aCrit !== bCrit) return aCrit - bCrit;
+  return a.sequence - b.sequence;
+}
+
 /**
  * GPS may be coalesced for long offline periods.
  * Always keep latest per trip, first sample, and ~2–3s movement history.
@@ -701,7 +712,8 @@ export async function flushOpsOutbox(): Promise<void> {
     const due = events
       .filter((e) => e.status === "pending" || e.status === "failed")
       .filter((e) => !e.nextRetryAt || Date.parse(e.nextRetryAt) <= now)
-      .sort((a, b) => a.sequence - b.sequence);
+      // Attendance/lifecycle before GPS so marks are not stuck behind a GPS backlog.
+      .sort(compareOpsFlushPriority);
 
     for (const event of due) {
       // Local pre-check: never upload GPS the server will permanently reject.

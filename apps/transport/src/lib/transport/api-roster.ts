@@ -1,4 +1,5 @@
 import type { DriverRouteRoster, DriverRouteRosterStudent } from "@/lib/transport-api";
+import type { RosterStudent } from "./types";
 
 export type ApiRosterEnrollment = {
   id: string;
@@ -9,9 +10,11 @@ export type ApiRosterEnrollment = {
   vehicleNumber: string;
   stopId: string | null;
   stopName: string | null;
+  stopLocationLabel: string | null;
   dropStopId: string | null;
   dropStopName: string | null;
   approvalStatus: string;
+  rejectionReason: string | null;
   rollNo: string;
   notRidingToday: boolean;
   rideExceptionId: string | null;
@@ -49,9 +52,10 @@ function mapStudent(
   student: DriverRouteRosterStudent,
   vehicleId: string,
   vehicleNumber: string,
+  stopLocationById: Map<string, string>,
 ): ApiRosterEnrollment {
-  const stopId = student.pickupStopId?.trim() ? student.pickupStopId : null;
-  const dropStopId = student.dropStopId?.trim() ? student.dropStopId : null;
+  const stopId = student.pickupStopId?.trim() ? student.pickupStopId.trim() : null;
+  const dropStopId = student.dropStopId?.trim() ? student.dropStopId.trim() : null;
   return {
     id: student.enrollmentId,
     studentId: student.studentId,
@@ -61,9 +65,11 @@ function mapStudent(
     vehicleNumber,
     stopId,
     stopName: student.pickupStopName,
+    stopLocationLabel: stopId ? stopLocationById.get(stopId) ?? null : null,
     dropStopId,
     dropStopName: student.dropStopName ?? null,
     approvalStatus: student.approvalStatus,
+    rejectionReason: student.rejectionReason ?? null,
     notRidingToday: Boolean(student.notRidingToday),
     rideExceptionId: student.rideExceptionId ?? null,
     rollNo: student.rollNo?.trim() || "—",
@@ -96,7 +102,15 @@ export function setApiDriverRoster(
   const vehicleId =
     (extras?.vehicleId?.trim() || roster.vehicleId?.trim() || "") || "";
   const vehicleNumber = extras?.vehicleNumber ?? "—";
-  const students = roster.students.map((s) => mapStudent(s, vehicleId, vehicleNumber));
+  const stopLocationById = new Map<string, string>();
+  for (const stop of roster.stops ?? []) {
+    const id = stop.id?.trim();
+    const label = stop.locationLabel?.trim();
+    if (id && label) stopLocationById.set(id, label);
+  }
+  const students = roster.students.map((s) =>
+    mapStudent(s, vehicleId, vehicleNumber, stopLocationById),
+  );
   const expectedCount = roster.expectedCount ?? students.length;
   const notRidingCount =
     roster.notRidingCount ?? students.filter((s) => s.notRidingToday).length;
@@ -116,16 +130,7 @@ export function setApiDriverRoster(
 }
 
 /** Operational roster rows mapped for the attendance seed (excludes Not Riding Today). */
-export function listApprovedAttendanceRosterStudents(): Array<{
-  id: string;
-  name: string;
-  grade: string;
-  stopName: string;
-  stopId: string | null;
-  dropStopId: string | null;
-  dropStopName: string | null;
-  rollNo: string;
-}> {
+export function listApprovedAttendanceRosterStudents(): RosterStudent[] {
   return state.students
     .filter((s) => isOperationalApproval(s.approvalStatus) && !s.notRidingToday)
     .map((s) => ({
@@ -133,7 +138,9 @@ export function listApprovedAttendanceRosterStudents(): Array<{
       name: String(s.studentName ?? "").trim() || "Student",
       grade: String(s.studentClass ?? "").trim(),
       stopName: String(s.stopName ?? "").trim() || "Stop not assigned",
-      stopId: s.stopId,
+      stopLocationLabel: s.stopLocationLabel?.trim() || null,
+      // RosterStudent uses optional string; map null/empty to undefined.
+      stopId: s.stopId?.trim() || undefined,
       dropStopId: s.dropStopId,
       dropStopName: s.dropStopName,
       rollNo: String(s.rollNo ?? "").trim(),

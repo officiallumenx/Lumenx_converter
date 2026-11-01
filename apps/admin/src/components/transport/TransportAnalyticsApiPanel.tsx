@@ -5,6 +5,7 @@ import { Bus, MapPin, Route, Siren, Users } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useTransportAnalyticsOpsQuery } from "@/lib/admin-queries";
 import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   instituteId: string;
@@ -15,7 +16,7 @@ type Props = {
 export function TransportAnalyticsApiPanel({
   instituteId,
 }: Props) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const analyticsQuery = useTransportAnalyticsOpsQuery(instituteId, today);
   useTransportRealtimeInvalidate(instituteId);
 

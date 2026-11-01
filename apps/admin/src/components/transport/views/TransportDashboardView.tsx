@@ -29,6 +29,7 @@ import {
 } from "@/lib/transport-store";
 import type { TransportHubView } from "@/routes/transport";
 import { TransportApprovalPanel } from "@/components/transport/TransportApprovalPanel";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -59,7 +60,7 @@ function subscribeApprovals(onStoreChange: () => void) {
 }
 
 export function TransportDashboardView({ snapshot, onNavigate }: Props) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
 
   useEffect(() => {
     ensureTripsForDate(today);

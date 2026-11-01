@@ -11,6 +11,14 @@ function assertApiMode(): void {
   }
 }
 
+/** Short TTL — Parent linked-children + portal snapshot often hit the same student. */
+const STUDENT_DTO_TTL_MS = 45_000;
+const studentDtoCache = new Map<string, { at: number; data: StudentDto }>();
+
+export function clearStudentDtoCache(): void {
+  studentDtoCache.clear();
+}
+
 export async function listStudents(
   params: ListStudentsParams,
   client: ConnectApiClient = getConnectApiClient(),
@@ -41,7 +49,14 @@ export async function getStudent(
   if (!isInstituteUuid(studentId)) {
     throw new Error("student_id must be a valid UUID");
   }
-  return client.get<StudentDto>(`/api/v1/students/${studentId.trim()}`);
+  const id = studentId.trim();
+  const hit = studentDtoCache.get(id);
+  if (hit && Date.now() - hit.at < STUDENT_DTO_TTL_MS) {
+    return hit.data;
+  }
+  const data = await client.get<StudentDto>(`/api/v1/students/${id}`);
+  studentDtoCache.set(id, { at: Date.now(), data });
+  return data;
 }
 
 export async function getStudentGuardians(

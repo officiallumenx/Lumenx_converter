@@ -95,11 +95,13 @@ export function mapLearnerSummaryToAssignment(
       }
     : { ...PICKUP_NOT_ASSIGNED };
 
-  const drop: TransportStop = summary.dropStop
+  // Common-location rule: prefer API drop, else mirror pickup.
+  const dropSource = summary.dropStop ?? summary.pickupStop;
+  const drop: TransportStop = dropSource
     ? {
-        id: summary.dropStop.id,
-        name: summary.dropStop.name,
-        address: summary.dropStop.locationLabel,
+        id: dropSource.id,
+        name: dropSource.name,
+        address: dropSource.locationLabel,
         scheduledTime: "Not scheduled",
         order: 2,
       }
@@ -319,11 +321,9 @@ export async function loadLearnerTransportLive(input: {
   studentId: string;
 }): Promise<LearnerTransportLiveDto | null> {
   if (!isApiAuthMode()) return null;
-  try {
-    return await getLearnerTransportLive(input);
-  } catch {
-    return null;
-  }
+  // Propagate API failures so React Query can show recoverable error UI.
+  // Do not swallow into null (that looked like "driver not started").
+  return await getLearnerTransportLive(input);
 }
 
 export function subscribeLearnerLiveTrip(_listener: () => void): () => void {

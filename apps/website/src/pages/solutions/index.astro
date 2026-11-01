@@ -1,0 +1,39 @@
+---
+import Breadcrumb from "../../components/layout/Breadcrumb.astro";
+import Layout from "../../layouts/Layout.astro";
+import { ROLES } from "../../data/lumenx.js";
+---
+
+<Layout
+  description="LumenX solutions by role: institutions, administrators, teachers, parents, students, and drivers."
+  title="Solutions"
+>
+  <Breadcrumb>
+    <Fragment slot="title">Solutions</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-12 mx-auto max-w-[640px] text-center">
+        <p class="text-base text-body-color dark:text-dark-6">
+          How LumenX supports each campus role — from the institute office to families and drivers.
+        </p>
+      </div>
+      <ul class="mx-auto grid max-w-[900px] gap-4 sm:grid-cols-2">
+        {
+          ROLES.map((role) => (
+            <li>
+              <a
+                href={role.href}
+                class="flex h-full flex-col rounded-xl border border-stroke bg-white p-6 transition hover:border-primary dark:border-dark-3 dark:bg-dark-2"
+              >
+                <span class="text-lg font-semibold text-dark dark:text-white">{role.title}</span>
+                <span class="mt-2 text-base text-body-color dark:text-dark-6">{role.body}</span>
+                <span class="mt-4 text-primary">Learn more →</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</Layout>

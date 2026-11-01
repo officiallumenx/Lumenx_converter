@@ -118,7 +118,9 @@ export function ParentProfilePage({
       email: email.trim() || undefined,
       address: address.trim() || undefined,
     });
-    toast.success("Profile saved.");
+    toast.success("Saved on this device.", {
+      description: "Profile changes stay on this device until account sync is available.",
+    });
   };
 
   return (

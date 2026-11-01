@@ -1,0 +1,1 @@
+export { ManageLocationPage } from "./ManageLocationPage";

@@ -1,33 +1,43 @@
-# Logs
-logs
-*.log
+# build output
+dist/
+
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
-*.local
-.verify-shots/
-
-# Wrangler / Cloudflare
-.wrangler/
+# environment variables / secrets
+.env
+.env.*
+!.env.example
 .dev.vars
+.wrangler/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# macOS / Windows
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
+
+# editors / local
+.vscode/
+.idea/
+*.local
+
+# QA / local artifacts (keep files on disk; do not commit)
+qa-artifacts/
+docs/screenshots/
+*.log
+
+# Private key / credential filenames (defense in depth)
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+**/secrets.json

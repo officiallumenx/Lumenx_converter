@@ -113,6 +113,51 @@ describe("resolveDiaryListView", () => {
       expect(view.items).toEqual([]);
     },
   );
+
+  it("surfaces list error without treating it as an empty submission set", () => {
+    const view = resolveDiaryListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [],
+      storedStatus: "error",
+      storedErrorMessage: "network down",
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(true);
+    expect(view.status).toBe("error");
+    expect(view.errorMessage).toBe("network down");
+    expect(view.items).toEqual([]);
+  });
+
+  it("distinguishes empty ready list from loading", () => {
+    const empty = resolveDiaryListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [],
+      storedStatus: "empty",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(empty.status).toBe("empty");
+    expect(empty.rowsValid).toBe(true);
+
+    const loading = resolveDiaryListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: null,
+      storedItems: [],
+      storedStatus: "loading",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(loading.status).toBe("loading");
+    expect(loading.rowsValid).toBe(false);
+  });
 });
 
 describe("shouldCommitDiaryLoad", () => {

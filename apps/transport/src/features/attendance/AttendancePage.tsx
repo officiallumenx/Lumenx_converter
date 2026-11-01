@@ -4,6 +4,7 @@ import {
   Flag,
   LogIn,
   LogOut,
+  MapPinOff,
   Play,
   SearchX,
 } from "lucide-react";
@@ -30,6 +31,8 @@ import {
   type BoardingStatus,
   type DroppingStatus,
 } from "@/lib/transport";
+import { getRouteSetupSnapshot } from "@/lib/transport/route-setup/store";
+import { listStopsMissingCoords } from "@/lib/transport/stops-missing-coords";
 import {
   buildTripEndSummary,
   homeActionPrimaryLabel,
@@ -121,7 +124,13 @@ function AttendanceGate() {
   const upcomingTitle = tripKindTitle(upcomingKind);
 
   // Pickup completed but Drop ready — show Start Drop, don't trap on completed chrome.
-  if (action !== "start_drop" && (action === "day_complete" || session.phase === "completed")) {
+  // endSyncPending: local phase may still look active while end is flushing.
+  if (
+    action !== "start_drop" &&
+    (action === "day_complete" ||
+      session.phase === "completed" ||
+      session.endSyncPending)
+  ) {
     return (
       <div className="min-w-0 space-y-5">
         <SectionHeader
@@ -306,7 +315,12 @@ export function AttendancePage() {
     return buildTripEndSummary(students, stopsCompleted, stopsTotal);
   }, [students, routeStops.length, session.currentStopIndex]);
 
-  if (!isTripActive(session.phase)) {
+  const stopsMissingCoords = useMemo(() => {
+    const setupStops = getRouteSetupSnapshot().stops ?? [];
+    return listStopsMissingCoords(setupStops);
+  }, [session.tripId, routeStops.length]);
+
+  if (!isTripActive(session.phase) || session.endSyncPending) {
     return (
       <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
         <AttendanceGate />
@@ -328,15 +342,9 @@ export function AttendancePage() {
   ) => {
     void attendanceRepository.markBoarding(id, status, options).then((result) => {
       if (!result.ok) {
-        if (result.code === "finalized") {
-          const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-          setConfirm({
-            kind: "boarding",
-            studentId: id,
-            studentName: student?.name ?? "Student",
-            next: status,
-            label: result.reason ?? "Confirm boarding change",
-          });
+        if (result.code === "busy") {
+          toast.message(result.reason ?? "Already saving…");
+          setLiveMessage(result.reason ?? "Already saving");
           return;
         }
         toast.error(result.reason ?? "Could not update boarding");
@@ -344,15 +352,12 @@ export function AttendancePage() {
         return;
       }
       const name = result.student?.name ?? "Student";
-      const message =
-        status === "boarded"
-          ? `${name} boarded`
-          : status === "pending"
-            ? `${name} boarding undone`
-            : `${name} marked not boarded`;
-      if (status === "boarded") toast.success(message);
-      else toast.message(message);
-      setLiveMessage(message);
+      // Success toast fires only after outbox confirm (authoritative). Immediate feedback is pending/queued.
+      const pendingMessage = result.queuedOffline
+        ? `${name}: queued — will sync when online`
+        : `${name}: saving…`;
+      toast.message(pendingMessage);
+      setLiveMessage(pendingMessage);
       void tripRepository.setLifecyclePhase("boarding");
     });
   };
@@ -364,15 +369,9 @@ export function AttendancePage() {
   ) => {
     void attendanceRepository.markDropping(id, status, options).then((result) => {
       if (!result.ok) {
-        if (result.code === "finalized") {
-          const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-          setConfirm({
-            kind: "dropping",
-            studentId: id,
-            studentName: student?.name ?? "Student",
-            next: status,
-            label: result.reason ?? "Confirm dropping change",
-          });
+        if (result.code === "busy") {
+          toast.message(result.reason ?? "Already saving…");
+          setLiveMessage(result.reason ?? "Already saving");
           return;
         }
         toast.error(result.reason ?? "Could not update dropping");
@@ -380,15 +379,11 @@ export function AttendancePage() {
         return;
       }
       const name = result.student?.name ?? "Student";
-      const message =
-        status === "dropped"
-          ? `${name} dropped`
-          : status === "pending"
-            ? `${name} dropping undone`
-            : `${name} marked not dropped`;
-      if (status === "dropped") toast.success(message);
-      else toast.message(message);
-      setLiveMessage(message);
+      const pendingMessage = result.queuedOffline
+        ? `${name}: queued — will sync when online`
+        : `${name}: saving…`;
+      toast.message(pendingMessage);
+      setLiveMessage(pendingMessage);
       void tripRepository.setLifecyclePhase("dropping");
     });
   };
@@ -402,6 +397,12 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
+    if (student.syncStatus === "syncing") {
+      toast.message("Already saving…", {
+        description: `Wait for ${student.name} to finish syncing.`,
+      });
+      return;
+    }
     if (student.boarding === "pending") {
       applyBoarding(id, "boarded");
       return;
@@ -426,6 +427,12 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
+    if (student.syncStatus === "syncing") {
+      toast.message("Already saving…", {
+        description: `Wait for ${student.name} to finish syncing.`,
+      });
+      return;
+    }
     if (student.boarding === "not_boarded") {
       toast.message(`${student.name} is already marked not boarded.`);
       return;
@@ -452,6 +459,12 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
+    if (student.syncStatus === "syncing") {
+      toast.message("Already saving…", {
+        description: `Wait for ${student.name} to finish syncing.`,
+      });
+      return;
+    }
     if (
       requiresBoardedBeforeDrop(session.slot) &&
       student.boarding !== "boarded"
@@ -483,6 +496,12 @@ export function AttendancePage() {
     }
     const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
     if (!student) return;
+    if (student.syncStatus === "syncing") {
+      toast.message("Already saving…", {
+        description: `Wait for ${student.name} to finish syncing.`,
+      });
+      return;
+    }
     if (
       requiresBoardedBeforeDrop(session.slot) &&
       student.boarding !== "boarded"
@@ -522,10 +541,14 @@ export function AttendancePage() {
         .then((result) => {
           finish();
           if (!result.ok) {
-            toast.error(result.reason);
+            toast.error(result.reason ?? "Could not update boarding");
             return;
           }
-          toast.message(`${confirm.studentName} updated`);
+          toast.message(
+            result.queuedOffline
+              ? `${confirm.studentName}: queued — will sync when online`
+              : `${confirm.studentName}: saving…`,
+          );
           void tripRepository.setLifecyclePhase("boarding");
         });
       return;
@@ -535,10 +558,14 @@ export function AttendancePage() {
       .then((result) => {
         finish();
         if (!result.ok) {
-          toast.error(result.reason);
+          toast.error(result.reason ?? "Could not update dropping");
           return;
         }
-        toast.message(`${confirm.studentName} updated`);
+        toast.message(
+          result.queuedOffline
+            ? `${confirm.studentName}: queued — will sync when online`
+            : `${confirm.studentName}: saving…`,
+        );
         void tripRepository.setLifecyclePhase("dropping");
       });
   };
@@ -626,7 +653,7 @@ export function AttendancePage() {
             mode={mode}
             onTap={() => onTap(student.id)}
             onLongPress={() => onLongPress(student.id)}
-            disabled={locationBlocked}
+            disabled={locationBlocked || student.syncStatus === "syncing"}
           />
         ))}
       </div>
@@ -648,6 +675,30 @@ export function AttendancePage() {
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {liveMessage}
         </div>
+
+        {stopsMissingCoords.length > 0 ? (
+          <Card className="border-warning/40 bg-warning/10">
+            <CardContent className="flex items-start gap-3 p-3">
+              <MapPinOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  {stopsMissingCoords.length === 1
+                    ? "1 stop is missing GPS"
+                    : `${stopsMissingCoords.length} stops are missing GPS`}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Arrival alerts skip{" "}
+                  {stopsMissingCoords
+                    .slice(0, 3)
+                    .map((s) => s.name)
+                    .join(", ")}
+                  {stopsMissingCoords.length > 3 ? "…" : ""}. Open Route Setup and
+                  refresh location on those stops.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -676,6 +727,23 @@ export function AttendancePage() {
         </div>
 
         <OfflineTripBanner />
+
+        {locationBlocked ? (
+          <div
+            className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/8 px-3.5 py-3"
+            role="alert"
+          >
+            <MapPinOff className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-destructive">Location is off</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Turn on GPS to mark boarding or dropping. Attendance taps stay disabled until
+                location is ready.
+                {locationTrack.message ? ` (${locationTrack.message})` : ""}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         <Tabs
           value={tab}

@@ -81,4 +81,45 @@ describe("transport-utils", () => {
       "ETA unavailable",
     );
   });
+
+  it("labels GPS live, stale, disconnected, and recovered chrome copy", () => {
+    expect(
+      trackingStatusLabel(
+        tracking({
+          parentStatus: "trip_started",
+          gpsFreshness: "live",
+          sharedTripActive: true,
+        }),
+      ),
+    ).toBe("Trip started");
+
+    expect(
+      formatApproachEta({
+        minutes: 7,
+        displayMode: "stale",
+        gpsFreshness: "stale",
+        lastUpdated: "3 min ago",
+      }),
+    ).toBe("Location is stale · 3 min ago");
+
+    expect(
+      trackingStatusLabel(
+        tracking({
+          parentStatus: "location_unavailable",
+          gpsFreshness: "offline",
+          sharedTripActive: true,
+        }),
+      ),
+    ).toBe("Location unavailable");
+
+    // Recovered: live ETA copy returns (no stale/unavailable claim).
+    expect(
+      formatApproachEta({
+        minutes: 7,
+        confidence: "high",
+        displayMode: "eta",
+        gpsFreshness: "live",
+      }),
+    ).toBe("Bus arrives in 7 minutes");
+  });
 });

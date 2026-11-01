@@ -18,11 +18,17 @@ import { AdminActionToastProvider } from "@/components/AdminActionToast";
 import { AdminChrome } from "@/components/AdminChrome";
 import { DemoProfileProvider } from "@/lib/demo-profile-context";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
-import { AUTH_ROUTES, isPostAuthLanding } from "@/auth/constants";
+import {
+  AUTH_ROUTES,
+  LEGAL_PUBLIC_ROUTES,
+  isPostAuthLanding,
+  isUnauthenticatedAllowedPath,
+} from "@/auth/constants";
 import {
   registrationGatePath,
   resolveRegistrationGate,
 } from "@/auth/registration-gate";
+import { resolveAuthGateNavigateTo } from "@/auth/auth-gate-navigation";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { resolveDemoAuthRouteBlock } from "@/auth/demo-auth-guard";
 import { isAppLockRequired, resolveAppLockDemoRouteBlock } from "@/auth/app-lock-policy";
@@ -155,6 +161,9 @@ function AuthGate() {
   );
 
   const isAuthRoute = (AUTH_ROUTES as readonly string[]).includes(pathname);
+  const isLegalPublicRoute = (LEGAL_PUBLIC_ROUTES as readonly string[]).includes(pathname);
+  /** Auth screens + legal docs share the no-chrome shell. */
+  const isPublicShellRoute = isAuthRoute || isLegalPublicRoute;
   const registrationGate = resolveRegistrationGate(user);
   const gateRedirect = registrationGatePath(registrationGate.kind);
   const demoRouteBlock = resolveDemoAuthRouteBlock(pathname);
@@ -194,37 +203,25 @@ function AuthGate() {
   useLayoutEffect(() => {
     if (status === "loading" || status === "idle") return;
 
-    if (!isAuthenticated && !isAuthRoute && pathname !== "/welcome") {
-      navigate({ to: "/welcome", replace: true });
+    const gateTarget = resolveAuthGateNavigateTo({
+      isAuthenticated,
+      pathname,
+      gateKind: registrationGate.kind,
+      isVerified: user ? user.isVerified : null,
+      unauthenticatedAllowed: isUnauthenticatedAllowedPath(pathname),
+    });
+    if (gateTarget) {
+      navigate({ to: gateTarget, replace: true });
       return;
     }
 
-    if (!isAuthenticated) return;
-
-    // Incomplete registration: force OTP → setup → pending (no dashboard).
-    if (registrationGate.kind === "loading") {
-      return;
-    }
-
-    if (registrationGate.kind !== "allow" && gateRedirect && pathname !== gateRedirect) {
-      navigate({ to: gateRedirect, replace: true });
-      return;
-    }
-
-    // Fully allowed: leave registration-only routes (except pending status screen).
-    if (registrationGate.kind === "allow") {
-      const leaveRegistration =
-        pathname === "/signup" ||
-        pathname === "/verify-email-otp" ||
-        pathname === "/verify-mobile-otp" ||
-        pathname === "/institute-setup";
-      if (leaveRegistration) {
-        navigate({ to: "/", replace: true });
-        return;
-      }
-      if (effectivelyUnlocked && isPostAuthLanding(pathname)) {
-        navigate({ to: "/", replace: true });
-      }
+    if (
+      isAuthenticated &&
+      registrationGate.kind === "allow" &&
+      effectivelyUnlocked &&
+      isPostAuthLanding(pathname)
+    ) {
+      navigate({ to: "/", replace: true });
     }
   }, [
     isAuthenticated,
@@ -235,6 +232,7 @@ function AuthGate() {
     effectivelyUnlocked,
     registrationGate.kind,
     gateRedirect,
+    user,
   ]);
 
   useEffect(() => {
@@ -274,8 +272,8 @@ function AuthGate() {
     }
   }, [pathname, navigate, user]);
 
-  // Auth routes (login, signup, OTP, pending) — no chrome, no lock
-  if (isAuthRoute) {
+  // Auth routes + legal docs during signup — no chrome, no lock
+  if (isPublicShellRoute) {
     return <Outlet />;
   }
 

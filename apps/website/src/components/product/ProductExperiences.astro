@@ -1,0 +1,69 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const experiences = page.experiences || [];
+---
+
+{
+  experiences.length > 0 && (
+    <section id="experiences" class="bg-gray-1 py-16 dark:bg-dark-2 lg:py-[100px]">
+      <div class="container">
+        <div class="mx-auto mb-12 max-w-[640px] text-center lg:mb-16" data-reveal>
+          <span class="mb-2 block text-lg font-semibold text-primary">Role experiences</span>
+          <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+            Teachers, parents, and students — clearly separated
+          </h2>
+          <p class="text-base text-body-color dark:text-dark-6">
+            Each role gets navigation and records relevant to their work. No role inherits another role’s menu.
+          </p>
+        </div>
+
+        <div class="space-y-12 lg:space-y-16">
+          {experiences.map((exp, index) => (
+            <article
+              id={`experience-${exp.id}`}
+              class={`-mx-4 flex flex-wrap items-center ${index % 2 === 1 ? "lg:flex-row-reverse" : ""}`}
+              data-reveal
+            >
+              <div class="mb-8 w-full px-4 lg:mb-0 lg:w-1/2">
+                <div class="mx-auto max-w-[300px] overflow-hidden rounded-xl bg-[#E8EEF6] p-3 shadow-1 sm:max-w-[340px]">
+                  <img
+                    src={exp.image}
+                    alt={exp.imageAlt || exp.title}
+                    class="mx-auto block h-auto w-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                    width="609"
+                    height="1301"
+                  />
+                </div>
+              </div>
+              <div class="w-full px-4 lg:w-1/2">
+                <div class={`max-w-[480px] ${index % 2 === 1 ? "lg:ml-0 lg:mr-auto" : "lg:ml-auto"}`}>
+                  <span class="mb-2 block text-sm font-semibold uppercase tracking-wide text-primary">
+                    {exp.title}
+                  </span>
+                  <h3 class="mb-4 text-2xl font-bold text-dark dark:text-white sm:text-3xl">
+                    {exp.headline}
+                  </h3>
+                  <p class="mb-6 text-base text-body-color dark:text-dark-6">{exp.body}</p>
+                  <ul class="space-y-3">
+                    {exp.points.map((point) => (
+                      <li class="flex gap-3 text-base text-body-color dark:text-dark-6">
+                        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}

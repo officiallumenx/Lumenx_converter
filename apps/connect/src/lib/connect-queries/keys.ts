@@ -102,8 +102,18 @@ export const connectQueryKeys = {
   examsLearner: (instituteId: string, studentId: string) =>
     [connectQueryRoots.exams, "learner", instituteId, studentId] as const,
 
-  leaveTeacher: (instituteId: string, teacherId: string) =>
-    [connectQueryRoots.leave, "teacher", instituteId, teacherId] as const,
+  leaveTeacher: (
+    instituteId: string,
+    teacherId: string,
+    includeDecisions: boolean = false,
+  ) =>
+    [
+      connectQueryRoots.leave,
+      "teacher",
+      instituteId,
+      teacherId,
+      includeDecisions ? "with-decisions" : "list",
+    ] as const,
   leaveParent: (instituteId: string, studentId: string) =>
     [connectQueryRoots.leave, "parent", instituteId, studentId] as const,
 

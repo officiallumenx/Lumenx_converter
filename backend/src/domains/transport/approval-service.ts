@@ -366,6 +366,12 @@ export type DriverRouteRoster = {
   routeId: string | null;
   routeName: string | null;
   vehicleId: string | null;
+  /** Bus label for the assigned vehicle (avoids listing all vehicles on cold open). */
+  vehicleNumber: string | null;
+  /** Seat capacity when known; null if vehicle missing or unset. */
+  vehicleCapacity: number | null;
+  /** Route approval so drivers can operate without listing all routes. */
+  routeApprovalStatus: TransportApprovalStatus | null;
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];
@@ -415,6 +421,9 @@ export async function getDriverRouteRosterForActor(
       routeId: null,
       routeName: null,
       vehicleId: null,
+      vehicleNumber: null,
+      vehicleCapacity: null,
+      routeApprovalStatus: null,
       locked: false,
       stops: [],
       students: [],
@@ -423,6 +432,17 @@ export async function getDriverRouteRosterForActor(
       expectedOnboardCount: 0,
     };
   }
+
+  const vehicle = route.vehicle_id
+    ? await findVehicleById(admin, route.vehicle_id)
+    : null;
+  const vehicleNumber = vehicle?.vehicle_number?.trim() || null;
+  const vehicleCapacity =
+    typeof vehicle?.capacity === "number" &&
+    Number.isFinite(vehicle.capacity) &&
+    vehicle.capacity > 0
+      ? vehicle.capacity
+      : null;
 
   const stopRows = await listStopsForRoute(admin, route.id);
   const visibleStops = isTransportWriter(actor, id)
@@ -478,6 +498,7 @@ export async function getDriverRouteRosterForActor(
           : null,
         status: e.status,
         approvalStatus: e.approval_status,
+        rejectionReason: e.rejection_reason ?? null,
         notRidingToday: Boolean(exception),
         rideExceptionId: exception?.id ?? null,
       };
@@ -488,6 +509,9 @@ export async function getDriverRouteRosterForActor(
     routeId: route.id,
     routeName: route.name,
     vehicleId: route.vehicle_id,
+    vehicleNumber,
+    vehicleCapacity,
+    routeApprovalStatus: route.approval_status,
     locked: route.config_status === "locked",
     stops: visibleStops
       .slice()
@@ -721,8 +745,20 @@ export async function getLearnerTransportForActor(
     .filter((s) => isOperationallyUsable(s.approval_status))
     .sort((a, b) => a.route_order - b.route_order);
 
-  const pickup = usableStops.find((s) => s.id === enrollment.pickup_stop_id) ?? null;
-  const drop = usableStops.find((s) => s.id === enrollment.drop_stop_id) ?? null;
+  const { resolveCommonLocationStopId } = await import("./common-location.js");
+  const commonStopId = resolveCommonLocationStopId({
+    pickupStopId: enrollment.pickup_stop_id,
+    dropStopId: enrollment.drop_stop_id,
+  });
+  // Prefer live columns; when next_* is queued and no active trip for this learner view,
+  // still show the current (pre-promotion) assignment until the next trip starts.
+  const common =
+    (commonStopId
+      ? usableStops.find((s) => s.id === commonStopId) ?? null
+      : null) ??
+    usableStops.find((s) => s.id === enrollment.pickup_stop_id) ??
+    usableStops.find((s) => s.id === enrollment.drop_stop_id) ??
+    null;
 
   return {
     studentId: student.id,
@@ -743,8 +779,9 @@ export async function getLearnerTransportForActor(
         : null,
     driverName: driver?.display_name ?? null,
     driverPhone: driver?.phone ?? null,
-    pickupStop: pickup ? stopSummary(pickup) : null,
-    dropStop: drop ? stopSummary(drop) : null,
+    // Common-location product rule: one stop for pickup and drop.
+    pickupStop: common ? stopSummary(common) : null,
+    dropStop: common ? stopSummary(common) : null,
     stops: usableStops.map(stopSummary),
   };
 }

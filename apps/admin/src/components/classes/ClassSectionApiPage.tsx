@@ -240,7 +240,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
             ? "Section catalog record"
             : "Read-only · select an institute to edit"
         }
-      />
+       helpKey="classes" />
       <PageStack>
         {detailView.status !== "ready" || !displaySection ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>

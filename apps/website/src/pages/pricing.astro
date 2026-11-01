@@ -1,0 +1,18 @@
+---
+import PricingCalculator from '../components/PricingCalculator.astro';
+import Faq from '../components/Faq.astro';
+import Breadcrumb from '../components/layout/Breadcrumb.astro';
+import Layout from '../layouts/Layout.astro';
+import { PRICING } from '../data/lumenx.js';
+---
+
+<Layout
+  description={`LumenX pricing calculator: students × custom rate (₹${PRICING.rateMin}+), monthly payable max(₹${PRICING.minimumMonthly.toLocaleString("en-IN")}, subtotal). Bill for 3, 6, or 12 months (annual: pay 10 for 12 months of service).`}
+  title="Pricing"
+>
+  <Breadcrumb description="Custom rate of ₹10 or more per student. Monthly payable = max(₹8,000, students × rate) — ₹8,000 is a minimum, not a fixed institute price.">
+    <Fragment slot="title">Pricing</Fragment>
+  </Breadcrumb>
+  <PricingCalculator />
+  <Faq />
+</Layout>

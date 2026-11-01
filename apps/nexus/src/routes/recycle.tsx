@@ -82,12 +82,15 @@ function NexusRecyclePage() {
   const expiringSoon = useMemo(() => countExpiringSoon(items), [items]);
 
   return (
-    <AppShell>
+    <AppShell
+      title="Recycle Bin"
+      subtitle={`Cross-institute soft-deleted items · ${RECYCLE_BIN_RETENTION_DAYS}-day retention · restore/purge in Admin`}
+    >
       <Card>
         <CardHeader
           title="Recycle Bin"
-          subtitle={`Cross-institute soft-deleted items · ${RECYCLE_BIN_RETENTION_DAYS}-day retention · restore/purge in Admin`}
-          icon={Trash2}
+          hint={`Cross-institute soft-deleted items · ${RECYCLE_BIN_RETENTION_DAYS}-day retention · restore/purge in Admin`}
+          action={<Trash2 className="h-4 w-4 text-muted-foreground" aria-hidden />}
         />
       </Card>
 

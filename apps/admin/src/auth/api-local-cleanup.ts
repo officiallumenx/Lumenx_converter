@@ -1,8 +1,9 @@
 /**
  * Clears Admin API-mode local identity when Supabase / /me is no longer valid.
  *
- * Session-only clear is for cold-start hydrate miss (keeps IndexedDB query cache).
- * Full clear (incl. query cache) is for explicit logout only.
+ * Session-only clear is for cold-start hydrate miss of the *same* returning user
+ * (keeps IndexedDB under that user id). Forced logout / account switch must use
+ * full clear so in-memory + persisted caches cannot leak across users.
  */
 import { clearSession } from "./auth-store";
 import { clearStoredActiveInstituteId } from "@/lib/active-institute";

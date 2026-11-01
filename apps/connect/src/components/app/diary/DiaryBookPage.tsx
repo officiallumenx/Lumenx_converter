@@ -221,7 +221,10 @@ export function DiaryBookPage({ scope, className }: Props) {
     debounceRef.current = setTimeout(() => {
       void diaryRepository.saveRows(scope, selectedDate, rows).then(
         () => setSaveState("saved"),
-        () => setSaveState("idle"),
+        (err: unknown) => {
+          setSaveState("idle");
+          toast.error(err instanceof Error ? err.message : "Diary draft could not be saved.");
+        },
       );
     }, SAVE_DEBOUNCE_MS);
     return () => {

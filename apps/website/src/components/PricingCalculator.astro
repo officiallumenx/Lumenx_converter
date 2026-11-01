@@ -1,0 +1,425 @@
+---
+import { PRICING } from "../utils/pricing.js";
+---
+
+<section
+  id="pricing"
+  class="relative z-20 overflow-hidden bg-white py-16 dark:bg-dark lg:py-[100px]"
+>
+  <div class="container">
+    <div class="mx-auto mb-10 max-w-[600px] text-center lg:mb-14" data-reveal>
+      <span class="mb-2 block text-lg font-semibold text-primary">Pricing</span>
+      <h2 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+        Choose a subscription plan
+      </h2>
+      <p class="text-base text-body-color dark:text-dark-6">
+        Set your student count and a custom rate of ₹{PRICING.rateMin} or more per student.
+        Monthly payable = max(₹{PRICING.minimumMonthly.toLocaleString("en-IN")}, students × rate).
+        ₹{PRICING.minimumMonthly.toLocaleString("en-IN")} is the minimum subscription price per institute per month — plan totals always use that monthly payable, never a lower student calculation.
+      </p>
+    </div>
+
+    <div
+      id="lx-pricing-calc"
+      class="mx-auto max-w-[1080px] rounded-xl border border-stroke bg-white p-6 shadow-1 dark:border-dark-3 dark:bg-dark-2 sm:p-8 lg:p-10"
+      data-reveal
+    >
+      <div class="mb-8 grid gap-8 lg:grid-cols-2">
+        <div>
+          <label for="lx-students" class="mb-3 block text-base font-semibold text-dark dark:text-white">
+            Number of students
+          </label>
+          <input
+            id="lx-students"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            placeholder="e.g. 900"
+            value="900"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3.5 text-lg text-dark outline-none transition focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+        </div>
+
+        <div>
+          <label for="lx-rate" class="mb-3 block text-base font-semibold text-dark dark:text-white">
+            Rate per student / month (₹)
+          </label>
+          <input
+            id="lx-rate"
+            type="number"
+            min={PRICING.rateMin}
+            step="any"
+            inputmode="decimal"
+            placeholder={`e.g. ${PRICING.defaultRate}`}
+            value={PRICING.defaultRate}
+            aria-describedby="lx-rate-hint lx-rate-error"
+            class="w-full rounded-md border border-stroke bg-transparent px-4 py-3.5 text-lg text-dark outline-none transition focus:border-primary dark:border-dark-3 dark:text-white"
+          />
+          <p id="lx-rate-hint" class="mt-2 text-sm text-body-color dark:text-dark-6">
+            Minimum ₹{PRICING.rateMin}. Enter any custom rate at or above this amount.
+          </p>
+          <p id="lx-rate-error" class="mt-2 hidden text-sm text-red-500" role="alert"></p>
+        </div>
+      </div>
+
+      <div class="mb-3 flex items-baseline justify-between gap-4">
+        <h3 class="text-base font-semibold text-dark dark:text-white">Pricing plans</h3>
+        <p id="lx-monthly-line" class="text-sm text-body-color dark:text-dark-6">
+          Monthly payable: —
+        </p>
+      </div>
+
+      <div
+        class="mb-8 grid items-stretch gap-4 md:grid-cols-3"
+        role="radiogroup"
+        aria-label="Subscription plan"
+      >
+        <!-- Card 1: 3 Months -->
+        <label class="lx-plan-card lx-plan-card--standard">
+          <input type="radio" name="lx-duration" value="3m" class="sr-only" />
+          <span class="lx-plan-kicker">Standard</span>
+          <span class="lx-plan-label">3 Months</span>
+          <span class="lx-plan-price" data-plan-total="3m">—</span>
+          <span class="lx-plan-service">3 months of service</span>
+        </label>
+
+        <!-- Card 2: 6 Months -->
+        <label class="lx-plan-card lx-plan-card--recommended">
+          <input type="radio" name="lx-duration" value="6m" class="sr-only" checked />
+          <span class="lx-plan-badge lx-plan-badge--rec">Recommended</span>
+          <span class="lx-plan-label">6 Months</span>
+          <span class="lx-plan-price" data-plan-total="6m">—</span>
+          <span class="lx-plan-service">6 months of service</span>
+        </label>
+
+        <!-- Card 3: Annual Plan -->
+        <label class="lx-plan-card lx-plan-card--best">
+          <input type="radio" name="lx-duration" value="12m" class="sr-only" />
+          <span class="lx-plan-badge lx-plan-badge--best">Best Value</span>
+          <span class="lx-plan-label">Annual Plan</span>
+          <span class="lx-plan-offer">12 months of service. Pay for only 10 months.</span>
+
+          <div class="lx-plan-annual-stack" aria-live="polite">
+            <div class="lx-plan-annual-row">
+              <span>Regular 12-month price</span>
+              <span data-plan-annual-normal class="lx-value">—</span>
+            </div>
+            <div class="lx-plan-annual-row lx-plan-annual-row--save">
+              <span>Two-month discount</span>
+              <span data-plan-annual-discount class="lx-value lx-savings-amount">—</span>
+            </div>
+            <div class="lx-plan-annual-row lx-plan-annual-row--final">
+              <span>Final payable</span>
+              <span class="lx-plan-price" data-plan-total="12m">—</span>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      <div
+        class="lx-quote-panel rounded-xl border border-primary/15 bg-[#F4F7FF] p-5 dark:border-primary/25 dark:bg-dark sm:p-7"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <div class="mb-5 grid gap-5 sm:grid-cols-2">
+          <div>
+            <p class="mb-1 text-sm font-medium text-body-color dark:text-dark-6">
+              Student calculation <span class="font-normal">(not the plan price)</span>
+            </p>
+            <p id="lx-subtotal" class="lx-value text-lg font-semibold text-body-color dark:text-dark-6" data-pricing="subtotal">—</p>
+            <p id="lx-subtotal-detail" class="mt-1 text-sm text-body-color dark:text-dark-6"></p>
+            <p id="lx-subtotal-note" class="mt-2 hidden text-sm leading-relaxed text-body-color dark:text-dark-6"></p>
+          </div>
+          <div>
+            <p class="mb-1 text-sm font-medium text-body-color dark:text-dark-6">Monthly payable (subscription price)</p>
+            <p id="lx-monthly" class="lx-value font-heading text-2xl font-bold text-primary" data-pricing="monthly">—</p>
+            <p id="lx-minimum-note" class="mt-2 text-sm font-medium text-dark dark:text-white"></p>
+            <p class="mt-2 text-xs leading-relaxed text-body-color dark:text-dark-6">
+              Plan cards and totals use this monthly payable only. Minimum institute price: ₹{PRICING.minimumMonthly.toLocaleString("en-IN")}/month.
+            </p>
+          </div>
+        </div>
+
+        <div class="rounded-lg bg-white px-4 py-5 text-center shadow-1 dark:bg-dark-2 sm:px-6 sm:py-6">
+          <p class="mb-2 text-sm font-semibold uppercase tracking-wide text-body-color dark:text-dark-6">
+            Selected plan total
+          </p>
+          <p
+            id="lx-total"
+            class="lx-value font-heading text-4xl font-bold tracking-tight text-dark dark:text-white sm:text-5xl"
+          >
+            —
+          </p>
+          <p id="lx-summary" class="mx-auto mt-3 max-w-[560px] text-base text-body-color dark:text-dark-6">
+            Enter students and a rate to see your estimate.
+          </p>
+        </div>
+
+        <p id="lx-error" class="mt-4 hidden text-center text-sm text-red-500" role="alert"></p>
+      </div>
+
+      <div class="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-stroke pt-6 dark:border-dark-3">
+        <p class="max-w-[420px] text-sm text-body-color dark:text-dark-6">
+          Estimates help with planning. Final terms are confirmed during onboarding — this site does not process payment.
+        </p>
+        <a
+          href="/contact?intent=demo#enquiry"
+          class="lx-btn inline-flex items-center justify-center rounded-md bg-primary px-7 py-3 text-base font-medium text-white transition hover:bg-blue-dark"
+        >
+          Book a Demo
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="pricing-calculator" class="sr-only" aria-hidden="true"></div>
+
+<script>
+  import {
+    calculateMonthly,
+    calculateQuote,
+    normalizeRate,
+    normalizeStudentCount,
+    PRICING,
+  } from "../utils/pricing.js";
+
+  function initCalculator() {
+    const root = document.getElementById("lx-pricing-calc");
+    if (!root) return;
+
+    const studentsInput = document.getElementById("lx-students");
+    const rateInput = document.getElementById("lx-rate");
+    const rateErrorEl = document.getElementById("lx-rate-error");
+    const subtotalEl = document.getElementById("lx-subtotal");
+    const subtotalDetailEl = document.getElementById("lx-subtotal-detail");
+    const subtotalNoteEl = document.getElementById("lx-subtotal-note");
+    const monthlyEl = document.getElementById("lx-monthly");
+    const monthlyLineEl = document.getElementById("lx-monthly-line");
+    const minimumNoteEl = document.getElementById("lx-minimum-note");
+    const totalEl = document.getElementById("lx-total");
+    const summaryEl = document.getElementById("lx-summary");
+    const errorEl = document.getElementById("lx-error");
+    const annualNormalEl = root.querySelector("[data-plan-annual-normal]");
+    const annualDiscountEl = root.querySelector("[data-plan-annual-discount]");
+
+    const prefersReduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function selected(name) {
+      const el = root.querySelector(`input[name="${name}"]:checked`);
+      return el ? el.value : null;
+    }
+
+    function pulse(el) {
+      if (!el || prefersReduced) return;
+      el.classList.remove("is-updating");
+      void el.offsetWidth;
+      el.classList.add("is-updating");
+    }
+
+    function setText(el, text) {
+      if (!el) return;
+      if (el.textContent !== text) {
+        el.textContent = text;
+        pulse(el);
+      }
+    }
+
+    function setRateInvalid(isInvalid, message = "") {
+      if (!rateInput || !rateErrorEl) return;
+      rateInput.setAttribute("aria-invalid", isInvalid ? "true" : "false");
+      rateInput.classList.toggle("border-red-500", isInvalid);
+      rateInput.classList.toggle("focus:border-red-500", isInvalid);
+      if (isInvalid) {
+        rateErrorEl.textContent = message;
+        rateErrorEl.classList.remove("hidden");
+      } else {
+        rateErrorEl.textContent = "";
+        rateErrorEl.classList.add("hidden");
+      }
+    }
+
+    function clearCards() {
+      root.querySelectorAll("[data-plan-total]").forEach((el) => {
+        el.textContent = "—";
+      });
+      setText(annualNormalEl, "—");
+      setText(annualDiscountEl, "—");
+    }
+
+    function clearBreakdown() {
+      setText(subtotalEl, "—");
+      if (subtotalDetailEl) subtotalDetailEl.textContent = "";
+      if (subtotalNoteEl) {
+        subtotalNoteEl.textContent = "";
+        subtotalNoteEl.classList.add("hidden");
+      }
+      setText(monthlyEl, "—");
+      if (monthlyLineEl) monthlyLineEl.textContent = "Monthly payable: —";
+      setText(totalEl, "—");
+      if (minimumNoteEl) minimumNoteEl.textContent = "";
+      clearCards();
+    }
+
+    function updatePlanCards(students, rate) {
+      const q3 = calculateQuote(students, rate, "3m");
+      const q6 = calculateQuote(students, rate, "6m");
+      const q12 = calculateQuote(students, rate, "12m");
+
+      const total3 = root.querySelector('[data-plan-total="3m"]');
+      const total6 = root.querySelector('[data-plan-total="6m"]');
+      const total12 = root.querySelector('[data-plan-total="12m"]');
+
+      if (q3) setText(total3, q3.totalFormatted);
+      else if (total3) total3.textContent = "—";
+
+      if (q6) setText(total6, q6.totalFormatted);
+      else if (total6) total6.textContent = "—";
+
+      if (q12) {
+        setText(annualNormalEl, q12.normalAnnualFormatted);
+        setText(annualDiscountEl, `−${q12.annualDiscountFormatted}`);
+        setText(total12, q12.totalFormatted);
+      } else {
+        setText(annualNormalEl, "—");
+        setText(annualDiscountEl, "—");
+        if (total12) total12.textContent = "—";
+      }
+    }
+
+    function formatRateLabel(rate) {
+      return Number.isInteger(rate) ? String(rate) : String(rate);
+    }
+
+    function render() {
+      const rawStudents = studentsInput ? studentsInput.value : "";
+      const rateRaw = rateInput ? rateInput.value : "";
+      const durationId = selected("lx-duration");
+
+      errorEl.classList.add("hidden");
+      errorEl.textContent = "";
+
+      if (rawStudents === "" || rawStudents === null) {
+        clearBreakdown();
+        setRateInvalid(false);
+        summaryEl.textContent = "Enter the number of students to calculate.";
+        return;
+      }
+
+      const students = normalizeStudentCount(rawStudents);
+      if (students === null) {
+        clearBreakdown();
+        setRateInvalid(false);
+        summaryEl.textContent = "";
+        errorEl.textContent = "Enter a valid whole number of students (0 or greater).";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      const rate = normalizeRate(rateRaw);
+      if (rate === null) {
+        clearBreakdown();
+        setRateInvalid(
+          true,
+          `Enter a valid rate of ₹${PRICING.rateMin} or more per student.`
+        );
+        summaryEl.textContent = "Enter a valid custom rate to see plan totals.";
+        return;
+      }
+
+      setRateInvalid(false);
+
+      const monthlyInfo = calculateMonthly(students, rate);
+      const quote = calculateQuote(students, rate, durationId);
+      if (!monthlyInfo || !quote) {
+        clearBreakdown();
+        summaryEl.textContent = "Unable to calculate with the current selections.";
+        return;
+      }
+
+      // Internal calculation only — never treat this as the subscription price.
+      setText(subtotalEl, quote.studentSubtotalFormatted || quote.calculatedFormatted);
+      if (subtotalDetailEl) {
+        subtotalDetailEl.textContent = `${quote.students.toLocaleString("en-IN")} students × ₹${formatRateLabel(quote.rate)}`;
+      }
+      if (subtotalNoteEl) {
+        if (quote.minimumApplied) {
+          subtotalNoteEl.textContent = `This amount is below the ₹${PRICING.minimumMonthly.toLocaleString("en-IN")} minimum. Plan prices use ₹${PRICING.minimumMonthly.toLocaleString("en-IN")}/month, not this lower figure.`;
+          subtotalNoteEl.classList.remove("hidden");
+        } else {
+          subtotalNoteEl.textContent = "";
+          subtotalNoteEl.classList.add("hidden");
+        }
+      }
+
+      // Authoritative subscription price for all cards and totals.
+      setText(monthlyEl, quote.monthlyFormatted);
+      if (monthlyLineEl) {
+        monthlyLineEl.textContent = `Monthly payable: ${quote.monthlyFormatted}`;
+      }
+
+      updatePlanCards(students, rate);
+
+      if (quote.minimumApplied) {
+        minimumNoteEl.textContent = `₹${PRICING.minimumMonthly.toLocaleString("en-IN")} minimum plan price applies (per institute / month).`;
+      } else {
+        minimumNoteEl.textContent = `Calculated student amount applies as the monthly subscription price.`;
+      }
+
+      setText(totalEl, quote.totalFormatted);
+
+      if (quote.isAnnual) {
+        summaryEl.textContent = `Annual Plan uses monthly payable ${quote.monthlyFormatted}: regular ${quote.normalAnnualFormatted} − two-month discount ${quote.annualDiscountFormatted} = ${quote.totalFormatted}.`;
+      } else if (quote.durationId === "3m") {
+        summaryEl.textContent = `3 Months (Standard): ${quote.monthlyFormatted} × 3 = ${quote.totalFormatted}.`;
+      } else {
+        summaryEl.textContent = `6 Months (Recommended): ${quote.monthlyFormatted} × 6 = ${quote.totalFormatted}.`;
+      }
+    }
+
+    root.querySelectorAll('input[name="lx-duration"]').forEach((el) => {
+      el.addEventListener("change", render);
+    });
+    if (studentsInput) {
+      studentsInput.addEventListener("input", render);
+    }
+    if (rateInput) {
+      rateInput.addEventListener("input", render);
+      rateInput.addEventListener("change", render);
+    }
+
+    // Keyboard: arrow keys move between plan cards when focused
+    const planInputs = Array.from(root.querySelectorAll('input[name="lx-duration"]'));
+    planInputs.forEach((input, index) => {
+      input.addEventListener("keydown", (event) => {
+        let next = index;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+          next = (index + 1) % planInputs.length;
+        } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+          next = (index - 1 + planInputs.length) % planInputs.length;
+        } else if (event.key === "Home") {
+          next = 0;
+        } else if (event.key === "End") {
+          next = planInputs.length - 1;
+        } else {
+          return;
+        }
+        event.preventDefault();
+        planInputs[next].checked = true;
+        planInputs[next].focus();
+        planInputs[next].dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+
+    render();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCalculator);
+  } else {
+    initCalculator();
+  }
+</script>

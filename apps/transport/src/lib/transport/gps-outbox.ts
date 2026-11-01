@@ -17,6 +17,10 @@ import {
   startNativeTripTracking,
   stopNativeTripTracking,
 } from "./trip-tracking-native";
+import {
+  startTripDriverReminders,
+  stopTripDriverReminders,
+} from "./trip-driver-reminders";
 
 export type GpsOutboxConnectionState =
   | "online"
@@ -268,6 +272,7 @@ async function captureAndEnqueue(): Promise<void> {
 export function startTripGpsPing() {
   stopTripGpsPing();
   void startNativeTripTracking();
+  void startTripDriverReminders();
   void captureAndEnqueue();
   pingTimer = setInterval(() => {
     void captureAndEnqueue();
@@ -281,6 +286,7 @@ export function stopTripGpsPing() {
     pingTimer = null;
   }
   lastEnqueuedFix = null;
+  stopTripDriverReminders();
   void stopNativeTripTracking();
 }
 
@@ -289,20 +295,31 @@ export async function flushGpsOutboxNow(): Promise<void> {
 }
 
 if (typeof window !== "undefined") {
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      const trip = getTripSessionSnapshot();
-      if (
-        isServerTripId(trip.tripId) &&
-        trip.phase !== "completed" &&
-        trip.phase !== "ready" &&
-        trip.phase !== "starting"
-      ) {
-        void captureAndEnqueue();
-        void flushOpsOutbox();
-      }
+  const resumeTripGps = () => {
+    const trip = getTripSessionSnapshot();
+    if (
+      isServerTripId(trip.tripId) &&
+      trip.phase !== "completed" &&
+      trip.phase !== "ready" &&
+      trip.phase !== "starting"
+    ) {
+      void captureAndEnqueue();
+      void flushOpsOutbox();
     }
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") resumeTripGps();
   });
+
+  // Capacitor resume is more reliable than visibilitychange on Android WebView.
+  void import("@capacitor/app")
+    .then(({ App }) => {
+      void App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) resumeTripGps();
+      });
+    })
+    .catch(() => undefined);
 
   subscribeTripSession(() => {
     const trip = getTripSessionSnapshot();

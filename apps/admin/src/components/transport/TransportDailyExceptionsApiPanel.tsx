@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin-queries";
 import { cancelTransportDailyException } from "@/lib/transport/ops-api";
 import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 import { useAdminToast } from "@/components/AdminActionToast";
 
 type Props = {
@@ -29,7 +30,7 @@ export function TransportDailyExceptionsApiPanel({
 }: Props) {
   const notify = useAdminToast();
   const qc = useQueryClient();
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const exceptionsQuery = useTransportDailyExceptionsQuery(instituteId, today);
   const enrollmentsQuery = useTransportEnrollmentsQuery(instituteId);
   useTransportRealtimeInvalidate(instituteId);

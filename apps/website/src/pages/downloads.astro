@@ -1,0 +1,151 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Breadcrumb from "../components/layout/Breadcrumb.astro";
+import {
+  DOWNLOAD_PRODUCTS,
+  androidAction,
+  webAction,
+  windowsAction,
+  platformStatus,
+} from "../data/downloads.js";
+
+const platformOrder = ["web", "android", "windows"];
+const platformTitles = {
+  web: "Web",
+  android: "Android",
+  windows: "Windows",
+};
+
+function actionsFor(product) {
+  const rows = [];
+  for (const key of platformOrder) {
+    const offer = product.platforms[key];
+    if (!offer?.offered) continue;
+    const action =
+      key === "web"
+        ? webAction(offer)
+        : key === "android"
+          ? androidAction(offer)
+          : windowsAction(offer);
+    rows.push({
+      key,
+      title: platformTitles[key],
+      ...action,
+      status: platformStatus(action),
+    });
+  }
+  return rows;
+}
+---
+
+<Layout
+  title="Downloads"
+  description="Download LumenX apps for web, Android, and Windows — Admin, Connect, Transport, Careers, Admissions, and Nexus."
+>
+  <Breadcrumb description="Verified web apps and installers for the platforms each LumenX product supports.">
+    <Fragment slot="title">Downloads</Fragment>
+  </Breadcrumb>
+
+  <section class="lx-section dark:bg-dark">
+    <div class="container">
+      <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
+        <span class="lx-section-eyebrow">Apps &amp; installers</span>
+        <h2 class="lx-section-title">Get the right LumenX client for each product.</h2>
+        <p class="lx-section-lead">
+          Only platforms in the approved matrix are listed. Actions stay disabled when a release
+          artifact is not published yet.
+        </p>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-2" data-stagger>
+        {
+          DOWNLOAD_PRODUCTS.map((product) => {
+            const rows = actionsFor(product);
+            return (
+              <article class="lx-dl-card flex h-full flex-col overflow-hidden rounded-xl border border-stroke bg-white shadow-1 dark:border-dark-3 dark:bg-dark-2">
+                <div class="flex items-start gap-4 border-b border-stroke p-6 dark:border-dark-3 sm:p-7">
+                  <div class="lx-dl-icon shrink-0 overflow-hidden rounded-xl bg-[#E8EEF6]">
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt=""
+                        class="h-16 w-16 object-cover object-top"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span class="flex h-16 w-16 items-center justify-center bg-primary text-xl font-bold text-white">
+                        {product.shortName.slice(0, 1)}
+                      </span>
+                    )}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="mb-1 text-sm font-medium text-primary">{product.shortName}</p>
+                    <h3 class="font-heading mb-2 text-xl font-bold text-dark dark:text-white">
+                      {product.name}
+                    </h3>
+                    <p class="text-base leading-relaxed text-body-color dark:text-dark-6">
+                      {product.description}
+                    </p>
+                    <a
+                      href={product.href}
+                      class="mt-3 inline-flex text-sm font-medium text-primary hover:underline"
+                    >
+                      View product →
+                    </a>
+                  </div>
+                </div>
+
+                <ul class="flex flex-1 flex-col gap-3 p-6 sm:p-7">
+                  {rows.map((row) => (
+                    <li class="flex flex-col gap-3 rounded-lg border border-stroke/80 bg-[#F8FAFF] px-4 py-3 dark:border-dark-3 dark:bg-dark sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p class="font-heading text-base font-semibold text-dark dark:text-white">
+                          {row.title}
+                        </p>
+                        <p
+                          class:list={[
+                            "mt-0.5 text-sm",
+                            row.available ? "text-emerald-600 dark:text-emerald-400" : "text-body-color dark:text-dark-6",
+                          ]}
+                        >
+                          {row.status}
+                        </p>
+                      </div>
+                      {row.available && row.href ? (
+                        <a
+                          href={row.href}
+                          class="lx-btn inline-flex items-center justify-center rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-dark"
+                          {...(row.key === "web"
+                            ? { target: "_blank", rel: "noopener noreferrer" }
+                            : { download: row.key !== "android" || !row.href.includes("play.google") })}
+                        >
+                          {row.label}
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          class="inline-flex cursor-not-allowed items-center justify-center rounded-md border border-stroke bg-white px-5 py-2.5 text-sm font-medium text-body-color opacity-70 dark:border-dark-3 dark:bg-dark-2 dark:text-dark-6"
+                          disabled
+                          aria-disabled="true"
+                        >
+                          Coming soon
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            );
+          })
+        }
+      </div>
+
+      <p class="mx-auto mt-10 max-w-[640px] text-center text-sm leading-relaxed text-body-color dark:text-dark-6">
+        Prefer a guided rollout?{" "}
+        <a href="/contact?intent=demo#enquiry" class="font-medium text-primary hover:underline">Book a demo</a>
+        {" "}or ask a question on the homepage enquiry forms.
+      </p>
+    </div>
+  </section>
+</Layout>

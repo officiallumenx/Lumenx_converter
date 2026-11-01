@@ -4431,14 +4431,46 @@ main table th {
   color: var(--color-muted-foreground);
 }
 .lx-module-hero__action {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  align-self: center;
 }
-@media (min-width: 768px) {
-  .lx-module-hero__action {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-  }
+/* When the hero contains a help button, force 2-column layout at ALL breakpoints
+   so the info icon is always visible on the right side, including mobile. */
+.lx-module-hero--has-help {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.lx-module-hero--compact.lx-module-hero--has-help {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.lx-module-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.lx-module-help-btn:hover {
+  color: var(--color-foreground);
+  border-color: var(--color-border-strong, var(--color-border));
+  background: var(--color-muted);
+}
+.lx-module-help-btn:focus-visible {
+  outline: 2px solid var(--lx-module-accent, var(--color-primary));
+  outline-offset: 2px;
+}
+.lx-module-help-body {
+  max-height: min(70vh, 36rem);
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 .lx-module-hero__art,
 .lx-module-hero__orb {

@@ -1,0 +1,63 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import { SITE } from "../data/lumenx.js";
+---
+
+<Layout
+  description="LumenX sign-in is institute-issued. Use your campus login links for Admin, Connect, Transport, Admissions, and Careers — not public registration on this marketing site."
+  title="Login"
+>
+  <ContentPage
+    title="Login"
+    description="Credentials are issued by your institute office. This page explains where each product signs in."
+    showCta={false}
+  >
+    <p class="mb-6 text-base leading-relaxed text-body-color dark:text-dark-6">
+      LumenX does not offer open self-serve accounts on {SITE.productionOrigin}. Teachers, parents, students, drivers, and applicants receive links and credentials from their institute after onboarding.
+    </p>
+    <p class="mb-8 text-base leading-relaxed text-body-color dark:text-dark-6">
+      Use the login URL your institute shared with you. If you are unsure which link to use, contact your institute administrator first, or reach us at <a href="/contact" class="text-primary hover:underline">Contact</a>.
+    </p>
+
+    <h3 class="mb-4 text-xl font-bold text-dark dark:text-white">Where each product signs in</h3>
+    <ul class="mb-8 space-y-4">
+      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
+        <strong class="font-heading text-dark dark:text-white">LumenX Admin &amp; LumenX Nexus</strong>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Browser-based consoles when published — Admin for the institute office, Nexus for operators and groups. Your office will provide the exact URL — it is not listed here until your deployment is live.
+        </p>
+      </li>
+      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
+        <strong class="font-heading text-dark dark:text-white">LumenX Connect &amp; LumenX Transport</strong>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Android apps distributed to your campus. Install from the link or store listing your institute provides, then sign in with issued credentials.
+        </p>
+      </li>
+      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
+        <strong class="font-heading text-dark dark:text-white">LumenX Admissions &amp; LumenX Careers</strong>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Web portals for applicants and hiring workflows (with Android builds when published). Use the portal URL shared by your institute.
+        </p>
+      </li>
+    </ul>
+
+    <p class="text-base text-body-color dark:text-dark-6">
+      This marketing site lives at <a href={SITE.productionOrigin} class="text-primary hover:underline">{SITE.productionOrigin}</a> for product information, demos, and support requests — not for product login.
+    </p>
+    <div class="mt-10 flex flex-wrap gap-4">
+      <a
+        href="/contact"
+        class="inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+      >
+        Contact support
+      </a>
+      <a
+        href="/get-started"
+        class="inline-flex items-center justify-center rounded-md border border-stroke px-7 py-3 text-base font-medium text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+      >
+        New institute? Get started
+      </a>
+    </div>
+  </ContentPage>
+</Layout>

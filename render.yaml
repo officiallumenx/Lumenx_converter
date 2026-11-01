@@ -1,0 +1,49 @@
+# Emergency API host (Render) — use while Railway Hobby billing is broken.
+# Dashboard: New → Blueprint → connect this repo → apply.
+# Or: New Web Service → Docker → root dir `.` → Dockerfile `backend/Dockerfile`
+
+services:
+  - type: web
+    name: lumenx-api
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      # Render sets PORT automatically — do not hardcode 8787 in the dashboard.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FCM_WORKER_ENABLED
+        value: "true"
+      - key: OTP_DELIVERY_MODE
+        value: live
+      - key: OTP_SMS_PROVIDER
+        sync: false
+      - key: STARTMESSAGING_API_KEY
+        sync: false
+      - key: STARTMESSAGING_TEMPLATE_ID
+        sync: false
+      - key: OTP_EMAIL_PROVIDER
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OTP_EMAIL_FROM
+        sync: false

@@ -39,7 +39,7 @@ function TeacherPerformanceDemoPage() {
         eyebrow="Insights"
         title={M.performance}
         subtitle={`Student feedback & trends · analytics only · exports are in ${M.reports}`}
-      />
+       helpKey="teacher-performance" />
       <div className="lx-kpi-grid">
         <Kpi
           label="Institute avg"
@@ -164,7 +164,7 @@ function TeacherPerformancePage() {
           eyebrow="Insights"
           title={M.performance}
           subtitle={`Operational faculty index · analytics only · exports are in ${M.reports}`}
-        />
+         helpKey="teacher-performance" />
         <TeacherPerformanceApiPanel />
       </AppShell>
     );

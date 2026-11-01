@@ -764,7 +764,7 @@ function AdmissionsPage() {
         ) : undefined
       }
     >
-      <ModuleHero eyebrow="Services" title="Admissions" subtitle={pageSubtitle} />
+      <ModuleHero eyebrow="Services" title="Admissions" subtitle={pageSubtitle}  helpKey="admissions" />
       <div className="space-y-4">
         <Card className="overflow-hidden border-border bg-muted/40">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">

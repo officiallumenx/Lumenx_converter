@@ -1,0 +1,917 @@
+/**
+ * LumenX motion design system
+ * Tokens + reusable reveal / micro-interaction utilities.
+ * Prefer opacity + transform. No heavy JS animation libraries.
+ */
+
+:root {
+  --motion-fast: 160ms;
+  --motion-ui: 240ms;
+  --motion-section: 520ms;
+  --motion-stagger: 60ms;
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --motion-distance: 18px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scroll / entrance reveals — visible by default (JS marks .is-pending)      */
+/* -------------------------------------------------------------------------- */
+
+.wow.fadeInUp.is-pending,
+[data-reveal].is-pending {
+  opacity: 0;
+  transform: translate3d(0, var(--motion-distance), 0);
+}
+
+.wow.fadeInUp.is-revealed,
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity var(--motion-section) var(--motion-ease-out),
+    transform var(--motion-section) var(--motion-ease-out);
+}
+
+[data-reveal="fade"].is-pending {
+  transform: none;
+}
+
+[data-reveal="up-sm"].is-pending {
+  transform: translate3d(0, 10px, 0);
+}
+
+[data-stagger] > .wow.fadeInUp.is-revealed,
+[data-stagger] > [data-reveal].is-revealed,
+[data-stagger] > * > .wow.fadeInUp.is-revealed,
+[data-stagger] > * > [data-reveal].is-revealed,
+[data-stagger] > * > a.wow.is-revealed,
+[data-stagger] > * > a[data-reveal].is-revealed {
+  transition-delay: calc(var(--reveal-i, 0) * var(--motion-stagger));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hero entrance (CSS-driven; readable without JS)                            */
+/* -------------------------------------------------------------------------- */
+
+.hero-ambient {
+  pointer-events: none;
+  position: absolute;
+  inset: -20% 10% auto;
+  height: 55%;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(55, 88, 249, 0.12) 40%,
+    transparent 70%
+  );
+  opacity: 0.7;
+}
+
+.hero-stage .hero-eyebrow,
+.hero-stage .hero-title,
+.hero-stage .hero-copy,
+.hero-stage .hero-actions,
+.hero-stage .hero-preview {
+  opacity: 1;
+  transform: none;
+}
+
+.hero-stage.is-animating:not(.is-ready) .hero-eyebrow,
+.hero-stage.is-animating:not(.is-ready) .hero-title,
+.hero-stage.is-animating:not(.is-ready) .hero-copy,
+.hero-stage.is-animating:not(.is-ready) .hero-actions,
+.hero-stage.is-animating:not(.is-ready) .hero-preview {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+}
+
+.hero-stage.is-ready .hero-eyebrow,
+.hero-stage.is-ready .hero-title,
+.hero-stage.is-ready .hero-copy,
+.hero-stage.is-ready .hero-actions,
+.hero-stage.is-ready .hero-preview {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity var(--motion-section) var(--motion-ease-out),
+    transform var(--motion-section) var(--motion-ease-out);
+}
+
+.hero-stage.is-ready .hero-eyebrow {
+  transition-delay: 20ms;
+}
+
+.hero-stage.is-ready .hero-title {
+  transition-delay: 60ms;
+}
+
+.hero-stage.is-ready .hero-copy {
+  transition-delay: 140ms;
+}
+
+.hero-stage.is-ready .hero-actions {
+  transition-delay: 220ms;
+}
+
+.hero-stage.is-ready .hero-preview {
+  transition-delay: 320ms;
+  transition-duration: 620ms;
+}
+
+.hero-preview-frame {
+  position: relative;
+}
+
+.hero-preview-frame::after {
+  content: "";
+  position: absolute;
+  inset: auto 8% -8%;
+  height: 28%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(55, 88, 249, 0.35),
+    transparent 70%
+  );
+  filter: blur(18px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Product cards & ecosystem                                                  */
+/* -------------------------------------------------------------------------- */
+
+.lx-card {
+  transition:
+    transform var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    border-color var(--motion-ui) var(--motion-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lx-card:hover {
+    transform: translate3d(0, -4px, 0);
+  }
+
+  .lx-card:hover img {
+    transform: scale(1.025);
+  }
+
+  .lx-card:hover .lx-card-cta {
+    transform: translateX(3px);
+  }
+}
+
+.lx-card:focus-visible {
+  outline: 2px solid #3758f9;
+  outline-offset: 3px;
+  transform: translate3d(0, -2px, 0);
+}
+
+.lx-card img {
+  transition: transform 420ms var(--motion-ease-soft);
+}
+
+/* Application screenshots — letterbox inside a shared light mat; never crop with cover.
+   object-fit:contain requires BOTH width and height on the img. Keep the mat light in
+   dark mode so letterboxing remains visible and mobile shots are not mistaken for crops. */
+.lx-shot-stage {
+  position: relative;
+  overflow: hidden;
+  background-color: #e8eef6;
+  border-bottom: 1px solid rgba(55, 88, 249, 0.08);
+}
+
+html.dark .lx-shot-stage,
+.dark .lx-shot-stage {
+  background-color: #dbe4f0;
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.lx-shot-frame {
+  position: absolute;
+  inset: 0.625rem;
+}
+
+@media (min-width: 540px) {
+  .lx-shot-frame {
+    inset: 0.75rem;
+  }
+}
+
+.lx-shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+}
+
+/* Placeholder content inside empty stages still needs to fill the box */
+.lx-shot-stage > div:not(.lx-shot-frame) {
+  position: absolute;
+  inset: 0;
+}
+
+/* Contain screenshots must not scale on hover (would re-clip under overflow) */
+.lx-card:hover .lx-shot,
+.lx-card:focus-visible .lx-shot {
+  transform: none;
+}
+
+.lx-card .lx-card-cta {
+  transition: color var(--motion-fast) var(--motion-ease-out),
+    transform var(--motion-fast) var(--motion-ease-out);
+  display: inline-block;
+}
+
+.lx-eco-hub {
+  position: relative;
+}
+
+.lx-eco-hub.is-revealed {
+  box-shadow: 0 0 0 1px rgba(55, 88, 249, 0.14), 0 10px 20px 0 rgba(92, 115, 160, 0.07);
+}
+
+.lx-eco-strip a {
+  transition:
+    border-color var(--motion-ui) var(--motion-ease-out),
+    transform var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lx-eco-strip a:hover {
+    transform: translateY(-2px);
+    border-color: #3758f9;
+  }
+}
+
+.lx-eco-strip a:focus-visible {
+  outline: 2px solid #3758f9;
+  outline-offset: 2px;
+  border-color: #3758f9;
+}
+
+@keyframes lx-pulse-border {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(55, 88, 249, 0);
+  }
+  40% {
+    box-shadow: 0 0 0 2px rgba(55, 88, 249, 0.35);
+  }
+}
+
+.lx-eco-strip.is-revealed a {
+  animation: lx-pulse-border 1.1s var(--motion-ease-out) both;
+  animation-delay: calc(var(--eco-i, 0) * 90ms);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons & links                                                            */
+/* -------------------------------------------------------------------------- */
+
+.signUpBtn,
+a.inline-flex,
+a.inline-block,
+button[type="submit"],
+.lx-btn {
+  transition:
+    background-color var(--motion-ui) var(--motion-ease-out),
+    border-color var(--motion-ui) var(--motion-ease-out),
+    color var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    transform var(--motion-fast) var(--motion-ease-out),
+    opacity var(--motion-fast) var(--motion-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .signUpBtn:hover,
+  a.inline-flex:hover,
+  a.inline-block:hover,
+  button[type="submit"]:hover,
+  .lx-btn:hover {
+    box-shadow: 0 8px 20px -10px rgba(55, 88, 249, 0.55);
+  }
+}
+
+.signUpBtn:active,
+a.inline-flex:active,
+a.inline-block:active,
+button[type="submit"]:active,
+.lx-btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.signUpBtn:focus-visible,
+.loginBtn:focus-visible,
+a.inline-flex:focus-visible,
+a.inline-block:focus-visible,
+button:focus-visible,
+.lx-btn:focus-visible {
+  outline: 2px solid #3758f9;
+  outline-offset: 3px;
+}
+
+#navbarCollapse a {
+  position: relative;
+  transition: color var(--motion-fast) var(--motion-ease-out),
+    opacity var(--motion-fast) var(--motion-ease-out);
+}
+
+#navbarCollapse > ul > li > a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1.15rem;
+  height: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--motion-ui) var(--motion-ease-out);
+  opacity: 0.7;
+}
+
+@media (min-width: 960px) {
+  #navbarCollapse > ul > li > a:hover::after,
+  #navbarCollapse > ul > li > a:focus-visible::after,
+  #navbarCollapse > ul > li > a.active::after {
+    transform: scaleX(1);
+  }
+}
+
+@media (min-width: 960px) {
+  .submenu-item .submenu {
+    transition:
+      opacity var(--motion-ui) var(--motion-ease-out),
+      transform var(--motion-ui) var(--motion-ease-out),
+      visibility var(--motion-ui) var(--motion-ease-out);
+    transform: translate3d(0, 8px, 0);
+  }
+
+  .submenu-item:hover .submenu,
+  .submenu-item:focus-within .submenu {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+#navbarCollapse:not(.hidden) {
+  animation: lx-nav-in var(--motion-ui) var(--motion-ease-out);
+}
+
+@keyframes lx-nav-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+#navbarToggler span {
+  transition:
+    transform var(--motion-ui) var(--motion-ease-out),
+    opacity var(--motion-fast) var(--motion-ease-out),
+    top var(--motion-ui) var(--motion-ease-out),
+    background-color var(--motion-fast) var(--motion-ease-out);
+}
+
+.ud-header {
+  transition:
+    background-color var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    backdrop-filter var(--motion-ui) var(--motion-ease-out);
+}
+
+.sticky-header {
+  transition:
+    background-color var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    padding var(--motion-ui) var(--motion-ease-out);
+}
+
+/* -------------------------------------------------------------------------- */
+/* FAQ accordion                                                              */
+/* -------------------------------------------------------------------------- */
+
+.lx-faq-item {
+  border-radius: 0.75rem;
+  transition: background-color var(--motion-ui) var(--motion-ease-out);
+}
+
+.lx-faq-trigger {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.lx-faq-trigger:focus-visible {
+  outline: 2px solid #3758f9;
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+}
+
+.lx-faq-icon {
+  transition: transform var(--motion-ui) var(--motion-ease-out);
+}
+
+.lx-faq-item[data-open="true"] .lx-faq-icon {
+  transform: rotate(45deg);
+}
+
+.lx-faq-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.lx-faq-panel-inner {
+  overflow: hidden;
+  opacity: 1;
+}
+
+html.faq-js .lx-faq-panel {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-ui) var(--motion-ease-out);
+}
+
+html.faq-js .lx-faq-item[data-open="true"] .lx-faq-panel {
+  grid-template-rows: 1fr;
+}
+
+html.faq-js .lx-faq-panel-inner {
+  opacity: 0;
+  transition: opacity var(--motion-ui) var(--motion-ease-out);
+}
+
+html.faq-js .lx-faq-item[data-open="true"] .lx-faq-panel-inner {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Forms                                                                      */
+/* -------------------------------------------------------------------------- */
+
+input,
+textarea,
+select {
+  transition:
+    border-color var(--motion-fast) var(--motion-ease-out),
+    box-shadow var(--motion-fast) var(--motion-ease-out);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 1px 0 0 #3758f9;
+}
+
+input:invalid:not(:placeholder-shown):not(:focus),
+textarea:invalid:not(:placeholder-shown):not(:focus) {
+  border-color: #ef4444;
+}
+
+/* Soft page fade — only when motion is allowed and JS marks body */
+body.lx-page-ready main {
+  animation: lx-page-in 380ms var(--motion-ease-out) both;
+}
+
+@keyframes lx-page-in {
+  from {
+    opacity: 0.01;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pricing calculator — plan hierarchy & value updates                        */
+/* -------------------------------------------------------------------------- */
+
+.lx-rate-chip {
+  transition:
+    border-color var(--motion-ui) var(--motion-ease-out),
+    background-color var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    transform var(--motion-fast) var(--motion-ease-out);
+}
+
+.lx-rate-chip:has(input:checked) {
+  border-color: #3758f9;
+  background-color: rgba(55, 88, 249, 0.08);
+  box-shadow: 0 0 0 1px rgba(55, 88, 249, 0.2);
+}
+
+.lx-rate-chip:focus-within {
+  outline: 2px solid #3758f9;
+  outline-offset: 2px;
+}
+
+.lx-plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 100%;
+  cursor: pointer;
+  border-radius: 0.9rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 1.25rem 1.15rem 1.35rem;
+  transition:
+    border-color var(--motion-ui) var(--motion-ease-out),
+    box-shadow var(--motion-ui) var(--motion-ease-out),
+    background-color var(--motion-ui) var(--motion-ease-out),
+    transform var(--motion-ui) var(--motion-ease-out);
+}
+
+html.dark .lx-plan-card,
+.dark .lx-plan-card {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+.lx-plan-card:hover {
+  border-color: rgba(55, 88, 249, 0.35);
+}
+
+.lx-plan-card:focus-within {
+  outline: 2px solid #3758f9;
+  outline-offset: 3px;
+}
+
+.lx-plan-card:has(input:checked) {
+  border-color: #3758f9;
+  box-shadow: 0 10px 28px -16px rgba(55, 88, 249, 0.45);
+  transform: translateY(-2px);
+}
+
+.lx-plan-card--standard:has(input:checked) {
+  border-color: #3758f9;
+}
+
+.lx-plan-card--recommended {
+  border-color: rgba(55, 88, 249, 0.3);
+  background: linear-gradient(180deg, rgba(55, 88, 249, 0.06), #fff 42%);
+  box-shadow: 0 6px 18px -14px rgba(55, 88, 249, 0.28);
+}
+
+html.dark .lx-plan-card--recommended,
+.dark .lx-plan-card--recommended {
+  background: linear-gradient(180deg, rgba(55, 88, 249, 0.14), #1f2937 45%);
+}
+
+.lx-plan-card--recommended:has(input:checked) {
+  background: linear-gradient(180deg, rgba(55, 88, 249, 0.1), transparent 55%);
+  border-color: #3758f9;
+  box-shadow: 0 12px 30px -14px rgba(55, 88, 249, 0.5);
+}
+
+.lx-plan-card--best {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.07), rgba(55, 88, 249, 0.03) 48%, #fff);
+  box-shadow: 0 12px 28px -14px rgba(21, 128, 61, 0.28);
+}
+
+html.dark .lx-plan-card--best,
+.dark .lx-plan-card--best {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(55, 88, 249, 0.08) 50%, #1f2937);
+}
+
+.lx-plan-card--best:has(input:checked) {
+  border-color: #16a34a;
+  box-shadow: 0 14px 32px -14px rgba(22, 163, 74, 0.4);
+  transform: translateY(-3px);
+}
+
+.lx-plan-kicker {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+html.dark .lx-plan-kicker,
+.dark .lx-plan-kicker {
+  color: #9ca3af;
+}
+
+.lx-plan-badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.lx-plan-badge--rec {
+  color: #1e3a8a;
+  background: rgba(55, 88, 249, 0.14);
+}
+
+.lx-plan-badge--best {
+  color: #14532d;
+  background: rgba(34, 197, 94, 0.2);
+}
+
+html.dark .lx-plan-badge--rec,
+.dark .lx-plan-badge--rec {
+  color: #bfdbfe;
+}
+
+html.dark .lx-plan-badge--best,
+.dark .lx-plan-badge--best {
+  color: #bbf7d0;
+}
+
+.lx-plan-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+  padding-right: 6rem;
+  line-height: 1.25;
+}
+
+html.dark .lx-plan-label,
+.dark .lx-plan-label {
+  color: #f9fafb;
+}
+
+.lx-plan-card--standard .lx-plan-label {
+  padding-right: 0;
+}
+
+.lx-plan-offer {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #15803d;
+}
+
+html.dark .lx-plan-offer,
+.dark .lx-plan-offer {
+  color: #4ade80;
+}
+
+.lx-plan-price {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+html.dark .lx-plan-price,
+.dark .lx-plan-price {
+  color: #fff;
+}
+
+.lx-plan-service,
+.lx-plan-hint {
+  font-size: 0.92rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+html.dark .lx-plan-service,
+html.dark .lx-plan-hint,
+.dark .lx-plan-service,
+.dark .lx-plan-hint {
+  color: #9ca3af;
+}
+
+.lx-plan-annual-stack {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-top: 1px solid rgba(34, 197, 94, 0.22);
+  padding-top: 0.7rem;
+}
+
+.lx-plan-annual-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.86rem;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+html.dark .lx-plan-annual-row,
+.dark .lx-plan-annual-row {
+  color: #9ca3af;
+}
+
+.lx-plan-annual-row .lx-value,
+.lx-plan-annual-row .lx-plan-price {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+  text-align: right;
+}
+
+html.dark .lx-plan-annual-row .lx-value,
+html.dark .lx-plan-annual-row .lx-plan-price,
+.dark .lx-plan-annual-row .lx-value,
+.dark .lx-plan-annual-row .lx-plan-price {
+  color: #f9fafb;
+}
+
+.lx-plan-annual-row--save {
+  color: #15803d;
+  font-weight: 600;
+}
+
+html.dark .lx-plan-annual-row--save,
+.dark .lx-plan-annual-row--save {
+  color: #4ade80;
+}
+
+.lx-plan-annual-row--save .lx-value {
+  color: #15803d;
+}
+
+html.dark .lx-plan-annual-row--save .lx-value,
+.dark .lx-plan-annual-row--save .lx-value {
+  color: #4ade80;
+}
+
+.lx-plan-annual-row--final {
+  margin-top: 0.15rem;
+  border-top: 1px dashed rgba(34, 197, 94, 0.28);
+  padding-top: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+html.dark .lx-plan-annual-row--final,
+.dark .lx-plan-annual-row--final {
+  color: #f9fafb;
+}
+
+.lx-plan-annual-row--final .lx-plan-price {
+  font-size: 1.45rem;
+  color: #15803d;
+}
+
+html.dark .lx-plan-annual-row--final .lx-plan-price,
+.dark .lx-plan-annual-row--final .lx-plan-price {
+  color: #4ade80;
+}
+
+.lx-value {
+  transition: color var(--motion-fast) var(--motion-ease-out);
+}
+
+.lx-value.is-updating {
+  animation: lx-value-pulse 420ms var(--motion-ease-out);
+}
+
+.lx-savings-amount.is-updating {
+  animation: lx-savings-pulse 520ms var(--motion-ease-out);
+}
+
+@keyframes lx-value-pulse {
+  0% {
+    opacity: 0.55;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lx-savings-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.lx-annual-panel {
+  transition:
+    opacity var(--motion-ui) var(--motion-ease-out),
+    transform var(--motion-ui) var(--motion-ease-out);
+}
+
+.lx-btn .lx-btn-icon,
+.lx-card-cta::after {
+  display: inline-block;
+  transition: transform var(--motion-fast) var(--motion-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lx-btn:hover .lx-btn-icon,
+  .lx-card:hover .lx-card-cta::after {
+    transform: translateX(3px);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Product page gallery                                                       */
+/* -------------------------------------------------------------------------- */
+
+.lx-gallery-tab:focus-visible {
+  outline: 2px solid #3758f9;
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reduced motion                                                             */
+/* -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-ui: 1ms;
+    --motion-section: 1ms;
+    --motion-stagger: 0ms;
+    --motion-distance: 0px;
+  }
+
+  .wow.fadeInUp.is-pending,
+  [data-reveal].is-pending,
+  .wow.fadeInUp.is-revealed,
+  [data-reveal].is-revealed,
+  .hero-stage.is-animating:not(.is-ready) .hero-eyebrow,
+  .hero-stage.is-animating:not(.is-ready) .hero-title,
+  .hero-stage.is-animating:not(.is-ready) .hero-copy,
+  .hero-stage.is-animating:not(.is-ready) .hero-actions,
+  .hero-stage.is-animating:not(.is-ready) .hero-preview,
+  .hero-stage.is-ready .hero-eyebrow,
+  .hero-stage.is-ready .hero-title,
+  .hero-stage.is-ready .hero-copy,
+  .hero-stage.is-ready .hero-actions,
+  .hero-stage.is-ready .hero-preview {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .lx-card:hover,
+  .lx-card:focus-visible,
+  .lx-card:hover img,
+  .lx-eco-strip a:hover,
+  .lx-eco-strip.is-revealed a,
+  .lx-plan-card:has(input:checked),
+  .lx-plan-card--best:has(input:checked),
+  body.lx-page-ready main,
+  #navbarCollapse:not(.hidden),
+  .lx-value.is-updating,
+  .lx-savings-amount.is-updating {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .hero-ambient,
+  .hero-preview-frame::after {
+    opacity: 0.2;
+    filter: none;
+  }
+}

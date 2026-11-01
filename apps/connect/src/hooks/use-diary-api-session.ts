@@ -68,11 +68,16 @@ export function useDiaryApiSession(scope: DiaryScope) {
       try {
         await loadDiaryApiDay(scope, yesterdayIso());
         if (scope === "subject") {
-          const options = await loadDiarySectionOptions({
-            instituteId: activeInstituteId,
-            teacherId,
-          });
-          if (!cancelled) setApiSectionOptions(options);
+          // Roster already has class/section cards — skip duplicate assignments/classes/sections.
+          if (portal.classes.length > 0) {
+            if (!cancelled) setApiSectionOptions([]);
+          } else {
+            const options = await loadDiarySectionOptions({
+              instituteId: activeInstituteId,
+              teacherId,
+            });
+            if (!cancelled) setApiSectionOptions(options);
+          }
         } else if (!cancelled) {
           setApiSectionOptions([]);
         }
@@ -95,7 +100,14 @@ export function useDiaryApiSession(scope: DiaryScope) {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, activeInstituteId, scope, teacherId, portal.isLoading]);
+  }, [
+    apiMode,
+    activeInstituteId,
+    scope,
+    teacherId,
+    portal.isLoading,
+    portal.classes.length,
+  ]);
 
   /** Prefer timetable assignments; fall back to teacher portal roster sections. */
   const sectionOptions = useMemo(() => {

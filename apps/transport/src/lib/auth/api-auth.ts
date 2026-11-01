@@ -1,4 +1,8 @@
-import { clearAppAuthSession } from "@lumenx/auth";
+import {
+  clearAppAuthSession,
+  isSessionRefreshSuccess,
+  TRANSPORT_STORAGE_KEYS,
+} from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getTransportApiBaseUrl } from "@/lib/api-base-url";
 import {
@@ -126,9 +130,23 @@ export type ApiTransportSession = {
   driverId: string;
 };
 
-async function hydrateDriverFromToken(token: string): Promise<ApiTransportSession> {
+async function hydrateDriverFromToken(
+  token: string,
+  /** When known from a prior session, start drivers/me in parallel with /me. */
+  hintInstituteId?: string | null,
+): Promise<ApiTransportSession> {
   const supabase = getSupabaseBrowserClient();
-  const me = await fetchMe(token);
+  const hint =
+    typeof hintInstituteId === "string" && hintInstituteId.trim()
+      ? hintInstituteId.trim()
+      : null;
+
+  const mePromise = fetchMe(token);
+  const hintedDriverMePromise = hint
+    ? fetchDriverMe(token, hint).catch(() => null)
+    : Promise.resolve(null);
+
+  const [me, hintedDriverMe] = await Promise.all([mePromise, hintedDriverMePromise]);
   const driverMembership = me.institutes.find(
     (m) => m.status === "active" && m.roles.includes("driver"),
   );
@@ -137,7 +155,10 @@ async function hydrateDriverFromToken(token: string): Promise<ApiTransportSessio
     throw new Error("This account is not linked as a transport driver.");
   }
 
-  const driverMe = await fetchDriverMe(token, driverMembership.instituteId);
+  const driverMe =
+    hintedDriverMe && hintedDriverMe.instituteId === driverMembership.instituteId
+      ? hintedDriverMe
+      : await fetchDriverMe(token, driverMembership.instituteId);
   return {
     userId: me.user.id,
     name: driverMe.displayName || me.profile.displayName,
@@ -258,29 +279,47 @@ export async function apiSignInWithPassword(
   return hydrateDriverFromToken(token);
 }
 
+function readPersistedInstituteHint(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage?.getItem(TRANSPORT_STORAGE_KEYS.session);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { instituteId?: string };
+    return typeof parsed?.instituteId === "string" && parsed.instituteId.trim()
+      ? parsed.instituteId.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function hydrateApiTransportSession(): Promise<ApiTransportSession | null> {
   const supabase = getSupabaseBrowserClient();
   let token = await getSupabaseAccessToken();
   if (!token) return null;
+  const instituteHint = readPersistedInstituteHint();
 
   try {
-    return await hydrateDriverFromToken(token);
+    return await hydrateDriverFromToken(token, instituteHint);
   } catch (err) {
     if (!(err instanceof SessionValidationError && err.unusable)) throw err;
 
     // Access token may have just expired — refresh once and retry before logout.
-    const refreshed = await tryRefreshSupabaseSession();
-    if (refreshed) {
+    const refreshOutcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(refreshOutcome)) {
       token = await getSupabaseAccessToken();
       if (token) {
         try {
-          return await hydrateDriverFromToken(token);
+          return await hydrateDriverFromToken(token, instituteHint);
         } catch (retryErr) {
           if (!(retryErr instanceof SessionValidationError && retryErr.unusable)) {
             throw retryErr;
           }
         }
       }
+    } else if (refreshOutcome.kind === "transient" || refreshOutcome.kind === "unknown") {
+      // Keep UI session — network/hosted auth may recover.
+      return null;
     }
 
     await supabase.auth.signOut().catch(() => undefined);

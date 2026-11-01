@@ -52,6 +52,15 @@ export type InstituteRegistrationDto = {
   updatedAt: string;
 };
 
+/** Mirrors backend legal_consent assertion (validated server-side). */
+export type RegistrationLegalConsentAssertion = {
+  accepted: true;
+  documents: Array<{
+    id: "admin_terms" | "admin_privacy" | "cookie_policy";
+    version: string;
+  }>;
+};
+
 export type SubmitRegistrationInput = {
   applicantName: string;
   email: string;
@@ -59,10 +68,12 @@ export type SubmitRegistrationInput = {
   phone?: string | null;
   pin?: string | null;
   payload: InstituteRegistrationPayload;
+  legalConsent: RegistrationLegalConsentAssertion;
 };
 
 export type ResubmitRegistrationInput = {
   applicantName?: string;
   phone?: string | null;
   payload: InstituteRegistrationPayload;
+  legalConsent: RegistrationLegalConsentAssertion;
 };

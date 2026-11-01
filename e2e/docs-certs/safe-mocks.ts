@@ -99,6 +99,16 @@ export async function blockHostedSupabaseAuth(page: Page): Promise<void> {
 
 type MockMode = "empty" | "error" | "forbidden" | "loading" | "with-tc-template";
 
+export type DocsCertsMockHandle = {
+  writes: string[];
+  /**
+   * Resolves hanging documents/certificates GETs when mode is `"loading"`.
+   * No-op for other modes. Prefer this over wall-clock delays so assertions
+   * are not racing Admin `API_DEFAULT_TIMEOUT_MS` (15s).
+   */
+  releaseLoading: () => void;
+};
+
 function json(route: Route, status: number, body: unknown) {
   return route.fulfill({
     status,
@@ -141,8 +151,15 @@ function mePayload() {
 export async function mockAdminDocsCertsApi(
   page: Page,
   mode: MockMode = "empty",
-): Promise<string[]> {
+): Promise<DocsCertsMockHandle> {
   const writes: string[] = [];
+  let releaseLoading = () => {};
+  const loadingGate =
+    mode === "loading"
+      ? new Promise<void>((resolve) => {
+          releaseLoading = resolve;
+        })
+      : Promise.resolve();
 
   await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const request = route.request();
@@ -260,10 +277,9 @@ export async function mockAdminDocsCertsApi(
       pathname.startsWith("/api/v1/certificates");
 
     if (mode === "loading" && isDocsOrCerts) {
-      // Keep the request in-flight long enough for the loading shell assertion, but
-      // stay under Admin API_DEFAULT_TIMEOUT_MS (15s) so the client does not abort
-      // into an error state before Playwright can observe the loading copy.
-      await new Promise((resolve) => setTimeout(resolve, 12_000));
+      // Hold until the test asserts the loading shell, then complete under the
+      // Admin client timeout. Never use a fixed multi-second sleep here.
+      await loadingGate;
       await json(route, 200, { data: [] });
       return;
     }
@@ -353,7 +369,7 @@ export async function mockAdminDocsCertsApi(
     await json(route, 200, { data: [] });
   });
 
-  return writes;
+  return { writes, releaseLoading };
 }
 
 /** Seed Nexus localStorage PPTX catalog (flag-off source of truth). */

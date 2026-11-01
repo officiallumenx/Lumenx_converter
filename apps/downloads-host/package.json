@@ -1,0 +1,13 @@
+{
+  "name": "@lumenx/app-downloads-host",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Public HTTPS downloads for LumenX APKs and Windows installers (Cloudflare Worker + R2)",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  }
+}

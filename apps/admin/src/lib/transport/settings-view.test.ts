@@ -6,7 +6,7 @@ const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 describe("resolveTransportSettingsView", () => {
   it("returns demo settings in demo mode", () => {
     const settings = {
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: 100,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
     };

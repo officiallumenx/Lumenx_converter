@@ -954,7 +954,7 @@ function TimetableDemoPage() {
           eyebrow="Academics"
           title="Timetables"
           subtitle="Overview → create draft → assign manually → review → publish"
-        />
+         helpKey="timetable" />
         <PageStack>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(readinessTotals) as TimetableReadiness[]).map((key) => (
@@ -1199,7 +1199,7 @@ function TimetableDemoPage() {
         eyebrow="Academics"
         title={currentClassKey}
         subtitle={`${current.term} · ${scheduleSummary(currentSchedule)}`}
-      />
+       helpKey="timetable" />
       <PageStack>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={backToList}>

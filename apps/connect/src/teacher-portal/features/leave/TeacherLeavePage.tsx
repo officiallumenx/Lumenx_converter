@@ -382,6 +382,8 @@ function ApiTeacherLeavePage() {
     activeInstituteId,
     teacherId,
     enabled,
+    // History cards show reviewer notes — load /decision only on this route.
+    { includeDecisions: true },
   );
 
   const studentRequests = useMemo(
@@ -648,12 +650,12 @@ function ApiTeacherLeavePage() {
                     apiMode
                     requireIgnoreNote
                     onAction={refresh}
-                    onApprove={(id) => {
-                      void decideStudentLeave(id, { outcome: "approved", note: "Accepted." });
-                    }}
-                    onIgnore={(id, note) => {
-                      void decideStudentLeave(id, { outcome: "ignored", note: note || null });
-                    }}
+                    onApprove={(id) =>
+                      decideStudentLeave(id, { outcome: "approved", note: "Accepted." })
+                    }
+                    onIgnore={(id, note) =>
+                      decideStudentLeave(id, { outcome: "ignored", note: note || null })
+                    }
                   />
                 ))}
               </div>

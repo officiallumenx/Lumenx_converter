@@ -1,0 +1,25 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import LegalDocument from "../components/LegalDocument.astro";
+import { COOKIE_POLICY } from "../data/legal.js";
+---
+
+<Layout
+  description="LumenX Cookie Policy: cookies, local storage, and similar technologies across LumenX products and this marketing website."
+  title="Cookie Policy"
+>
+  <ContentPage title="Cookie Policy" description={`Last updated ${COOKIE_POLICY.lastUpdated}.`} showCta={false}>
+    <LegalDocument
+      title={COOKIE_POLICY.title}
+      lastUpdated={COOKIE_POLICY.lastUpdated}
+      intro={COOKIE_POLICY.intro}
+      sections={COOKIE_POLICY.sections}
+    />
+    <p class="mx-auto mt-10 max-w-[800px] text-base text-body-color dark:text-dark-6">
+      Related:
+      <a class="text-primary hover:underline" href="/privacy">Privacy Policy</a>,
+      <a class="text-primary hover:underline" href="/data-request">Data request</a>.
+    </p>
+  </ContentPage>
+</Layout>

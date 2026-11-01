@@ -178,7 +178,7 @@ function ModulesDemoPage() {
         eyebrow="Operations"
         title={M.modules}
         subtitle="Enable or disable modules for this Admin app"
-      />
+       helpKey="modules" />
       <Card className="mb-6">
         <CardHeader
           title="Institute plan"
@@ -532,7 +532,7 @@ function ModulesPage() {
           eyebrow="Operations"
           title={adminPageTitle("/modules")}
           subtitle="Enable or disable modules for this Admin app"
-        />
+         helpKey="modules" />
         <div className="space-y-4">
           <ModulesApiSubscriptionPanel />
           <ModulesCatalogPanel />

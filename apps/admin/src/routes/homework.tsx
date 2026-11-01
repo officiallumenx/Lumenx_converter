@@ -291,7 +291,7 @@ function HomeworkLogsPage() {
               : "Read-only · select an institute to govern items"
             : "Teacher owns homework CRUD · Admin view logs only (no edit)"
         }
-      />
+       helpKey="homework" />
       <Card>
         {apiMode ? (
           !listView.rowsValid ? (

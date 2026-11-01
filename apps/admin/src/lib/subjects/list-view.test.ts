@@ -15,6 +15,8 @@ const rowA: SubjectListItem = {
   category: "Sciences",
   periodsPerWeek: 5,
   grades: ["G10"],
+  capacity: null,
+  classPeriods: {},
   assignedTeacherIds: [],
   status: "active",
 };

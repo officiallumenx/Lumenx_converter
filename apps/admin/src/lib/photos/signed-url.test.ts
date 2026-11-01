@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isSignedPhotoUrlUsable,
   photoListStaleTimeMs,
+  shouldReplaceCachedSignedPhoto,
   signedPhotoStaleTimeMs,
 } from "./signed-url";
 
@@ -48,5 +49,37 @@ describe("signed photo url freshness", () => {
         now,
       ),
     ).toBe(20 * 60_000);
+  });
+
+  it("does not replace a still-usable cached signed url", () => {
+    expect(
+      shouldReplaceCachedSignedPhoto({
+        cachedUrl: "https://example/cached",
+        cachedExpiresAt: "2026-09-24T13:00:00.000Z",
+        nextUrl: "https://example/fresh",
+        nextExpiresAt: "2026-09-24T14:00:00.000Z",
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it("replaces an expired cached signed url when the next url is usable", () => {
+    expect(
+      shouldReplaceCachedSignedPhoto({
+        cachedUrl: "https://example/cached",
+        cachedExpiresAt: "2026-09-24T12:04:00.000Z",
+        nextUrl: "https://example/fresh",
+        nextExpiresAt: "2026-09-24T13:00:00.000Z",
+        now,
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps staleTime above zero while the url remains usable", () => {
+    const stale = signedPhotoStaleTimeMs("2026-09-24T12:40:00.000Z", now);
+    expect(stale).toBeGreaterThan(0);
+    expect(isSignedPhotoUrlUsable("https://example/photo", "2026-09-24T12:40:00.000Z", now)).toBe(
+      true,
+    );
   });
 });

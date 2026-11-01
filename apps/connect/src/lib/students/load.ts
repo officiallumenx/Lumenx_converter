@@ -16,9 +16,11 @@ import {
   studentDtoToTeacherDetail,
 } from "./map";
 import { enrichStudentDashboardSnapshot } from "@/lib/dashboard";
+import { loadStudentEnrollmentHistory } from "@/lib/academic-history/load-enrollments";
 import { getPhotoSignedUrl } from "@/lib/photos/api";
 import { getInstitute } from "@/lib/institute-profile/api";
 import type { StudentDto, StudentGuardianDto } from "./types";
+import type { StudentProfile } from "@/lib/student/types";
 
 export type StudentsLoadStatus =
   | "demo"
@@ -45,6 +47,47 @@ async function resolveInstituteDisplayName(instituteId: string): Promise<string>
   } catch {
     return "Institute";
   }
+}
+
+function isMissingLabel(value: string | null | undefined): boolean {
+  const trimmed = value?.trim() ?? "";
+  return !trimmed || trimmed === "—";
+}
+
+/**
+ * When student row labels are blank, resolve active enrollment via existing list APIs.
+ * Does not invent values — only copies enrollment/class/section labels when present.
+ */
+export async function fillProfileFromActiveEnrollment(
+  profile: StudentProfile,
+  instituteId: string,
+  studentId: string,
+): Promise<StudentProfile> {
+  if (
+    !isMissingLabel(profile.class) &&
+    !isMissingLabel(profile.section) &&
+    !isMissingLabel(profile.rollNo)
+  ) {
+    return profile;
+  }
+  try {
+    const history = await loadStudentEnrollmentHistory({ instituteId, studentId });
+    if (history.status !== "ready" || history.rows.length === 0) return profile;
+    const active =
+      history.rows.find((row) => row.status === "active") ?? history.rows[0]!;
+    if (isMissingLabel(profile.class) && active.classLabel.trim()) {
+      profile.class = active.classLabel.trim();
+    }
+    if (isMissingLabel(profile.section) && active.sectionLabel.trim()) {
+      profile.section = active.sectionLabel.trim();
+    }
+    if (isMissingLabel(profile.rollNo) && active.rollNo.trim()) {
+      profile.rollNo = active.rollNo.trim();
+    }
+  } catch {
+    // Keep denormalized/blank labels — enrollment enrichment is best-effort.
+  }
+  return profile;
 }
 
 function mapError(err: unknown, label: string): { status: StudentsLoadStatus; message: string } {
@@ -112,7 +155,8 @@ export async function loadTeacherStudentDetail(input: {
   }
 }
 
-export async function loadStudentPortalSnapshot(input: {
+/** Profile shell only — enough for Student Home greeting / identity paint. */
+export async function loadStudentPortalBase(input: {
   instituteId: string | null;
   userDisplayName?: string | null;
   userEmail?: string | null;
@@ -140,13 +184,14 @@ export async function loadStudentPortalSnapshot(input: {
       };
     }
 
-    const [dto, guardians, instituteName] = await Promise.all([
+    // Photo + enrollment history overlap student/guardians/institute reads.
+    const [dto, guardians, instituteName, photoUrl] = await Promise.all([
       getStudent(identity.studentId),
       getStudentGuardians(identity.studentId).catch(() => [] as StudentGuardianDto[]),
       resolveInstituteDisplayName(input.instituteId),
+      resolveStudentPhotoUrl(identity.studentId),
     ]);
     const primary = guardians.find((g) => g.isPrimary) ?? guardians[0];
-    const photoUrl = await resolveStudentPhotoUrl(dto.id);
     const profile = studentDtoToProfile(dto, {
       email: input.userEmail ?? me.profile.email ?? undefined,
       institute: instituteName,
@@ -156,16 +201,42 @@ export async function loadStudentPortalSnapshot(input: {
     if (input.userDisplayName?.trim()) {
       profile.name = input.userDisplayName.trim();
     }
-    const base = buildEmptyStudentSnapshot(profile);
-    const snapshot = await enrichStudentDashboardSnapshot({
-      instituteId: input.instituteId,
-      snapshot: base,
-    });
+    await fillProfileFromActiveEnrollment(profile, input.instituteId, dto.id);
     return {
       status: "ready",
-      snapshot,
+      snapshot: buildEmptyStudentSnapshot(profile),
       errorMessage: null,
     };
+  } catch (err) {
+    const mapped = mapError(err, "student portal");
+    return { status: mapped.status, snapshot: null, errorMessage: mapped.message };
+  }
+}
+
+export async function loadStudentPortalSnapshot(input: {
+  instituteId: string | null;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
+  /** Shared inbox (value or Promise) — skips a duplicate notifications GET. */
+  inbox?:
+    | import("@lumenx/types").AppNotification[]
+    | Promise<import("@lumenx/types").AppNotification[]>;
+}): Promise<{
+  status: StudentsLoadStatus;
+  snapshot: StudentSnapshot | null;
+  errorMessage: string | null;
+}> {
+  const base = await loadStudentPortalBase(input);
+  if (base.status !== "ready" || !base.snapshot || !input.instituteId) {
+    return base;
+  }
+  try {
+    const snapshot = await enrichStudentDashboardSnapshot({
+      instituteId: input.instituteId,
+      snapshot: base.snapshot,
+      inbox: input.inbox,
+    });
+    return { status: "ready", snapshot, errorMessage: null };
   } catch (err) {
     const mapped = mapError(err, "student portal");
     return { status: mapped.status, snapshot: null, errorMessage: mapped.message };

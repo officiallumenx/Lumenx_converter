@@ -1,0 +1,42 @@
+---
+import Breadcrumb from "../../components/layout/Breadcrumb.astro";
+import Layout from "../../layouts/Layout.astro";
+import { FAQS } from "../../data/lumenx.js";
+---
+
+<Layout
+  description="Plain answers about LumenX products, pricing, trial, and getting started."
+  title="FAQ"
+>
+  <Breadcrumb>
+    <Fragment slot="title">FAQ</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-12 mx-auto max-w-[640px] text-center">
+        <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white">Plain answers about LumenX</h2>
+        <p class="text-base text-body-color dark:text-dark-6">
+          Products, pricing, trial, and getting started — without invented metrics.
+        </p>
+      </div>
+      <div class="mx-auto max-w-[800px] space-y-4">
+        {
+          FAQS.map((item) => (
+            <details class="rounded-xl border border-stroke bg-white p-5 dark:border-dark-3 dark:bg-dark-2">
+              <summary class="cursor-pointer text-lg font-semibold text-dark dark:text-white">
+                {item.title}
+              </summary>
+              <p class="mt-3 text-base leading-relaxed text-body-color dark:text-dark-6">{item.description}</p>
+            </details>
+          ))
+        }
+      </div>
+      <p class="mx-auto mt-10 max-w-[800px] text-center text-base text-body-color dark:text-dark-6">
+        Still need help?
+        <a class="text-primary hover:underline" href="/contact">Contact us</a>
+        or
+        <a class="text-primary hover:underline" href="/resources/help">visit Help</a>.
+      </p>
+    </div>
+  </section>
+</Layout>

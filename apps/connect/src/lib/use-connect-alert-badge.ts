@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { useApp } from "@/lib/app-state";
 import { alertStore } from "@/lib/alert-store";
 import { leaveStore } from "@/lib/leave-store";
 import { selectPendingLeaveRequests } from "@/lib/leave-utils";
-import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import type { Role } from "@lumenx/types";
 
 let apiUnackCount = 0;
@@ -31,7 +29,8 @@ export function setConnectApiAlertCounts(counts: {
 }
 
 export function useConnectAlertBadge(role: Role | null): number {
-  const { activeInstituteId } = useApp();
+  // Counts are owned by ConnectSchoolAlertsSync (shared React Query + badge store).
+  // Do not fetch alerts here — that duplicated the 45s poller on every shell mount.
   const demoUnack = useSyncExternalStore(
     alertStore.subscribe,
     alertStore.getUnackCount,
@@ -61,23 +60,6 @@ export function useConnectAlertBadge(role: Role | null): number {
     () => selectPendingLeaveRequests(leaveStore.getAll()).length,
     () => 0,
   );
-
-  useEffect(() => {
-    if (!isApiAuthMode() || !activeInstituteId) return;
-    if (role !== "parent" && role !== "student") return;
-    let cancelled = false;
-    void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
-      const unack = result.alerts.filter((alert) => !alert.acknowledged).length;
-      const emergency = result.alerts.filter(
-        (alert) => alert.severity === "emergency" && !alert.acknowledged,
-      ).length;
-      setConnectApiAlertCounts({ unack, emergency });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [role, activeInstituteId]);
 
   return useMemo(() => {
     if (!role) return 0;

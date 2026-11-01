@@ -21,7 +21,10 @@ import {
   apiRequestPasswordReset,
   tryHydrateApiSession,
 } from "@/auth/api-auth";
-import { setCareersApiUnauthorizedHandler } from "@/lib/careers-api";
+import {
+  bumpCareersAuthSessionGeneration,
+  setCareersApiUnauthorizedHandler,
+} from "@/lib/careers-api";
 import { getCareersApiClient } from "@/lib/careers-api";
 import { ApiClientError } from "@/lib/api";
 import { setLumenXFeedbackTransport } from "@lumenx/utils";
@@ -65,6 +68,7 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearLocal = useCallback(() => {
+    bumpCareersAuthSessionGeneration();
     signOutUser();
     setUser(null);
   }, []);
@@ -134,6 +138,7 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
       organizationType: input.organizationType,
       verificationGrants: input.verificationGrants ?? [],
     });
+    bumpCareersAuthSessionGeneration();
     setUser(result.user);
     return result.user;
   }, []);
@@ -142,11 +147,8 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
     if (!isApiAuthMode()) {
       throw new Error("Careers authentication requires API mode.");
     }
-    const email = identifier.trim().toLowerCase();
-    if (!email.includes("@")) {
-      throw new Error("Sign in with your email address.");
-    }
-    const result = await apiSignInWithPassword(email, password);
+    const result = await apiSignInWithPassword(identifier, password);
+    bumpCareersAuthSessionGeneration();
     setUser(result.user);
     return result.user;
   }, []);

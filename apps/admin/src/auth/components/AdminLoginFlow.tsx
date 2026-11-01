@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, Contact, Lock, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Check,
+  ChevronDown,
+  Contact,
+  Lock,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { useAuth } from "@/auth/AuthContext";
@@ -103,6 +113,18 @@ function isApiIdentifierValid(value: string): boolean {
   return /^[a-zA-Z0-9._-]{3,64}$/.test(trimmed);
 }
 
+function filterStaffLoginInstitutes(
+  rows: StaffLoginInstituteDto[],
+  query: string,
+): StaffLoginInstituteDto[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => {
+    const haystack = `${row.name} ${row.code} ${row.kind}`.toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
 export function AdminLoginFlow() {
   const navigate = useNavigate();
   const { signInWithStaffOtp, signInWithStaffPassword, clearError } = useAuth();
@@ -111,6 +133,7 @@ export function AdminLoginFlow() {
   const [institutes, setInstitutes] = useState<StaffLoginInstituteDto[]>([]);
   const [institutesLoading, setInstitutesLoading] = useState(false);
   const [institutePickerOpen, setInstitutePickerOpen] = useState(false);
+  const [instituteSearch, setInstituteSearch] = useState("");
   const [instituteId, setInstituteId] = useState(() => {
     try {
       return localStorage.getItem(INSTITUTE_STORAGE_KEY) ?? "";
@@ -144,9 +167,16 @@ export function AdminLoginFlow() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const institutePickerRef = useRef<HTMLDivElement>(null);
+  const instituteSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!institutePickerOpen) return;
+    if (!institutePickerOpen) {
+      setInstituteSearch("");
+      return;
+    }
+    const focusSearch = window.setTimeout(() => {
+      instituteSearchRef.current?.focus();
+    }, 0);
     const onPointerDown = (event: MouseEvent) => {
       const root = institutePickerRef.current;
       if (root && !root.contains(event.target as Node)) {
@@ -159,6 +189,7 @@ export function AdminLoginFlow() {
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
+      window.clearTimeout(focusSearch);
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
@@ -173,11 +204,25 @@ export function AdminLoginFlow() {
     setInstitutesLoading(true);
     void listStaffLoginInstitutes()
       .then((rows) => {
-        if (!cancelled) setInstitutes(rows);
+        if (cancelled) return;
+        setInstitutes(rows);
+        // Drop stale stored IDs so Continue cannot skip selection.
+        setInstituteId((prev) => {
+          if (prev && rows.some((row) => row.id === prev)) return prev;
+          if (prev) {
+            try {
+              localStorage.removeItem(INSTITUTE_STORAGE_KEY);
+            } catch {
+              // ignore
+            }
+          }
+          return "";
+        });
       })
       .catch((err) => {
         if (!cancelled) {
           setInstitutes([]);
+          setInstituteId("");
           setError(
             err instanceof Error
               ? `Could not load institutes: ${err.message}`
@@ -194,13 +239,15 @@ export function AdminLoginFlow() {
   }, []);
 
   const selectedInstitute = institutes.find((row) => row.id === instituteId);
+  const filteredInstitutes = filterStaffLoginInstitutes(institutes, instituteSearch);
 
   const handleInstitute = async (event: React.FormEvent) => {
     event.preventDefault();
     setInstitutePickerOpen(false);
     setError(null);
     const id = instituteId.trim();
-    if (!isInstituteUuid(id)) {
+    // Must match a loaded institute — UUID-only checks let stale localStorage skip this step.
+    if (!selectedInstitute || selectedInstitute.id !== id || !isInstituteUuid(id)) {
       setError("Select your institute to continue.");
       return;
     }
@@ -851,56 +898,87 @@ export function AdminLoginFlow() {
               </button>
 
               {institutePickerOpen && !institutesLoading ? (
-                <ul
-                  role="listbox"
-                  aria-labelledby="institute-picker-label"
-                  className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 max-h-60 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
-                >
-                  {institutes.length === 0 ? (
-                    <li className="px-3 py-2 text-xs text-muted-foreground">
-                      No institutes available
-                    </li>
-                  ) : (
-                    institutes.map((institute) => {
-                      const selected = institute.id === instituteId;
-                      return (
-                        <li key={institute.id} role="presentation">
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={selected}
-                            className={cn(
-                              "flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-muted",
-                              selected && "bg-primary/10",
-                            )}
-                            onClick={() => {
-                              setInstituteId(institute.id);
-                              setError(null);
-                              setInstitutePickerOpen(false);
-                            }}
-                          >
-                            <LoginInstituteMark
-                              name={institute.name}
-                              logoUrl={institute.logoUrl}
-                              size="md"
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium text-foreground">
-                                {institute.name}
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                  <div className="border-b border-border p-2">
+                    <label className="sr-only" htmlFor="institute-search">
+                      Search institutes
+                    </label>
+                    <div className="relative">
+                      <Search
+                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                        aria-hidden
+                      />
+                      <input
+                        ref={instituteSearchRef}
+                        id="institute-search"
+                        type="search"
+                        value={instituteSearch}
+                        onChange={(event) => setInstituteSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          // Keep typing in the search box from submitting the login form.
+                          if (event.key === "Enter") event.preventDefault();
+                        }}
+                        placeholder="Search name or code…"
+                        autoComplete="off"
+                        className="h-9 w-full rounded-md border border-input bg-background py-1.5 pl-8 pr-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                  </div>
+                  <ul
+                    role="listbox"
+                    aria-labelledby="institute-picker-label"
+                    className="max-h-52 overflow-auto py-1"
+                  >
+                    {institutes.length === 0 ? (
+                      <li className="px-3 py-2 text-xs text-muted-foreground">
+                        No institutes available
+                      </li>
+                    ) : filteredInstitutes.length === 0 ? (
+                      <li className="px-3 py-2 text-xs text-muted-foreground">
+                        No institute matches “{instituteSearch.trim()}”
+                      </li>
+                    ) : (
+                      filteredInstitutes.map((institute) => {
+                        const selected = institute.id === instituteId;
+                        return (
+                          <li key={institute.id} role="presentation">
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={selected}
+                              className={cn(
+                                "flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-muted",
+                                selected && "bg-primary/10",
+                              )}
+                              onClick={() => {
+                                setInstituteId(institute.id);
+                                setError(null);
+                                setInstitutePickerOpen(false);
+                              }}
+                            >
+                              <LoginInstituteMark
+                                name={institute.name}
+                                logoUrl={institute.logoUrl}
+                                size="md"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium text-foreground">
+                                  {institute.name}
+                                </span>
+                                <span className="block truncate text-[11px] text-muted-foreground">
+                                  {institute.code}
+                                </span>
                               </span>
-                              <span className="block truncate text-[11px] text-muted-foreground">
-                                {institute.code}
-                              </span>
-                            </span>
-                            {selected ? (
-                              <Check className="size-4 shrink-0 text-primary" aria-hidden />
-                            ) : null}
-                          </button>
-                        </li>
-                      );
-                    })
-                  )}
-                </ul>
+                              {selected ? (
+                                <Check className="size-4 shrink-0 text-primary" aria-hidden />
+                              ) : null}
+                            </button>
+                          </li>
+                        );
+                      })
+                    )}
+                  </ul>
+                </div>
               ) : null}
             </div>
             {selectedInstitute ? (
@@ -910,7 +988,7 @@ export function AdminLoginFlow() {
             ) : null}
           </div>
           {error && <AuthFormError message={error} />}
-          <AuthButton type="submit" disabled={institutesLoading || !instituteId}>
+          <AuthButton type="submit" disabled={institutesLoading || !selectedInstitute}>
             Continue
             <ArrowRight className="size-4" />
           </AuthButton>

@@ -19,6 +19,7 @@ import type {
   TransportVehiclesListView,
 } from "@/lib/transport";
 import { TransportPendingStopsActionCard } from "@/components/transport/TransportPendingStopsActionCard";
+import { TransportLocationChangesPanel } from "@/components/transport/TransportLocationChangesPanel";
 import {
   useTransportAnalyticsOpsQuery,
   useTransportEmergenciesQuery,
@@ -31,6 +32,7 @@ import {
   isTripDelayed,
   isTripGpsStale,
 } from "@/lib/transport/monitor-helpers";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   vehiclesView: TransportVehiclesListView;
@@ -90,7 +92,7 @@ export function TransportDashboardApiView({
   onNotify,
   onNavigate,
 }: Props) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const analyticsQuery = useTransportAnalyticsOpsQuery(instituteId, today, Boolean(instituteId));
   const tripsQuery = useTransportTripsQuery(instituteId, today, Boolean(instituteId));
   const emergenciesQuery = useTransportEmergenciesQuery(instituteId, Boolean(instituteId));
@@ -221,6 +223,10 @@ export function TransportDashboardApiView({
           onNotify={onNotify}
           onOpenReviews={() => onNavigate("reviews")}
         />
+      ) : null}
+
+      {instituteId ? (
+        <TransportLocationChangesPanel instituteId={instituteId} />
       ) : null}
 
       <Card>

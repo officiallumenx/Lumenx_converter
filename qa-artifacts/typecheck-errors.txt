@@ -1,0 +1,57 @@
+﻿
+src/config/remote-write-ack.test.ts(6,8): error TS7016: Could not find a declaration file for module 
+'../../scripts/assert-remote-write-ack.mjs'. 'C:/Users/Lokesh vella/Desktop/lumenx 
+converter/backend/scripts/assert-remote-write-ack.mjs' implicitly has an 'any' type.
+tests/nexus-operator-provision.test.ts(17,19): error TS2352: Conversion of type '{ userId: string; platformRoleCode: 
+string; isPlatformOperator: true; memberships: never[]; }' to type 'Actor' may be a mistake because neither type 
+sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+tests/nexus-recycle.test.ts(124,17): error TS18046: 'body' is of type 'unknown'.
+tests/nexus-recycle.test.ts(136,17): error TS2571: Object is of type 'unknown'.
+tests/notification-delivery-diagnostic.test.ts(167,12): error TS18046: 'body' is of type 'unknown'.
+tests/notification-delivery-diagnostic.test.ts(168,12): error TS18046: 'body' is of type 'unknown'.
+tests/notification-delivery-diagnostic.test.ts(170,12): error TS18046: 'body' is of type 'unknown'.
+tests/otp-delivery.test.ts(81,12): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+tests/otp-delivery.test.ts(81,17): error TS2493: Tuple type '[]' of length '0' has no element at index '1'.
+tests/otp-delivery.test.ts(83,13): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a mistake 
+because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/otp-delivery.test.ts(86,37): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a mistake 
+because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/otp-delivery.test.ts(120,12): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+tests/otp-delivery.test.ts(120,17): error TS2493: Tuple type '[]' of length '0' has no element at index '1'.
+tests/otp-delivery.test.ts(122,13): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a 
+mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/otp-delivery.test.ts(125,37): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a 
+mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/otp-delivery.test.ts(154,12): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+tests/otp-delivery.test.ts(154,17): error TS2493: Tuple type '[]' of length '0' has no element at index '1'.
+tests/otp-delivery.test.ts(157,46): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a 
+mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/otp-delivery.test.ts(185,12): error TS2493: Tuple type '[]' of length '0' has no element at index '0'.
+tests/otp-delivery.test.ts(185,17): error TS2493: Tuple type '[]' of length '0' has no element at index '1'.
+tests/otp-delivery.test.ts(187,37): error TS2352: Conversion of type 'undefined' to type 'RequestInit' may be a 
+mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 
+'unknown' first.
+tests/parent-login-otp.test.ts(39,19): error TS18046: 'requestBody' is of type 'unknown'.
+tests/parent-login-otp.test.ts(52,19): error TS18046: 'verifyBody' is of type 'unknown'.
+tests/subscription-coverage-audit.test.ts(166,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-coverage-audit.test.ts(167,26): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-coverage-audit.test.ts(169,25): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-lifecycle-sync.test.ts(268,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-write-gate.test.ts(165,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-write-gate.test.ts(200,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-write-gate.test.ts(421,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-write-gate.test.ts(449,12): error TS18046: 'body' is of type 'unknown'.
+tests/subscription-write-gate.test.ts(478,12): error TS18046: 'body' is of type 'unknown'.
+tests/transport-emit-observability.test.ts(28,47): error TS2345: Argument of type '{ db: MockDb; }' is not assignable 
+to parameter of type '{ tokens: MockAuthUsers; db: MockDb; authUsersByEmail?: MockAuthUsersByEmail | undefined; 
+authPasswords?: Record<string, string> | undefined; nextErrors?: PendingError[] | undefined; }'.
+tests/transport-emit-observability.test.ts(94,47): error TS2345: Argument of type '{ db: MockDb; }' is not assignable 
+to parameter of type '{ tokens: MockAuthUsers; db: MockDb; authUsersByEmail?: MockAuthUsersByEmail | undefined; 
+authPasswords?: Record<string, string> | undefined; nextErrors?: PendingError[] | undefined; }'.
+
+

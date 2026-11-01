@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@lumenx/ui";
 
+import { ModuleHelpControl } from "@/components/module-help";
 import { MODULE_COLORS, type ModuleColor } from "@/theme/colors";
 
 import { Card, CardContent } from "./card";
@@ -18,6 +19,7 @@ export function FeatureHero({
   title,
   subtitle,
   action,
+  helpKey,
   tone = "primary",
   moduleColor,
   children,
@@ -28,6 +30,8 @@ export function FeatureHero({
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  /** Registry id for the module-help info popup. */
+  helpKey?: string;
   tone?: "primary" | "transport" | "danger";
   /** Overrides tone — prefer assigning from nav / MODULE_COLORS. */
   moduleColor?: ModuleColor;
@@ -36,6 +40,8 @@ export function FeatureHero({
   align?: "start" | "center";
 }) {
   const color = moduleColor ?? TONE_TO_COLOR[tone];
+  const help = helpKey ? <ModuleHelpControl helpKey={helpKey} /> : null;
+  const hasAction = Boolean(action || help);
 
   return (
     <Card
@@ -80,7 +86,12 @@ export function FeatureHero({
           ) : null}
           {children}
         </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+        {hasAction ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {action}
+            {help}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

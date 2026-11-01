@@ -145,7 +145,8 @@ export function buildAdminAttendanceDashboard(input: {
 }
 
 export type LearnerTodayAttendance = {
-  status: "present" | "absent" | "leave" | "holiday" | "future" | "unknown";
+  /** Includes portal aggregate `partial` (mixed slot marks for a day). */
+  status: "present" | "absent" | "leave" | "holiday" | "future" | "unknown" | "partial";
   label: string;
   date: string;
   /** True when status came from a submitted register. */
@@ -166,6 +167,8 @@ export function labelForAttendanceStatus(
       return "Holiday";
     case "future":
       return "Not yet marked";
+    case "partial":
+      return "Partial";
     default:
       return "—";
   }

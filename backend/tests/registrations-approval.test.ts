@@ -567,4 +567,65 @@ describe("POST /api/nexus/registrations/:id/reject", () => {
     expect(res.status).toBe(403);
     expect(db.institute_registration[0]?.status).toBe("pending");
   });
+
+  it("rejects a stuck approving registration without creating an institute", async () => {
+    const db = reviewDb();
+    db.institute_registration[0]!.status = "approving";
+    db.institute_registration[0]!.reviewed_by = USER_OPS;
+    const app = appFor(db);
+
+    const res = await app.request(
+      `/api/nexus/registrations/${REG_PENDING}/reject`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${TOKEN_ROOT}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: "Provisioning abandoned" }),
+      },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.status).toBe("rejected");
+    expect(body.data.rejectionReason).toBe("Provisioning abandoned");
+    expect(db.institute_registration[0]?.status).toBe("rejected");
+    expect(db.institute).toHaveLength(1);
+  });
+
+  it("reject is idempotent when already rejected", async () => {
+    const db = reviewDb();
+    const app = appFor(db);
+
+    const first = await app.request(
+      `/api/nexus/registrations/${REG_PENDING}/reject`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${TOKEN_ROOT}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: "Incomplete documentation" }),
+      },
+    );
+    expect(first.status).toBe(200);
+
+    const second = await app.request(
+      `/api/nexus/registrations/${REG_PENDING}/reject`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${TOKEN_ROOT}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: "Retry reject" }),
+      },
+    );
+    expect(second.status).toBe(200);
+    const body = await json(second);
+    expect(body.data.status).toBe("rejected");
+    // First reason preserved — second call is a no-op return of existing row.
+    expect(body.data.rejectionReason).toBe("Incomplete documentation");
+  });
 });

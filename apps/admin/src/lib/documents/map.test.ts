@@ -55,7 +55,7 @@ describe("documents map", () => {
       certificateNumber: "DOC-001",
       portalVisibility: { student: true, parent: true, teacher: false },
       rejectionReason: null,
-      payload: {},
+      payload: { classLabel: "10", sectionLabel: "A", generationKey: "batch:tpl:stu" },
       assetPath: null,
       generatedByUserId: "bb111111-1111-4111-8111-111111111111",
       publishedAt: "2026-06-03T10:00:00Z",
@@ -66,6 +66,8 @@ describe("documents map", () => {
     expect(row.templateName).toBe("Bonafide — Rahul");
     expect(row.workflowState).toBe("published");
     expect(row.portalVisibility.parent).toBe(true);
+    expect(row.classLabel).toBe("10");
+    expect(row.sectionLabel).toBe("A");
     expect(row.workflowHistory.some((h) => h.state === "published")).toBe(true);
   });
 });

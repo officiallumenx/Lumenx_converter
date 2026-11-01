@@ -396,16 +396,9 @@ function seedInvoice(
 function buildSeedState(): BillingState {
   const institutes = listPlatformInstitutes().filter((i) => i.status !== "archived");
   const configs: Record<string, InstituteBillingConfig> = {};
+  // Demo directory currently seeds a single institute; rate map must use unique keys.
   const rateById: Record<string, number> = {
     "ins-test1school": 12,
-    "ins-test1school": 14,
-    "ins-test1school": 11,
-    "ins-test1school": 15,
-    "ins-test1school": 10,
-    "ins-test1school": 12,
-    "ins-test1school": 13,
-    "ins-test1school": 12,
-    "ins-test1school": 10,
   };
 
   for (const inst of institutes) {

@@ -282,6 +282,7 @@ function ApiByClassView({
     let cancelled = false;
     // Keep prior overview visible while soft-refresh / filter changes refetch.
     if (rows.length === 0) setLoading(true);
+    // Serialize overview loads — overlapping sheet fan-outs contributed to 429s on reopen.
     void loadTeacherHomeworkClassOverview({
       instituteId,
       sectionId: selectedClass.id,
@@ -296,8 +297,15 @@ function ApiByClassView({
     return () => {
       cancelled = true;
     };
+    // Use homework row ids (not array identity) so React Query cache reuse does not retrigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
-  }, [instituteId, selectedClass, categoryType, homeworkRows, reloadKey]);
+  }, [
+    instituteId,
+    selectedClass,
+    categoryType,
+    reloadKey,
+    homeworkRows.map((h) => `${h.id}:${h.status}`).join("|"),
+  ]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();

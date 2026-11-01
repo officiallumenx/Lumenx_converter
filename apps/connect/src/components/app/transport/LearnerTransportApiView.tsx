@@ -32,6 +32,10 @@ import {
 } from "@/lib/transport/parent-status";
 import { formatApproachEta } from "@/lib/transport-utils";
 import type { LearnerTransportHistoryDayDto } from "@/lib/transport/api-types";
+import {
+  formatExpectedPickupLabel,
+  formatTransportInstant,
+} from "@/lib/transport/format-time";
 
 type Props = {
   instituteId: string;
@@ -104,8 +108,12 @@ function HistoryList({ days }: { days: LearnerTransportHistoryDayDto[] }) {
                 <dt className="inline text-muted-foreground">Times: </dt>
                 <dd className="inline text-foreground">
                   {[
-                    day.boardedAt ? `Boarded ${new Date(day.boardedAt).toLocaleTimeString()}` : null,
-                    day.droppedAt ? `Dropped ${new Date(day.droppedAt).toLocaleTimeString()}` : null,
+                    day.boardedAt
+                      ? `Boarded ${formatTransportInstant(day.boardedAt) ?? "—"}`
+                      : null,
+                    day.droppedAt
+                      ? `Dropped ${formatTransportInstant(day.droppedAt) ?? "—"}`
+                      : null,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "—"}
@@ -148,8 +156,8 @@ function TodayFacts({
     { label: "Bus", value: summaryBus },
     { label: "Driver", value: summaryDriver },
     { label: "Route", value: summaryRoute },
-    { label: "Pickup stop", value: pickupStop },
-    { label: "Expected pickup", value: expectedPickup },
+    { label: "Assigned location", value: pickupStop },
+    { label: "Expected pickup (institute default)", value: expectedPickup },
     { label: "Current status", value: PARENT_TRANSPORT_STATUS_LABEL[status] },
     { label: "Current / next stop", value: currentOrNextStop },
     { label: "Arrival", value: etaLabel },
@@ -200,6 +208,8 @@ export function LearnerTransportApiView({
   const {
     data: live,
     isFetching: liveFetching,
+    isError: liveIsError,
+    error: liveError,
     refresh: refreshLive,
   } = useLearnerTransportLiveQuery(instituteId, studentId, true, {
     pollMs: livePollMs,
@@ -372,6 +382,25 @@ export function LearnerTransportApiView({
       {headerExtra}
       <PageHeader title="Transport" subtitle={subtitle} />
 
+      {liveIsError ? (
+        <div
+          className="rounded-xl border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive"
+          role="alert"
+        >
+          Live tracking could not load
+          {liveError instanceof Error && liveError.message
+            ? `: ${liveError.message}`
+            : "."}{" "}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            onClick={() => refreshLive()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       {pending ? (
         <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           Enrollment is already usable. Admin may still review this assignment.
@@ -389,16 +418,15 @@ export function LearnerTransportApiView({
         summaryDriver={summary.driverName ?? "—"}
         summaryRoute={summary.routeName ?? "—"}
         pickupStop={summary.pickupStop?.name ?? "Stop not assigned"}
-        expectedPickup={
-          summary.pickupStop
-            ? (tracking.expectedPickupTime ?? "Not scheduled")
-            : "Stop not assigned"
-        }
+        expectedPickup={formatExpectedPickupLabel(
+          tracking.expectedPickupTime,
+          Boolean(summary.pickupStop),
+        )}
         status={parentStatus}
         currentOrNextStop={
           summary.pickupStop
             ? tracking.currentStopName || tracking.nextStopName || "—"
-            : "Pickup pending"
+            : "Location pending"
         }
         etaLabel={etaLabel}
         locationLabel={locationLabel}
@@ -439,11 +467,11 @@ export function LearnerTransportApiView({
         />
         <StatCard
           icon={MapPin}
-          label="Pickup stop"
+          label="Assigned location"
           value={summary.pickupStop?.name ?? "Stop not assigned"}
           hint={
             summary.pickupStop?.locationLabel ??
-            "Ask the driver or Admin to assign a pickup stop"
+            "Ask the driver or Admin to assign a transport location"
           }
         />
       </div>

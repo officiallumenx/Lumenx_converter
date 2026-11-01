@@ -13,12 +13,14 @@ export {
   deleteDocumentTemplate,
   createGeneratedDocument,
   transitionGeneratedDocument,
+  republishGeneratedDocument,
   deleteGeneratedDocument,
   type CreateDocumentTemplateInput,
   type CreateDocumentsHubTemplateInput,
   type UpdateDocumentTemplateInput,
   type CreateGeneratedDocumentInput,
   type TransitionGeneratedDocumentInput,
+  type RepublishGeneratedDocumentInput,
 } from "./mutations";
 export {
   DOCUMENTS_HUB_TEMPLATE_TYPES,

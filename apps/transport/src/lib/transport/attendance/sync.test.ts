@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    message: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("../ops-outbox", () => ({
   enqueueOpsEvent: vi.fn((input: { clientEventId?: string }) => ({
     clientEventId: input.clientEventId ?? "generated",
@@ -12,6 +20,7 @@ vi.mock("../ops-outbox", () => ({
 vi.mock("../trip/store", () => ({
   getTripSessionSnapshot: vi.fn(() => ({
     tripId: "trip-1",
+    phase: "boarding",
     currentStopIndex: 0,
     assignment: {
       route: { stops: [{ id: "stop-1", name: "Gate", sequence: 0 }] },
@@ -26,14 +35,32 @@ vi.mock("../trip/api-ops", () => ({
 }));
 
 import { enqueueOpsEvent, isOpsOutboxOnline } from "../ops-outbox";
+import { listBoardingViaApi } from "../trip/api-ops";
 import { getTripSessionSnapshot } from "../trip/store";
-import { getAttendanceSnapshot, setApiAttendanceRoster } from "./store";
-import { attendanceRepository } from "./repository";
+import {
+  getAttendanceSnapshot,
+  setApiAttendanceRoster,
+  setStudentSyncStatus,
+} from "./store";
+import {
+  attendanceRepository,
+  __notifyAttendanceOutboxForTests,
+} from "./repository";
 
 describe("attendance sync via ops-outbox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isOpsOutboxOnline).mockReturnValue(true);
+    vi.mocked(getTripSessionSnapshot).mockReturnValue({
+      tripId: "trip-1",
+      phase: "boarding",
+      endSyncPending: false,
+      currentStopIndex: 0,
+      assignment: {
+        route: { stops: [{ id: "stop-1", name: "Gate", sequence: 0 }] },
+      },
+    } as never);
+    attendanceRepository.reset();
     setApiAttendanceRoster([
       {
         id: "stu-1",
@@ -49,6 +76,8 @@ describe("attendance sync via ops-outbox", () => {
   it("keeps optimistic mark and queues with Syncing (no silent revert)", async () => {
     const result = await attendanceRepository.markBoarding("stu-1", "boarded");
     expect(result.ok).toBe(true);
+    expect(result.pending).toBe(true);
+    expect(result.queuedOffline).toBe(false);
     expect(getAttendanceSnapshot()[0]?.boarding).toBe("boarded");
     expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("syncing");
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
@@ -60,14 +89,67 @@ describe("attendance sync via ops-outbox", () => {
     );
   });
 
-  it("queues offline without losing the mark", async () => {
+  it("queues offline without losing the mark and flags queuedOffline", async () => {
     vi.mocked(isOpsOutboxOnline).mockReturnValue(false);
-    await attendanceRepository.markBoarding("stu-1", "not_boarded");
+    const result = await attendanceRepository.markBoarding("stu-1", "not_boarded");
+    expect(result.ok).toBe(true);
+    expect(result.queuedOffline).toBe(true);
     expect(getAttendanceSnapshot()[0]?.boarding).toBe("not_boarded");
     expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("syncing");
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "not_boarded" }),
     );
+  });
+
+  it("rejects duplicate marks while syncing (mutex)", async () => {
+    const first = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(first.ok).toBe(true);
+    expect(enqueueOpsEvent).toHaveBeenCalledTimes(1);
+
+    const second = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(second.ok).toBe(false);
+    expect(second.code).toBe("busy");
+    expect(enqueueOpsEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back optimistic mark when outbox reports failure", async () => {
+    await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(getAttendanceSnapshot()[0]?.boarding).toBe("boarded");
+
+    __notifyAttendanceOutboxForTests("failed", {
+      studentId: "stu-1",
+      eventType: "boarding",
+      message: "Network error",
+    });
+
+    const after = getAttendanceSnapshot()[0];
+    expect(after?.boarding).toBe("pending");
+    expect(after?.syncStatus).toBe("error");
+  });
+
+  it("marks confirmed after authoritative outbox confirm", async () => {
+    vi.mocked(listBoardingViaApi).mockResolvedValueOnce([
+      {
+        studentId: "stu-1",
+        boardingStatus: "boarded",
+        droppingStatus: "pending",
+        boardedAt: "2026-10-15T10:00:00.000Z",
+        droppedAt: null,
+        stopName: "Gate",
+        stopId: "stop-1",
+      },
+    ] as never);
+    await attendanceRepository.markBoarding("stu-1", "boarded");
+    __notifyAttendanceOutboxForTests("confirmed", {
+      studentId: "stu-1",
+      eventType: "boarding",
+      clientEventId: "board-1",
+    });
+    expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("confirmed");
+    await Promise.resolve();
+    await Promise.resolve();
+    // After hydrate merges server SoT, chip settles to idle with boarded status.
+    expect(getAttendanceSnapshot()[0]?.boarding).toBe("boarded");
   });
 
   it("sends stable client_event_id on boarding mark", async () => {
@@ -94,6 +176,7 @@ describe("attendance sync via ops-outbox", () => {
     await Promise.resolve();
     const result = await attendanceRepository.markDropping("stu-1", "dropped");
     expect(result.ok).toBe(true);
+    expect(result.pending).toBe(true);
     expect(getAttendanceSnapshot()[0]?.dropping).toBe("dropped");
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -106,9 +189,10 @@ describe("attendance sync via ops-outbox", () => {
     );
   });
 
-  it("uses last route stop when dropStopId omitted from roster seed", async () => {
+  it("uses pickup stop when dropStopId omitted from roster seed (not school)", async () => {
     vi.mocked(getTripSessionSnapshot).mockReturnValue({
       tripId: "trip-evening",
+      phase: "dropping",
       currentStopIndex: 0,
       assignment: {
         route: {
@@ -136,8 +220,102 @@ describe("attendance sync via ops-outbox", () => {
     expect(enqueueOpsEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "drop",
-        stopId: "stop-school",
+        stopId: "stop-pickup",
       }),
     );
+  });
+
+  it("allows retry after error by enqueueing a fresh event", async () => {
+    await attendanceRepository.markBoarding("stu-1", "boarded");
+    __notifyAttendanceOutboxForTests("failed", {
+      studentId: "stu-1",
+      eventType: "boarding",
+      message: "timeout",
+    });
+    expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("error");
+    vi.mocked(enqueueOpsEvent).mockClear();
+
+    const retry = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(retry.ok).toBe(true);
+    expect(retry.pending).toBe(true);
+    expect(enqueueOpsEvent).toHaveBeenCalledTimes(1);
+    expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("syncing");
+  });
+
+  it("does not treat idle confirmed students as busy", async () => {
+    setStudentSyncStatus("stu-1", "confirmed");
+    const result = await attendanceRepository.markBoarding("stu-1", "not_boarded");
+    expect(result.ok).toBe(true);
+    expect(result.code).not.toBe("busy");
+  });
+
+  it("rejects boarding when stopId is empty string (no invent)", async () => {
+    setApiAttendanceRoster([
+      {
+        id: "stu-1",
+        name: "Ada",
+        grade: "5",
+        stopName: "Stop not assigned",
+        stopId: "",
+        rollNo: "1",
+      },
+    ]);
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.mocked(enqueueOpsEvent).mockClear();
+    const result = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("invalid");
+    expect(result.reason).toMatch(/Stop not assigned/i);
+    expect(enqueueOpsEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects marks when trip phase is completed", async () => {
+    vi.mocked(getTripSessionSnapshot).mockReturnValue({
+      tripId: "trip-1",
+      phase: "completed",
+      endSyncPending: false,
+      currentStopIndex: 0,
+      assignment: {
+        route: { stops: [{ id: "stop-1", name: "Gate", sequence: 0 }] },
+      },
+    } as never);
+    const result = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("finalized");
+    expect(enqueueOpsEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects marks while endSyncPending even if phase looks active", async () => {
+    vi.mocked(getTripSessionSnapshot).mockReturnValue({
+      tripId: "trip-1",
+      phase: "boarding",
+      endSyncPending: true,
+      currentStopIndex: 0,
+      assignment: {
+        route: { stops: [{ id: "stop-1", name: "Gate", sequence: 0 }] },
+      },
+    } as never);
+    const result = await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("finalized");
+    expect(enqueueOpsEvent).not.toHaveBeenCalled();
+  });
+
+  it("preserves boarded status across roster reseed before hydrate settles", async () => {
+    await attendanceRepository.markBoarding("stu-1", "boarded");
+    expect(getAttendanceSnapshot()[0]?.boarding).toBe("boarded");
+    setApiAttendanceRoster([
+      {
+        id: "stu-1",
+        name: "Ada",
+        grade: "5",
+        stopName: "Gate",
+        stopId: "stop-1",
+        rollNo: "1",
+      },
+    ]);
+    expect(getAttendanceSnapshot()[0]?.boarding).toBe("boarded");
+    expect(getAttendanceSnapshot()[0]?.syncStatus).toBe("syncing");
   });
 });

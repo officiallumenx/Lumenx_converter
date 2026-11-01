@@ -646,7 +646,7 @@ function ParentsPage() {
             ? `${countLabel(list.length)} guardians`
             : `${list.length} guardians · ${scopeLabel}`
         }
-      />
+       helpKey="parents" />
       <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput

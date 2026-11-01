@@ -1,0 +1,91 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const product = page.product;
+const heroImage = page.gallery?.[0]?.src || product.image;
+const heroAlt = page.gallery?.[0]?.caption || product.imageAlt || product.name;
+const isPortrait = page.gallery?.[0]?.orientation === "portrait";
+---
+
+<section class="relative overflow-hidden bg-primary pt-[120px] pb-16 md:pt-[130px] lg:pt-[150px] lg:pb-20">
+  <div class="container">
+    <div class="-mx-4 flex flex-wrap items-center">
+      <div class={`w-full px-4 ${heroImage ? "lg:w-1/2" : "lg:w-10/12 lg:mx-auto"}`}>
+        <div class="mb-10 lg:mb-0" data-reveal>
+          <p class="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-white/75">
+            {product.category} · {product.shortName}
+          </p>
+          <h1 class="mb-4 text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-[42px] lg:leading-[1.2]">
+            {page.headline}
+          </h1>
+          <p class="mb-4 max-w-[540px] text-base font-medium leading-relaxed text-white/90 sm:text-lg">
+            {page.summary}
+          </p>
+          <p class="mb-8 max-w-[520px] text-sm leading-relaxed text-white/70">
+            {page.delivery}
+          </p>
+          <div class="flex flex-wrap gap-4">
+            <a
+              href="/contact?intent=demo#enquiry"
+              class="lx-btn inline-flex items-center justify-center rounded-md bg-white px-7 py-[14px] text-base font-medium text-dark shadow-1 transition hover:bg-gray-2"
+            >
+              Book a Demo
+            </a>
+            <a
+              href="#modules"
+              class="lx-btn inline-flex items-center justify-center rounded-md bg-white/[0.12] px-7 py-[14px] text-base font-medium text-white transition hover:bg-white hover:text-dark"
+            >
+              Explore Modules
+            </a>
+            {
+              page.gallery?.length > 1 && (
+                <a
+                  href="#walkthrough"
+                  class="lx-btn inline-flex items-center justify-center rounded-md border border-white/30 px-7 py-[14px] text-base font-medium text-white transition hover:bg-white/10"
+                >
+                  View Product
+                </a>
+              )
+            }
+          </div>
+        </div>
+      </div>
+
+      {
+        heroImage ? (
+          <div class="w-full px-4 lg:w-1/2" data-reveal>
+            <div
+              class={`mx-auto overflow-hidden rounded-xl bg-white/95 p-2 shadow-2 sm:p-3 ${
+                isPortrait ? "max-w-[320px]" : "max-w-[560px]"
+              }`}
+            >
+              <img
+                src={heroImage}
+                alt={heroAlt}
+                class="mx-auto block h-auto w-full object-contain"
+                width={isPortrait ? 609 : 1918}
+                height={isPortrait ? 1301 : 1054}
+                fetchpriority="high"
+              />
+            </div>
+          </div>
+        ) : page.screenshotPending ? (
+          <div class="w-full px-4 lg:w-1/2" data-reveal>
+            <div class="mx-auto flex max-w-[480px] flex-col items-center justify-center rounded-xl border border-white/20 bg-white/10 px-8 py-16 text-center">
+              <span class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-primary">
+                {product.shortName.slice(0, 1)}
+              </span>
+              <p class="mb-2 text-lg font-semibold text-white">{product.name}</p>
+              <p class="text-sm text-white/75">
+                Authentic product screenshots are not available in this project yet. Claims on this page match verified platform capabilities only.
+              </p>
+            </div>
+          </div>
+        ) : null
+      }
+    </div>
+  </div>
+</section>

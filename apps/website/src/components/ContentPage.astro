@@ -1,0 +1,71 @@
+---
+import Breadcrumb from "./layout/Breadcrumb.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  imageAlt?: string;
+  showCta?: boolean;
+}
+
+const {
+  title,
+  description,
+  image,
+  imageAlt = title,
+  showCta = true,
+} = Astro.props;
+---
+
+<Breadcrumb description={description}>
+  <Fragment slot="title">{title}</Fragment>
+</Breadcrumb>
+
+<section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+  <div class="container">
+    {
+      description && (
+        <p class="mx-auto mb-10 max-w-[720px] text-center text-base text-body-color dark:text-dark-6">
+          {description}
+        </p>
+      )
+    }
+    {
+      image && (
+        <div
+          class="mx-auto mb-12 max-w-[960px] overflow-hidden rounded-xl bg-[#EEF2F7] p-3 shadow-1 dark:bg-dark sm:p-4"
+          data-reveal
+        >
+          <img
+            src={image}
+            alt={imageAlt}
+            class="mx-auto block h-auto max-h-[70vh] w-full object-contain object-center"
+            loading="lazy"
+          />
+        </div>
+      )
+    }
+    <div class="mx-auto max-w-[800px]" data-reveal>
+      <slot />
+    </div>
+    {
+      showCta && (
+        <div class="mx-auto mt-12 flex max-w-[560px] flex-wrap items-center justify-center gap-4" data-reveal>
+          <a
+            href="/contact?intent=demo#enquiry"
+            class="lx-btn inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+          >
+            Book a Demo
+          </a>
+          <a
+            href="/platform"
+            class="lx-btn inline-flex items-center justify-center rounded-md border border-stroke bg-transparent px-7 py-3 text-base font-medium text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white dark:hover:border-primary"
+          >
+            Explore Platform
+          </a>
+        </div>
+      )
+    }
+  </div>
+</section>

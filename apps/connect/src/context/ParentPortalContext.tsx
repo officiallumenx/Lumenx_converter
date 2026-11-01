@@ -8,7 +8,9 @@ import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
 import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import { prefetchParentModuleQueries } from "@/lib/connect-queries/prefetch-parent";
+import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
+import type { AppNotification } from "@lumenx/types";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
 export type ParentPortalState = {
@@ -50,8 +52,19 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
 
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) =>
-      fetchParentPortalSnapshot(activeInstituteId!, activeChildId, signal),
+    queryFn: ({ signal }) => {
+      // Share inbox with the shell badge query — start ensure in parallel with snapshot work.
+      const inboxPromise = queryClient.ensureQueryData({
+        queryKey: scopedConnectKey(
+          userId,
+          connectQueryKeys.inbox(activeInstituteId!, "parent"),
+        ),
+        queryFn: () => loadConnectPortalInbox(activeInstituteId!),
+      }) as Promise<AppNotification[]>;
+      return fetchParentPortalSnapshot(activeInstituteId!, activeChildId, signal, {
+        inbox: inboxPromise,
+      });
+    },
     // Wait for IDB hydrate so warm reopen paints from cache, not an empty race.
     enabled: canRun && !isRestoring,
     placeholderData: (previous) => {
@@ -78,18 +91,33 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
     return cached.child.id === activeChildId ? cached : null;
   }, [isParent, cached, activeChildId, isFetchingNewChild, query.isLoading]);
 
+  // Treat IndexedDB restore as loading so child portals do not flash empty state.
   const isLoading =
     isParent &&
-    canRun &&
-    !isRestoring &&
-    ((query.isLoading && !snapshot) || isFetchingNewChild);
+    (isRestoring ||
+      (canRun && ((query.isLoading && !snapshot) || isFetchingNewChild)));
 
   // Warm common parent modules once the active child snapshot is ready.
   useEffect(() => {
-    if (!isParent || !snapshot || !activeInstituteId || !activeChildId) return;
+    if (!isParent || isRestoring || !snapshot || !activeInstituteId || !activeChildId) {
+      return;
+    }
     if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(activeChildId)) return;
-    prefetchParentModuleQueries(queryClient, userId, activeInstituteId, activeChildId);
-  }, [isParent, snapshot, activeInstituteId, activeChildId, queryClient, userId]);
+    return prefetchParentModuleQueries(
+      queryClient,
+      userId,
+      activeInstituteId,
+      activeChildId,
+    );
+  }, [
+    isParent,
+    isRestoring,
+    snapshot,
+    activeInstituteId,
+    activeChildId,
+    queryClient,
+    userId,
+  ]);
 
   const value = useMemo<ParentPortalState>(() => {
     if (!isParent) {

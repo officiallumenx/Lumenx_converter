@@ -1,0 +1,41 @@
+---
+import { ROLES } from "../data/lumenx.js";
+---
+
+<!-- ====== Solutions by role (replaces demo testimonials) -->
+<section
+  id="solutions"
+  class="overflow-hidden bg-gray-1 dark:bg-dark-2 py-20 lg:py-[120px]"
+>
+  <div class="container mx-auto">
+    <div class="-mx-4 flex flex-wrap justify-center">
+      <div class="w-full px-4">
+        <div class="mx-auto mb-[60px] max-w-[485px] text-center" data-reveal>
+          <span class="mb-2 block text-lg font-semibold text-primary">Who it's for</span>
+          <h2 class="mb-3 text-3xl font-bold leading-[1.2] text-dark dark:text-white sm:text-4xl md:text-[40px]">
+            Designed for every campus role
+          </h2>
+          <p class="text-base text-body-color dark:text-dark-6">
+            Institutions and administrators run the core. Teachers, parents, students, and drivers each get the surface they need.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="-mx-4 flex flex-wrap" data-stagger>
+      {
+        ROLES.map((role) => (
+          <div class="w-full px-4 md:w-1/2 lg:w-1/3">
+            <div class="wow fadeInUp lx-card mb-10 rounded-xl border border-transparent bg-white p-8 shadow-testimonial hover:border-primary/20 dark:border-transparent dark:bg-dark-2 dark:hover:border-primary/30 sm:p-10" data-wow-delay=".1s">
+              <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">{role.title}</h3>
+              <p class="mb-6 text-base text-body-color dark:text-dark-6">{role.body}</p>
+              <a href={role.href} class="text-base font-medium text-primary transition-colors hover:underline">
+                View solution
+              </a>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -13,6 +13,7 @@ import { Search, Sparkles, TrendingUp, Clock, Plus } from "lucide-react";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
 import { JobCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { isRecruiter } from "@/lib/careers/auth-utils";
 import {
   EXPERIENCE_BAND_LABEL,
@@ -30,13 +31,52 @@ import {
   getRecommendedJobs,
 } from "@/lib/careers/recommendations";
 import { getCandidateProfile } from "@/lib/careers/profile-repository";
-import type { JobCategory } from "@/lib/careers/types";
+import {
+  loadCareersDirectoryProfiles,
+} from "@/lib/careers/api-institute-directory";
+import {
+  setBrowseInstituteId,
+} from "@/lib/careers/institute-context";
+import type { InstituteCareerProfile, JobCategory } from "@/lib/careers/types";
 import { useCareersJobs } from "@/hooks/use-careers-jobs";
 
-export function JobsBrowsePage({ initialQuery = "" }: { initialQuery?: string }) {
+export function JobsBrowsePage({
+  initialQuery = "",
+  initialInstituteId,
+}: {
+  initialQuery?: string;
+  initialInstituteId?: string;
+}) {
   const { user } = useCareersAuth();
   const recruiter = isRecruiter(user);
-  const { jobs: allJobs, loading, status, errorMessage } = useCareersJobs();
+  const [directory, setDirectory] = useState<InstituteCareerProfile[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const { jobs: allJobs, loading, status, errorMessage, reload } = useCareersJobs();
+
+  useEffect(() => {
+    if (!initialInstituteId) return;
+    setBrowseInstituteId(initialInstituteId);
+    reload();
+  }, [initialInstituteId, reload]);
+
+  useEffect(() => {
+    if (!isApiAuthMode() || status !== "needs_institute") return;
+    let cancelled = false;
+    setDirectoryLoading(true);
+    void loadCareersDirectoryProfiles()
+      .then((rows) => {
+        if (!cancelled) setDirectory(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setDirectory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDirectoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
   const [q, setQ] = useState(initialQuery);
   const [state, setState] = useState("all");
   const [city, setCity] = useState("all");
@@ -105,10 +145,51 @@ export function JobsBrowsePage({ initialQuery = "" }: { initialQuery?: string })
 
   if (status === "needs_institute") {
     return (
-      <div className="py-12 text-center space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Sign in with an institute membership to browse live job listings.
-        </p>
+      <div className="mx-auto max-w-lg py-10 space-y-4">
+        <CareersPageHeader
+          title="Find jobs"
+          subtitle="Choose an institute to browse open roles."
+        />
+        {directoryLoading ? (
+          <p className="text-sm text-muted-foreground text-center">Loading institutes…</p>
+        ) : directory.length === 0 ? (
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-muted-foreground">
+              No institutes are available yet. Check the institute directory or try again later.
+            </p>
+            <Button asChild variant="outline">
+              <Link to="/institutes">Browse institutes</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Pick where you want to look for openings:
+            </p>
+            <ul className="divide-y divide-border rounded-2xl border border-border overflow-hidden">
+              {directory.map((inst) => (
+                <li key={inst.instituteId}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50"
+                    onClick={() => {
+                      setBrowseInstituteId(inst.instituteId);
+                      reload();
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium truncate">{inst.name}</span>
+                      <span className="block text-xs text-muted-foreground truncate">
+                        {inst.tagline || inst.type.replace(/_/g, " ")}
+                      </span>
+                    </span>
+                    <span className="text-xs text-primary shrink-0">View jobs</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
   }

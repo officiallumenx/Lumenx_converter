@@ -1,0 +1,59 @@
+---
+import { PRODUCTS } from "../data/lumenx.js";
+---
+
+<section id="platform" class="lx-section lx-section--products dark:bg-dark">
+  <div class="container">
+    <div class="lx-section-intro mx-auto max-w-[560px] text-center" data-reveal>
+      <span class="lx-section-eyebrow">Platform</span>
+      <h2 class="lx-section-title">Six products. One ecosystem.</h2>
+      <p class="lx-section-lead">
+        Admin, Connect, Transport, Admissions, Careers, and Nexus — each designed for a clear institutional job, not bolted on as an afterthought.
+      </p>
+    </div>
+
+    <div class="lx-product-grid" data-stagger>
+      {
+        PRODUCTS.map((product) => (
+          <a
+            href={product.href}
+            class="lx-card lx-product-card group"
+            data-wow-delay=".1s"
+          >
+            <div class="lx-shot-stage lx-product-card__media aspect-[4/3]">
+              {product.image ? (
+                <div class="lx-shot-frame">
+                  <img
+                    src={product.image}
+                    alt={product.imageAlt || product.name}
+                    class="lx-shot"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              ) : (
+                <div class="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
+                  <span class="inline-flex h-14 w-14 items-center justify-center rounded-[14px] bg-primary text-xl font-bold text-white">
+                    {product.shortName.slice(0, 1)}
+                  </span>
+                  <span class="font-heading text-base font-semibold text-dark">{product.name}</span>
+                  <span class="text-sm text-body-color">
+                    Authentic product screenshot pending
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div class="lx-product-card__body">
+              <span class="lx-product-card__label">{product.category}</span>
+              <h3 class="lx-product-card__title">{product.name}</h3>
+              <p class="lx-product-card__tagline">{product.tagline}</p>
+              <p class="lx-product-card__body-text">{product.body}</p>
+              <span class="lx-card-cta lx-product-card__cta">View product →</span>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -2,6 +2,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { buildParentPortalSnapshot, type ParentPortalSnapshot } from "@/lib/parent-portal-data";
 import { loadParentPortalSnapshotFromApi } from "@/lib/dashboard";
+import type { AppNotification } from "@lumenx/types";
 
 /** Align with future TanStack Query usage. */
 export const parentPortalQueryKeys = {
@@ -20,6 +21,7 @@ export function fetchParentPortalSnapshot(
   instituteId: string | null,
   childId: string,
   signal?: AbortSignal,
+  options?: { inbox?: AppNotification[] | Promise<AppNotification[]> },
 ): Promise<ParentPortalSnapshot> {
   if (isApiAuthMode()) {
     if (!instituteId || !isInstituteUuid(instituteId) || !isInstituteUuid(childId)) {
@@ -29,27 +31,11 @@ export function fetchParentPortalSnapshot(
         ),
       );
     }
-    const task = loadParentPortalSnapshotFromApi({
+    return loadParentPortalSnapshotFromApi({
       instituteId,
       studentId: childId,
-    });
-    if (!signal) return task;
-    return new Promise((resolve, reject) => {
-      const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener("abort", onAbort, { once: true });
-      task
-        .then((data) => {
-          signal.removeEventListener("abort", onAbort);
-          resolve(data);
-        })
-        .catch((err) => {
-          signal.removeEventListener("abort", onAbort);
-          reject(err);
-        });
+      signal,
+      inbox: options?.inbox,
     });
   }
 

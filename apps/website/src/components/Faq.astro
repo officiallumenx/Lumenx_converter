@@ -1,0 +1,77 @@
+---
+import { FAQS } from "../data/lumenx.js";
+
+const faqs = FAQS;
+---
+
+<!-- ====== Faq Section Start -->
+<section
+  id="faq"
+  class="relative z-20 overflow-hidden bg-white dark:bg-dark pt-20 pb-8 lg:pt-[120px] lg:pb-[50px]"
+>
+  <div class="container mx-auto">
+    <div class="flex flex-wrap -mx-4">
+      <div class="w-full px-4">
+        <div class="mx-auto mb-[60px] max-w-[520px] text-center" data-reveal>
+          <span class="block mb-2 text-lg font-semibold text-primary">
+            FAQ
+          </span>
+          <h2 class="mb-3 text-3xl font-bold leading-[1.2] text-dark dark:text-white sm:text-4xl md:text-[40px]">
+            Questions decision-makers ask
+          </h2>
+          <p class="mx-auto max-w-[485px] text-base text-body-color dark:text-dark-6">
+            Pricing, trial access, products, and the next step after a demo.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="-mx-4 flex flex-wrap" data-stagger>
+      {
+        faqs.map((faq, index) => (
+          <div class="w-full px-4 lg:w-1/2">
+            <div
+              class={`wow fadeInUp lx-faq-item mb-6 border border-stroke bg-white p-5 dark:border-dark-3 dark:bg-dark-2 sm:p-6 lg:mb-8 ${index === 0 ? "" : ""}`}
+              data-wow-delay=".1s"
+              data-open={index === 0 ? "true" : "false"}
+            >
+              <button
+                type="button"
+                class="lx-faq-trigger"
+                aria-expanded={index === 0 ? "true" : "false"}
+                id={`faq-trigger-${index}`}
+              >
+                <span
+                  class="bg-primary flex h-[50px] w-full max-w-[50px] shrink-0 items-center justify-center rounded-xl text-white sm:h-[60px] sm:max-w-[60px]"
+                  aria-hidden="true"
+                >
+                  <svg class="lx-faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <span class="min-w-0 flex-1 pt-1">
+                  <span class="block text-left text-xl font-semibold text-dark dark:text-white sm:text-2xl lg:text-xl xl:text-2xl">
+                    {faq.title}
+                  </span>
+                </span>
+              </button>
+              <div
+                class="lx-faq-panel"
+                id={`faq-panel-${index}`}
+                role="region"
+                aria-labelledby={`faq-trigger-${index}`}
+              >
+                <div class="lx-faq-panel-inner">
+                  <p class="mt-4 pl-[66px] text-base text-body-color dark:text-dark-6 sm:pl-[76px]">
+                    {faq.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+<!-- ====== Faq Section End -->

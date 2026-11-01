@@ -1,0 +1,58 @@
+---
+import Breadcrumb from "../../components/layout/Breadcrumb.astro";
+import Layout from "../../layouts/Layout.astro";
+import { HELP_CATEGORIES } from "../../data/help.js";
+---
+
+<Layout
+  description="LumenX Help Center: getting started, products, logins, and privacy guidance."
+  title="Help Center"
+>
+  <Breadcrumb>
+    <Fragment slot="title">Help</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-10 mx-auto max-w-[640px] text-center">
+        <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white">Help Center</h2>
+        <p class="text-base text-body-color dark:text-dark-6">
+          Practical guidance for getting started, each public product, and privacy — based on how LumenX works today.
+        </p>
+        <div class="mt-6 flex flex-wrap justify-center gap-3">
+          <a
+            href="/contact?intent=demo#enquiry"
+            class="inline-flex rounded-md border border-primary bg-primary px-6 py-3 text-base font-medium text-white hover:bg-blue-dark"
+          >
+            Book a Demo
+          </a>
+          <a
+            href="/get-started"
+            class="inline-flex rounded-md border border-stroke px-6 py-3 text-base font-medium text-dark hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+          >
+            Get Started
+          </a>
+        </div>
+      </div>
+
+      <div class="mx-auto max-w-[860px] space-y-10">
+        {
+          HELP_CATEGORIES.map((category) => (
+            <section aria-labelledby={`help-${category.id}`}>
+              <h3 id={`help-${category.id}`} class="mb-4 text-2xl font-bold text-dark dark:text-white">
+                {category.title}
+              </h3>
+              <ul class="space-y-4">
+                {category.items.map((item) => (
+                  <li class="rounded-xl border border-stroke bg-white p-5 dark:border-dark-3 dark:bg-dark-2">
+                    <h4 class="text-lg font-semibold text-dark dark:text-white">{item.title}</h4>
+                    <p class="mt-2 text-base leading-relaxed text-body-color dark:text-dark-6">{item.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</Layout>

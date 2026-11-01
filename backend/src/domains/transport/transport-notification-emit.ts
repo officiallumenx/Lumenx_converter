@@ -23,7 +23,7 @@ import {
 
 const log = createLogger("info");
 
-export type TransportNotifyAudience = "parent" | "driver" | "admin";
+export type TransportNotifyAudience = "parent" | "driver" | "admin" | "student";
 
 export type EmitTransportNotificationInput = {
   instituteId: string;
@@ -165,14 +165,65 @@ export async function emitTransportNotification(
   }
 }
 
-/** Fire-and-forget wrapper for sync request paths. */
+/**
+ * Fire-and-forget wrapper for sync request paths (trip writes must not await fanout).
+ * Failures are never silent: error/disabled/empty are structured logs.
+ * Dedupe is expected idempotency — logged at debug only.
+ */
 export function emitTransportNotificationSafe(
   admin: SupabaseClient,
   input: EmitTransportNotificationInput,
 ): void {
-  void emitTransportNotification(admin, input).then((result) => {
-    if (result.ok === false && result.reason === "error") {
-      // Already logged in emitTransportNotification.
-    }
-  });
+  void emitTransportNotification(admin, input)
+    .then((result) => {
+      if (result.ok) return;
+      const { tripId, studentId } = safeIdsFromPayload(input.payload);
+      if (result.reason === "dedupe") {
+        log.debug({
+          msg: "transport_notification_emit_deduped",
+          kind: input.kind,
+          instituteId: input.instituteId,
+          tripId: tripId ?? null,
+          studentId: studentId ?? null,
+          targetAudience: input.targetAudience,
+          dedupeKey: input.dedupeKey,
+        });
+        return;
+      }
+      if (result.reason === "error") {
+        // Detailed error already logged in emitTransportNotification.
+        log.warn({
+          msg: "transport_notification_safe_failed",
+          kind: input.kind,
+          instituteId: input.instituteId,
+          tripId: tripId ?? null,
+          studentId: studentId ?? null,
+          targetAudience: input.targetAudience,
+          reason: result.reason,
+          error: result.error ?? null,
+        });
+        return;
+      }
+      // empty recipients or notifications_enabled off — still diagnosable.
+      log.info({
+        msg: "transport_notification_safe_skipped",
+        kind: input.kind,
+        instituteId: input.instituteId,
+        tripId: tripId ?? null,
+        studentId: studentId ?? null,
+        targetAudience: input.targetAudience,
+        reason: result.reason,
+        recipientCount: input.recipientUserIds.length,
+      });
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({
+        msg: "transport_notification_safe_unhandled",
+        kind: input.kind,
+        instituteId: input.instituteId,
+        targetAudience: input.targetAudience,
+        error: message,
+      });
+    });
 }

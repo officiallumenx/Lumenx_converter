@@ -1,20 +1,27 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@lumenx/ui";
+import { ModuleHelpControl } from "@/components/module-help";
 
 export function CareersPageHeader({
   title,
   subtitle,
   backTo,
   action,
+  helpKey,
   className,
 }: {
   title?: string;
   subtitle?: string;
   backTo?: string;
   action?: React.ReactNode;
+  /** Registry id for the module-help info popup. */
+  helpKey?: string;
   className?: string;
 }) {
+  const help = helpKey ? <ModuleHelpControl helpKey={helpKey} /> : null;
+  const hasAction = Boolean(action || help);
+
   return (
     <div className={cn("mb-5 sm:mb-6", className)}>
       {backTo && (
@@ -25,7 +32,7 @@ export function CareersPageHeader({
           <ArrowLeft className="size-4" /> Back
         </Link>
       )}
-      {(title || subtitle || action) && (
+      {(title || subtitle || hasAction) && (
         <div className="flex min-w-0 max-w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <div className="min-w-0 flex-1">
             {title ? (
@@ -39,11 +46,12 @@ export function CareersPageHeader({
               </p>
             )}
           </div>
-          {action && (
+          {hasAction ? (
             <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
               {action}
+              {help}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

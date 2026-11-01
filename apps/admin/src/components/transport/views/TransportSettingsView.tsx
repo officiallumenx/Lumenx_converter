@@ -7,6 +7,12 @@ import {
   type TransportSnapshot,
 } from "@/lib/transport-store";
 import { useAdminToast } from "@/components/AdminActionToast";
+import {
+  AdminLocationError,
+  adminLocationUserMessage,
+  detectCurrentLocation,
+  type AdminLocationCoords,
+} from "@/lib/location/browser-location";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -27,21 +33,8 @@ const WEEKDAYS = [
   { key: "Sun", label: "Sun" },
 ] as const;
 
-const DEFAULT_STOP_RADIUS_M = 150;
-const DEFAULT_SCHOOL_RADIUS_M = 150;
-
-function geolocationErrorMessage(err: GeolocationPositionError): string {
-  if (err.code === err.PERMISSION_DENIED) {
-    return "Location permission denied. Allow location for this site, then try again.";
-  }
-  if (err.code === err.POSITION_UNAVAILABLE) {
-    return "Location unavailable. Move outdoors or check device GPS.";
-  }
-  if (err.code === err.TIMEOUT) {
-    return "Location timed out. Try again.";
-  }
-  return "Could not detect location.";
-}
+const DEFAULT_STOP_RADIUS_M = 100;
+const DEFAULT_SCHOOL_RADIUS_M = 100;
 
 function normalizeRadius(value: number | null | undefined, fallback: number): number {
   return value != null && Number.isFinite(value) && value > 0 ? value : fallback;
@@ -68,6 +61,8 @@ export function TransportSettingsView({
     ),
   }));
   const [detecting, setDetecting] = useState(false);
+  const [pendingFix, setPendingFix] = useState<AdminLocationCoords | null>(null);
+  const [locationHint, setLocationHint] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft({
@@ -81,6 +76,7 @@ export function TransportSettingsView({
         DEFAULT_SCHOOL_RADIUS_M,
       ),
     });
+    setPendingFix(null);
   }, [snapshot.settings]);
 
   const toggleDay = (key: string) => {
@@ -96,38 +92,51 @@ export function TransportSettingsView({
 
   const detectSchoolLocation = () => {
     if (!writesEnabled || detecting) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      notify("Location is not supported in this browser", "error");
-      return;
-    }
     setDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setDraft((prev) => ({
-          ...prev,
-          schoolLatitude: lat,
-          schoolLongitude: lng,
-          schoolLocationLabel: `School · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-          schoolNotificationRadiusM: normalizeRadius(
-            prev.schoolNotificationRadiusM,
-            DEFAULT_SCHOOL_RADIUS_M,
-          ),
-        }));
+    setLocationHint(null);
+    setPendingFix(null);
+    void detectCurrentLocation()
+      .then((coords) => {
+        setPendingFix(coords);
+        setLocationHint(
+          "Review the coordinates below, confirm to apply them, then Save settings.",
+        );
+        notify("Location detected — confirm to use as school endpoint", "success");
+      })
+      .catch((err) => {
+        const message = adminLocationUserMessage(err);
+        setLocationHint(message);
+        notify(message, "error");
+        if (
+          err instanceof AdminLocationError &&
+          err.kind === "permission_denied"
+        ) {
+          // Keep hint visible so the user can open settings and retry.
+        }
+      })
+      .finally(() => {
         setDetecting(false);
-        notify("School location detected from your device", "success");
-      },
-      (err) => {
-        setDetecting(false);
-        notify(geolocationErrorMessage(err), "error");
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 20_000,
-        maximumAge: 0,
-      },
+      });
+  };
+
+  const confirmPendingFix = () => {
+    if (!pendingFix || !writesEnabled) return;
+    const { latitude: lat, longitude: lng } = pendingFix;
+    setDraft((prev) => ({
+      ...prev,
+      schoolLatitude: lat,
+      schoolLongitude: lng,
+      schoolLocationLabel: `School · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+      schoolNotificationRadiusM: normalizeRadius(
+        prev.schoolNotificationRadiusM,
+        DEFAULT_SCHOOL_RADIUS_M,
+      ),
+    }));
+    setPendingFix(null);
+    setLocationHint(
+      "School endpoint updated in the draft. Click Save settings to persist.",
     );
+    notify("School location applied — remember to Save settings");
   };
 
   const save = () => {
@@ -183,7 +192,7 @@ export function TransportSettingsView({
         <div className="px-5 pb-5 space-y-4">
           <Field
             label="School endpoint"
-            hint="Stand at the school gate and detect your location. Used as the boarding end for every bus."
+            hint="Stand at the school gate, then use Detect my location. Admin only requests location for this action (boarding end for every bus)."
           >
             {writesEnabled ? (
               <div className="space-y-3">
@@ -205,6 +214,50 @@ export function TransportSettingsView({
                       ? "Update from my location"
                       : "Detect my location"}
                 </Button>
+                {pendingFix ? (
+                  <div className="rounded-lg border border-teal-700/30 bg-teal-50/60 px-3 py-2.5 space-y-2">
+                    <p className="text-xs text-foreground">
+                      Detected coordinates (not saved yet)
+                    </p>
+                    <p className="text-[11px] font-mono text-muted-foreground">
+                      {pendingFix.latitude.toFixed(5)},{" "}
+                      {pendingFix.longitude.toFixed(5)}
+                      {pendingFix.accuracy != null
+                        ? ` · ±${Math.round(pendingFix.accuracy)}m`
+                        : ""}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={confirmPendingFix}
+                      >
+                        Use these coordinates
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setPendingFix(null);
+                          setLocationHint(null);
+                        }}
+                      >
+                        Discard
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={detecting}
+                        onClick={detectSchoolLocation}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {locationHint ? (
+                  <p className="text-xs text-muted-foreground">{locationHint}</p>
+                ) : null}
                 {hasSchool ? (
                   <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex gap-2">
                     <MapPin className="size-3.5 mt-0.5 text-teal-700 shrink-0" />
@@ -242,7 +295,9 @@ export function TransportSettingsView({
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Not set — use Detect my location while on campus.
+                    Not set — use Detect my location while on campus. Allow
+                    Location when prompted (browser site settings or Android app
+                    permissions).
                   </p>
                 )}
               </div>

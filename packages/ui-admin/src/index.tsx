@@ -1,8 +1,29 @@
-import { type ReactNode, type InputHTMLAttributes, type TextareaHTMLAttributes, type SelectHTMLAttributes, type HTMLAttributes, useEffect, useRef } from "react";
+import {
+  type ReactNode,
+  type InputHTMLAttributes,
+  type TextareaHTMLAttributes,
+  type SelectHTMLAttributes,
+  type HTMLAttributes,
+  type ReactElement,
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { ThemedSelect } from "./themed-select";
 import { ThemedDateInput } from "./themed-date-input";
+
+function slugifyFieldLabel(label: string): string {
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "field";
+}
 
 /* Horizontal padding is applied per-input so leading-icon `pl-*` can win over defaults. */
 const inputBase =
@@ -165,15 +186,27 @@ export function IconButton({ label, children, size = "md", className = "", ...re
 /* ---------- Form primitives ---------- */
 
 export function Field({ label, hint, children, required, className = "" }: { label: string; hint?: string; children: ReactNode; required?: boolean; className?: string }) {
+  const uid = useId().replace(/:/g, "");
+  const fieldId = `${slugifyFieldLabel(label)}-${uid}`;
+
+  const enhanced = Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { id?: string; name?: string };
+    return cloneElement(child as ReactElement<Record<string, unknown>>, {
+      id: props.id ?? fieldId,
+      name: props.name ?? fieldId,
+    });
+  });
+
   return (
-    <label className={`block ${className}`.trim()}>
+    <label className={`block ${className}`.trim()} htmlFor={fieldId}>
       <div className="flex items-baseline justify-between gap-2 mb-2">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-none">
           {label}{required && <span className="text-destructive ml-0.5" aria-hidden>*</span>}
         </span>
         {hint && <span className="text-[10px] text-muted-foreground text-right leading-snug">{hint}</span>}
       </div>
-      {children}
+      {enhanced}
     </label>
   );
 }
@@ -195,19 +228,34 @@ export function TextInput({
   className = "",
   type,
   leadingIcon,
+  id,
+  name,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   fieldSize?: FieldSize;
   /** Renders a left icon; reserves padding so text/numbers never sit under it. */
   leadingIcon?: ReactNode;
 }) {
+  const autoId = useId();
+  const resolvedId = id ?? autoId;
+  const resolvedName = name ?? resolvedId;
   if (type === "date") {
-    return <ThemedDateInput fieldSize={fieldSize} className={className} {...props} />;
+    return (
+      <ThemedDateInput
+        fieldSize={fieldSize}
+        className={className}
+        {...props}
+        id={resolvedId}
+        name={resolvedName}
+      />
+    );
   }
   const pad = leadingIcon ? inputPadLeadingIcon : inputPadDefault;
   const input = (
     <input
       {...props}
+      id={resolvedId}
+      name={resolvedName}
       type={type}
       className={`${inputBase} ${inputSizes[fieldSize]} ${pad} ${className}`}
     />
@@ -226,11 +274,21 @@ export function TextInput({
   );
 }
 
-export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function TextArea({
+  id,
+  name,
+  className = "",
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const autoId = useId();
+  const resolvedId = id ?? autoId;
+  const resolvedName = name ?? resolvedId;
   return (
     <textarea
       {...props}
-      className={`w-full min-h-[88px] px-3 py-2 rounded-md bg-background border border-border text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors resize-y ${props.className ?? ""}`}
+      id={resolvedId}
+      name={resolvedName}
+      className={`w-full min-h-[88px] px-3 py-2 rounded-md bg-background border border-border text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors resize-y ${className}`}
     />
   );
 }
@@ -242,21 +300,44 @@ export function Select({
   children,
   fieldSize = "compact",
   className = "",
+  id,
+  name,
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement> & { fieldSize?: FieldSize }) {
+  const autoId = useId();
+  const resolvedId = id ?? autoId;
+  const resolvedName = name ?? resolvedId;
   return (
-    <ThemedSelect fieldSize={fieldSize} className={className} {...rest}>
+    <ThemedSelect
+      fieldSize={fieldSize}
+      className={className}
+      id={resolvedId}
+      name={resolvedName}
+      {...rest}
+    >
       {children}
     </ThemedSelect>
   );
 }
 
-export function SearchInput({ className = "", inputClassName = "", fieldSize = "compact", ...props }: InputHTMLAttributes<HTMLInputElement> & { inputClassName?: string; fieldSize?: FieldSize }) {
+export function SearchInput({
+  className = "",
+  inputClassName = "",
+  fieldSize = "compact",
+  id,
+  name,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { inputClassName?: string; fieldSize?: FieldSize }) {
+  const autoId = useId();
+  const resolvedId = id ?? autoId;
+  const resolvedName = name ?? resolvedId;
   return (
     <div className={`relative w-full min-w-0 ${className}`}>
       <Search className="absolute left-2.5 top-1/2 z-[1] -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" aria-hidden />
       <input
         {...props}
+        id={resolvedId}
+        name={resolvedName}
         className={`${inputBase} ${inputSizes[fieldSize]} ${inputPadLeadingIcon} w-full min-w-0 ${inputClassName}`}
       />
     </div>

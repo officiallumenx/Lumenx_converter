@@ -199,6 +199,10 @@ export function toStopDto(row: StopRow): StopDto {
 }
 
 export function toEnrollmentDto(row: TransportEnrollmentRow): TransportEnrollmentDto {
+  const commonStopId =
+    (typeof row.pickup_stop_id === "string" && row.pickup_stop_id.trim()) ||
+    (typeof row.drop_stop_id === "string" && row.drop_stop_id.trim()) ||
+    null;
   return {
     id: row.id,
     instituteId: row.institute_id,
@@ -206,6 +210,12 @@ export function toEnrollmentDto(row: TransportEnrollmentRow): TransportEnrollmen
     routeId: row.route_id,
     pickupStopId: row.pickup_stop_id,
     dropStopId: row.drop_stop_id,
+    commonStopId,
+    nextPickupStopId: row.next_pickup_stop_id ?? null,
+    nextDropStopId: row.next_drop_stop_id ?? null,
+    nextStopsPendingAt: row.next_stops_pending_at ?? null,
+    locationChangedAt: row.location_changed_at ?? null,
+    locationChangedByDriverId: row.location_changed_by_driver_id ?? null,
     status: row.status,
     approvalStatus: row.approval_status,
     submittedByUserId: row.submitted_by_user_id,
@@ -233,7 +243,8 @@ export function toTransportSettingsDto(
     schoolLocationLabel: row.school_location_label ?? null,
     schoolLatitude: row.school_latitude ?? null,
     schoolLongitude: row.school_longitude ?? null,
-    schoolNotificationRadiusM: row.school_notification_radius_m ?? 150,
+    schoolNotificationRadiusM:
+      row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1311,13 +1322,34 @@ export async function updateEnrollmentForActor(
     await assertRouteInInstitute(admin, patch.routeId, existing.institute_id);
   }
 
-  const pickupStopId = patch.pickupStopId ?? existing.pickup_stop_id;
-  const dropStopId = patch.dropStopId ?? existing.drop_stop_id;
+  // Common location: when driver/staff sets one stop side, dual-write both.
+  let nextPatch = { ...patch };
+  if (
+    !writer &&
+    (patch.pickupStopId !== undefined || patch.dropStopId !== undefined)
+  ) {
+    const { commonLocationWritePair } = await import("./common-location.js");
+    const chosen =
+      (typeof patch.pickupStopId === "string" && patch.pickupStopId.trim()) ||
+      (typeof patch.dropStopId === "string" && patch.dropStopId.trim()) ||
+      "";
+    if (chosen) {
+      const pair = commonLocationWritePair(chosen);
+      nextPatch = {
+        ...patch,
+        pickupStopId: pair.pickupStopId,
+        dropStopId: pair.dropStopId,
+      };
+    }
+  }
+
+  const pickupStopId = nextPatch.pickupStopId ?? existing.pickup_stop_id;
+  const dropStopId = nextPatch.dropStopId ?? existing.drop_stop_id;
 
   if (
-    patch.routeId !== undefined ||
-    patch.pickupStopId !== undefined ||
-    patch.dropStopId !== undefined
+    nextPatch.routeId !== undefined ||
+    nextPatch.pickupStopId !== undefined ||
+    nextPatch.dropStopId !== undefined
   ) {
     if (pickupStopId) {
       await assertStopOnRoute(
@@ -1332,7 +1364,31 @@ export async function updateEnrollmentForActor(
     }
   }
 
-  const fieldPatch = toEnrollmentUpdatePatch(patch);
+  // Next-trip-only: if route has an active trip, queue deferred columns instead of live.
+  let fieldPatch = toEnrollmentUpdatePatch(nextPatch);
+  if (
+    !writer &&
+    (nextPatch.pickupStopId !== undefined || nextPatch.dropStopId !== undefined)
+  ) {
+    const route = await findRouteById(admin, existing.route_id);
+    const { routeHasActiveTrip } = await import("./location-assignment.js");
+    if (route && (await routeHasActiveTrip(admin, route))) {
+      const chosen =
+        (typeof nextPatch.pickupStopId === "string" &&
+          nextPatch.pickupStopId.trim()) ||
+        (typeof nextPatch.dropStopId === "string" &&
+          nextPatch.dropStopId.trim()) ||
+        "";
+      if (chosen) {
+        fieldPatch = {
+          next_pickup_stop_id: chosen,
+          next_drop_stop_id: chosen,
+          next_stops_pending_at: new Date().toISOString(),
+          location_changed_at: new Date().toISOString(),
+        };
+      }
+    }
+  }
   if (Object.keys(fieldPatch).length === 0) return toEnrollmentDto(existing);
 
   const updated = await updateEnrollmentFields(admin, enrollmentId, fieldPatch);
@@ -1376,7 +1432,7 @@ export async function getTransportSettingsForActor(
   if (!row) {
     return {
       instituteId: id,
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       defaultPickupBufferMins: 5,
       workingDays: [1, 2, 3, 4, 5],
       notificationsEnabled: true,
@@ -1385,7 +1441,7 @@ export async function getTransportSettingsForActor(
       schoolLocationLabel: null,
       schoolLatitude: null,
       schoolLongitude: null,
-      schoolNotificationRadiusM: 150,
+      schoolNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
@@ -1411,7 +1467,7 @@ async function upsertSchoolStopOnRoute(
   const label =
     settings.school_location_label?.trim() ||
     `${settings.school_latitude.toFixed(5)}, ${settings.school_longitude.toFixed(5)}`;
-  const radius = settings.school_notification_radius_m ?? 150;
+  const radius = settings.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M;
   const existing = await findStopByKindOnRoute(admin, route.id, "school");
   if (existing) {
     await updateStopFields(admin, existing.id, {

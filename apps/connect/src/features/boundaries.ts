@@ -17,7 +17,12 @@ export const CONNECT_FEATURE_BOUNDARIES = {
     data: "@/lib/parent-portal-data",
   },
   admissionsPortal: {
-    publicApi: "@/admissions-portal",
+    /**
+     * Standalone `@lumenx/app-admissions` owns the UI.
+     * Connect only deep-links via `admissionsPortalUrl()` / redirect routes.
+     * Legacy `src/admissions-portal/**` is excluded from Connect typecheck.
+     */
+    publicApi: "@lumenx/app-admissions",
     data: "@/lib/admissions",
   },
   careersPortal: {

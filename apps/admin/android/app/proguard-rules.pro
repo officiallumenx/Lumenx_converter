@@ -1,21 +1,32 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# LumenX Admin — R8 / ProGuard (release minify)
+# Play Console: DEX optimization + obfuscation scores require minifyEnabled +
+# proguard-android-optimize.txt (not the legacy -dontoptimize file).
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers for crash / ANR stacks; hide original source path.
+-keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,InnerClasses,EnclosingMethod
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor annotations are read via Class.getAnnotation() / Method.getAnnotation().
+# Without these, R8 full mode can null PluginHandle.pluginAnnotation (ionic-team/capacitor#8589).
+-keep @interface com.getcapacitor.annotation.** { *; }
+-keep @interface com.getcapacitor.PluginMethod { *; }
+-keep @interface com.getcapacitor.NativePlugin { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-keepclassmembers class com.getcapacitor.PluginHandle {
+    java.lang.Class pluginClass;
+    com.getcapacitor.annotation.CapacitorPlugin pluginAnnotation;
+    com.getcapacitor.NativePlugin legacyPluginAnnotation;
+    com.getcapacitor.annotation.CapacitorPlugin getPluginAnnotation();
+    com.getcapacitor.NativePlugin getLegacyPluginAnnotation();
+    <init>(...);
+}
+
+# App + any custom native plugins under the Admin package
+-keep class com.lumenx.app.admin.** { *; }
+
+# Cordova bridge (Capacitor may still load Cordova-style plugins)
+-keep public class * extends org.apache.cordova.CordovaPlugin { *; }
+
+# Optional runtime probes some Capacitor plugins use — do not fail the build
+-dontwarn io.requery.android.database.**
+-dontwarn net.zetetic.database.**

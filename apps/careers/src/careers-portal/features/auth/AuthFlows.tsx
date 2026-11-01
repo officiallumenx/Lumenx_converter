@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
@@ -20,6 +20,7 @@ import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { SignupStepper } from "@/careers-portal/features/auth/SignupStepper";
 import { LumenxAdminContinueCard } from "@/careers-portal/features/auth/LumenxAdminContinueCard";
+import { GetAndroidAppBanner } from "@/careers-portal/features/auth/GetAndroidAppBanner";
 import { TermsAcceptCheckbox } from "@/components/legal/TermsAcceptCheckbox";
 import {
   passwordSchema,
@@ -30,8 +31,9 @@ import {
 } from "@/lib/careers/schemas";
 import { careersDefaultRoute, ORGANIZATION_TYPE_OPTIONS } from "@/lib/careers/auth-utils";
 import { createInitialCandidateProfile } from "@/lib/careers/profile-repository";
+import { loadCareersDirectoryProfiles } from "@/lib/careers/api-institute-directory";
 import { getAllInstituteProfiles } from "@/lib/careers/institute-profiles";
-import type { CareersAccountType, OrganizationType } from "@/lib/careers/types";
+import type { CareersAccountType, InstituteCareerProfile, OrganizationType } from "@/lib/careers/types";
 import { useSafeTimeout } from "@/lib/use-safe-timeout";
 import { isApiAuthMode } from "@/auth/auth-mode";
 
@@ -46,18 +48,23 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
   const nav = useNavigate();
   const safeTimeout = useSafeTimeout();
   const [step, setStep] = useState<Step>("identifier");
-  const [identifier, setIdentifier] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const identifier = `${country.code} ${phone}`.trim();
+
   const submit = () => {
     if (step === "identifier") {
-      const r = z.object({ identifier: z.string().min(3) }).safeParse({ identifier });
-      if (!r.success) return toast.error(isApiAuthMode() ? "Enter your email" : "Enter mobile or email");
+      const digits = phone.replace(/\D/g, "");
+      if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
+      setPassword("");
       setStep("password");
       return;
     }
+    if (!password) return toast.error("Enter your password");
     setLoading(true);
     void signIn(identifier, password)
       .then((loggedIn) => {
@@ -87,14 +94,15 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
       <h1 className="font-display text-2xl font-bold">Sign in</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {isApiAuthMode()
-          ? "Institute staff and applicants use the same LumenX account — sign in with your email."
-          : "Use your mobile number or email — we route you to the right workspace automatically."}
+        Sign in with your mobile number and password. Email is only used for account details and
+        recovery.
       </p>
 
       <div className="mt-6">
         <LumenxAdminContinueCard mode="sign-in" />
       </div>
+
+      <GetAndroidAppBanner />
 
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
@@ -108,22 +116,27 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
       <div className="space-y-4">
         {step === "identifier" ? (
           <div className="space-y-2">
-            <Label>Mobile or email</Label>
-            <Input
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="9876543210 or you@email.com"
-              autoComplete="username"
+            <Label>Mobile number</Label>
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+              country={country}
+              onCountryChange={setCountry}
             />
           </div>
         ) : (
           <div className="space-y-2">
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
+              <p className="text-xs text-muted-foreground">Signing in as</p>
+              <p className="font-medium truncate">{identifier}</p>
+            </div>
             <Label>Password</Label>
             <div className="relative">
               <Input
                 type={showPwd ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
                 autoComplete="current-password"
               />
               <button
@@ -137,7 +150,10 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
             <button
               type="button"
               className="text-xs text-primary"
-              onClick={() => setStep("identifier")}
+              onClick={() => {
+                setPassword("");
+                setStep("identifier");
+              }}
             >
               Change account
             </button>
@@ -235,7 +251,22 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const { signUp } = useCareersAuth();
   const nav = useNavigate();
   const safeTimeout = useSafeTimeout();
-  const employers = getAllInstituteProfiles();
+  const [employers, setEmployers] = useState<InstituteCareerProfile[]>(() =>
+    getAllInstituteProfiles(),
+  );
+
+  useEffect(() => {
+    if (!isApiAuthMode()) return;
+    let cancelled = false;
+    void loadCareersDirectoryProfiles()
+      .then((rows) => {
+        if (!cancelled) setEmployers(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [accountType, setAccountType] = useState<CareersAccountType | null>(
     initialAccountType ?? null,
@@ -419,7 +450,11 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
         toast.success("Account created!");
       })
       .catch((err) => {
-        toast.error(err instanceof Error ? err.message : "Could not create account");
+        const message = err instanceof Error ? err.message : "Could not create account";
+        toast.error(message);
+        if (/already exists/i.test(message)) {
+          safeTimeout(() => nav({ to: "/login" }), 1200);
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -646,6 +681,10 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
       {step === "organization" && isRecruiter && (
         <div className="mt-8 space-y-4">
+          <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Institute staff: sign in with your Admin email, or open Careers from Admin for recruiter
+            posting access. Linking an institute below sets your employer label.
+          </div>
           <div className="space-y-2">
             <Label>Link existing employer (optional)</Label>
             <select
@@ -837,13 +876,16 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 type ForgotStep = "identifier" | "otp" | "password" | "success";
 
 export function ForgotPasswordFlow() {
-  const { resetPassword } = useCareersAuth();
   const [step, setStep] = useState<ForgotStep>("identifier");
-  const [identifier, setIdentifier] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [mobileGrant, setMobileGrant] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const identifier = `${country.code} ${phone}`.trim();
 
   return (
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
@@ -854,38 +896,60 @@ export function ForgotPasswordFlow() {
         <ArrowLeft className="size-4" /> Back
       </Link>
       <h1 className="font-display text-2xl font-bold">Reset password</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Verify your mobile with OTP, then set a new password.
+      </p>
 
       {step === "identifier" && (
         <div className="mt-8 space-y-4">
-          <Label>Mobile or email</Label>
-          <Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+          <Label>Mobile number</Label>
+          <PhoneInput
+            value={phone}
+            onChange={setPhone}
+            country={country}
+            onCountryChange={setCountry}
+          />
           <Button
             className="w-full h-11"
             disabled={loading}
             onClick={async () => {
-              if (isApiAuthMode()) {
-                setLoading(true);
-                try {
-                  await resetPassword(identifier);
-                  toast.success("Password reset email sent");
-                  setStep("success");
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Unable to send reset email");
-                } finally {
-                  setLoading(false);
-                }
+              const digits = phone.replace(/\D/g, "");
+              if (!validatePhone(digits, country)) {
+                toast.error("Enter a valid mobile number");
                 return;
               }
-              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.");
+              if (!isApiAuthMode()) {
+                toast.error("API mode is required for password reset.");
+                return;
+              }
+              setLoading(true);
+              try {
+                const { apiRequestPasswordResetOtp } = await import("@/auth/api-auth");
+                const result = await apiRequestPasswordResetOtp(identifier);
+                toast.message(
+                  result.devOtp
+                    ? `OTP sent to ${result.maskedDestination} (dev: ${result.devOtp})`
+                    : `OTP sent to ${result.maskedDestination}`,
+                );
+                setOtp("");
+                setStep("otp");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Unable to send OTP");
+              } finally {
+                setLoading(false);
+              }
             }}
           >
-            {loading ? "Sending…" : isApiAuthMode() ? "Send reset link" : "Send OTP"}
+            {loading ? "Sending…" : "Send OTP"}
           </Button>
         </div>
       )}
 
       {step === "otp" && (
         <div className="mt-8 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Enter the code sent to <span className="font-medium text-foreground">{identifier}</span>
+          </p>
           <InputOTP maxLength={6} value={otp} onChange={setOtp}>
             <InputOTPGroup className="justify-center">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -895,12 +959,34 @@ export function ForgotPasswordFlow() {
           </InputOTP>
           <Button
             className="w-full h-11"
-            onClick={() =>
-              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.")
-            }
+            disabled={loading || otp.length !== 6}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                const { apiVerifyPasswordResetOtp } = await import("@/auth/api-auth");
+                const verified = await apiVerifyPasswordResetOtp(identifier, otp);
+                setMobileGrant(verified.grant);
+                toast.success("Mobile verified");
+                setStep("password");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Invalid OTP");
+              } finally {
+                setLoading(false);
+              }
+            }}
           >
-            Verify
+            {loading ? "Verifying…" : "Verify"}
           </Button>
+          <button
+            type="button"
+            className="text-xs text-primary"
+            onClick={() => {
+              setOtp("");
+              setStep("identifier");
+            }}
+          >
+            Change mobile
+          </button>
         </div>
       )}
 
@@ -912,7 +998,7 @@ export function ForgotPasswordFlow() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 6 characters"
+              placeholder="Min 8 characters"
               autoComplete="new-password"
             />
           </div>
@@ -928,30 +1014,37 @@ export function ForgotPasswordFlow() {
           </div>
           <Button
             className="w-full h-11"
+            disabled={loading}
             onClick={async () => {
+              if (password.length < 8) return toast.error("Password must be at least 8 characters");
               const pw = signupPasswordSchema.safeParse({ password, confirmPassword });
               if (!pw.success) return toast.error(pw.error.errors[0]?.message);
+              if (!mobileGrant) return toast.error("Verify mobile OTP again.");
+              setLoading(true);
               try {
-                await resetPassword(identifier, password);
+                const { apiCompletePasswordReset } = await import("@/auth/api-auth");
+                await apiCompletePasswordReset({
+                  identifier,
+                  mobileOtpGrant: mobileGrant,
+                  newPassword: password,
+                });
                 toast.success("Password updated");
                 setStep("success");
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Could not update password");
+              } finally {
+                setLoading(false);
               }
             }}
           >
-            Update password
+            {loading ? "Updating…" : "Update password"}
           </Button>
         </div>
       )}
 
       {step === "success" && (
         <div className="mt-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            {isApiAuthMode()
-              ? "Check your email and open the secure link to choose a new password."
-              : "Your password has been updated."}
-          </p>
+          <p className="text-sm text-muted-foreground">Your password has been updated.</p>
           <Button className="mt-6 w-full h-11" asChild>
             <Link to="/login">Sign in</Link>
           </Button>

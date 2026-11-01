@@ -55,7 +55,7 @@ export function TeacherDashboardPage() {
 
   if (!portal.isTeacher) return null;
 
-  // First load only — keep showing cached dashboard while soft-refresh refetches.
+  // First load / restore only — keep showing cached dashboard while soft-refresh refetches.
   if (portal.isLoading && !portal.dashboard) {
     return <PageSkeleton rows={5} />;
   }
@@ -68,6 +68,17 @@ export function TeacherDashboardPage() {
           title="Unable to load teacher home"
           description={portal.errorMessage ?? "Teacher dashboard is not available yet."}
         />
+        {portal.errorMessage ? (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              className="rounded-lg border px-4 py-2 text-sm font-medium"
+              onClick={() => portal.refresh()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }

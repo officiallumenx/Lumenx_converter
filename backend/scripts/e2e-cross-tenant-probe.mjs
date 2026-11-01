@@ -45,6 +45,8 @@ const INST_A_NAME = "LumenX E2E Test Institute";
 const INST_B_NAME = "LumenX E2E Isolation Institute";
 
 const sfx = randomBytes(3).toString("hex");
+/** Digits-only suffix for Indian mobile validation (always 10 digits when prefixed). */
+const sfxDigits = String(parseInt(sfx, 16) % 1_000_000_000).padStart(9, "0");
 
 /** @type {Array<{ step: string, ok: boolean, detail?: string }>} */
 const results = [];
@@ -221,6 +223,10 @@ async function ensureFixtures(admin) {
 }
 
 async function seedTenant(token, instituteId, label) {
+  // Unique non-overlapping windows per run (API rejects overlapping AY date ranges).
+  const yearBase = 2030 + (parseInt(sfx.slice(0, 2), 16) % 40);
+  const startsOn = `${yearBase}-04-01`;
+  const endsOn = `${yearBase + 1}-03-31`;
   const year = await api("/api/v1/academic-years", {
     token,
     method: "POST",
@@ -228,8 +234,8 @@ async function seedTenant(token, instituteId, label) {
       institute_id: instituteId,
       name: `Probe AY ${label} ${sfx}`,
       code: `P${label}${sfx}`.slice(0, 20),
-      starts_on: "2027-04-01",
-      ends_on: "2028-03-31",
+      starts_on: startsOn,
+      ends_on: endsOn,
       // upcoming avoids single-active-year CONFLICT on institutes that already have an active year
       status: "upcoming",
     },
@@ -278,7 +284,7 @@ async function seedTenant(token, instituteId, label) {
     method: "POST",
     body: {
       institute_id: instituteId,
-      name: `Probe Subj ${label}`,
+      name: `Probe Subj ${label} ${sfx}`,
       code: `M${label}${sfx}`.slice(0, 20),
       category: "core",
       periods_per_week: 5,
@@ -287,15 +293,20 @@ async function seedTenant(token, instituteId, label) {
   });
   const subjectId = subject.json?.data?.id;
   if (!subject.ok || !subjectId) {
-    throw new Error(`seed subject ${label}: HTTP ${subject.status}`);
+    throw new Error(
+      `seed subject ${label}: HTTP ${subject.status} ${subject.json?.error?.message ?? ""}`,
+    );
   }
 
+  const teacherPhone = `${label === "A" ? "91" : "92"}${sfxDigits}`.slice(0, 10);
   const teacher = await api("/api/v1/teachers", {
     token,
     method: "POST",
     body: {
       institute_id: instituteId,
       display_name: `Probe Teacher ${label}`,
+      phone: teacherPhone,
+      email: `probe.teacher.${label}.${sfx}@lumenx.test`,
       employee_id: `E${label}${sfx}`.slice(0, 20),
       department: "Probe",
       teaching_scope: "subject_teacher",
@@ -305,7 +316,9 @@ async function seedTenant(token, instituteId, label) {
   });
   const teacherId = teacher.json?.data?.id;
   if (!teacher.ok || !teacherId) {
-    throw new Error(`seed teacher ${label}: HTTP ${teacher.status}`);
+    throw new Error(
+      `seed teacher ${label}: HTTP ${teacher.status} ${teacher.json?.error?.message ?? ""}`,
+    );
   }
 
   const student = await api("/api/v1/students", {
@@ -325,7 +338,7 @@ async function seedTenant(token, instituteId, label) {
     throw new Error(`seed student ${label}: HTTP ${student.status}`);
   }
 
-  const parentPhone = `9${sfx}${label === "A" ? "1" : "2"}`.padEnd(10, "0").slice(0, 10);
+  const parentPhone = `${label === "A" ? "93" : "94"}${sfxDigits}`.slice(0, 10);
   const parent = await api("/api/v1/parents", {
     token,
     method: "POST",
@@ -351,7 +364,7 @@ async function seedTenant(token, instituteId, label) {
       section_id: sectionId,
       student_id: studentId,
       roll_no: `R${label}${sfx}`.slice(0, 20),
-      enrolled_on: "2027-04-01",
+      enrolled_on: startsOn,
       status: "active",
     },
   });

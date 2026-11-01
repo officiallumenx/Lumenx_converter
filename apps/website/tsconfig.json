@@ -1,10 +1,6 @@
 {
-  "extends": "../../packages/config/tsconfig.base.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "eslint.config.js"],
+  "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    "types": ["vite/client"],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "allowJs": true,
   }
 }

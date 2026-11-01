@@ -6,6 +6,8 @@
  * Web: no Firebase Crashlytics SDK — scrubbed console / global handlers only.
  */
 
+/// <reference path="../types/capacitor-firebase-crashlytics.d.ts" />
+
 import type { FirebaseWebConfigSource } from "./config";
 import { resolveFirebaseWebConfig } from "./config";
 import { scrubCrashMessage } from "./privacy";

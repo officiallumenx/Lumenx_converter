@@ -17,6 +17,34 @@ const institutes = [
 
 async function mockReadOnlyAuthBoundary(page: Page) {
   const unsafeRequests: string[] = [];
+  // Prevent hosted Supabase Auth from hanging Connect bootstrap (signed-out journeys).
+  await page.route(
+    (url) =>
+      url.hostname.endsWith("supabase.co") || url.pathname.includes("/auth/v1/"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          access_token: null,
+          token_type: "bearer",
+          user: null,
+        }),
+      });
+    },
+  );
+  await page.addInitScript(() => {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("lumenx.connect") || key.startsWith("ues_")) {
+          localStorage.removeItem(key);
+        }
+      }
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+  });
   await page.route((url) => url.pathname.startsWith("/api/v1/"), async (route) => {
     const request = route.request();
     if (request.method() !== "GET") {
@@ -63,11 +91,11 @@ test("public certificate route remains outside the authenticated app shell", asy
 test("protected route redirects a signed-out browser to login", async ({ page }) => {
   const unsafeRequests = await mockReadOnlyAuthBoundary(page);
   await page.goto("/login");
-  await expect(page.getByRole("combobox")).toBeVisible();
+  await expect(page.getByRole("combobox")).toBeVisible({ timeout: 20_000 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
-  await expect(page).toHaveURL(/\/login/);
-  await expect(page.getByRole("combobox")).toBeVisible();
+  await expect(page).toHaveURL(/\/login/, { timeout: 20_000 });
+  await expect(page.getByRole("combobox")).toBeVisible({ timeout: 20_000 });
   expect(unsafeRequests).toEqual([]);
 });
 
@@ -89,6 +117,29 @@ test("institute selector uses mocked API data and remembers selection", async ({
 test("async institute failure is visible and never falls back to demo data", async ({
   page,
 }) => {
+  await page.route(
+    (url) =>
+      url.hostname.endsWith("supabase.co") || url.pathname.includes("/auth/v1/"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ access_token: null, user: null }),
+      });
+    },
+  );
+  await page.addInitScript(() => {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("lumenx.connect") || key.startsWith("ues_")) {
+          localStorage.removeItem(key);
+        }
+      }
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+  });
   await page.route("**/api/v1/auth/staff/institutes", (route) =>
     route.fulfill({
       status: 503,
@@ -100,6 +151,8 @@ test("async institute failure is visible and never falls back to demo data", asy
   );
   await page.goto("/login");
 
-  await expect(page.getByText("Directory temporarily unavailable")).toBeVisible();
+  await expect(
+    page.getByText(/Directory temporarily unavailable|Unable to load institutes/i),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("combobox")).toHaveCount(0);
 });

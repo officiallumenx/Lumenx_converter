@@ -50,6 +50,7 @@ const ADMIN_ROUTE_COLORS: Record<string, AdminHue> = {
   "/diary": "violet",
   "/notifications": "crimson",
   "/messages": "indigo",
+  "/send": "gold",
   "/announcements": "gold",
   "/alerts": "rose",
   "/complaints": "scarlet",

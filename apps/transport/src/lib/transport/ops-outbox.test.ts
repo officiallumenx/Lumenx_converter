@@ -232,7 +232,7 @@ describe("ops-outbox Phase 8", () => {
     expect(getOpsOutboxSnapshot().lastConflictMessage).toMatch(/server/i);
   });
 
-  it("preserves order: sequence flush GPS then boarding", async () => {
+  it("flushes boarding before GPS even when GPS was enqueued first (Issue 4)", async () => {
     const order: string[] = [];
     pingTripLocation.mockImplementation(async () => {
       order.push("gps");
@@ -257,7 +257,7 @@ describe("ops-outbox Phase 8", () => {
       payload: {},
     });
     await flushOpsOutbox();
-    expect(order).toEqual(["gps", "boarding"]);
+    expect(order).toEqual(["boarding", "gps"]);
   });
 
   it("survives app restart via localStorage hydrate", async () => {

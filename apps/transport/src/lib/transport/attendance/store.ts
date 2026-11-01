@@ -1,6 +1,7 @@
 import type { AttendanceStudentState, BoardingStatus, DroppingStatus, RosterStudent } from "../types";
 import { getTripSessionSnapshot, subscribeTripSession } from "../trip/store";
 import { listBoardingViaApi } from "../trip/api-ops";
+import { normalizeStopId } from "./stop-id";
 
 const listeners = new Set<() => void>();
 
@@ -9,6 +10,17 @@ let activeVehicleId: string | null = null;
 
 /** API roster seeded from driver-route-roster. */
 let apiRosterBase: RosterStudent[] | null = null;
+
+function normalizeRosterStudent(student: RosterStudent): RosterStudent {
+  const location = String(student.stopLocationLabel ?? "").trim();
+  return {
+    ...student,
+    stopId: normalizeStopId(student.stopId),
+    dropStopId: normalizeStopId(student.dropStopId) ?? null,
+    stopName: String(student.stopName ?? "").trim() || "Stop not assigned",
+    stopLocationLabel: location || null,
+  };
+}
 
 function createRosterBase(): AttendanceStudentState[] {
   if (!apiRosterBase) return [];
@@ -22,10 +34,59 @@ function createRosterBase(): AttendanceStudentState[] {
   }));
 }
 
+function shouldPreserveLocalMarks(prior: AttendanceStudentState | undefined): boolean {
+  if (!prior) return false;
+  return (
+    prior.syncStatus === "syncing" ||
+    prior.syncStatus === "error" ||
+    prior.syncStatus === "confirmed"
+  );
+}
+
+/** Merge identity fields from a fresh roster without wiping in-flight / confirmed marks. */
+function mergeRosterWithPrior(
+  nextBase: AttendanceStudentState[],
+  priorStudents: AttendanceStudentState[],
+): AttendanceStudentState[] {
+  const priorById = new Map(priorStudents.map((s) => [s.id, s]));
+  return nextBase.map((student) => {
+    const prior = priorById.get(student.id);
+    if (!prior) return student;
+    if (!shouldPreserveLocalMarks(prior)) {
+      // Keep idle server-applied marks if we already hydrated this student.
+      if (
+        prior.boarding !== "pending" ||
+        prior.dropping !== "pending" ||
+        prior.boardedAt ||
+        prior.droppedAt
+      ) {
+        return {
+          ...student,
+          boarding: prior.boarding,
+          dropping: prior.dropping,
+          boardedAt: prior.boardedAt,
+          droppedAt: prior.droppedAt,
+          syncStatus: prior.syncStatus ?? "idle",
+        };
+      }
+      return student;
+    }
+    return {
+      ...student,
+      boarding: prior.boarding,
+      dropping: prior.dropping,
+      boardedAt: prior.boardedAt,
+      droppedAt: prior.droppedAt,
+      syncStatus: prior.syncStatus,
+    };
+  });
+}
+
 /** Seed attendance roster from transport API enrollments (API auth mode). */
 export function setApiAttendanceRoster(roster: RosterStudent[]): void {
-  apiRosterBase = roster.map((s) => ({ ...s }));
-  students = createRosterBase();
+  const prior = students;
+  apiRosterBase = roster.map((s) => normalizeRosterStudent(s));
+  students = mergeRosterWithPrior(createRosterBase(), prior);
   emit();
   void hydrateAttendanceFromApi();
 }
@@ -94,8 +155,12 @@ export function resetAttendanceStore() {
 export type AttendanceActionResult = {
   ok: boolean;
   reason?: string;
-  code?: "not_found" | "invalid" | "confirm_required" | "finalized";
+  code?: "not_found" | "invalid" | "confirm_required" | "finalized" | "busy";
   student?: AttendanceStudentState | null;
+  /** Mark accepted locally; server confirmation still pending. */
+  pending?: boolean;
+  /** Event queued because the device is offline. */
+  queuedOffline?: boolean;
 };
 
 /** Instant local boarding mark — UI updates before the API round-trip. */
@@ -218,11 +283,34 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
     emit();
     return;
   }
+  const hydrateTripId = trip.tripId;
   try {
-    const shared = await listBoardingViaApi(trip.tripId);
+    const shared = await listBoardingViaApi(hydrateTripId);
+    // Stale response if the driver switched trips mid-flight.
+    if (getTripSessionSnapshot().tripId !== hydrateTripId) return;
+
     const base = createRosterBase();
     const byId = new Map(shared.map((m) => [m.studentId, m]));
+    const priorById = new Map(students.map((s) => [s.id, s]));
     students = base.map((student) => {
+      const prior = priorById.get(student.id);
+      // Do not clobber in-flight optimistic marks, error/retry chips, or
+      // recently confirmed marks until the server row catches up.
+      if (shouldPreserveLocalMarks(prior)) {
+        const mark = byId.get(student.id);
+        if (!mark) return prior!;
+        // Server has the mark — adopt authoritative timestamps, clear chip.
+        return {
+          ...student,
+          boarding: mark.boardingStatus,
+          dropping: mark.droppingStatus,
+          boardedAt: mark.boardedAt,
+          droppedAt: mark.droppedAt,
+          stopName: mark.stopName || student.stopName,
+          stopId: normalizeStopId(mark.stopId) || student.stopId,
+          syncStatus: "idle",
+        };
+      }
       const mark = byId.get(student.id);
       if (!mark) return { ...student, syncStatus: student.syncStatus ?? "idle" };
       return {
@@ -232,7 +320,7 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
         boardedAt: mark.boardedAt,
         droppedAt: mark.droppedAt,
         stopName: mark.stopName || student.stopName,
-        stopId: mark.stopId || student.stopId,
+        stopId: normalizeStopId(mark.stopId) || student.stopId,
         syncStatus: "idle",
       };
     });

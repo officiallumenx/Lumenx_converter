@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useNotificationsListQuery,
@@ -8,8 +8,6 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
-import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
-import { NotificationApiEmitCompose } from "@/components/notifications/NotificationApiEmitCompose";
 import { NotificationCenterInbox } from "@/components/notifications/NotificationCenterInbox";
 import {
   getAdminNotifications,
@@ -17,7 +15,6 @@ import {
   type AdminNotification,
 } from "@/lib/notification-center-store";
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
-import { SegmentedControl } from "@lumenx/ui-admin";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -29,17 +26,19 @@ import {
 } from "@/lib/notification-inbox";
 import { ApiClientError } from "@/lib/api";
 
-type Tab = "inbox" | "broadcast";
-
 type InboxRow = AdminNotification | NotificationInboxListItem;
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "Notification Center — LumenX Admin" }] }),
-  validateSearch: (search: Record<string, unknown>): { tab?: Tab } => {
-    if (search.tab === "broadcast" || search.tab === "inbox") {
-      return { tab: search.tab };
-    }
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    if (typeof search.tab === "string") return { tab: search.tab };
     return {};
+  },
+  beforeLoad: ({ search }) => {
+    // Legacy Notifications "Send" tab → dedicated Send module
+    if (search.tab === "broadcast" || search.tab === "send") {
+      throw redirect({ to: "/send" });
+    }
   },
   component: NotificationsPage,
 });
@@ -55,12 +54,6 @@ function NotificationsPage() {
   useEffect(() => {
     enableAdminPushBootstrap();
   }, []);
-
-  const { tab: tabFromSearch } = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const [tab, setTab] = useState<Tab>(
-    tabFromSearch === "broadcast" ? "broadcast" : "inbox",
-  );
 
   const [demoItems, setDemoItems] = useState<AdminNotification[]>(() =>
     apiMode ? [] : getAdminNotifications(),
@@ -146,17 +139,6 @@ function NotificationsPage() {
     return subscribeAdminNotifications(refreshDemo);
   }, [apiMode, refreshDemo]);
 
-  useEffect(() => {
-    if (tabFromSearch === "broadcast" || tabFromSearch === "inbox") {
-      setTab(tabFromSearch);
-    }
-  }, [tabFromSearch]);
-
-  const onTabChange = (next: Tab) => {
-    setTab(next);
-    void navigate({ search: { tab: next } });
-  };
-
   const refreshList = useCallback(() => {
     if (apiMode) {
       bumpNotificationsReload();
@@ -185,69 +167,28 @@ function NotificationsPage() {
               ? "No notifications yet"
               : null;
 
+  const subtitle = apiMode
+    ? "Mark read / delete notifications"
+    : `${unreadLabel} unread · Read, search, filter, and open linked pages`;
+
   return (
-    <AppShell
-      title="Notification Center"
-      subtitle={
-        apiMode
-          ? tab === "inbox"
-            ? "Mark read / delete notifications"
-            : "Send broadcasts"
-          : tab === "inbox"
-            ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
-            : "Targeted announcements & emergency alerts"
-      }
-    >
+    <AppShell title="Notification Center" subtitle={subtitle}>
       <div className="flex flex-col gap-2">
         <ModuleHero
           compact
           eyebrow="Communications"
           title="Notification Center"
-          subtitle={
-            apiMode
-              ? tab === "inbox"
-                ? "Mark read / delete notifications"
-                : "Send broadcasts"
-              : tab === "inbox"
-                ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
-                : "Targeted announcements & emergency alerts"
-          }
+          subtitle={subtitle}
+         helpKey="notifications" />
+        <NotificationCenterInbox
+          items={displayItems}
+          onChange={refreshList}
+          writesEnabled={writesEnabled}
+          rowsValid={listView.rowsValid}
+          listHint={listHint}
+          instituteResetKey={instituteCtx.activeInstituteId}
+          instituteId={instituteCtx.activeInstituteId}
         />
-        <SegmentedControl
-          value={tab}
-          onChange={onTabChange}
-          options={[
-            {
-              value: "inbox",
-              label: displayUnread > 0 ? `Inbox (${displayUnread})` : "Inbox",
-            },
-            {
-              value: "broadcast",
-              label: "Send",
-            },
-          ]}
-        />
-        {tab === "inbox" ? (
-          <NotificationCenterInbox
-            items={displayItems}
-            onChange={refreshList}
-            writesEnabled={writesEnabled}
-            rowsValid={listView.rowsValid}
-            listHint={listHint}
-            instituteResetKey={instituteCtx.activeInstituteId}
-            instituteId={instituteCtx.activeInstituteId}
-          />
-        ) : apiMode ? (
-          <NotificationApiEmitCompose
-            onEmitted={() => {
-              refreshList();
-              setTab("inbox");
-              void navigate({ search: { tab: "inbox" } });
-            }}
-          />
-        ) : (
-          <NotificationBroadcastCompose />
-        )}
       </div>
     </AppShell>
   );

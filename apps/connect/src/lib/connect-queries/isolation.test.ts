@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { connectQueryKeys } from "./keys";
+import { removeConnectPortalQueries } from "./invalidate";
+import { connectQueryKeys, connectQueryRoots } from "./keys";
 import { removeForeignUserConnectQueries, shouldDehydrateConnectQuery } from "./persist";
 import { connectKeyBelongsToUser, scopedConnectKey } from "./scope";
 
@@ -105,5 +106,79 @@ describe("Connect query isolation regression", () => {
     client.setQueryData(key, { profile: "sensitive" });
     removeForeignUserConnectQueries(client, null);
     expect(client.getQueryData(key)).toBeUndefined();
+  });
+
+  it("switching linked child cannot reuse prior child portal cache entry", () => {
+    const client = new QueryClient();
+    const childA = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.parentPortal(INST_A, "child-a"),
+    );
+    const childB = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.parentPortal(INST_A, "child-b"),
+    );
+    const attendanceA = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.attendanceLearner(INST_A, "child-a", "2026-08-01", "2026-08-31"),
+    );
+    const attendanceB = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.attendanceLearner(INST_A, "child-b", "2026-08-01", "2026-08-31"),
+    );
+
+    client.setQueryData(childA, { child: "a" });
+    client.setQueryData(attendanceA, { days: ["private-a"] });
+
+    expect(client.getQueryData(childB)).toBeUndefined();
+    expect(client.getQueryData(attendanceB)).toBeUndefined();
+    expect(childA).not.toEqual(childB);
+    expect(attendanceA).not.toEqual(attendanceB);
+  });
+
+  it("role/account switch foreign wipe cannot leave prior user module prefetches addressable", () => {
+    const client = new QueryClient();
+    const priorTransport = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.transportLearner(INST_A, "child-a"),
+    );
+    const priorFees = scopedConnectKey(
+      USER_A,
+      connectQueryKeys.feesStudent(INST_A, "child-a"),
+    );
+    client.setQueryData(priorTransport, { live: true });
+    client.setQueryData(priorFees, { dues: 1 });
+
+    removeForeignUserConnectQueries(client, USER_B);
+
+    expect(client.getQueryData(priorTransport)).toBeUndefined();
+    expect(client.getQueryData(priorFees)).toBeUndefined();
+    expect(
+      client.getQueryData(
+        scopedConnectKey(USER_B, connectQueryKeys.transportLearner(INST_A, "child-a")),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("removeConnectPortalQueries drops teacher/parent/student portal roots on logout", () => {
+    const client = new QueryClient();
+    const teacherKey = scopedConnectKey(USER_A, connectQueryKeys.teacherPortal(INST_A));
+    const parentKey = scopedConnectKey(USER_A, connectQueryKeys.parentPortal(INST_A, "child-1"));
+    const studentKey = scopedConnectKey(USER_A, connectQueryKeys.studentPortal(INST_A));
+    const marksKey = scopedConnectKey(USER_A, connectQueryKeys.marksParent(INST_A));
+
+    client.setQueryData(teacherKey, { role: "teacher" });
+    client.setQueryData(parentKey, { role: "parent" });
+    client.setQueryData(studentKey, { role: "student" });
+    client.setQueryData(marksKey, { keep: true });
+
+    removeConnectPortalQueries(client);
+
+    expect(client.getQueryData(teacherKey)).toBeUndefined();
+    expect(client.getQueryData(parentKey)).toBeUndefined();
+    expect(client.getQueryData(studentKey)).toBeUndefined();
+    // Module caches are not cleared by portal-root logout helper (caller must soft-refresh / foreign wipe).
+    expect(client.getQueryData(marksKey)).toEqual({ keep: true });
+    expect(connectQueryRoots.teacherPortal).toBe("teacher-portal");
   });
 });

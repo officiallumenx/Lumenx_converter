@@ -73,11 +73,39 @@ function assertApiMode(): void {
   }
 }
 
+/** Short TTL for catalog GETs reused by roster, diary, exams, homework on the same Home load. */
+const CATALOG_TTL_MS = 45_000;
+const catalogCache = new Map<string, { at: number; data: unknown }>();
+
+function readCatalogCache<T>(key: string): T | null {
+  const hit = catalogCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CATALOG_TTL_MS) {
+    catalogCache.delete(key);
+    return null;
+  }
+  return hit.data as T;
+}
+
+function writeCatalogCache(key: string, data: unknown): void {
+  catalogCache.set(key, { at: Date.now(), data });
+}
+
+/** Cleared on logout / institute switch via clearTeacherPortalApiCache. */
+export function clearTeacherCatalogCache(): void {
+  catalogCache.clear();
+}
+
 export async function fetchMe(
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<MeResponse> {
   assertApiMode();
-  return client.get<MeResponse>("/api/v1/me");
+  const key = "me";
+  const cached = readCatalogCache<MeResponse>(key);
+  if (cached) return cached;
+  const data = await client.get<MeResponse>("/api/v1/me");
+  writeCatalogCache(key, data);
+  return data;
 }
 
 export async function listTeacherAssignments(
@@ -85,13 +113,18 @@ export async function listTeacherAssignments(
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<TeacherAssignmentDto[]> {
   assertApiMode();
+  const key = `assignments:${params.instituteId.trim()}:${params.teacherId.trim()}`;
+  const cached = readCatalogCache<TeacherAssignmentDto[]>(key);
+  if (cached) return cached;
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
   query.set("teacher_id", params.teacherId.trim());
   query.set("status", "active");
-  return client.get<TeacherAssignmentDto[]>(
+  const data = await client.get<TeacherAssignmentDto[]>(
     `/api/v1/timetable/assignments?${query.toString()}`,
   );
+  writeCatalogCache(key, data);
+  return data;
 }
 
 export async function listSections(
@@ -99,9 +132,14 @@ export async function listSections(
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<SectionDto[]> {
   assertApiMode();
+  const key = `sections:${instituteId.trim()}`;
+  const cached = readCatalogCache<SectionDto[]>(key);
+  if (cached) return cached;
   const query = new URLSearchParams();
   query.set("institute_id", instituteId.trim());
-  return client.get<SectionDto[]>(`/api/v1/sections?${query.toString()}`);
+  const data = await client.get<SectionDto[]>(`/api/v1/sections?${query.toString()}`);
+  writeCatalogCache(key, data);
+  return data;
 }
 
 export async function listClasses(
@@ -109,9 +147,14 @@ export async function listClasses(
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<ClassDto[]> {
   assertApiMode();
+  const key = `classes:${instituteId.trim()}`;
+  const cached = readCatalogCache<ClassDto[]>(key);
+  if (cached) return cached;
   const query = new URLSearchParams();
   query.set("institute_id", instituteId.trim());
-  return client.get<ClassDto[]>(`/api/v1/classes?${query.toString()}`);
+  const data = await client.get<ClassDto[]>(`/api/v1/classes?${query.toString()}`);
+  writeCatalogCache(key, data);
+  return data;
 }
 
 export async function listSubjects(
@@ -119,9 +162,14 @@ export async function listSubjects(
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<SubjectDto[]> {
   assertApiMode();
+  const key = `subjects:${instituteId.trim()}`;
+  const cached = readCatalogCache<SubjectDto[]>(key);
+  if (cached) return cached;
   const query = new URLSearchParams();
   query.set("institute_id", instituteId.trim());
-  return client.get<SubjectDto[]>(`/api/v1/subjects?${query.toString()}`);
+  const data = await client.get<SubjectDto[]>(`/api/v1/subjects?${query.toString()}`);
+  writeCatalogCache(key, data);
+  return data;
 }
 
 export async function listEnrollments(

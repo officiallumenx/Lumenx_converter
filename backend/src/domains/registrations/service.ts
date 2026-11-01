@@ -10,18 +10,23 @@ import { findInstituteByCode, findProfileById } from "../identity/repository.js"
 import {
   findPendingRegistrationByApplicantUserId,
   findRegistrationByApplicantUserId,
-  insertRegistration,
+  insertRegistrationWithLegalConsent,
   insertUserProfile,
   isPlatformOperatorUser,
-  updateRegistrationFields,
+  listRegistrationLegalConsent,
+  resubmitRegistrationWithLegalConsent,
+  upsertRegistrationLegalConsent,
 } from "./repository.js";
 import {
   normalizeInstituteCode,
   normalizeRegistrationPayload,
   normalizeUsername,
-  registrationRowFieldsFromPayload,
   validateRegistrationApplication,
 } from "./payload.js";
+import {
+  validateRegistrationLegalConsent,
+  type ValidatedRegistrationLegalConsent,
+} from "./legal-consent.js";
 import type {
   CreateRegistrationInput,
   InstituteRegistrationDto,
@@ -30,6 +35,22 @@ import type {
 } from "./types.js";
 
 export { normalizeInstituteCode } from "./payload.js";
+
+/** Ensure required consent rows exist (idempotent for retries) via single RPC. */
+async function ensureRequiredConsentPresent(
+  admin: SupabaseClient,
+  registrationId: string,
+  consent: ValidatedRegistrationLegalConsent,
+): Promise<void> {
+  const existing = await listRegistrationLegalConsent(admin, registrationId);
+  const have = new Set(existing.map((r) => r.document_id));
+  const missingRequired = consent.documents
+    .filter((d) => d.id === "admin_terms" || d.id === "admin_privacy")
+    .some((d) => !have.has(d.id));
+  if (missingRequired || existing.length === 0) {
+    await upsertRegistrationLegalConsent(admin, registrationId, consent);
+  }
+}
 
 export function toRegistrationDto(
   row: InstituteRegistrationRow,
@@ -151,6 +172,11 @@ export async function createRegistration(
   admin: SupabaseClient,
   input: CreateRegistrationInput,
 ): Promise<InstituteRegistrationDto> {
+  // Validate consent before creating Auth users or registration rows.
+  const consent = validateRegistrationLegalConsent(input.legalConsent, {
+    action: "registration_accept",
+  });
+
   if (!input.email.trim() || !input.email.includes("@")) {
     throw AppError.validation("A valid email is required", {
       email: ["Invalid email"],
@@ -184,6 +210,8 @@ export async function createRegistration(
 
   const pending = await findPendingRegistrationByApplicantUserId(admin, userId);
   if (pending) {
+    // Idempotent retry: ensure consent exists without duplicating registration.
+    await ensureRequiredConsentPresent(admin, pending.id, consent);
     return toRegistrationDto(pending);
   }
   const existing = await findRegistrationByApplicantUserId(admin, userId);
@@ -215,12 +243,14 @@ export async function createRegistration(
     markEmailVerified: false,
   });
 
-  const row = await insertRegistration(admin, {
+  // Registration + consent commit together in one Postgres RPC transaction.
+  const row = await insertRegistrationWithLegalConsent(admin, {
     applicantUserId: userId,
     applicantName: input.applicantName,
     email,
     phone: input.phone ?? payload.principalMobile,
     payload,
+    consent,
   });
 
   return toRegistrationDto(row);
@@ -242,6 +272,10 @@ export async function resubmitRegistrationForActor(
   if (row.status !== "rejected") {
     throw AppError.conflict("Only rejected registrations can be resubmitted");
   }
+
+  const consent = validateRegistrationLegalConsent(input.legalConsent, {
+    action: "registration_resubmit",
+  });
 
   const pending = await findPendingRegistrationByApplicantUserId(admin, actor.userId);
   if (pending) {
@@ -271,19 +305,16 @@ export async function resubmitRegistrationForActor(
     });
   }
 
-  const updated = await updateRegistrationFields(admin, row.id, {
-    applicant_name: input.applicantName?.trim() || row.applicant_name,
+  const updated = await resubmitRegistrationWithLegalConsent(admin, {
+    registrationId: row.id,
+    applicantUserId: actor.userId,
+    applicantName: input.applicantName?.trim() || row.applicant_name,
     phone:
       input.phone !== undefined
         ? input.phone?.trim() || null
         : row.phone,
     payload,
-    status: "pending",
-    rejection_reason: null,
-    reviewed_by: null,
-    reviewed_at: null,
-    institute_id: null,
-    ...registrationRowFieldsFromPayload(payload),
+    consent,
   });
 
   if (!updated) {

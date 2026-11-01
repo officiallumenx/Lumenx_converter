@@ -13,6 +13,7 @@ import { getStudent } from "@/lib/students/api";
 import { loadLearnerTimetable } from "@/lib/timetable";
 import { reportCardsToChildMetrics, studentDtoToChild } from "@/lib/parents/map";
 import { listStudentRemarks, mapRemarkDtoToParentCard } from "@/lib/remarks";
+import type { AppNotification } from "@lumenx/types";
 import {
   reportCardsToPerformance,
   reportCardsToTrend,
@@ -56,12 +57,25 @@ function portalDaysToAttendanceDays(
 export async function loadParentPortalSnapshotFromApi(input: {
   instituteId: string;
   studentId: string;
+  signal?: AbortSignal;
+  /**
+   * Shared inbox from the shell badge query. Prefer a Promise so Home can start
+   * student/marks/timetable in parallel while inbox settles (no waterfall).
+   */
+  inbox?: AppNotification[] | Promise<AppNotification[]>;
 }): Promise<ParentPortalSnapshot> {
   const { instituteId, studentId } = input;
   const now = new Date();
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   // Start student + independent module loads together; homework waits only on student.
   const studentPromise = getStudent(studentId);
+  const inboxPromise =
+    input.inbox != null
+      ? Promise.resolve(input.inbox)
+      : loadConnectPortalInbox(instituteId);
   const [dto, cardsResult, homeworkResult, attendanceResult, inbox, timetableResult, remarkDtos] =
     await Promise.all([
       studentPromise,
@@ -74,10 +88,13 @@ export async function loadParentPortalSnapshotFromApi(input: {
         }),
       ),
       loadLearnerAttendancePortal({ instituteId, studentId }),
-      loadConnectPortalInbox(instituteId),
+      inboxPromise,
       loadLearnerTimetable({ instituteId, studentId }),
       optionalList(listStudentRemarks({ instituteId, studentId })),
     ]);
+  if (input.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   const reportCards =
     cardsResult.status === "ready" || cardsResult.status === "empty"

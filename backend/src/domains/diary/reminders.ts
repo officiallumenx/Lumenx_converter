@@ -1,6 +1,7 @@
 /**
  * End-of-day / overdue diary reminders.
- * Actor-scoped path runs on diary list; system path runs in the background worker.
+ * Actor-scoped path is for explicit callers; system path runs in the background worker.
+ * GET /diary must not invoke these (read path is side-effect free).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
@@ -83,7 +84,10 @@ async function emitDiaryReminder(input: {
     });
     return true;
   } catch (err) {
-    if (err instanceof AppError && err.status === 400) return false;
+    // Idempotent: validation miss or unique dedupe collision = already handled.
+    if (err instanceof AppError && (err.status === 400 || err.status === 409)) {
+      return false;
+    }
     throw err;
   }
 }

@@ -107,11 +107,9 @@ function InstitutesIndexPage() {
       title="Institutes"
       subtitle="Platform directory · lifecycle and modules · cost set per institute on Billing"
       actions={
-        apiMode ? null : (
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-3.5" /> Create institute
-          </Button>
-        )
+        <Button variant="primary" onClick={() => setCreateOpen(true)}>
+          <Plus className="size-3.5" /> Create institute
+        </Button>
       }
     >
       {apiMode && apiDirError ? (
@@ -225,16 +223,14 @@ function InstitutesIndexPage() {
         student, parent, or teacher records are created here.
       </p>
 
-      {!apiMode ? (
-        <CreateInstituteDialog
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          onCreated={(inst) => {
-            setTick((t) => t + 1);
-            void navigate({ to: "/institutes/$id", params: { id: inst.id } });
-          }}
-        />
-      ) : null}
+      <CreateInstituteDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(inst) => {
+          setTick((t) => t + 1);
+          void navigate({ to: "/institutes/$id", params: { id: inst.id } });
+        }}
+      />
     </AppShell>
   );
 }
