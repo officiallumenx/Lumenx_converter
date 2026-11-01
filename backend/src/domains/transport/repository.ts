@@ -34,7 +34,7 @@ const STOP_COLS =
   "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, kind, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const ENROLLMENT_COLS =
-  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
+  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, next_pickup_stop_id, next_drop_stop_id, next_stops_pending_at, location_changed_at, location_changed_by_driver_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
   "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, school_notification_radius_m, created_at, updated_at";

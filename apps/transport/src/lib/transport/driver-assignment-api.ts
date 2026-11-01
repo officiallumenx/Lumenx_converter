@@ -125,17 +125,38 @@ export async function loadApiDriverAssignment(input: {
     vehicleId: busVehicleId || roster.vehicleId,
   });
 
+  const stopLocationById = new Map<string, string>();
+  for (const stop of usableStops) {
+    const label = typeof stop.locationLabel === "string" ? stop.locationLabel.trim() : "";
+    if (stop.id && label) stopLocationById.set(stop.id, label);
+  }
+
   setApiAttendanceRoster(
-    expectedStudents.map((s) => ({
-      id: s.studentId,
-      name: s.studentName,
-      grade: s.classLabel,
-      stopName: s.pickupStopName ?? "Stop assignment pending",
-      stopId: s.pickupStopId,
-      dropStopId: s.dropStopId ?? null,
-      dropStopName: s.dropStopName ?? null,
-      rollNo: s.rollNo,
-    })),
+    expectedStudents.map((s) => {
+      const pickupStopId =
+        typeof s.pickupStopId === "string" && s.pickupStopId.trim()
+          ? s.pickupStopId.trim()
+          : undefined;
+      const dropStopId =
+        typeof s.dropStopId === "string" && s.dropStopId.trim()
+          ? s.dropStopId.trim()
+          : null;
+      return {
+        id: s.studentId,
+        name: s.studentName,
+        grade: s.classLabel,
+        stopName:
+          (typeof s.pickupStopName === "string" && s.pickupStopName.trim()) ||
+          (pickupStopId ? "Pickup stop" : "Stop not assigned"),
+        stopLocationLabel: pickupStopId
+          ? stopLocationById.get(pickupStopId) ?? null
+          : null,
+        stopId: pickupStopId,
+        dropStopId,
+        dropStopName: s.dropStopName ?? null,
+        rollNo: s.rollNo,
+      };
+    }),
   );
 
   const tripAssignment: TripAssignment = {

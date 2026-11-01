@@ -19,6 +19,7 @@ import type {
   TransportVehiclesListView,
 } from "@/lib/transport";
 import { TransportPendingStopsActionCard } from "@/components/transport/TransportPendingStopsActionCard";
+import { TransportLocationChangesPanel } from "@/components/transport/TransportLocationChangesPanel";
 import {
   useTransportAnalyticsOpsQuery,
   useTransportEmergenciesQuery,
@@ -222,6 +223,10 @@ export function TransportDashboardApiView({
           onNotify={onNotify}
           onOpenReviews={() => onNavigate("reviews")}
         />
+      ) : null}
+
+      {instituteId ? (
+        <TransportLocationChangesPanel instituteId={instituteId} />
       ) : null}
 
       <Card>

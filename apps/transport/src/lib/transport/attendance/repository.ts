@@ -5,8 +5,10 @@ import {
   retryFailedStudentEvents,
 } from "../ops-outbox";
 import type { BoardingStatus, DroppingStatus } from "../types";
+import { isTripActive } from "../trip/lifecycle";
 import { getTripSessionSnapshot } from "../trip/store";
 import { resolveDropStopIdForMark } from "./drop-stop";
+import { normalizeStopId, STOP_NOT_ASSIGNED_REASON } from "./stop-id";
 import type { AttendanceStudentState } from "../types";
 import {
   applyLocalBoarding,
@@ -20,6 +22,18 @@ import {
   subscribeAttendanceStore,
   type AttendanceActionResult,
 } from "./store";
+
+function guardActiveTrip(): AttendanceActionResult | null {
+  const trip = getTripSessionSnapshot();
+  if (!trip.tripId || !isTripActive(trip.phase) || trip.endSyncPending) {
+    return {
+      ok: false,
+      reason: "Trip is completed. Attendance cannot be changed.",
+      code: "finalized",
+    };
+  }
+  return null;
+}
 
 function newClientEventId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -123,6 +137,11 @@ function onAttendanceOpsConflict(detail: AttendanceOutboxDetail): void {
     setStudentSyncStatus(studentId, "confirmed");
     void hydrateAttendanceFromApi();
   }
+  const tripCompleted =
+    typeof message === "string" && /already completed|trip is completed/i.test(message);
+  if (tripCompleted) {
+    void import("../trip/api-ops").then((m) => m.hydrateActiveTripFromApi());
+  }
   const attendanceConflict =
     eventType === "boarding" ||
     eventType === "not_boarded" ||
@@ -131,7 +150,11 @@ function onAttendanceOpsConflict(detail: AttendanceOutboxDetail): void {
     Boolean(studentId);
   if (attendanceConflict && message) {
     void import("sonner").then(({ toast }) => {
-      toast.message("Server updated", { description: message });
+      if (tripCompleted) {
+        toast.message("Trip completed", { description: message });
+      } else {
+        toast.message("Server updated", { description: message });
+      }
     });
   }
 }
@@ -219,6 +242,8 @@ export const attendanceRepository = {
     _options?: { confirmChange?: boolean },
   ): Promise<AttendanceActionResult> {
     ensureAttendanceOutboxBridge();
+    const inactive = guardActiveTrip();
+    if (inactive) return inactive;
     const trip = getTripSessionSnapshot();
     const previous = getAttendanceSnapshot().find((s) => s.id === id) ?? null;
     if (!trip.tripId || !previous) {
@@ -227,10 +252,15 @@ export const attendanceRepository = {
     const busy = guardInFlight(previous);
     if (busy) return busy;
 
-    const stops = trip.assignment.route.stops;
-    const stop = stops[trip.currentStopIndex] ?? stops[0];
-    if (!stop) {
-      return { ok: false, reason: "No stop context.", code: "invalid" };
+    // Enrollment pickup stop is required — never invent a stop or keep "".
+    const stopId = normalizeStopId(previous.stopId);
+    if (!stopId) {
+      return {
+        ok: false,
+        reason: STOP_NOT_ASSIGNED_REASON,
+        code: "invalid",
+        student: previous,
+      };
     }
 
     // Hold mutex only until syncStatus is syncing (closes double-tap race).
@@ -249,7 +279,6 @@ export const attendanceRepository = {
         retryFailedStudentEvents(id);
       }
 
-      const stopId = previous.stopId ?? stop.id;
       const clientEventId = newClientEventId(status === "boarded" ? "board" : "nboard");
       enqueueOpsEvent({
         eventType: status === "boarded" ? "boarding" : "not_boarded",
@@ -276,6 +305,8 @@ export const attendanceRepository = {
     _options?: { confirmChange?: boolean },
   ): Promise<AttendanceActionResult> {
     ensureAttendanceOutboxBridge();
+    const inactive = guardActiveTrip();
+    if (inactive) return inactive;
     const trip = getTripSessionSnapshot();
     const previous = getAttendanceSnapshot().find((s) => s.id === id) ?? null;
     if (!trip.tripId || !previous) {
@@ -295,6 +326,7 @@ export const attendanceRepository = {
         ok: false,
         reason: "No drop stop assigned for this student.",
         code: "invalid",
+        student: previous,
       };
     }
 

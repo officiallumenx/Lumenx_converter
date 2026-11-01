@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { subscribeTransportRealtime } from "@lumenx/utils";
+import {
+  subscribeTransportRealtime,
+  type TransportRealtimeEvent,
+} from "@lumenx/utils";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -18,7 +21,7 @@ type Options = {
  */
 export function useTransportRealtimeRefresh(
   instituteId: string | undefined,
-  onRefresh: () => void,
+  onRefresh: (event?: TransportRealtimeEvent) => void,
   options?: Options,
 ): void {
   const apiMode = isApiAuthMode();
@@ -26,6 +29,7 @@ export function useTransportRealtimeRefresh(
   const onRefreshRef = useRef(onRefresh);
   onRefreshRef.current = onRefresh;
   const lastToastAt = useRef(0);
+  const pendingEvent = useRef<TransportRealtimeEvent | undefined>(undefined);
 
   useEffect(() => {
     if (!apiMode || !instituteId) return;
@@ -37,11 +41,35 @@ export function useTransportRealtimeRefresh(
       const supabase = getSupabaseBrowserClient();
       unsub = subscribeTransportRealtime(supabase, {
         instituteId,
-        onChange: () => {
+        onChange: (event) => {
+          // Prefer structural events over GPS/boarding when coalescing a burst.
+          const prev = pendingEvent.current;
+          if (
+            !prev ||
+            event.table === "route" ||
+            event.table === "stop" ||
+            event.table === "transport_enrollment"
+          ) {
+            pendingEvent.current = event;
+          } else if (
+            prev.table === "vehicle_location" &&
+            event.table !== "vehicle_location"
+          ) {
+            pendingEvent.current = event;
+          }
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
-            onRefreshRef.current();
+            const next = pendingEvent.current;
+            pendingEvent.current = undefined;
+            onRefreshRef.current(next);
             if (!notify) return;
+            if (next?.table === "vehicle_location") return;
+            if (
+              next?.table === "transport_boarding_event" ||
+              next?.table === "transport_trip"
+            ) {
+              return;
+            }
             const now = Date.now();
             if (now - lastToastAt.current < TOAST_COOLDOWN_MS) return;
             lastToastAt.current = now;

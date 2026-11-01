@@ -729,6 +729,69 @@ transport.delete("/enrollments/:id/rejected", async (c) => {
   return c.json({ data: { ok: true } });
 });
 
+/** Driver Manage Location — bulk common-location reassignment (next-trip when active). */
+transport.post("/enrollments/reassign-common-location", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      enrollment_ids: z.array(uuid).min(1).max(200),
+      new_stop_id: uuid,
+      client_event_id: z.string().trim().min(1).max(120).optional(),
+    }),
+    await c.req.json(),
+  );
+  const { reassignCommonLocationForActor } = await import(
+    "../../domains/transport/location-assignment.js"
+  );
+  const data = await reassignCommonLocationForActor(admin, actor, {
+    instituteId: body.institute_id,
+    enrollmentIds: body.enrollment_ids,
+    newStopId: body.new_stop_id,
+    clientEventId: body.client_event_id ?? null,
+  });
+  return c.json({ data });
+});
+
+/** Admin/driver visibility of location change history. */
+transport.get("/enrollment-location-changes", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      limit: z.coerce.number().int().min(1).max(500).optional(),
+    }),
+    c.req.query(),
+  );
+  const { listLocationChangesForActor } = await import(
+    "../../domains/transport/location-assignment.js"
+  );
+  const rows = await listLocationChangesForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.limit,
+  );
+  return c.json({
+    data: rows.map((r) => ({
+      id: r.id,
+      instituteId: r.institute_id,
+      enrollmentId: r.enrollment_id,
+      studentId: r.student_id,
+      routeId: r.route_id,
+      previousPickupStopId: r.previous_pickup_stop_id,
+      previousDropStopId: r.previous_drop_stop_id,
+      newStopId: r.new_stop_id,
+      changedByDriverId: r.changed_by_driver_id,
+      changedByUserId: r.changed_by_user_id,
+      effectiveMode: r.effective_mode,
+      createdAt: r.created_at,
+    })),
+  });
+});
+
 // ── Portal helpers ───────────────────────────────────────────────
 
 transport.get("/portal/driver-route-roster", async (c) => {

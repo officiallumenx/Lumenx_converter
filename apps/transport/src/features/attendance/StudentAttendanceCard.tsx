@@ -79,7 +79,11 @@ export function StudentAttendanceCard({
   const stamp =
     mode === "boarding" ? formatStamp(student.boardedAt) : formatStamp(student.droppedAt);
   const syncing = student.syncStatus === "syncing";
-  const cardDisabled = disabled || syncing;
+  const stopMissing =
+    mode === "boarding"
+      ? !String(student.stopId ?? "").trim()
+      : !String(student.dropStopId ?? student.stopId ?? "").trim();
+  const cardDisabled = disabled || syncing || stopMissing;
   const press = useTapLongPress(
     () => {
       if (!cardDisabled) onTap();
@@ -90,11 +94,15 @@ export function StudentAttendanceCard({
   );
   const hint = disabled
     ? "Location is off. Turn on GPS to mark attendance."
-    : syncing
-      ? "Saving mark to server."
-      : mode === "boarding"
-        ? "Tap to board or undo. Long press for not boarded."
-        : "Tap to drop or undo. Long press for not dropped.";
+    : stopMissing
+      ? mode === "boarding"
+        ? "Stop not assigned. Open Route Setup to assign a pickup stop."
+        : "No drop stop assigned for this student."
+      : syncing
+        ? "Saving mark to server."
+        : mode === "boarding"
+          ? "Tap to board or undo. Long press for not boarded."
+          : "Tap to drop or undo. Long press for not dropped.";
 
   return (
     <button
@@ -139,8 +147,21 @@ export function StudentAttendanceCard({
           </div>
           <p className="mt-2.5 flex items-center gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-3.5 shrink-0 text-transport" aria-hidden />
-            <span className="truncate">{student.stopName}</span>
+            <span className="truncate">
+              {mode === "dropping" && student.dropStopName
+                ? student.dropStopName
+                : student.stopLocationLabel
+                  ? `${student.stopName} · ${student.stopLocationLabel}`
+                  : student.stopName}
+            </span>
           </p>
+          {stopMissing ? (
+            <p className="mt-1 text-xs font-medium text-destructive" role="status">
+              {mode === "boarding"
+                ? "Stop not assigned — open Route Setup"
+                : "No drop stop — assign in Route Setup"}
+            </p>
+          ) : null}
           {stamp ? (
             <p className="mt-1 text-xs tabular-nums text-muted-foreground">
               {mode === "boarding" ? "Boarded" : "Dropped"} at {stamp}

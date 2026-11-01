@@ -498,6 +498,7 @@ export async function getDriverRouteRosterForActor(
           : null,
         status: e.status,
         approvalStatus: e.approval_status,
+        rejectionReason: e.rejection_reason ?? null,
         notRidingToday: Boolean(exception),
         rideExceptionId: exception?.id ?? null,
       };
@@ -744,8 +745,20 @@ export async function getLearnerTransportForActor(
     .filter((s) => isOperationallyUsable(s.approval_status))
     .sort((a, b) => a.route_order - b.route_order);
 
-  const pickup = usableStops.find((s) => s.id === enrollment.pickup_stop_id) ?? null;
-  const drop = usableStops.find((s) => s.id === enrollment.drop_stop_id) ?? null;
+  const { resolveCommonLocationStopId } = await import("./common-location.js");
+  const commonStopId = resolveCommonLocationStopId({
+    pickupStopId: enrollment.pickup_stop_id,
+    dropStopId: enrollment.drop_stop_id,
+  });
+  // Prefer live columns; when next_* is queued and no active trip for this learner view,
+  // still show the current (pre-promotion) assignment until the next trip starts.
+  const common =
+    (commonStopId
+      ? usableStops.find((s) => s.id === commonStopId) ?? null
+      : null) ??
+    usableStops.find((s) => s.id === enrollment.pickup_stop_id) ??
+    usableStops.find((s) => s.id === enrollment.drop_stop_id) ??
+    null;
 
   return {
     studentId: student.id,
@@ -766,8 +779,9 @@ export async function getLearnerTransportForActor(
         : null,
     driverName: driver?.display_name ?? null,
     driverPhone: driver?.phone ?? null,
-    pickupStop: pickup ? stopSummary(pickup) : null,
-    dropStop: drop ? stopSummary(drop) : null,
+    // Common-location product rule: one stop for pickup and drop.
+    pickupStop: common ? stopSummary(common) : null,
+    dropStop: common ? stopSummary(common) : null,
     stops: usableStops.map(stopSummary),
   };
 }

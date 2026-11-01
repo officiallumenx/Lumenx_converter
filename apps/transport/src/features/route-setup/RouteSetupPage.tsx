@@ -128,7 +128,9 @@ export function RouteSetupPage() {
         err instanceof Error
           ? err.message
           : "Could not get GPS. Turn on location and try again.";
-      toast.error("Location needed", { description: message });
+      toast.error("GPS required to add a stop", {
+        description: `${message} Enable location permission, then tap Add Stop again.`,
+      });
     } finally {
       setCapturing(false);
     }

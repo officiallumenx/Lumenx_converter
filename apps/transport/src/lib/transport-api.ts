@@ -238,6 +238,7 @@ export type DriverRouteRosterStudent = {
   dropStopName?: string | null;
   status: string;
   approvalStatus: string;
+  rejectionReason?: string | null;
   notRidingToday?: boolean;
   rideExceptionId?: string | null;
 };
@@ -414,6 +415,29 @@ export async function updateTransportEnrollment(
   }>(`/api/v1/transport/enrollments/${enrollmentId}`, {
     method: "PATCH",
     body,
+  });
+}
+
+/** Bulk common-location change (immediate or next-trip when a trip is active). */
+export async function reassignCommonLocation(input: {
+  instituteId: string;
+  enrollmentIds: string[];
+  newStopId: string;
+  clientEventId?: string;
+}): Promise<{
+  updatedCount: number;
+  effectiveMode: "immediate" | "next_trip";
+  enrollmentIds: string[];
+  newStopId: string;
+}> {
+  return transportFetch(`/api/v1/transport/enrollments/reassign-common-location`, {
+    method: "POST",
+    body: {
+      institute_id: input.instituteId,
+      enrollment_ids: input.enrollmentIds,
+      new_stop_id: input.newStopId,
+      ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
+    },
   });
 }
 

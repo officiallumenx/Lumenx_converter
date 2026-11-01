@@ -238,6 +238,19 @@ function TransportPage() {
     }
   };
 
+  /** Enrollment assign/delete — refresh enrollments (+ routes for stop labels) only. */
+  const invalidateTransportEnrollments = () => {
+    const instituteIdForCache = instituteCtx.activeInstituteId;
+    if (!instituteIdForCache) return;
+    invalidateAdminCache("admin:transport");
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteIdForCache, "enrollments"),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteIdForCache, "routes"),
+    });
+  };
+
   const [apiVehicles, setApiVehicles] = useState<TransportVehicle[]>([]);
   const [vehiclesListStatus, setVehiclesListStatus] =
     useState<TransportVehiclesListStatus>(() => (apiMode ? "loading" : "demo"));
@@ -1173,7 +1186,7 @@ function TransportPage() {
                         pickupStopId: null,
                         dropStopId: null,
                       });
-                      bumpTransportReload();
+                      invalidateTransportEnrollments();
                     }
                   : undefined
               }
@@ -1196,7 +1209,8 @@ function TransportPage() {
                       },
                     );
                   }
-                  bumpTransportReload();
+                  // Optimistic local + cache already applied; soft-refresh enrollments only.
+                  void invalidateTransportEnrollments();
                   notify("Enrollment ended");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to update enrollment");
@@ -1221,7 +1235,7 @@ function TransportPage() {
                       },
                     );
                   }
-                  bumpTransportReload();
+                  void invalidateTransportEnrollments();
                   notify("Enrollment deleted");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to delete enrollment");

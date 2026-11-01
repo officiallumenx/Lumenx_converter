@@ -88,6 +88,13 @@ export type TransportEnrollmentRow = {
   route_id: string;
   pickup_stop_id: string | null;
   drop_stop_id: string | null;
+  /** Queued common/pickup stop — applied at next trip start. */
+  next_pickup_stop_id?: string | null;
+  /** Queued common/drop stop — applied at next trip start. */
+  next_drop_stop_id?: string | null;
+  next_stops_pending_at?: string | null;
+  location_changed_at?: string | null;
+  location_changed_by_driver_id?: string | null;
   status: EnrollmentStatus;
   approval_status: TransportApprovalStatus;
   submitted_by_user_id: string | null;
@@ -195,6 +202,13 @@ export type TransportEnrollmentDto = {
   routeId: string;
   pickupStopId: string | null;
   dropStopId: string | null;
+  /** Authoritative common location (pickup preferred, else drop). */
+  commonStopId?: string | null;
+  nextPickupStopId?: string | null;
+  nextDropStopId?: string | null;
+  nextStopsPendingAt?: string | null;
+  locationChangedAt?: string | null;
+  locationChangedByDriverId?: string | null;
   status: EnrollmentStatus;
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;

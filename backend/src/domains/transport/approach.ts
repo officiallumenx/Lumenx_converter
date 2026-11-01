@@ -264,22 +264,53 @@ export async function evaluateApproachAlertsOnPing(
     reportedSpeedKmh: location.speedKmh,
   });
 
-  const [enrollments, stops] = await Promise.all([
-    listEnrollmentsForRoute(admin, trip.institute_id, trip.route_id),
+  const [stops, effective] = await Promise.all([
     loadRouteStopsCached(admin, trip.route_id),
+    import("./effective-participants.js").then((m) =>
+      m.getEffectiveTripParticipants(admin, trip.id),
+    ),
   ]);
 
-  const usable = enrollments.filter((e) =>
-    isOperationallyUsable(e.approval_status),
-  );
+  // Prefer trip snapshot (freeze). Legacy trips without snapshot still use live usable enrollments.
+  type ApproachEnrollment = {
+    student_id: string;
+    pickup_stop_id: string | null;
+    drop_stop_id: string | null;
+  };
+  let usable: ApproachEnrollment[] = effective.participants.map((p) => ({
+    student_id: p.studentId,
+    pickup_stop_id: p.pickupStopId,
+    drop_stop_id: p.dropStopId,
+  }));
+  if (effective.source === "live") {
+    const enrollments = await listEnrollmentsForRoute(
+      admin,
+      trip.institute_id,
+      trip.route_id,
+    );
+    usable = enrollments
+      .filter((e) => isOperationallyUsable(e.approval_status))
+      .map((e) => ({
+        student_id: e.student_id,
+        pickup_stop_id: e.pickup_stop_id,
+        drop_stop_id: e.drop_stop_id,
+      }));
+  }
   if (usable.length === 0) return;
 
-  const notRiding = await listNotRidingStudentIds(
-    admin,
-    trip.institute_id,
-    trip.trip_date,
-    usable.map((e) => e.student_id),
+  const notRiding = new Set(
+    effective.participants.filter((p) => p.notRidingToday).map((p) => p.studentId),
   );
+  // Live fallback: refresh daily exceptions when no snapshot.
+  if (effective.source === "live") {
+    const liveNotRiding = await listNotRidingStudentIds(
+      admin,
+      trip.institute_id,
+      trip.trip_date,
+      usable.map((e) => e.student_id),
+    );
+    for (const id of liveNotRiding) notRiding.add(id);
+  }
 
   const orderedStops = [...stops]
     .filter(
@@ -316,6 +347,7 @@ export async function evaluateApproachAlertsOnPing(
       !Number.isFinite(Number(stop.latitude)) ||
       !Number.isFinite(Number(stop.longitude))
     ) {
+      // Missing GPS — skip arrival (driver UI warns via listStopsMissingCoords).
       continue;
     }
     const latitude = Number(stop.latitude);

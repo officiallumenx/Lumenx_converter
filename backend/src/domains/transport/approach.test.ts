@@ -185,6 +185,13 @@ describe("notification radius geofence (no 50m floor)", () => {
     expect(isBusWithinStopRadius(101, null)).toBe(false);
   });
 
+  it("applies explicit 50m radius without expanding to 100", () => {
+    expect(resolveStopGeofenceM(50)).toBe(50);
+    expect(isBusWithinStopRadius(50, 50)).toBe(true);
+    expect(isBusWithinStopRadius(51, 50)).toBe(false);
+    expect(isBusWithinStopRadius(90, 50)).toBe(false);
+  });
+
   it("applies configured radius consistently (no silent default override)", () => {
     expect(resolveStopGeofenceM(100)).toBe(100);
     expect(isBusWithinStopRadius(99, 100)).toBe(true);

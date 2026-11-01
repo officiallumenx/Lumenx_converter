@@ -31,6 +31,8 @@ import {
   type BoardingStatus,
   type DroppingStatus,
 } from "@/lib/transport";
+import { getRouteSetupSnapshot } from "@/lib/transport/route-setup/store";
+import { listStopsMissingCoords } from "@/lib/transport/stops-missing-coords";
 import {
   buildTripEndSummary,
   homeActionPrimaryLabel,
@@ -122,7 +124,13 @@ function AttendanceGate() {
   const upcomingTitle = tripKindTitle(upcomingKind);
 
   // Pickup completed but Drop ready — show Start Drop, don't trap on completed chrome.
-  if (action !== "start_drop" && (action === "day_complete" || session.phase === "completed")) {
+  // endSyncPending: local phase may still look active while end is flushing.
+  if (
+    action !== "start_drop" &&
+    (action === "day_complete" ||
+      session.phase === "completed" ||
+      session.endSyncPending)
+  ) {
     return (
       <div className="min-w-0 space-y-5">
         <SectionHeader
@@ -307,7 +315,12 @@ export function AttendancePage() {
     return buildTripEndSummary(students, stopsCompleted, stopsTotal);
   }, [students, routeStops.length, session.currentStopIndex]);
 
-  if (!isTripActive(session.phase)) {
+  const stopsMissingCoords = useMemo(() => {
+    const setupStops = getRouteSetupSnapshot().stops ?? [];
+    return listStopsMissingCoords(setupStops);
+  }, [session.tripId, routeStops.length]);
+
+  if (!isTripActive(session.phase) || session.endSyncPending) {
     return (
       <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
         <AttendanceGate />
@@ -662,6 +675,30 @@ export function AttendancePage() {
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {liveMessage}
         </div>
+
+        {stopsMissingCoords.length > 0 ? (
+          <Card className="border-warning/40 bg-warning/10">
+            <CardContent className="flex items-start gap-3 p-3">
+              <MapPinOff className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  {stopsMissingCoords.length === 1
+                    ? "1 stop is missing GPS"
+                    : `${stopsMissingCoords.length} stops are missing GPS`}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Arrival alerts skip{" "}
+                  {stopsMissingCoords
+                    .slice(0, 3)
+                    .map((s) => s.name)
+                    .join(", ")}
+                  {stopsMissingCoords.length > 3 ? "…" : ""}. Open Route Setup and
+                  refresh location on those stops.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">

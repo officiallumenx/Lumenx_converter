@@ -644,6 +644,19 @@ export async function startTripForActor(
     }
     throw AppError.conflict(slotConflictMessage);
   }
+  // Promote deferred Manage Location changes, then freeze roster for this trip.
+  try {
+    const { promotePendingEnrollmentStopsForRoute, snapshotTripParticipants } =
+      await import("./location-assignment.js");
+    await promotePendingEnrollmentStopsForRoute(
+      admin,
+      trip.institute_id,
+      trip.route_id,
+    );
+    await snapshotTripParticipants(admin, trip);
+  } catch {
+    // Snapshot failure must not block trip start — boarding falls back to live enrollments.
+  }
   await notifyTripStarted(admin, trip, actor.userId);
   return enrichTrip(admin, trip);
 }
