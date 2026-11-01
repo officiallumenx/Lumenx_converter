@@ -119,14 +119,14 @@ Blocked by backup gate. Staging remains the verified environment for this migrat
 
 ## 5. Git commit and push (Phase 5)
 
-*(Filled after commit/push commands in this pass.)*
-
 | Field | Value |
 |-------|--------|
 | Commit message | `feat(transport): add next-trip student location management` |
-| Commit SHA | _pending_ |
-| Pushed to | `origin` / `fix/cloudflare-workers-build-upload` |
-| Remote SHA verified | _pending_ |
+| Commit SHA | `86bc97ce1ca2f226ad6f27924cce99861d7c2249` |
+| Branch | `fix/cloudflare-workers-build-upload` |
+| Remote | `https://github.com/officiallumenx/Lumenx_converter.git` |
+| Push | `fe6a5056..86bc97ce` → `fix/cloudflare-workers-build-upload` |
+| Remote SHA verified | **`86bc97ce1ca2f226ad6f27924cce99861d7c2249`** (matches local HEAD) |
 
 **Note:** Pushing code does **not** make the feature live. Apps still require successful production migration + deploy.
 
