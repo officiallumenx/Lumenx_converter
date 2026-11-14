@@ -2,6 +2,7 @@ import {
   classifyGpsFreshness,
   formatGpsAgeLabel,
   isGpsShownAsLive,
+  parseTransportTimestampMs,
 } from "@lumenx/utils";
 import type {
   StudentTransportAssignment,
@@ -85,25 +86,29 @@ export function mapLearnerSummaryToAssignment(
   summary: LearnerTransportSummary,
 ): StudentTransportAssignment {
   const routeCode = summary.routeName?.slice(0, 3).toUpperCase() || "—";
-  const pickup: TransportStop = summary.pickupStop
+  // Single common stop product rule: student uses the same assigned stop for both pickup and drop.
+  const commonSource = summary.pickupStop ?? summary.dropStop;
+  const pickup: TransportStop = commonSource
     ? {
-        id: summary.pickupStop.id,
-        name: summary.pickupStop.name,
-        address: summary.pickupStop.locationLabel,
+        id: commonSource.id,
+        name: commonSource.name,
+        address: commonSource.locationLabel,
         scheduledTime: "Not scheduled",
         order: 1,
+        latitude: commonSource.latitude ?? null,
+        longitude: commonSource.longitude ?? null,
       }
     : { ...PICKUP_NOT_ASSIGNED };
 
-  // Common-location rule: prefer API drop, else mirror pickup.
-  const dropSource = summary.dropStop ?? summary.pickupStop;
-  const drop: TransportStop = dropSource
+  const drop: TransportStop = commonSource
     ? {
-        id: dropSource.id,
-        name: dropSource.name,
-        address: dropSource.locationLabel,
+        id: commonSource.id,
+        name: commonSource.name,
+        address: commonSource.locationLabel,
         scheduledTime: "Not scheduled",
         order: 2,
+        latitude: commonSource.latitude ?? null,
+        longitude: commonSource.longitude ?? null,
       }
     : { ...DROP_NOT_ASSIGNED };
 
@@ -207,7 +212,11 @@ export function buildLiveTrackingFromApi(
     boardingStatus,
     droppingStatus,
     expectedPickupTime: live.expectedPickupTime ?? null,
-    currentStopName: trip?.currentStopName ?? approach?.stopName ?? null,
+    currentStopName:
+      (approach?.withinRadius ? approach.stopName : null) ??
+      trip?.currentStopName ??
+      approach?.stopName ??
+      null,
     notRidingToday,
     tripId: trip?.id ?? null,
     etaDisplayMode:
@@ -215,6 +224,12 @@ export function buildLiveTrackingFromApi(
     etaConfidence:
       (approach?.confidence as TransportTracking["etaConfidence"]) ?? null,
     movementState: approach?.movementState ?? null,
+    boardedAt: boarding?.boardedAt ?? null,
+    droppedAt: boarding?.droppedAt ?? null,
+    startedAt: trip?.startedAt ?? null,
+    completedAt: trip?.completedAt ?? null,
+    schoolArrivedAt: trip?.schoolArrivedAt ?? null,
+    timezone: live.timezone ?? summary.timezone ?? null,
   };
 
   if (emergency) {
@@ -231,6 +246,9 @@ export function buildLiveTrackingFromApi(
     return {
       ...tracking,
       sharedTripActive: false,
+      lat: 0,
+      lng: 0,
+      distanceM: null,
       runStatus:
         tracking.learnerStatus === "reached_school" || parentStatus === "completed"
           ? "completed"
@@ -249,6 +267,9 @@ export function buildLiveTrackingFromApi(
   let stopIndex = trip.currentStopIndex ?? 0;
   if (trip.currentStopId) {
     const idx = stops.findIndex((s) => s.id === trip.currentStopId);
+    if (idx >= 0) stopIndex = idx;
+  } else if (approach?.withinRadius && approach.stopId) {
+    const idx = stops.findIndex((s) => s.id === approach.stopId);
     if (idx >= 0) stopIndex = idx;
   }
 
@@ -312,8 +333,49 @@ export function buildLiveTrackingFromApi(
     nextStopName,
     lastUpdated: formatLocationAge(location?.capturedAt),
     distanceM: gpsLive ? approach?.distanceM ?? null : null,
-    currentStopName: trip.currentStopName ?? currentStop?.name ?? approach?.stopName ?? null,
+    currentStopName:
+      (approach?.withinRadius ? approach.stopName : null) ??
+      trip.currentStopName ??
+      currentStop?.name ??
+      approach?.stopName ??
+      null,
   };
+}
+
+export function reconcileLearnerLiveDto(
+  previous: LearnerTransportLiveDto | null | undefined,
+  incoming: LearnerTransportLiveDto | null | undefined,
+): LearnerTransportLiveDto | null | undefined {
+  if (!incoming) return incoming;
+  if (!previous) return incoming;
+
+  // If active trip changed or completed, use incoming state unconditionally
+  // (prevents previous trip location from appearing as current active trip)
+  const prevTripId = previous.activeTrip?.id;
+  const nextTripId = incoming.activeTrip?.id;
+  if (!nextTripId || prevTripId !== nextTripId) {
+    return incoming;
+  }
+
+  // Same active trip: protect against out-of-order delayed network responses.
+  const prevCaptured = previous.latestLocation?.capturedAt;
+  const nextCaptured = incoming.latestLocation?.capturedAt;
+  if (prevCaptured && nextCaptured) {
+    const prevMs = parseTransportTimestampMs(prevCaptured);
+    const nextMs = parseTransportTimestampMs(nextCaptured);
+    if (Number.isFinite(prevMs) && Number.isFinite(nextMs) && nextMs < prevMs) {
+      // Incoming response has an older GPS location than what we already received.
+      // Retain the newer location, approach, and freshness.
+      return {
+        ...incoming,
+        latestLocation: previous.latestLocation,
+        approach: previous.approach,
+        gpsFreshness: previous.gpsFreshness,
+      };
+    }
+  }
+
+  return incoming;
 }
 
 export async function loadLearnerTransportLive(input: {
@@ -353,36 +415,47 @@ export function summaryStopsToTimeline(
       address: parking.locationLabel,
       scheduledTime: "Not scheduled",
       order: order++,
+      latitude: parking.latitude ?? null,
+      longitude: parking.longitude ?? null,
     });
   }
 
+  const assignedStop = summary.pickupStop ?? summary.dropStop;
+
   out.push(
-    summary.pickupStop
+    assignedStop
       ? {
-          id: summary.pickupStop.id,
-          name: summary.pickupStop.name,
-          address: summary.pickupStop.locationLabel,
+          id: assignedStop.id,
+          name: assignedStop.name,
+          address: assignedStop.locationLabel,
           scheduledTime: "Not scheduled",
           order: order++,
+          latitude: assignedStop.latitude ?? null,
+          longitude: assignedStop.longitude ?? null,
         }
       : { ...PICKUP_NOT_ASSIGNED, order: order++, scheduledTime: "Not scheduled" },
   );
 
-  if (summary.dropStop) {
-    out.push({
-      id: summary.dropStop.id,
-      name: summary.dropStop.name,
-      address: summary.dropStop.locationLabel,
-      scheduledTime: "Not scheduled",
-      order: order++,
-    });
-  } else if (schoolFromRoute) {
+  // If route has an explicit school stop, use it as the morning destination.
+  if (schoolFromRoute) {
     out.push({
       id: schoolFromRoute.id,
       name: schoolFromRoute.name || "School",
       address: schoolFromRoute.locationLabel,
       scheduledTime: "Not scheduled",
       order: order++,
+      latitude: schoolFromRoute.latitude ?? null,
+      longitude: schoolFromRoute.longitude ?? null,
+    });
+  } else if (summary.dropStop && summary.dropStop.id !== assignedStop?.id) {
+    out.push({
+      id: summary.dropStop.id,
+      name: summary.dropStop.name,
+      address: summary.dropStop.locationLabel,
+      scheduledTime: "Not scheduled",
+      order: order++,
+      latitude: summary.dropStop.latitude ?? null,
+      longitude: summary.dropStop.longitude ?? null,
     });
   } else {
     out.push({ ...DROP_NOT_ASSIGNED, order: order++, scheduledTime: "Not scheduled" });

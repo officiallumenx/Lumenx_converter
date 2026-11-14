@@ -11,7 +11,7 @@ const nodes = [
   hub && {
     ...hub,
     layer: "hub",
-    blurb: "Central operational hub — people, classes, fees, and campus records.",
+    blurb: "Your main school office dashboard for students, classes, attendance, and fees.",
   },
   ...orbit.map((p) => ({
     ...p,
@@ -21,7 +21,7 @@ const nodes = [
   nexus && {
     ...nexus,
     layer: "outer",
-    blurb: "Platform services layer — licensing, modules, and operator support around Admin.",
+    blurb: "Manages campus onboarding, active modules, and support for school groups.",
   },
 ].filter(Boolean);
 
@@ -48,14 +48,12 @@ function satPosition(id) {
 <section id="ecosystem" class="lx-eco-section" aria-labelledby="lx-eco-heading">
   <div class="container">
     <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
-      <span class="lx-section-eyebrow lx-eco-eyebrow">How it works together</span>
+      <span class="lx-section-eyebrow lx-eco-eyebrow">How It All Connects</span>
       <h2 id="lx-eco-heading" class="lx-section-title lx-eco-title">
-        Each product helps a defined part of campus life.
+        Update once in the office. Everyone sees what they need.
       </h2>
       <p class="lx-section-lead lx-eco-lead">
-        Admin sits at the centre. Connect, Transport, Admissions, and Careers orbit that record for
-        clear audiences. Nexus supports licensing and platform service around the institute —
-        shown as a conceptual map, not a claim of live data sync.
+        <strong>Admin</strong> sits at the center of your school. <strong>Connect</strong>, <strong>Transport</strong>, <strong>Admissions</strong>, and <strong>Careers</strong> work around that same school record so your staff never have to enter the same information twice.
       </p>
     </div>
 

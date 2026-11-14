@@ -127,6 +127,16 @@ function deriveConnection(): GpsOutboxConnectionState {
   return "online";
 }
 
+export function getLastEnqueuedFix(): {
+  latitude: number;
+  longitude: number;
+  capturedAt: string;
+} | null {
+  return lastEnqueuedFix;
+}
+
+export { haversineMetersClient };
+
 export function subscribeGpsOutbox(listener: Listener): () => void {
   ensureOpsBridge();
   listeners.add(listener);

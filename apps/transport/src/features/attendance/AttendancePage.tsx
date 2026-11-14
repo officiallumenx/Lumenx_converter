@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   Flag,
@@ -23,7 +23,8 @@ import { OfflineTripBanner } from "@/components/app/offline-trip-banner";
 import { ROUTES } from "@/constants";
 import { useAttendanceStudents } from "@/hooks/use-attendance-students";
 import { useDriverAssignmentQuery } from "@/lib/transport-queries";
-import { useLocationTrack } from "@/hooks/use-trip-location-guard";
+import { useLocationBlocked } from "@/hooks/use-trip-location-guard";
+import { getLocationTrackSnapshot } from "@/lib/transport/location-tracking";
 import { useTripSession } from "@/hooks/use-trip-session";
 import {
   attendanceRepository,
@@ -44,6 +45,8 @@ import {
 } from "@/lib/transport/trip";
 
 import { StudentAttendanceCard } from "./StudentAttendanceCard";
+import { CurrentStopArrivalBadge } from "./CurrentStopArrivalBadge";
+import { VirtualizedAttendanceList } from "./VirtualizedAttendanceList";
 import {
   defaultAttendanceTabForSlot,
   requiresBoardedBeforeDrop,
@@ -228,7 +231,7 @@ export function AttendancePage() {
   const navigate = useNavigate();
   const assignment = useDriverAssignmentQuery();
   const session = useTripSession();
-  const locationTrack = useLocationTrack();
+  const locationBlocked = useLocationBlocked();
   const students = useAttendanceStudents();
   const [tab, setTab] = useState<AttendanceTabId>(() =>
     defaultAttendanceTabForSlot(session.slot),
@@ -240,18 +243,18 @@ export function AttendancePage() {
   const [advancing, setAdvancing] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const locationBlocked = locationTrack.status === "off";
+
+  const syncPhaseIfNeeded = (nextPhase: "boarding" | "dropping") => {
+    if (!isTripActive(session.phase) || session.phase === nextPhase) return;
+    void tripRepository.setLifecyclePhase(nextPhase).catch(() => undefined);
+  };
 
   // Keep Dropping selected for evening trips when the trip identity/slot changes.
   // Do not depend on phase — tab changes also PATCH phase and would fight the driver.
   useEffect(() => {
     const next = defaultAttendanceTabForSlot(session.slot);
     setTab(next);
-    if (isTripActive(session.phase)) {
-      void tripRepository.setLifecyclePhase(
-        next === "boarding" ? "boarding" : "dropping",
-      );
-    }
+    syncPhaseIfNeeded(next === "boarding" ? "boarding" : "dropping");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on trip/slot
   }, [session.slot, session.tripId]);
 
@@ -320,6 +323,18 @@ export function AttendancePage() {
     return listStopsMissingCoords(setupStops);
   }, [session.tripId, routeStops.length]);
 
+  const currentSetupStop = useMemo(() => {
+    if (!currentStop) return null;
+    const setupStops = getRouteSetupSnapshot().stops ?? [];
+    return (
+      setupStops.find(
+        (s) =>
+          (currentStop.id && (s.id === currentStop.id || s.apiStopId === currentStop.id)) ||
+          s.name.trim().toLowerCase() === currentStop.name.trim().toLowerCase(),
+      ) ?? null
+    );
+  }, [currentStop]);
+
   if (!isTripActive(session.phase) || session.endSyncPending) {
     return (
       <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
@@ -332,7 +347,7 @@ export function AttendancePage() {
   const activeTitle = tripKindTitle(activeKind);
 
   const syncPhaseFromTab = (nextTab: AttendanceTabId) => {
-    void tripRepository.setLifecyclePhase(nextTab === "boarding" ? "boarding" : "dropping");
+    syncPhaseIfNeeded(nextTab === "boarding" ? "boarding" : "dropping");
   };
 
   const applyBoarding = (
@@ -358,7 +373,7 @@ export function AttendancePage() {
         : `${name}: saving…`;
       toast.message(pendingMessage);
       setLiveMessage(pendingMessage);
-      void tripRepository.setLifecyclePhase("boarding");
+      syncPhaseIfNeeded("boarding");
     });
   };
 
@@ -384,149 +399,169 @@ export function AttendancePage() {
         : `${name}: saving…`;
       toast.message(pendingMessage);
       setLiveMessage(pendingMessage);
-      void tripRepository.setLifecyclePhase("dropping");
+      syncPhaseIfNeeded("dropping");
     });
   };
 
-  const onBoardingTap = (id: string) => {
-    if (locationBlocked) {
-      toast.error("Turn on location", {
-        description: "GPS must stay on while marking attendance.",
-      });
-      return;
-    }
-    const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-    if (!student) return;
-    if (student.syncStatus === "syncing") {
-      toast.message("Already saving…", {
-        description: `Wait for ${student.name} to finish syncing.`,
-      });
-      return;
-    }
-    if (student.boarding === "pending") {
-      applyBoarding(id, "boarded");
-      return;
-    }
-    if (student.boarding === "boarded" || student.boarding === "not_boarded") {
+  const onBoardingTap = useCallback(
+    (id: string) => {
+      if (locationBlocked) {
+        toast.error("Turn on location", {
+          description: "GPS must stay on while marking attendance.",
+        });
+        return;
+      }
+      const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
+      if (!student) return;
+      if (student.syncStatus === "syncing") {
+        toast.message("Already saving…", {
+          description: `Wait for ${student.name} to finish syncing.`,
+        });
+        return;
+      }
+      if (student.syncStatus === "error") {
+        applyBoarding(id, student.boarding === "pending" ? "boarded" : student.boarding);
+        return;
+      }
+      if (student.boarding === "pending") {
+        applyBoarding(id, "boarded");
+        return;
+      }
+      if (student.boarding === "boarded" || student.boarding === "not_boarded") {
+        setConfirm({
+          kind: "boarding",
+          studentId: id,
+          studentName: student.name,
+          next: "pending",
+          label: `Undo boarding for ${student.name}?`,
+        });
+      }
+    },
+    [locationBlocked],
+  );
+
+  const onBoardingLongPress = useCallback(
+    (id: string) => {
+      if (locationBlocked) {
+        toast.error("Turn on location", {
+          description: "GPS must stay on while marking attendance.",
+        });
+        return;
+      }
+      const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
+      if (!student) return;
+      if (student.syncStatus === "syncing") {
+        toast.message("Already saving…", {
+          description: `Wait for ${student.name} to finish syncing.`,
+        });
+        return;
+      }
+      if (student.boarding === "not_boarded") {
+        toast.message(`${student.name} is already marked not boarded.`);
+        return;
+      }
+      if (student.boarding === "pending") {
+        applyBoarding(id, "not_boarded");
+        return;
+      }
       setConfirm({
         kind: "boarding",
         studentId: id,
         studentName: student.name,
+        next: "not_boarded",
+        label: `Change ${student.name} to not boarded?`,
+      });
+    },
+    [locationBlocked],
+  );
+
+  const onDroppingTap = useCallback(
+    (id: string) => {
+      if (locationBlocked) {
+        toast.error("Turn on location", {
+          description: "GPS must stay on while marking attendance.",
+        });
+        return;
+      }
+      const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
+      if (!student) return;
+      if (student.syncStatus === "syncing") {
+        toast.message("Already saving…", {
+          description: `Wait for ${student.name} to finish syncing.`,
+        });
+        return;
+      }
+      if (
+        requiresBoardedBeforeDrop(session.slot) &&
+        student.boarding !== "boarded"
+      ) {
+        toast.error("Board first", {
+          description: `${student.name} must be boarded before dropping.`,
+        });
+        return;
+      }
+      if (student.syncStatus === "error") {
+        applyDropping(id, student.dropping === "pending" ? "dropped" : student.dropping);
+        return;
+      }
+      if (student.dropping === "pending") {
+        applyDropping(id, "dropped");
+        return;
+      }
+      setConfirm({
+        kind: "dropping",
+        studentId: id,
+        studentName: student.name,
         next: "pending",
-        label: `Undo boarding for ${student.name}?`,
+        label: `Undo dropping for ${student.name}?`,
       });
-    }
-  };
+    },
+    [locationBlocked, session.slot],
+  );
 
-  const onBoardingLongPress = (id: string) => {
-    if (locationBlocked) {
-      toast.error("Turn on location", {
-        description: "GPS must stay on while marking attendance.",
+  const onDroppingLongPress = useCallback(
+    (id: string) => {
+      if (locationBlocked) {
+        toast.error("Turn on location", {
+          description: "GPS must stay on while marking attendance.",
+        });
+        return;
+      }
+      const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
+      if (!student) return;
+      if (student.syncStatus === "syncing") {
+        toast.message("Already saving…", {
+          description: `Wait for ${student.name} to finish syncing.`,
+        });
+        return;
+      }
+      if (
+        requiresBoardedBeforeDrop(session.slot) &&
+        student.boarding !== "boarded"
+      ) {
+        toast.error("Board first", {
+          description: `${student.name} must be boarded before dropping.`,
+        });
+        return;
+      }
+      if (student.dropping === "not_dropped") {
+        toast.message(`${student.name} is already marked not dropped.`);
+        return;
+      }
+      if (student.dropping === "pending") {
+        applyDropping(id, "not_dropped");
+        return;
+      }
+      setConfirm({
+        kind: "dropping",
+        studentId: id,
+        studentName: student.name,
+        next: "not_dropped",
+        label: `Change ${student.name} to not dropped?`,
       });
-      return;
-    }
-    const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-    if (!student) return;
-    if (student.syncStatus === "syncing") {
-      toast.message("Already saving…", {
-        description: `Wait for ${student.name} to finish syncing.`,
-      });
-      return;
-    }
-    if (student.boarding === "not_boarded") {
-      toast.message(`${student.name} is already marked not boarded.`);
-      return;
-    }
-    if (student.boarding === "pending") {
-      applyBoarding(id, "not_boarded");
-      return;
-    }
-    setConfirm({
-      kind: "boarding",
-      studentId: id,
-      studentName: student.name,
-      next: "not_boarded",
-      label: `Change ${student.name} to not boarded?`,
-    });
-  };
-
-  const onDroppingTap = (id: string) => {
-    if (locationBlocked) {
-      toast.error("Turn on location", {
-        description: "GPS must stay on while marking attendance.",
-      });
-      return;
-    }
-    const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-    if (!student) return;
-    if (student.syncStatus === "syncing") {
-      toast.message("Already saving…", {
-        description: `Wait for ${student.name} to finish syncing.`,
-      });
-      return;
-    }
-    if (
-      requiresBoardedBeforeDrop(session.slot) &&
-      student.boarding !== "boarded"
-    ) {
-      toast.error("Board first", {
-        description: `${student.name} must be boarded before dropping.`,
-      });
-      return;
-    }
-    if (student.dropping === "pending") {
-      applyDropping(id, "dropped");
-      return;
-    }
-    setConfirm({
-      kind: "dropping",
-      studentId: id,
-      studentName: student.name,
-      next: "pending",
-      label: `Undo dropping for ${student.name}?`,
-    });
-  };
-
-  const onDroppingLongPress = (id: string) => {
-    if (locationBlocked) {
-      toast.error("Turn on location", {
-        description: "GPS must stay on while marking attendance.",
-      });
-      return;
-    }
-    const student = attendanceRepository.getSnapshot().find((s) => s.id === id);
-    if (!student) return;
-    if (student.syncStatus === "syncing") {
-      toast.message("Already saving…", {
-        description: `Wait for ${student.name} to finish syncing.`,
-      });
-      return;
-    }
-    if (
-      requiresBoardedBeforeDrop(session.slot) &&
-      student.boarding !== "boarded"
-    ) {
-      toast.error("Board first", {
-        description: `${student.name} must be boarded before dropping.`,
-      });
-      return;
-    }
-    if (student.dropping === "not_dropped") {
-      toast.message(`${student.name} is already marked not dropped.`);
-      return;
-    }
-    if (student.dropping === "pending") {
-      applyDropping(id, "not_dropped");
-      return;
-    }
-    setConfirm({
-      kind: "dropping",
-      studentId: id,
-      studentName: student.name,
-      next: "not_dropped",
-      label: `Change ${student.name} to not dropped?`,
-    });
-  };
+    },
+    [locationBlocked, session.slot],
+  );
 
   const handleConfirmChange = () => {
     if (!confirm) return;
@@ -549,7 +584,7 @@ export function AttendancePage() {
               ? `${confirm.studentName}: queued — will sync when online`
               : `${confirm.studentName}: saving…`,
           );
-          void tripRepository.setLifecyclePhase("boarding");
+          syncPhaseIfNeeded("boarding");
         });
       return;
     }
@@ -566,7 +601,7 @@ export function AttendancePage() {
             ? `${confirm.studentName}: queued — will sync when online`
             : `${confirm.studentName}: saving…`,
         );
-        void tripRepository.setLifecyclePhase("dropping");
+        syncPhaseIfNeeded("dropping");
       });
   };
 
@@ -645,18 +680,15 @@ export function AttendancePage() {
     }
 
     return (
-      <div className="space-y-2.5">
-        {filtered.map((student) => (
-          <StudentAttendanceCard
-            key={student.id}
-            student={student}
-            mode={mode}
-            onTap={() => onTap(student.id)}
-            onLongPress={() => onLongPress(student.id)}
-            disabled={locationBlocked || student.syncStatus === "syncing"}
-          />
-        ))}
-      </div>
+      <VirtualizedAttendanceList
+        students={filtered}
+        mode={mode}
+        currentStopName={currentStop?.name}
+        hasRouteStops={routeStops.length > 0}
+        locationBlocked={locationBlocked}
+        onStudentTap={onTap}
+        onStudentLongPress={onLongPress}
+      />
     );
   };
 
@@ -708,7 +740,10 @@ export function AttendancePage() {
             <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
               Attendance
             </h1>
-            <p className="truncate text-sm text-muted-foreground">{stopLabel}</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm text-muted-foreground">{stopLabel}</p>
+              <CurrentStopArrivalBadge currentStop={currentSetupStop} />
+            </div>
           </div>
           {canAdvance ? (
             <Button
@@ -739,7 +774,7 @@ export function AttendancePage() {
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Turn on GPS to mark boarding or dropping. Attendance taps stay disabled until
                 location is ready.
-                {locationTrack.message ? ` (${locationTrack.message})` : ""}
+                {getLocationTrackSnapshot().message ? ` (${getLocationTrackSnapshot().message})` : ""}
               </p>
             </div>
           </div>

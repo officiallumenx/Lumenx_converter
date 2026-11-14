@@ -78,6 +78,11 @@ const NOT_FOUND: DriverAssignment = {
   message: "Could not load driver assignment from API.",
 };
 
+import {
+  getCachedDriverAssignment,
+  saveCachedDriverAssignment,
+} from "../transport/cache/driver-cache";
+
 export const INBOX_POLL_MS = 45_000;
 export const EMERGENCY_POLL_MS = 15_000;
 
@@ -89,9 +94,14 @@ async function fetchDriverAssignment(input: {
   employeeId: string;
 }): Promise<DriverAssignment> {
   try {
-    return await loadApiDriverAssignment(input);
+    const res = await loadApiDriverAssignment(input);
+    if (res.status === "ready") {
+      saveCachedDriverAssignment(input.driverId, input.instituteId, res);
+    }
+    return res;
   } catch {
-    return NOT_FOUND;
+    const cached = getCachedDriverAssignment(input.driverId, input.instituteId);
+    return cached ?? NOT_FOUND;
   }
 }
 
@@ -116,6 +126,7 @@ export function useDriverAssignmentQuery(): DriverAssignment {
         employeeId: user!.employeeId,
       }),
     enabled: canFetch,
+    initialData: () => getCachedDriverAssignment(driverId, instituteId) ?? undefined,
     placeholderData: (previous) => previous,
   });
 

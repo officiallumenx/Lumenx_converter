@@ -96,7 +96,7 @@ describe("syncStopAndEnrollmentsToApi", () => {
     expect(submitTransportEnrollment).not.toHaveBeenCalled();
     expect(updateTransportEnrollment).toHaveBeenCalledWith(enrollmentId, {
       pickupStopId: apiStopId,
-      dropStopId: schoolStopId,
+      dropStopId: apiStopId,
     });
     expect(result.syncedEnrollmentIds).toEqual(["asn-1"]);
     expect(assignment.apiEnrollmentId).toBe(enrollmentId);

@@ -10,8 +10,8 @@ import {
   transportSettingsDtoToTransportSettings,
   vehicleDtosToTransportVehicles,
 } from "./map";
-import type { TransportEnrollmentListItem } from "./types";
-import { listStudents } from "@/lib/students/api";
+import type { StopDto, TransportEnrollmentListItem } from "./types";
+import { listStudentsCached } from "@/lib/directory-lists-cache";
 import { studentDtosToListItems } from "@/lib/students/map";
 import type { StudentListItem } from "@/lib/students/types";
 
@@ -196,19 +196,30 @@ export async function loadTransportRoutesList(
 async function loadTransportRoutesForInstitute(
   activeInstituteId: string,
 ): Promise<TransportRoute[]> {
-  const [rows, enrollments] = await Promise.all([
+  const [rows, enrollments, allStops] = await Promise.all([
     listTransportRoutes({ instituteId: activeInstituteId }),
     listTransportEnrollments({ instituteId: activeInstituteId }),
+    listTransportStops({ instituteId: activeInstituteId }),
   ]);
+  const stopsByRouteId = new Map<string, StopDto[]>();
+  for (const stop of allStops) {
+    const list = stopsByRouteId.get(stop.routeId);
+    if (list) {
+      list.push(stop);
+    } else {
+      stopsByRouteId.set(stop.routeId, [stop]);
+    }
+  }
   return routeDtosToTransportRoutes(
     rows,
-    (routeId) => listTransportStops({ routeId }),
+    async (routeId) => stopsByRouteId.get(routeId) ?? [],
     enrollments,
   );
 }
 
 export async function loadTransportEnrollmentsList(
   activeInstituteId: string | null,
+  cachedStudents?: StudentListItem[],
 ): Promise<TransportEnrollmentsListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -219,10 +230,15 @@ export async function loadTransportEnrollmentsList(
   }
 
   try {
+    const studentsPromise =
+      cachedStudents && cachedStudents.length > 0
+        ? Promise.resolve(cachedStudents)
+        : listStudentsCached(activeInstituteId).then(studentDtosToListItems);
+
     const [rows, routes, students] = await Promise.all([
       listTransportEnrollments({ instituteId: activeInstituteId }),
       loadTransportRoutesForInstitute(activeInstituteId),
-      studentDtosToListItems(await listStudents({ instituteId: activeInstituteId })),
+      studentsPromise,
     ]);
     const studentsById = new Map<string, StudentListItem>(
       students.map((student) => [student.id, student]),

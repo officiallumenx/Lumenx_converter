@@ -255,14 +255,20 @@ export async function assertBoardingTargetAllowed(
   if (
     input.kind === "boarding" &&
     participant.pickupStopId &&
-    participant.pickupStopId !== input.stopId
+    participant.pickupStopId !== input.stopId &&
+    participant.rawPickupStopId !== input.stopId &&
+    participant.dropStopId !== input.stopId &&
+    participant.rawDropStopId !== input.stopId
   ) {
     throw AppError.validation("Student must be boarded at their assigned pickup stop");
   }
   if (
     input.kind === "dropping" &&
     participant.dropStopId &&
-    participant.dropStopId !== input.stopId
+    participant.dropStopId !== input.stopId &&
+    participant.rawDropStopId !== input.stopId &&
+    participant.pickupStopId !== input.stopId &&
+    participant.rawPickupStopId !== input.stopId
   ) {
     throw AppError.validation("Student must be dropped at their assigned drop stop");
   }

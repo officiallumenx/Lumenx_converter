@@ -6,6 +6,7 @@ import {
   requireInstituteId,
 } from "../../authorization/index.js";
 import { findStudentById, listGuardianStudentIds } from "../students/repository.js";
+import { findInstituteSettings } from "../identity/repository.js";
 import {
   isDriverForInstitute,
   isOperationallyUsable,
@@ -33,6 +34,7 @@ import {
   listDriverAnalyticsRows,
   listEnrollmentAnalyticsRows,
   listEnrollments,
+  listEnrollmentsForRoute,
   listRouteAnalyticsRows,
   listStopAnalyticsRows,
   listStopsForRoute,
@@ -231,13 +233,11 @@ async function enrichTrip(
     .filter((s) => isOperationallyUsable(s.approval_status))
     .slice()
     .sort((a, b) => a.route_order - b.route_order);
-  const enrollments = await listEnrollments(admin, row.institute_id);
-  const routeEnrollments = enrollments.filter(
-    (e) =>
-      e.route_id === row.route_id &&
-      e.status === "active" &&
-      isOperationallyUsable(e.approval_status),
-  );
+  const routeEnrollments = (
+    await listEnrollmentsForRoute(admin, row.institute_id, row.route_id, {
+      activeOnly: true,
+    })
+  ).filter((e) => isOperationallyUsable(e.approval_status));
   const stopRefs = ordered.map((s) => ({
     id: s.id,
     name: s.name,
@@ -554,6 +554,10 @@ export async function startTripForActor(
     throw AppError.conflict("Route was rejected and cannot start a trip");
   }
 
+  if (input.phase && input.phase !== "starting" && input.phase !== "running") {
+    throw AppError.validation("Initial trip phase must be 'starting' or 'running'");
+  }
+
   const existing = await findActiveTripForVehicle(admin, input.vehicleId);
   if (existing) {
     // Server wins: active trip already exists — return it for offline reconciliation.
@@ -616,6 +620,7 @@ export async function startTripForActor(
       instituteId,
       slot,
       tripDate,
+      phase: input.phase,
       clientEventId: input.clientEventId?.trim() || null,
     });
   } catch (err) {
@@ -832,10 +837,16 @@ async function maybeCompleteTripAfterAllDropped(
   });
   if (boarded.length === 0) return null;
 
-  const allResolved = boarded.every((p) => {
+  // Require every expected participant to be accounted for (either marked not_boarded
+  // or boarded and dropped/not_dropped) so pending/offline students are never stranded
+  // by premature trip completion.
+  const allResolved = participants.expectedOnboard.every((p) => {
     const ev = byStudent.get(p.studentId);
+    if (!ev) return false;
+    if (ev.boarding_status === "not_boarded") return true;
     return (
-      ev?.dropping_status === "dropped" || ev?.dropping_status === "not_dropped"
+      ev.boarding_status === "boarded" &&
+      (ev.dropping_status === "dropped" || ev.dropping_status === "not_dropped")
     );
   });
   if (!allResolved) return null;
@@ -964,15 +975,13 @@ export async function upsertBoardingForActor(
     stopId: input.stopId,
     boardingStatus: input.boardingStatus,
     boardingClientEventId: clientEventId,
-    boardedAt:
-      input.boardingStatus === "boarded"
-        ? now
-        : input.boardingStatus === "not_boarded"
-          ? null
-          : undefined,
+    boardedAt: input.boardingStatus === "boarded" ? now : null,
   });
 
-  if (boardingStatusChanged) {
+  if (
+    boardingStatusChanged &&
+    (input.boardingStatus === "boarded" || input.boardingStatus === "not_boarded")
+  ) {
     await appendTripTimeline(admin, tripId, timelineEvent({
       kind:
         input.boardingStatus === "boarded"
@@ -1041,15 +1050,13 @@ export async function upsertDroppingForActor(
     stopId: input.stopId,
     droppingStatus: input.droppingStatus,
     droppingClientEventId: clientEventId,
-    droppedAt:
-      input.droppingStatus === "dropped"
-        ? now
-        : input.droppingStatus === "not_dropped"
-          ? null
-          : undefined,
+    droppedAt: input.droppingStatus === "dropped" ? now : null,
   });
 
-  if (droppingStatusChanged) {
+  if (
+    droppingStatusChanged &&
+    (input.droppingStatus === "dropped" || input.droppingStatus === "not_dropped")
+  ) {
     await appendTripTimeline(admin, tripId, timelineEvent({
       kind: TRANSPORT_EVENT.STUDENT_DROPPED,
       label:
@@ -1070,9 +1077,11 @@ export async function upsertDroppingForActor(
   }
 
   // Parent notification only after backend confirmation (notifyDroppingMarked above).
-  const refreshed = await findTripById(admin, tripId);
-  if (refreshed) {
-    await maybeCompleteTripAfterAllDropped(admin, actor, refreshed);
+  if (input.droppingStatus !== "pending") {
+    const refreshed = await findTripById(admin, tripId);
+    if (refreshed) {
+      await maybeCompleteTripAfterAllDropped(admin, actor, refreshed);
+    }
   }
 
   return enrichBoarding(admin, row);
@@ -1344,6 +1353,16 @@ export async function pingLocationForActor(
   const approachLng =
     rejectJump && previous ? previous.longitude : validated.longitude;
 
+  const previousLocation =
+    !rejectJump && previous
+      ? {
+          latitude: previous.latitude,
+          longitude: previous.longitude,
+          capturedAtMs: Date.parse(previous.captured_at),
+          accuracyM: previous.accuracy_m,
+        }
+      : null;
+
   // Approach bands enqueue async; rare arrival emit is awaited inside.
   // Keep await so timeline/school side-effects settle before the response returns.
   const { evaluateApproachAlertsOnPing } = await import("./approach.js");
@@ -1358,6 +1377,7 @@ export async function pingLocationForActor(
       capturedAtMs: Number.isFinite(capturedAtMs) ? capturedAtMs : Date.now(),
     },
     actor.userId,
+    previousLocation,
   );
 
   await maybeMarkSchoolArrivedOnPing(
@@ -1449,6 +1469,8 @@ export async function getLearnerTransportLiveForActor(
     [input.studentId],
   );
   const settings = await findTransportSettings(admin, instituteId);
+  const instituteSettings = await findInstituteSettings(admin, instituteId);
+  const timezone = instituteSettings?.timezone?.trim() || "Asia/Kolkata";
   const expectedPickupTime = settings?.default_pickup_time
     ? String(settings.default_pickup_time).slice(0, 5)
     : null;
@@ -1462,6 +1484,7 @@ export async function getLearnerTransportLiveForActor(
     gpsFreshness: classifyGpsFreshness(latestLocation?.capturedAt ?? null),
     notRidingToday: notRidingSet.has(input.studentId),
     expectedPickupTime,
+    timezone,
   };
 }
 
@@ -1498,13 +1521,18 @@ export async function listLearnerTransportHistoryForActor(
   const { listActiveDailyExceptionsForStudents } = await import(
     "./daily-exception-repository.js"
   );
+  const { resolveCommonLocationStopId } = await import("./common-location.js");
+  const { listTripParticipants } = await import("./trip-participant-repository.js");
+
   const route = await findRouteById(admin, enrollment.route_id);
-  const pickup = enrollment.pickup_stop_id
-    ? await findStopById(admin, enrollment.pickup_stop_id)
+  const commonStopId = resolveCommonLocationStopId({
+    pickupStopId: enrollment.pickup_stop_id,
+    dropStopId: enrollment.drop_stop_id,
+  });
+  const commonStop = commonStopId
+    ? await findStopById(admin, commonStopId)
     : null;
-  const drop = enrollment.drop_stop_id
-    ? await findStopById(admin, enrollment.drop_stop_id)
-    : null;
+  let tripDefaultStopName = commonStop?.name ?? null;
 
   const out: import("./ops-types.js").LearnerTransportHistoryDayDto[] = [];
   for (const trip of trips) {
@@ -1519,6 +1547,25 @@ export async function listLearnerTransportHistoryForActor(
     // Privacy: only surface days where this student participated or was
     // explicitly not-riding — never other students' trip activity alone.
     if (!boardingRow && exceptions.length === 0) continue;
+
+    let tripPickupName = tripDefaultStopName;
+    let tripDropName = tripDefaultStopName;
+    const participants = await listTripParticipants(admin, trip.id).catch(() => []);
+    const participant = participants.find((p) => p.student_id === input.studentId);
+    if (participant) {
+      const snapshotStopId = resolveCommonLocationStopId({
+        pickupStopId: participant.pickup_stop_id,
+        dropStopId: participant.drop_stop_id,
+      });
+      if (snapshotStopId && snapshotStopId !== commonStopId) {
+        const snapStop = await findStopById(admin, snapshotStopId);
+        if (snapStop) {
+          tripPickupName = snapStop.name;
+          tripDropName = snapStop.name;
+        }
+      }
+    }
+
     out.push({
       tripDate: trip.trip_date,
       tripId: trip.id,
@@ -1529,8 +1576,8 @@ export async function listLearnerTransportHistoryForActor(
       boardedAt: boardingRow?.boarded_at ?? null,
       droppedAt: boardingRow?.dropped_at ?? null,
       notRiding: exceptions.length > 0,
-      pickupStopName: pickup?.name ?? null,
-      dropStopName: drop?.name ?? null,
+      pickupStopName: tripPickupName,
+      dropStopName: tripDropName,
     });
     if (out.length >= limit) break;
   }

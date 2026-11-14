@@ -18,6 +18,8 @@ export type EffectiveTripParticipant = {
   enrollmentId: string;
   pickupStopId: string | null;
   dropStopId: string | null;
+  rawPickupStopId?: string | null;
+  rawDropStopId?: string | null;
   notRidingToday: boolean;
   exceptionId: string | null;
   exceptionReason: string | null;
@@ -58,6 +60,10 @@ export async function getEffectiveTripParticipants(
   if (snapshot.length > 0) {
     const participants: EffectiveTripParticipant[] = snapshot.map((row) => {
       const student = studentById.get(row.student_id);
+      const commonStopId =
+        (typeof row.pickup_stop_id === "string" && row.pickup_stop_id.trim()) ||
+        (typeof row.drop_stop_id === "string" && row.drop_stop_id.trim()) ||
+        null;
       return {
         studentId: row.student_id,
         studentName:
@@ -65,8 +71,10 @@ export async function getEffectiveTripParticipants(
           `${student?.first_name ?? ""} ${student?.surname ?? ""}`.trim() ||
           "Student",
         enrollmentId: row.enrollment_id,
-        pickupStopId: row.pickup_stop_id,
-        dropStopId: row.drop_stop_id,
+        pickupStopId: commonStopId,
+        dropStopId: commonStopId,
+        rawPickupStopId: row.pickup_stop_id ?? null,
+        rawDropStopId: row.drop_stop_id ?? null,
         notRidingToday: row.not_riding,
         exceptionId: row.exception_id,
         exceptionReason: null,
@@ -108,6 +116,10 @@ export async function getEffectiveTripParticipants(
   const participants: EffectiveTripParticipant[] = enrollments.map((e) => {
     const student = studentById.get(e.student_id);
     const exception = exceptionByStudent.get(e.student_id);
+    const commonStopId =
+      (typeof e.pickup_stop_id === "string" && e.pickup_stop_id.trim()) ||
+      (typeof e.drop_stop_id === "string" && e.drop_stop_id.trim()) ||
+      null;
     return {
       studentId: e.student_id,
       studentName:
@@ -115,8 +127,10 @@ export async function getEffectiveTripParticipants(
         `${student?.first_name ?? ""} ${student?.surname ?? ""}`.trim() ||
         "Student",
       enrollmentId: e.id,
-      pickupStopId: e.pickup_stop_id,
-      dropStopId: e.drop_stop_id,
+      pickupStopId: commonStopId,
+      dropStopId: commonStopId,
+      rawPickupStopId: e.pickup_stop_id ?? null,
+      rawDropStopId: e.drop_stop_id ?? null,
       notRidingToday: Boolean(exception),
       exceptionId: exception?.id ?? null,
       exceptionReason: exception?.reason ?? null,

@@ -33,7 +33,9 @@ import {
 import { formatApproachEta } from "@/lib/transport-utils";
 import type { LearnerTransportHistoryDayDto } from "@/lib/transport/api-types";
 import {
+  DEFAULT_TRANSPORT_TIMEZONE,
   formatExpectedPickupLabel,
+  formatTransportDate,
   formatTransportInstant,
 } from "@/lib/transport/format-time";
 
@@ -45,21 +47,41 @@ type Props = {
   viewer?: "parent" | "student";
 };
 
-function boardingLabel(status: string | null | undefined): string {
-  if (status === "boarded") return "Boarded";
+function boardingLabel(
+  status: string | null | undefined,
+  at?: string | null,
+  timeZone?: string,
+): string {
+  if (status === "boarded") {
+    const time = formatTransportInstant(at, { timeZone });
+    return time ? `Boarded (${time})` : "Boarded";
+  }
   if (status === "not_boarded") return "Not boarded";
   if (status === "pending") return "Pending";
   return "—";
 }
 
-function droppingLabel(status: string | null | undefined): string {
-  if (status === "dropped") return "Dropped";
+function droppingLabel(
+  status: string | null | undefined,
+  at?: string | null,
+  timeZone?: string,
+): string {
+  if (status === "dropped") {
+    const time = formatTransportInstant(at, { timeZone });
+    return time ? `Dropped (${time})` : "Dropped";
+  }
   if (status === "not_dropped") return "Not dropped";
   if (status === "pending") return "Pending";
   return "—";
 }
 
-function HistoryList({ days }: { days: LearnerTransportHistoryDayDto[] }) {
+function HistoryList({
+  days,
+  timeZone,
+}: {
+  days: LearnerTransportHistoryDayDto[];
+  timeZone: string;
+}) {
   if (days.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -70,59 +92,66 @@ function HistoryList({ days }: { days: LearnerTransportHistoryDayDto[] }) {
 
   return (
     <ul className="space-y-3">
-      {days.map((day) => (
-        <li
-          key={`${day.tripDate}-${day.tripId ?? "none"}`}
-          className="rounded-lg border border-border px-3 py-2"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-foreground">{day.tripDate}</p>
-            {day.notRiding ? (
-              <Badge variant="outline" className="text-[10px]">
-                Not riding
-              </Badge>
-            ) : day.phase ? (
-              <Badge variant="secondary" className="text-[10px]">
-                {day.phase}
-              </Badge>
-            ) : null}
-          </div>
-          <dl className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-            <div>
-              <dt className="inline text-muted-foreground">Pickup: </dt>
-              <dd className="inline text-foreground">{day.pickupStopName ?? "—"}</dd>
+      {days.map((day) => {
+        const formattedDate =
+          formatTransportDate(day.tripDate, { timeZone, relative: true }) ??
+          day.tripDate;
+        return (
+          <li
+            key={`${day.tripDate}-${day.tripId ?? "none"}`}
+            className="rounded-lg border border-border px-3 py-2"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground">{formattedDate}</p>
+              {day.notRiding ? (
+                <Badge variant="outline" className="text-[10px]">
+                  Not riding
+                </Badge>
+              ) : day.phase ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  {day.phase}
+                </Badge>
+              ) : null}
             </div>
-            <div>
-              <dt className="inline text-muted-foreground">Boarding: </dt>
-              <dd className="inline text-foreground">{boardingLabel(day.boardingStatus)}</dd>
-            </div>
-            <div>
-              <dt className="inline text-muted-foreground">Drop: </dt>
-              <dd className="inline text-foreground">
-                {day.dropStopName ? `${day.dropStopName} · ` : ""}
-                {droppingLabel(day.droppingStatus)}
-              </dd>
-            </div>
-            {day.boardedAt || day.droppedAt ? (
+            <dl className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
               <div>
-                <dt className="inline text-muted-foreground">Times: </dt>
+                <dt className="inline text-muted-foreground">Pickup: </dt>
+                <dd className="inline text-foreground">{day.pickupStopName ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="inline text-muted-foreground">Boarding: </dt>
                 <dd className="inline text-foreground">
-                  {[
-                    day.boardedAt
-                      ? `Boarded ${formatTransportInstant(day.boardedAt) ?? "—"}`
-                      : null,
-                    day.droppedAt
-                      ? `Dropped ${formatTransportInstant(day.droppedAt) ?? "—"}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
+                  {boardingLabel(day.boardingStatus, day.boardedAt, timeZone)}
                 </dd>
               </div>
-            ) : null}
-          </dl>
-        </li>
-      ))}
+              <div>
+                <dt className="inline text-muted-foreground">Drop: </dt>
+                <dd className="inline text-foreground">
+                  {day.dropStopName ? `${day.dropStopName} · ` : ""}
+                  {droppingLabel(day.droppingStatus, day.droppedAt, timeZone)}
+                </dd>
+              </div>
+              {day.boardedAt || day.droppedAt ? (
+                <div>
+                  <dt className="inline text-muted-foreground">Times: </dt>
+                  <dd className="inline text-foreground">
+                    {[
+                      day.boardedAt
+                        ? `Boarded ${formatTransportInstant(day.boardedAt, { timeZone }) ?? "—"}`
+                        : null,
+                      day.droppedAt
+                        ? `Dropped ${formatTransportInstant(day.droppedAt, { timeZone }) ?? "—"}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -170,11 +199,11 @@ function TodayFacts({
     <SectionCard title="Today's transport">
       <dl className="grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
-          <div key={row.label}>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+          <div key={row.label} className="min-w-0">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground truncate">
               {row.label}
             </dt>
-            <dd className="mt-0.5 text-sm font-medium text-foreground">{row.value}</dd>
+            <dd className="mt-0.5 text-sm font-medium text-foreground break-words">{row.value}</dd>
           </div>
         ))}
       </dl>
@@ -377,6 +406,9 @@ export function LearnerTransportApiView({
     : gpsAge || "Location unavailable";
   const syncingHint = summaryFetching || liveFetching ? "Updating…" : null;
 
+  const effectiveTimeZone =
+    live?.timezone || summary?.timezone || DEFAULT_TRANSPORT_TIMEZONE;
+
   return (
     <div className="min-w-0 max-w-full space-y-5">
       {headerExtra}
@@ -407,6 +439,37 @@ export function LearnerTransportApiView({
         </div>
       ) : null}
 
+      {!summary.pickupStop ? (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground"
+          role="status"
+        >
+          <div className="flex items-start gap-3">
+            <MapPin className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-amber-950 dark:text-amber-200">
+                Pickup stop not assigned
+              </p>
+              <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80 leading-relaxed">
+                {viewer === "parent"
+                  ? `${summary.studentName} is enrolled on ${summary.routeName ?? "this bus route"}, but an exact pickup stop has not been assigned yet. Please contact the school transport office or use the report form below to request a designated pickup stop.`
+                  : "You are enrolled on this route, but your pickup stop has not been designated yet. Please ask your parent or the school transport office to assign your stop location."}
+              </p>
+              {viewer === "parent" ? (
+                <div className="mt-2.5">
+                  <a
+                    href="#report-transport-issue"
+                    className="inline-flex h-7 items-center justify-center rounded-lg bg-amber-600 px-3 text-xs font-medium text-white shadow-sm hover:bg-amber-700 transition-colors"
+                  >
+                    Request Stop Assignment
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{gpsAge}</span>
         {syncingHint ? <span>· {syncingHint}</span> : null}
@@ -430,8 +493,16 @@ export function LearnerTransportApiView({
         }
         etaLabel={etaLabel}
         locationLabel={locationLabel}
-        boarding={boardingLabel(tracking.boardingStatus)}
-        dropping={droppingLabel(tracking.droppingStatus)}
+        boarding={boardingLabel(
+          tracking.boardingStatus,
+          tracking.boardedAt,
+          effectiveTimeZone,
+        )}
+        dropping={droppingLabel(
+          tracking.droppingStatus,
+          tracking.droppedAt,
+          effectiveTimeZone,
+        )}
       />
 
       {viewer === "parent" ? (
@@ -440,6 +511,7 @@ export function LearnerTransportApiView({
           studentId={studentId}
           participation={rideException}
           onChanged={refreshAll}
+          timeZone={effectiveTimeZone}
         />
       ) : null}
 
@@ -471,8 +543,11 @@ export function LearnerTransportApiView({
           value={summary.pickupStop?.name ?? "Stop not assigned"}
           hint={
             summary.pickupStop?.locationLabel ??
-            "Ask the driver or Admin to assign a transport location"
+            (viewer === "parent"
+              ? "Action required: Request stop assignment below"
+              : "Ask the driver or Admin to assign a transport location")
           }
+          tone={summary.pickupStop ? "default" : "warning"}
         />
       </div>
 
@@ -487,15 +562,17 @@ export function LearnerTransportApiView({
       ) : null}
 
       <SectionCard title="Trip history">
-        <HistoryList days={historyDays} />
+        <HistoryList days={historyDays} timeZone={effectiveTimeZone} />
       </SectionCard>
 
       {viewer === "parent" ? (
-        <ReportTransportIssueCard
-          instituteId={instituteId}
-          studentId={studentId}
-          studentName={summary.studentName}
-        />
+        <div id="report-transport-issue">
+          <ReportTransportIssueCard
+            instituteId={instituteId}
+            studentId={studentId}
+            studentName={summary.studentName}
+          />
+        </div>
       ) : null}
     </div>
   );

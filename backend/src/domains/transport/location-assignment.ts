@@ -84,47 +84,52 @@ export async function snapshotTripParticipants(
   admin: SupabaseClient,
   trip: TransportTripRow,
 ): Promise<number> {
-  const existing = await listTripParticipants(admin, trip.id);
-  if (existing.length > 0) return existing.length;
+  try {
+    const existing = await listTripParticipants(admin, trip.id);
+    if (existing.length > 0) return existing.length;
 
-  const enrollments = await listEnrollmentsForRoute(
-    admin,
-    trip.institute_id,
-    trip.route_id,
-  );
-  // Snapshot includes pending+approved at start; rejected are already excluded from usable
-  // via approval filter applied by callers — include all non-rejected active here.
-  const usable = enrollments.filter(
-    (e) =>
-      e.status === "active" &&
-      (e.approval_status === "pending" || e.approval_status === "approved"),
-  );
+    const enrollments = await listEnrollmentsForRoute(
+      admin,
+      trip.institute_id,
+      trip.route_id,
+    );
+    // Snapshot includes pending+approved at start; rejected are already excluded from usable
+    // via approval filter applied by callers — include all non-rejected active here.
+    const usable = enrollments.filter(
+      (e) =>
+        e.status === "active" &&
+        (e.approval_status === "pending" || e.approval_status === "approved"),
+    );
 
-  const exceptions = await listActiveDailyExceptionsForStudents(
-    admin,
-    trip.institute_id,
-    trip.trip_date,
-    usable.map((e) => e.student_id),
-    "NOT_RIDING",
-  );
-  const exceptionByStudent = new Map(exceptions.map((ex) => [ex.student_id, ex]));
+    const exceptions = await listActiveDailyExceptionsForStudents(
+      admin,
+      trip.institute_id,
+      trip.trip_date,
+      usable.map((e) => e.student_id),
+      "NOT_RIDING",
+    );
+    const exceptionByStudent = new Map(exceptions.map((ex) => [ex.student_id, ex]));
 
-  const rows = usable.map((e) => {
-    const ex = exceptionByStudent.get(e.student_id);
-    return {
-      instituteId: trip.institute_id,
-      tripId: trip.id,
-      studentId: e.student_id,
-      enrollmentId: e.id,
-      pickupStopId: e.pickup_stop_id,
-      dropStopId: e.drop_stop_id,
-      notRiding: Boolean(ex),
-      exceptionId: ex?.id ?? null,
-    };
-  });
+    const rows = usable.map((e) => {
+      const ex = exceptionByStudent.get(e.student_id);
+      return {
+        instituteId: trip.institute_id,
+        tripId: trip.id,
+        studentId: e.student_id,
+        enrollmentId: e.id,
+        pickupStopId: e.pickup_stop_id,
+        dropStopId: e.drop_stop_id,
+        notRiding: Boolean(ex),
+        exceptionId: ex?.id ?? null,
+      };
+    });
 
-  const inserted = await insertTripParticipants(admin, rows);
-  return inserted.length;
+    const inserted = await insertTripParticipants(admin, rows);
+    return inserted.length;
+  } catch {
+    // If transport_trip_participant table does not exist yet in legacy DB, degrade gracefully
+    return 0;
+  }
 }
 
 export type ReassignCommonLocationInput = {

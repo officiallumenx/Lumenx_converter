@@ -145,6 +145,20 @@ export async function findParentById(
   return (result.data as ParentRow | null) ?? null;
 }
 
+export async function findParentsByIds(
+  admin: SupabaseClient,
+  ids: string[],
+): Promise<ParentRow[]> {
+  if (ids.length === 0) return [];
+  const result = await admin
+    .from("parent")
+    .select(PARENT_COLS)
+    .in("id", ids)
+    .is("deleted_at", null);
+  if (result.error) ensureDbOk(result);
+  return (result.data as ParentRow[] | null) ?? [];
+}
+
 export async function insertParent(
   admin: SupabaseClient,
   input: CreateParentInput,

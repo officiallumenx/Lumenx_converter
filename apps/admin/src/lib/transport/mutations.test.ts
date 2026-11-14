@@ -122,4 +122,63 @@ describe("transport mutations", () => {
       }),
     );
   });
+
+  it("calls assignStopStudents with batch endpoint and payload", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ assignedCount: 2 });
+    const client = { post } as never;
+    const { assignStopStudents } = await import("./mutations");
+    const routeId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const stopId = "11111111-2222-4333-8444-555555555555";
+    const studentIds = [
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    ];
+    await assignStopStudents(
+      {
+        instituteId: INST,
+        routeId,
+        stopId,
+        studentIds,
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      `/api/v1/transport/routes/${routeId}/stops/${stopId}/assign-students`,
+      {
+        institute_id: INST,
+        student_ids: studentIds,
+      },
+    );
+  });
+
+  it("calls moveStopStudents with batch move endpoint and payload", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ movedCount: 2 });
+    const client = { post } as never;
+    const { moveStopStudents } = await import("./mutations");
+    const routeId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const fromStopId = "11111111-2222-4333-8444-555555555555";
+    const toStopId = "22222222-3333-4444-8555-666666666666";
+    const studentIds = ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"];
+    await moveStopStudents(
+      {
+        instituteId: INST,
+        routeId,
+        fromStopId,
+        toStopId,
+        studentIds,
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      `/api/v1/transport/routes/${routeId}/stops/move-students`,
+      {
+        institute_id: INST,
+        from_stop_id: fromStopId,
+        to_stop_id: toStopId,
+        student_ids: studentIds,
+      },
+    );
+  });
 });

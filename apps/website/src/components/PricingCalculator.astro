@@ -7,15 +7,14 @@ import { PRICING } from "../utils/pricing.js";
   class="relative z-20 overflow-hidden bg-white py-16 dark:bg-dark lg:py-[100px]"
 >
   <div class="container">
-    <div class="mx-auto mb-10 max-w-[600px] text-center lg:mb-14" data-reveal>
-      <span class="mb-2 block text-lg font-semibold text-primary">Pricing</span>
+    <div class="mx-auto mb-10 max-w-[620px] text-center lg:mb-14" data-reveal>
+      <span class="mb-2 block text-lg font-semibold text-primary">Simple, Transparent Pricing</span>
       <h2 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
-        Choose a subscription plan
+        Estimate your school's plan in seconds
       </h2>
       <p class="text-base text-body-color dark:text-dark-6">
-        Set your student count and a custom rate of ₹{PRICING.rateMin} or more per student.
-        Monthly payable = max(₹{PRICING.minimumMonthly.toLocaleString("en-IN")}, students × rate).
-        ₹{PRICING.minimumMonthly.toLocaleString("en-IN")} is the minimum subscription price per institute per month — plan totals always use that monthly payable, never a lower student calculation.
+        Enter your student count and per-student rate (starting at ₹{PRICING.rateMin}/student per month).
+        Your monthly subscription is either <strong>students × rate</strong> or <strong>₹{PRICING.minimumMonthly.toLocaleString("en-IN")}/month</strong> (our minimum monthly plan for smaller campuses) — whichever is higher.
       </p>
     </div>
 

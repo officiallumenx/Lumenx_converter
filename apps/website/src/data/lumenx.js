@@ -1,10 +1,10 @@
-/** Verified LumenX marketing content for Play Astro customization. */
+/** Verified LumenX marketing content — written in simple, relatable language for schools and institutions. */
 
 export const SITE = {
   name: "LumenX",
-  tagline: "Institute management ecosystem",
+  tagline: "Simple, connected software for schools and institutions",
   description:
-    "From academics and administration to communication, transport, admissions, and hiring — LumenX brings your institution's essential workflows together in one connected ecosystem.",
+    "Run your entire school from one connected system — daily office work, classes, attendance, fees, parent updates, bus routes, admissions, and teacher hiring.",
   productionOrigin: "https://lumenxtech.in",
 };
 
@@ -17,168 +17,168 @@ export const PRODUCTS = [
     id: "admin",
     name: "LumenX Admin",
     shortName: "Admin",
-    category: "Operations",
-    tagline: "Your institution's operational core.",
-    body: "Institutional operations for academics, attendance, fees, records, and office communications — the source of truth for the campus day.",
+    category: "School Office",
+    tagline: "Your school office in one clean workspace.",
+    body: "Manage students, teachers, classes, attendance, fees, certificates, and daily announcements from a single dashboard.",
     href: "/platform/admin",
     image: "/assets/screenshots/admin/command.png",
     imageAlt: "LumenX Admin command console screenshot",
-    role: "Hub for people, classes, fees, and day-to-day campus operations.",
+    role: "The central office dashboard for students, classes, fees, and daily school work.",
   },
   {
     id: "connect",
     name: "LumenX Connect",
     shortName: "Connect",
-    category: "Campus",
-    tagline: "Keep your campus connected.",
-    body: "Role-based experiences for teachers, parents, and students — attendance, notices, timetable, and academic updates with clear isolation.",
+    category: "Teachers, Parents & Students",
+    tagline: "Keep teachers, parents, and students in sync.",
+    body: "A simple mobile app where teachers mark attendance and share homework, and parents and students check updates, timetables, marks, and fees.",
     href: "/platform/connect",
     image: "/assets/screenshots/connect/home.jpg",
     imageAlt: "LumenX Connect home screen screenshot",
-    role: "Surfaces Admin records to the right campus roles.",
+    role: "Brings daily class updates, attendance, homework, and notices to teachers and families.",
   },
   {
     id: "transport",
     name: "LumenX Transport",
     shortName: "Transport",
-    category: "Fleet",
-    tagline: "Bring transport workflows together.",
-    body: "Transport workflows and driver operations for routes, trips, boarding, and day-of fleet execution.",
+    category: "School Buses",
+    tagline: "Smooth, safer school bus trips every day.",
+    body: "An easy app for bus drivers to start trips, mark student boarding at each stop, and share trip updates with the school and parents.",
     href: "/platform/transport",
     image: "/assets/screenshots/transport/driver-home.jpg",
     imageAlt: "LumenX Transport driver home screenshot",
-    role: "Runs assigned trips when Transport is enabled for the institute.",
+    role: "Helps drivers run daily bus routes and boarding checklists while keeping parents informed.",
   },
   {
     id: "admissions",
     name: "LumenX Admissions",
     shortName: "Admissions",
-    category: "Intake",
-    tagline: "Simplify the admissions journey.",
-    body: "Admissions information and application workflows — programs, applications, and documents that feed the institute directory.",
+    category: "New Student Intake",
+    tagline: "Make student admissions simple and paper-free.",
+    body: "Let families explore programs, apply online, and upload documents — then add accepted students to your school records in one click.",
     href: "/platform/admissions",
     image: "/assets/screenshots/admissions/institute-access.jpg",
     imageAlt: "LumenX Admissions institute access screenshot",
-    role: "Turns applicant files into student records in Admin.",
+    role: "Collects student applications online and turns accepted applicants into enrolled students.",
   },
   {
     id: "careers",
     name: "LumenX Careers",
     shortName: "Careers",
-    category: "Hiring",
-    tagline: "Connect opportunities with talent.",
-    body: "Hiring and opportunity management — jobs, applications, profiles, and interviews for institute staffing.",
+    category: "Staff Hiring",
+    tagline: "Hire great teachers and staff without the clutter.",
+    body: "Post school job openings, review resumes, and track interviews in one place — then add hired candidates directly to your staff list.",
     href: "/platform/careers",
     image: "/assets/screenshots/careers/home.jpg",
     imageAlt: "LumenX Careers home screenshot",
-    role: "Keeps hiring in the same institute family as Admin.",
+    role: "Organizes job postings and applications, and adds hired teachers straight into Admin.",
   },
   {
     id: "nexus",
     name: "LumenX Nexus",
     shortName: "Nexus",
-    category: "Service",
-    tagline: "Support the entire ecosystem.",
-    body: "Platform services for support, feedback, renewals, licensing, and module management for operators and groups — not the school ERP.",
+    category: "Platform & Groups",
+    tagline: "Manage school licenses, modules, and support.",
+    body: "Built for platform operators and school groups to onboard campuses, enable modules, manage renewals, and support institutions.",
     href: "/platform/nexus",
     image: null,
     imageAlt: "LumenX Nexus — authentic UI screenshot not yet available",
-    role: "Licenses institutes, enables modules, and supports the platform around Admin.",
+    role: "Manages campus onboarding, active modules, renewals, and support across institutions.",
   },
 ];
 
 export const CAPABILITIES = [
   {
-    title: "Academics",
-    description: "Classes, subjects, timetable, exams, marks, homework, and promotion workflows in Admin.",
+    title: "Classes & Academics",
+    description: "Organize classes, sections, subjects, timetables, exams, homework, and year-end promotions easily.",
     href: "/platform/admin",
   },
   {
-    title: "Administration",
-    description: "People directory, roles, documents, and office operations from one console.",
+    title: "School Office",
+    description: "Keep all student, teacher, and parent details, roles, and school certificates organized in one place.",
     href: "/platform/admin",
   },
   {
-    title: "Fees",
-    description: "Class fees, transport fees, dues, and collection overview for the institute office.",
+    title: "Fees & Dues",
+    description: "Set up class and bus fees, publish fee schedules, and see pending dues clearly for every student.",
     href: "/platform/admin",
   },
   {
-    title: "Attendance",
-    description: "Student and staff attendance with reports available to the right roles.",
+    title: "Daily Attendance",
+    description: "Track student and staff attendance every day with instant summaries for the office and parents.",
     href: "/platform/admin",
   },
   {
-    title: "People & roles",
-    description: "Students, teachers, parents, and staff records with clear role-based access.",
+    title: "Student & Staff Directory",
+    description: "Maintain complete profiles for students, teachers, parents, and staff with the right access for each person.",
     href: "/platform/admin",
   },
   {
-    title: "Exams & marks",
-    description: "Assessments, mark entry, and academic progress snapshots shared with the right roles.",
+    title: "Exams & Report Cards",
+    description: "Schedule exams, enter marks quickly, and share results directly with students and parents.",
     href: "/platform/admin",
   },
   {
-    title: "Homework & diary",
-    description: "Class homework and diary updates for teachers, parents, and students in Connect.",
+    title: "Homework & Class Diary",
+    description: "Teachers post daily homework and class notes in seconds so parents and students never miss an assignment.",
     href: "/platform/connect",
   },
   {
-    title: "Notices",
-    description: "Institute and class notices delivered to campus roles without separate chat threads.",
+    title: "Announcements & Notices",
+    description: "Send important school or class notices straight to parents, teachers, and students without messy chat groups.",
     href: "/platform/connect",
   },
   {
-    title: "Timetable",
-    description: "Period schedules and class timing surfaces for the office, teachers, and students.",
+    title: "Timetables",
+    description: "Give teachers and students a clear view of their daily class schedule and periods right on their phone.",
     href: "/platform/connect",
   },
   {
-    title: "Transport",
-    description: "Vehicles, routes, trips, boarding, and emergency workflows for drivers and the office.",
+    title: "School Bus & Boarding",
+    description: "Manage buses, stops, and routes in the office while drivers mark boarding and share trip updates on the road.",
     href: "/platform/transport",
   },
   {
-    title: "Admissions",
-    description: "Program discovery, applications, and document uploads that convert into student records.",
+    title: "Online Admissions",
+    description: "Accept admission forms and documents online and enroll approved students without retyping their details.",
     href: "/platform/admissions",
   },
   {
-    title: "Careers",
-    description: "Jobs, applications, profiles, and interviews for institute hiring.",
+    title: "Teacher & Staff Hiring",
+    description: "Post open roles, review applicants, track interviews, and onboard hired teachers smoothly.",
     href: "/platform/careers",
   },
 ];
 
 export const ROLES = [
   {
-    title: "Institutions",
-    body: "Run academics, fees, attendance, and operations from one connected record.",
+    title: "School Leaders & Principals",
+    body: "See daily attendance, fee collection, academics, and campus activity at a glance from one dashboard.",
     href: "/solutions/institutions",
   },
   {
-    title: "Administrators",
-    body: "Configure people, classes, fees, and access in LumenX Admin.",
+    title: "Office Administrators",
+    body: "Manage student records, fee structures, certificates, bus routes, and announcements without juggling spreadsheets.",
     href: "/solutions/administrators",
   },
   {
     title: "Teachers",
-    body: "Mark attendance, share homework, and work with class records in Connect.",
+    body: "Mark attendance, post homework, enter exam marks, and check class timetables quickly from your phone.",
     href: "/solutions/teachers",
   },
   {
     title: "Parents",
-    body: "Follow attendance, notices, and academic updates for linked students.",
+    body: "Stay updated on your child's attendance, homework, exam results, school notices, fees, and bus trip status.",
     href: "/solutions/parents",
   },
   {
     title: "Students",
-    body: "See timetable, homework, marks, and institute notices in one portal.",
+    body: "Check your daily timetable, homework assignments, exam schedules, marks, and school announcements in one place.",
     href: "/solutions/students",
   },
   {
-    title: "Drivers",
-    body: "Run assigned trips and boarding workflows in LumenX Transport.",
+    title: "Bus Drivers",
+    body: "View assigned stops, mark students as they board the bus, and send quick emergency alerts to the school office.",
     href: "/solutions/drivers",
   },
 ];
@@ -188,39 +188,39 @@ export { PRICING } from "../utils/pricing.js";
 
 export const FAQS = [
   {
-    title: "How is pricing calculated?",
+    title: "How does pricing work?",
     description:
-      "Student subtotal = students × your custom rate (₹10 or more). Monthly payable = the greater of that subtotal or ₹8,000. ₹8,000 is a minimum monthly payable amount — never a fixed institute price and never added on top of the student subtotal. Example: 900 students × ₹10 = ₹9,000 monthly (above the minimum). Example: 500 students × ₹15 = ₹7,500 subtotal → ₹8,000 monthly. Billing: 3 months, 6 months, or 12 months (annual: pay 10 for 12 months of service).",
+      "You simply multiply your student count by your per-student rate (starting at ₹10/student per month). Your monthly subscription is either that amount or ₹8,000 — whichever is higher. Note that ₹8,000 is just the minimum monthly plan for smaller campuses, never an extra fee added on top. For example: 900 students × ₹10 = ₹9,000/month. If your calculation is ₹7,500 (e.g. 500 students × ₹15), your monthly plan is ₹8,000. You can choose 3-month, 6-month, or 12-month billing.",
   },
   {
-    title: "What does the annual offer include?",
+    title: "How does the 2-months-free annual discount work?",
     description:
-      "A 12-month subscription charges 10 months of the applicable monthly amount and provides 12 months of service — two months free. At 900 students × ₹10 (monthly ₹9,000): normal ₹1,08,000, two-month discount −₹18,000, final ₹90,000. When the ₹8,000 minimum applies (for example 500 × ₹15): normal ₹96,000, discount −₹16,000, final ₹80,000.",
+      "When you choose the 12-month Annual Plan, you get a full year of service while paying for only 10 months — giving you 2 months completely free. For example, at ₹9,000/month (900 students × ₹10), the regular 12-month cost of ₹1,08,000 drops by ₹18,000, so you pay ₹90,000. At the ₹8,000/month minimum, you save ₹16,000 and pay ₹80,000 for the year.",
   },
   {
-    title: "Is there a free trial?",
+    title: "Can we try LumenX before paying?",
     description:
-      "Yes. After verification you get 60 days of full access. There is no payment on this marketing site. The annual two free months are a billing offer, not a second trial.",
+      "Yes! Every verified school gets a 60-day free trial with full access so your office, teachers, and team can experience LumenX comfortably before starting a paid plan.",
   },
   {
-    title: "Does LumenX take payments on the website?",
+    title: "Do I have to pay on this website?",
     description:
-      "No. Use Book a Demo, Get Started, or Contact. Payment happens after approval through the onboarding process — not as a self-serve checkout on the marketing pages.",
+      "No. We never ask for credit cards or payments on this website. Simply book a demo or contact us first — we'll walk you through the platform, set up your school, and handle billing only after your onboarding is approved.",
   },
   {
-    title: "What products are included?",
+    title: "Which apps are included in LumenX?",
     description:
-      "LumenX Admin is the institute console. Connect serves teachers, parents, and students. Transport, Admissions, and Careers extend operations when you need them. Nexus supports licensing, modules, and platform service for operators and groups.",
+      "LumenX Admin is your main school office dashboard, and LumenX Connect is the daily app for teachers, parents, and students. You can also turn on Transport (for school buses), Admissions (for new student applications), and Careers (for hiring teachers) whenever your school needs them.",
   },
   {
-    title: "How do I get started?",
+    title: "How do we get started?",
     description:
-      "Book a demo or contact us. After verification, your institute can begin a 60-day trial. Login details are issued by your institute office — they are not published on the website.",
+      "Just click 'Book a Demo' or reach out on our Contact page. After a quick verification call, we'll set up your school's 60-day trial and help your office team invite teachers, parents, and students.",
   },
   {
-    title: "Where do users sign in?",
+    title: "How do teachers, parents, and staff log in?",
     description:
-      "Admin and Nexus use browser consoles when published. Connect and Transport are Android apps. Admissions and Careers are web portals (with Android builds when published). The Login page lists the live destinations.",
+      "Once your school is set up, your school office shares login details with staff, teachers, parents, and students. Office staff use LumenX Admin on the web or Windows, while teachers, parents, students, and drivers use the Connect and Transport Android apps.",
   },
 ];
 

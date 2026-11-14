@@ -61,6 +61,8 @@ export type LearnerTransportStop = {
   locationLabel: string;
   routeOrder: number;
   kind?: "waypoint" | "school" | "parking";
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type LearnerTransportSummary = {
@@ -81,6 +83,8 @@ export type LearnerTransportSummary = {
   pickupStop: LearnerTransportStop | null;
   dropStop: LearnerTransportStop | null;
   stops: LearnerTransportStop[];
+  /** Configured institute timezone (e.g. "Asia/Kolkata"). */
+  timezone?: string;
 };
 
 export type TransportDailyExceptionDto = {
@@ -178,6 +182,8 @@ export type LearnerTransportLiveDto = {
   gpsFreshness?: "live" | "recent" | "stale" | "offline";
   notRidingToday?: boolean;
   expectedPickupTime?: string | null;
+  /** Configured institute timezone (e.g. "Asia/Kolkata"). */
+  timezone?: string;
 };
 
 export type LearnerTransportHistoryDayDto = {

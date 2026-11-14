@@ -512,6 +512,7 @@ export async function startTransportTrip(input: {
   driverId: string;
   slot?: "morning" | "evening";
   tripDate?: string;
+  phase?: "starting" | "running";
   clientEventId?: string;
 }): Promise<TransportTripDto> {
   return transportFetch<TransportTripDto>(`/api/v1/transport/trips`, {
@@ -523,6 +524,7 @@ export async function startTransportTrip(input: {
       driver_id: input.driverId,
       slot: input.slot,
       trip_date: input.tripDate,
+      ...(input.phase ? { phase: input.phase } : {}),
       ...(input.clientEventId ? { client_event_id: input.clientEventId } : {}),
     },
   });

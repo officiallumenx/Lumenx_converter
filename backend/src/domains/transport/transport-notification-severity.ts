@@ -127,8 +127,10 @@ export function deepLinkForTransportEvent(
 
 /** Spec-aligned dedupe key builders. */
 export const transportDedupe = {
-  arrived: (tripId: string, stopId: string) =>
-    `transport:${tripId}:stop:${stopId}:arrived`,
+  arrived: (tripId: string, stopId: string, episode?: number) =>
+    episode && episode > 1
+      ? `transport:${tripId}:stop:${stopId}:arrived:ep${episode}`
+      : `transport:${tripId}:stop:${stopId}:arrived`,
   /** One sequential “next stop” announce per trip×upcoming stop (not per child). */
   stopNext: (tripId: string, stopId: string) =>
     `transport:${tripId}:stop:${stopId}:next`,

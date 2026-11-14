@@ -27,15 +27,6 @@ function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
 
-async function resolveDropStopId(routeId: string, pickupStopId: string): Promise<string> {
-  const stops = await listTransportStops({ routeId });
-  if (stops.length === 0) return pickupStopId;
-  const school = stops.find((s) => s.kind === "school");
-  if (school?.id) return school.id;
-  const sorted = [...stops].sort((a, b) => b.routeOrder - a.routeOrder);
-  return sorted[0]?.id ?? pickupStopId;
-}
-
 function resolveExistingEnrollmentId(
   scope: RouteSetupDriverScope,
   assignment: StudentStopAssignment,
@@ -93,10 +84,8 @@ export async function hydrateRouteSetupFromApi(
 }
 
 /**
- * Assign an existing route pickup stop to an enrolled student who has no (or orphan) pickup.
- * Does not invent stops — caller must pass an explicit waypoint stop id.
- * If drop is still null, also sets drop to school (or last stop) when available —
- * only as the existing resolveDropStopId helper, never inventing a new stop.
+ * Assign an existing route stop to an enrolled student.
+ * Mandatory Single-Stop Rule: sets both pickup and drop to the same stop.
  */
 export async function assignEnrollmentPickupStop(
   scope: RouteSetupDriverScope,
@@ -109,20 +98,14 @@ export async function assignEnrollmentPickupStop(
   if (!isUuid(enrollmentId) || !isUuid(pickupStopId)) {
     throw new Error("Select a valid pickup stop");
   }
-  const fromRoster = listApiEnrollmentsForVehicle(scope.vehicleId).find(
-    (row) => row.id === enrollmentId,
-  );
-  const dropStopId = fromRoster?.dropStopId
-    ? fromRoster.dropStopId
-    : await resolveDropStopId(scope.routeId, pickupStopId);
   await updateTransportEnrollment(enrollmentId, {
     pickupStopId,
-    dropStopId,
+    dropStopId: pickupStopId,
   });
   await hydrateRouteSetupFromApi(scope);
 }
 
-/** Assign drop only — explicit school/waypoint choice; never invents a stop. */
+/** Assign common stop — maintains identical pickup and drop. */
 export async function assignEnrollmentDropStop(
   scope: RouteSetupDriverScope,
   enrollmentId: string,
@@ -134,7 +117,10 @@ export async function assignEnrollmentDropStop(
   if (!isUuid(enrollmentId) || !isUuid(dropStopId)) {
     throw new Error("Select a valid drop stop");
   }
-  await updateTransportEnrollment(enrollmentId, { dropStopId });
+  await updateTransportEnrollment(enrollmentId, {
+    pickupStopId: dropStopId,
+    dropStopId,
+  });
   await hydrateRouteSetupFromApi(scope);
 }
 
@@ -242,7 +228,8 @@ export async function syncStopAndEnrollmentsToApi(
     });
   }
 
-  const dropStopId = await resolveDropStopId(scope.routeId, apiStopId);
+  // Single-Stop Rule: student's assigned stop is identical for both pickup and drop.
+  const dropStopId = apiStopId;
 
   const syncedEnrollmentIds: string[] = [];
   for (const assignment of assignments) {

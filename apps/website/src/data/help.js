@@ -1,4 +1,4 @@
-/** Help Center content aligned with verified Play product/downloads behaviour. */
+/** Help Center content — written in simple, everyday language for schools, teachers, and families. */
 
 export const HELP_CATEGORIES = [
   {
@@ -6,82 +6,82 @@ export const HELP_CATEGORIES = [
     title: "Getting Started",
     items: [
       {
-        title: "How do we begin?",
-        body: "Use Book a Demo, Get Started, or Contact to tell us about your institute. A 60-day trial begins after approval. This website does not create a live institute account by itself.",
+        title: "How does our school get started?",
+        body: "Simply click 'Book a Demo' or reach out on our Contact page. After a quick verification call, we'll set up your school's 60-day free trial so your team can explore everything hands-on.",
       },
       {
-        title: "What should we explore first?",
-        body: "Most campuses start with LumenX Admin and LumenX Connect. Open the Platform pages, then Book a Demo when you want a live walkthrough.",
+        title: "Which apps should we look at first?",
+        body: "Most schools start with LumenX Admin (for the school office) and LumenX Connect (for teachers, parents, and students). You can add Transport, Admissions, or Careers whenever you need them.",
       },
     ],
   },
   {
     id: "admin",
-    title: "Admin",
+    title: "LumenX Admin",
     items: [
       {
-        title: "Who uses Admin?",
-        body: "Institution heads, principals, and office staff. Admin is the operations console — people, classes, attendance, fees, documents, and day-to-day management.",
+        title: "Who uses LumenX Admin?",
+        body: "Principals, school administrators, accountants, and front-office staff. It is the main workspace for managing students, classes, attendance, fees, certificates, and daily school operations.",
       },
       {
-        title: "Is Admin the parent or teacher app?",
-        body: "No. Families and teachers use LumenX Connect. Admin writes the institute record those apps read.",
+        title: "Do parents or teachers use Admin?",
+        body: "No — parents, teachers, and students use the LumenX Connect mobile app, which automatically shows them the right updates from Admin.",
       },
     ],
   },
   {
     id: "connect",
-    title: "Connect",
+    title: "LumenX Connect",
     items: [
       {
-        title: "Who uses Connect?",
-        body: "Parents, teachers, and students — each with strict role isolation. One family account can switch between children.",
+        title: "Who uses LumenX Connect?",
+        body: "Teachers, parents, and students. Teachers use it to mark attendance and post homework, while parents and students check attendance, homework, timetables, exam results, and fee dues. Parents with multiple children at the school can switch between them in a single account.",
       },
       {
-        title: "Where do login details come from?",
-        body: "Your institute office issues Connect credentials. This marketing site does not publish passwords.",
+        title: "How do I get my login details?",
+        body: "Your school office creates your account and shares your login credentials with you directly.",
       },
     ],
   },
   {
     id: "transport",
-    title: "Transport",
+    title: "LumenX Transport",
     items: [
       {
-        title: "What does Transport do?",
-        body: "Drivers run boarding and trip status in the Transport app. Parents follow trip status in Connect when the module is on.",
+        title: "How does the Transport app help?",
+        body: "Bus drivers use the Transport app to start their route, check off students at each stop, and send quick emergency or delay alerts to the school.",
       },
       {
-        title: "Is there a live parent GPS map?",
-        body: "No. This website does not claim live GPS tracking for families. Parent visibility is trip status and approach alerts when enabled.",
+        title: "What do parents see for school buses?",
+        body: "When a school uses LumenX Transport, parents can open LumenX Connect to see when the trip starts, stop progress, and whether their child has boarded the bus.",
       },
     ],
   },
   {
     id: "admissions",
-    title: "Admissions",
+    title: "LumenX Admissions",
     items: [
       {
-        title: "How does intake work?",
-        body: "Applicants discover, apply, and submit documents. The office reviews the same file. Admin converts accepted intake into a student record.",
+        title: "How do online admissions work?",
+        body: "Parents can browse available classes and programs, fill out the admission form online, and upload documents. Once the school approves an application, a single click turns it into an official student profile in Admin.",
       },
       {
-        title: "Where do applicants open Admissions?",
-        body: "Admissions is available as a mobile web portal when published for your institute, with an Android build listed on the Downloads page when that artifact is available.",
+        title: "How do families access Admissions?",
+        body: "Families can open the Admissions web portal from their phone or computer, or use the Android app from the Downloads page.",
       },
     ],
   },
   {
     id: "careers",
-    title: "Careers",
+    title: "LumenX Careers",
     items: [
       {
-        title: "What is Careers for?",
-        body: "Careers is the LumenX hiring and opportunity app — jobs, applications, and recruiter review. Admin turns an approved hire into a teacher.",
+        title: "What is LumenX Careers used for?",
+        body: "Schools use Careers to post teaching and staff job openings, collect resumes, and track interviews. Once a candidate is hired, the office can add them straight into the teacher directory in Admin.",
       },
       {
-        title: "Is Careers an HR system?",
-        body: "No. It is not general employee HR. It is institute hiring that feeds the teacher directory in Admin.",
+        title: "Is Careers a payroll system?",
+        body: "No — Careers is focused on making teacher and staff hiring simple and connected to your school directory.",
       },
     ],
   },
@@ -90,12 +90,12 @@ export const HELP_CATEGORIES = [
     title: "Account & Privacy",
     items: [
       {
-        title: "How do I request data changes or deletion?",
-        body: "Use the Data Request page, or email lumenxtech.official@gmail.com. Institute-controlled student data may need to go through the school administrator. Submitting a marketing form does not automatically delete product logins.",
+        title: "How do I request changes or deletion of my data?",
+        body: "Visit our Data Request page or email lumenxtech.official@gmail.com. Because student and staff records are managed by your school, school-managed account changes are coordinated with your school administrator.",
       },
       {
-        title: "Where are the legal documents?",
-        body: "Privacy, Terms, Cookies, and Data Request are linked in the site footer and Resources.",
+        title: "Where can I read your Privacy Policy and Terms?",
+        body: "You can find our Privacy Policy, Terms of Service, Cookie Policy, and Data Request links at the bottom of every page and on the Resources page.",
       },
     ],
   },

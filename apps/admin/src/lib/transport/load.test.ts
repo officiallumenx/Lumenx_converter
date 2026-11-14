@@ -154,6 +154,9 @@ describe("loadTransportEnrollmentsList", () => {
       getTransportSettings: vi.fn(),
     }));
     vi.doMock("@/lib/students/api", () => ({ listStudents }));
+    vi.doMock("@/lib/directory-lists-cache", () => ({
+      listStudentsCached: vi.fn().mockResolvedValue([]),
+    }));
     vi.doMock("@/lib/students/map", () => ({
       studentDtosToListItems: (rows: unknown[]) => rows,
     }));
@@ -161,5 +164,65 @@ describe("loadTransportEnrollmentsList", () => {
     const result = await loadTransportEnrollmentsList(INST);
     expect(result.status).not.toBe("demo");
     expect(listTransportEnrollments).toHaveBeenCalled();
+  });
+
+  it("fetches all stops for institute in a single request (no N+1 stops queries)", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listTransportEnrollments = vi.fn().mockResolvedValue([]);
+    const listTransportRoutes = vi.fn().mockResolvedValue([
+      { id: "route-1", name: "Route 1", instituteId: INST },
+      { id: "route-2", name: "Route 2", instituteId: INST },
+      { id: "route-3", name: "Route 3", instituteId: INST },
+    ]);
+    const listTransportStops = vi.fn().mockResolvedValue([
+      { id: "stop-1", routeId: "route-1", name: "Stop 1" },
+      { id: "stop-2", routeId: "route-2", name: "Stop 2" },
+    ]);
+    vi.doMock("./api", () => ({
+      listTransportEnrollments,
+      listTransportRoutes,
+      listTransportStops,
+      listTransportVehicles: vi.fn(),
+      listTransportDrivers: vi.fn(),
+      getTransportSettings: vi.fn(),
+    }));
+    vi.doMock("@/lib/directory-lists-cache", () => ({
+      listStudentsCached: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock("@/lib/students/map", () => ({
+      studentDtosToListItems: (rows: unknown[]) => rows,
+    }));
+    const { loadTransportEnrollmentsList } = await import("./load");
+    const result = await loadTransportEnrollmentsList(INST);
+    expect(result.status).toBe("empty");
+    // Verify listTransportStops was called exactly once for the institute, NOT once per route!
+    expect(listTransportStops).toHaveBeenCalledTimes(1);
+    expect(listTransportStops).toHaveBeenCalledWith({ instituteId: INST });
+  });
+
+  it("skips fetching students when cachedStudents is provided", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listTransportEnrollments = vi.fn().mockResolvedValue([]);
+    const listTransportRoutes = vi.fn().mockResolvedValue([]);
+    const listTransportStops = vi.fn().mockResolvedValue([]);
+    const listStudentsCachedMock = vi.fn().mockResolvedValue([]);
+    vi.doMock("./api", () => ({
+      listTransportEnrollments,
+      listTransportRoutes,
+      listTransportStops,
+      listTransportVehicles: vi.fn(),
+      listTransportDrivers: vi.fn(),
+      getTransportSettings: vi.fn(),
+    }));
+    vi.doMock("@/lib/directory-lists-cache", () => ({
+      listStudentsCached: listStudentsCachedMock,
+    }));
+    vi.doMock("@/lib/students/map", () => ({
+      studentDtosToListItems: (rows: unknown[]) => rows,
+    }));
+    const { loadTransportEnrollmentsList } = await import("./load");
+    const cachedStudents = [{ id: "stu-1", name: "Alice" }] as never[];
+    await loadTransportEnrollmentsList(INST, cachedStudents);
+    expect(listStudentsCachedMock).not.toHaveBeenCalled();
   });
 });

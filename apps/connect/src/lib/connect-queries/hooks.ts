@@ -26,6 +26,7 @@ import {
   loadLearnerTransport,
   loadLearnerTransportLive,
   loadTeacherClassTransport,
+  reconcileLearnerLiveDto,
 } from "@/lib/transport";
 import { loadTeacherStudentDetail } from "@/lib/students";
 import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
@@ -656,6 +657,8 @@ export function useLearnerTransportLiveQuery(
     staleTime: 10_000,
     // Keep last known bus/ETA painted while a poll/refetch runs.
     placeholderData: (previous) => previous,
+    structuralSharing: (oldData, newData) =>
+      reconcileLearnerLiveDto(oldData as any, newData as any) as any,
     refetchInterval: pollMs === false ? false : (pollMs ?? false),
   });
   const refresh = () => {

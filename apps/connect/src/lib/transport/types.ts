@@ -28,6 +28,8 @@ export interface TransportStop {
   address: string;
   scheduledTime: string;
   order: number;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface BusDetails {
@@ -100,6 +102,12 @@ export interface TransportTracking {
   etaDisplayMode?: "eta" | "stopped" | "stale" | "uncertain" | null;
   etaConfidence?: "high" | "medium" | "low" | null;
   movementState?: string | null;
+  boardedAt?: string | null;
+  droppedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  schoolArrivedAt?: string | null;
+  timezone?: string | null;
 }
 
 export interface TransportAlert {

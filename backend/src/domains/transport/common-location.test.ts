@@ -6,16 +6,27 @@ import {
 } from "./common-location.js";
 
 describe("common-location", () => {
-  it("prefers pickup then drop", () => {
+  it("resolves single common stop from pickup or drop", () => {
+    // Only pickup
     expect(
-      resolveCommonLocationStopId({ pickupStopId: "a", dropStopId: "b" }),
+      resolveCommonLocationStopId({ pickupStopId: "a", dropStopId: null }),
     ).toBe("a");
+    // Only drop
     expect(
       resolveCommonLocationStopId({ pickupStopId: null, dropStopId: "b" }),
     ).toBe("b");
+    // Both matching
+    expect(
+      resolveCommonLocationStopId({ pickupStopId: "a", dropStopId: "a" }),
+    ).toBe("a");
+    // Empty / whitespace
     expect(
       resolveCommonLocationStopId({ pickupStopId: "  ", dropStopId: null }),
     ).toBeNull();
+    // Conflicting: prefers primary pickup stop
+    expect(
+      resolveCommonLocationStopId({ pickupStopId: "a", dropStopId: "b" }),
+    ).toBe("a");
   });
 
   it("detects conflicting historical pickup/drop", () => {

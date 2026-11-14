@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { StudentListItem } from "@/lib/students/types";
 import {
   Card,
   CardHeader,
@@ -11,7 +12,7 @@ import {
   ToolbarSpacer,
   CascadingFiltersMenu,
 } from "@lumenx/ui-admin";
-import { ArrowLeft, Lock, LockOpen, Route as RouteIcon } from "lucide-react";
+import { ArrowLeft, Lock, LockOpen, Route as RouteIcon, Trash2 } from "lucide-react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { TransportApprovalPanel } from "@/components/transport/TransportApprovalPanel";
 import { TransportRouteDetail } from "@/components/transport/TransportRouteDetail";
@@ -19,6 +20,7 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import {
   lockRoute,
   unlockRoute,
+  deleteRoute,
   uniqueStudentsOnRoute,
   routeDriverLabel,
   routeVehicleLabel,
@@ -36,6 +38,36 @@ type Props = {
   listHint?: string | null;
   onLockRoute?: (routeId: string) => void | Promise<void>;
   onUnlockRoute?: (routeId: string) => void | Promise<void>;
+  onDeleteRoute?: (routeId: string) => Promise<void>;
+  onCreateStop?: (
+    routeId: string,
+    input: {
+      name: string;
+      locationLabel: string;
+      latitude: number;
+      longitude: number;
+      routeOrder: number;
+      studentIds?: string[];
+    },
+  ) => Promise<void>;
+  onUpdateStop?: (
+    stopId: string,
+    input: {
+      name?: string;
+      locationLabel?: string;
+      latitude?: number;
+      longitude?: number;
+    },
+  ) => Promise<void>;
+  onDeleteStop?: (stopId: string) => Promise<void>;
+  onAssignStopStudents?: (routeId: string, stopId: string, studentIds: string[]) => Promise<void>;
+  onMoveStudents?: (
+    routeId: string,
+    fromStopId: string,
+    toStopId: string,
+    studentIds: string[],
+  ) => Promise<void>;
+  studentsCatalog?: StudentListItem[];
 };
 
 type StatusFilter = "all" | RouteConfigStatus;
@@ -57,6 +89,13 @@ export function TransportRoutesView({
   listHint = null,
   onLockRoute,
   onUnlockRoute,
+  onDeleteRoute,
+  onCreateStop,
+  onUpdateStop,
+  onDeleteStop,
+  onAssignStopStudents,
+  onMoveStudents,
+  studentsCatalog,
 }: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,6 +106,8 @@ export function TransportRoutesView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [lockConfirm, setLockConfirm] = useState<TransportRoute | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState<TransportRoute | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<TransportRoute | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const selected = snapshot.routes.find((r) => r.id === selectedId) ?? null;
 
@@ -101,6 +142,75 @@ export function TransportRoutesView({
     });
   }, [snapshot, searchQuery, statusFilter, driverFilter, vehicleFilter, routeFilter]);
 
+  const deleteModal =
+    writesEnabled && deleteConfirm ? (
+      <Modal
+        open={Boolean(deleteConfirm)}
+        onClose={() => {
+          if (!deleting) setDeleteConfirm(null);
+        }}
+        title="Delete route"
+        size="sm"
+        footer={
+          <>
+            <Button onClick={() => setDeleteConfirm(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting || uniqueStudentsOnRoute(deleteConfirm) > 0}
+              onClick={async () => {
+                if (!deleteConfirm) return;
+                setDeleting(true);
+                const routeName = deleteConfirm.name;
+                const routeId = deleteConfirm.id;
+                try {
+                  if (onDeleteRoute) {
+                    await onDeleteRoute(routeId);
+                  } else {
+                    onChange(deleteRoute(snapshot, routeId));
+                  }
+                  if (selectedId === routeId) {
+                    setSelectedId(null);
+                  }
+                  setDeleteConfirm(null);
+                  notify(`Route "${routeName}" deleted successfully`);
+                } catch (err) {
+                  notify(
+                    err instanceof Error ? err.message : "Failed to delete route",
+                  );
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete Route"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">{deleteConfirm.name}</span>?
+          </p>
+          {uniqueStudentsOnRoute(deleteConfirm) > 0 ? (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
+              <p className="font-medium">Cannot delete route with assigned students</p>
+              <p className="mt-1 text-muted-foreground">
+                This route has {uniqueStudentsOnRoute(deleteConfirm)} assigned student(s). Please reassign or remove students before deleting this route.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              This will remove the route and its stops. Historical completed trips will be preserved. This action cannot be undone.
+            </p>
+          )}
+        </div>
+      </Modal>
+    ) : null;
+
   if (selected) {
     return (
       <div className="space-y-4">
@@ -113,17 +223,25 @@ export function TransportRoutesView({
           </Pill>
           <div className="flex-1" />
           {writesEnabled ? (
-          <>
-          {selected.configStatus === "locked" ? (
-            <Button size="sm" onClick={() => setUnlockConfirm(selected)}>
-              <LockOpen className="size-3.5" /> Unlock Route
-            </Button>
-          ) : selected.setupStops.length > 0 ? (
-            <Button size="sm" variant="primary" onClick={() => setLockConfirm(selected)}>
-              <Lock className="size-3.5" /> Lock Route
-            </Button>
-          ) : null}
-          </>
+            <>
+              {selected.configStatus === "locked" ? (
+                <Button size="sm" onClick={() => setUnlockConfirm(selected)}>
+                  <LockOpen className="size-3.5" /> Unlock Route
+                </Button>
+              ) : selected.setupStops.length > 0 ? (
+                <Button size="sm" variant="primary" onClick={() => setLockConfirm(selected)}>
+                  <Lock className="size-3.5" /> Lock Route
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40"
+                onClick={() => setDeleteConfirm(selected)}
+              >
+                <Trash2 className="size-3.5" /> Delete Route
+              </Button>
+            </>
           ) : null}
         </div>
 
@@ -134,9 +252,23 @@ export function TransportRoutesView({
         <TransportRouteDetail
           snapshot={snapshot}
           route={selected}
-          onChange={(next) => {
-            onChange(next);
-          }}
+          onChange={onChange}
+          writesEnabled={writesEnabled}
+          onCreateStop={onCreateStop}
+          onUpdateStop={onUpdateStop}
+          onDeleteStop={onDeleteStop}
+          onAssignStopStudents={
+            onAssignStopStudents
+              ? (stopId, studentIds) => onAssignStopStudents(selected.id, stopId, studentIds)
+              : undefined
+          }
+          onMoveStudents={
+            onMoveStudents
+              ? (fromStopId, toStopId, studentIds) =>
+                  onMoveStudents(selected.id, fromStopId, toStopId, studentIds)
+              : undefined
+          }
+          studentsCatalog={studentsCatalog}
         />
 
         {writesEnabled ? (
@@ -223,6 +355,7 @@ export function TransportRoutesView({
         </Modal>
         </>
         ) : null}
+        {deleteModal}
       </div>
     );
   }
@@ -362,9 +495,23 @@ export function TransportRoutesView({
                       </Pill>
                     </td>
                     <td className="py-2.5 text-right">
-                      <Button size="sm" variant="primary" onClick={() => setSelectedId(r.id)}>
-                        Open
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => setSelectedId(r.id)}>
+                          Open
+                        </Button>
+                        {writesEnabled ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40"
+                            onClick={() => setDeleteConfirm(r)}
+                            title={`Delete ${r.name}`}
+                            aria-label={`Delete ${r.name}`}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -373,6 +520,7 @@ export function TransportRoutesView({
           </div>
         )}
       </Card>
+      {deleteModal}
     </div>
   );
 }

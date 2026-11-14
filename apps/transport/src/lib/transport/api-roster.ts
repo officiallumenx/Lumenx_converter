@@ -54,8 +54,14 @@ function mapStudent(
   vehicleNumber: string,
   stopLocationById: Map<string, string>,
 ): ApiRosterEnrollment {
-  const stopId = student.pickupStopId?.trim() ? student.pickupStopId.trim() : null;
-  const dropStopId = student.dropStopId?.trim() ? student.dropStopId.trim() : null;
+  const rawPickup = student.pickupStopId?.trim() ? student.pickupStopId.trim() : null;
+  const rawDrop = student.dropStopId?.trim() ? student.dropStopId.trim() : null;
+  const stopId = rawPickup || rawDrop || null;
+  const dropStopId = stopId;
+  const resolvedStopName =
+    student.pickupStopName?.trim() ||
+    student.dropStopName?.trim() ||
+    null;
   return {
     id: student.enrollmentId,
     studentId: student.studentId,
@@ -64,10 +70,10 @@ function mapStudent(
     vehicleId,
     vehicleNumber,
     stopId,
-    stopName: student.pickupStopName,
+    stopName: resolvedStopName,
     stopLocationLabel: stopId ? stopLocationById.get(stopId) ?? null : null,
     dropStopId,
-    dropStopName: student.dropStopName ?? null,
+    dropStopName: resolvedStopName,
     approvalStatus: student.approvalStatus,
     rejectionReason: student.rejectionReason ?? null,
     notRidingToday: Boolean(student.notRidingToday),

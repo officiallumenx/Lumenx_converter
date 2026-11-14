@@ -92,7 +92,23 @@ export type ListTransportRoutesParams = {
 };
 
 export type ListTransportStopsParams = {
+  routeId?: string;
+  instituteId?: string;
+};
+
+export type AssignStopStudentsInput = {
+  instituteId: string;
   routeId: string;
+  stopId: string;
+  studentIds: string[];
+};
+
+export type MoveStopStudentsInput = {
+  instituteId: string;
+  routeId: string;
+  fromStopId: string;
+  toStopId: string;
+  studentIds: string[];
 };
 
 export type TransportSettingsDto = {
@@ -126,6 +142,7 @@ export type TransportEnrollmentDto = {
   /** Nullable — bus/route assign without stops is allowed. */
   pickupStopId: string | null;
   dropStopId: string | null;
+  commonStopId?: string | null;
   status: EnrollmentStatus;
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;
@@ -149,6 +166,7 @@ export type TransportEnrollmentListItem = {
   classLabel: string | null;
   sectionLabel: string | null;
   routeName: string;
+  stopName?: string;
   pickupStopName: string;
   dropStopName: string;
   status: EnrollmentStatus;

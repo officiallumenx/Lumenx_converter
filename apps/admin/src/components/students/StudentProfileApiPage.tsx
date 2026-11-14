@@ -119,7 +119,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   const guardiansQuery = useStudentGuardiansQuery(
     instituteCtx.activeInstituteId,
     studentId,
-    detailEnabled && detailQuery.data?.status === "ready",
+    detailEnabled,
   );
 
   const student = detailQuery.data?.student ?? null;

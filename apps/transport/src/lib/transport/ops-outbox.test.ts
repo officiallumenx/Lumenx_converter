@@ -39,6 +39,8 @@ import {
   enqueueOpsEvent,
   flushOpsOutbox,
   getOpsOutboxSnapshot,
+  getPendingAttendanceOps,
+  isTerminalBusinessError,
   retryFailedOpsEvent,
 } from "./ops-outbox";
 
@@ -680,5 +682,177 @@ describe("ops-outbox Phase 8", () => {
         clientEventId: "start-evening-1",
       }),
     );
+  });
+
+  describe("isTerminalBusinessError", () => {
+    it("identifies 400, 403, 404, and 422 as terminal rejections", () => {
+      expect(isTerminalBusinessError(new TransportApiError("Bad request", 400))).toBe(true);
+      expect(isTerminalBusinessError(new TransportApiError("Forbidden", 403))).toBe(true);
+      expect(isTerminalBusinessError(new TransportApiError("Not found", 404))).toBe(true);
+      expect(isTerminalBusinessError(new TransportApiError("Unprocessable", 422))).toBe(true);
+    });
+
+    it("identifies 408, 429, and 5xx as retryable errors", () => {
+      expect(isTerminalBusinessError(new TransportApiError("Request timeout", 408))).toBe(false);
+      expect(isTerminalBusinessError(new TransportApiError("Rate limited", 429))).toBe(false);
+      expect(isTerminalBusinessError(new TransportApiError("Server error", 500))).toBe(false);
+      expect(isTerminalBusinessError(new TransportApiError("Bad gateway", 502))).toBe(false);
+      expect(isTerminalBusinessError(new TransportApiError("Service unavailable", 503))).toBe(false);
+    });
+
+    it("identifies standard network errors as retryable", () => {
+      expect(isTerminalBusinessError(new TypeError("Failed to fetch"))).toBe(false);
+      expect(isTerminalBusinessError(new Error("NetworkError when attempting to fetch resource"))).toBe(false);
+    });
+  });
+
+  describe("getPendingAttendanceOps", () => {
+    it("returns pending and failed attendance operations matching tripId", () => {
+      enqueueOpsEvent({
+        eventType: "boarding",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        clientEventId: "board-pending-1",
+        payload: { boardingStatus: "boarded" },
+      });
+      enqueueOpsEvent({
+        eventType: "gps",
+        tripId: TRIP_ID,
+        clientEventId: "gps-skip-1",
+        payload: { latitude: 1, longitude: 2 },
+      });
+      enqueueOpsEvent({
+        eventType: "boarding",
+        tripId: "other-trip-999",
+        studentId: "other-stu",
+        stopId: STOP_ID,
+        clientEventId: "board-other-1",
+        payload: { boardingStatus: "boarded" },
+      });
+
+      const pending = getPendingAttendanceOps(TRIP_ID);
+      expect(pending.length).toBe(1);
+      expect(pending[0]?.clientEventId).toBe("board-pending-1");
+      expect(pending[0]?.studentId).toBe(STUDENT_ID);
+    });
+  });
+
+  describe("dead-lettering terminal business failures", () => {
+    it("dead-letters 403 Forbidden immediately without retrying and emits rejected event", async () => {
+      const dispatchSpy = vi.fn();
+      vi.stubGlobal("window", {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: dispatchSpy,
+      });
+
+      markTripBoarding.mockRejectedValueOnce(
+        new TransportApiError("Student attendance locked", 403, "ATTENDANCE_LOCKED"),
+      );
+
+      enqueueOpsEvent({
+        eventType: "boarding",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        clientEventId: "board-rejected-1",
+        payload: { boardingStatus: "boarded" },
+      });
+
+      await flushOpsOutbox();
+
+      // Must dead-letter (removed from active queue, marked rejected)
+      const snapshot = getOpsOutboxSnapshot();
+      expect(snapshot.pendingCount).toBe(0);
+
+      // Dispatched rejected and failed with rejected: true
+      const rejectedEvents = dispatchSpy.mock.calls.filter(
+        (c) => c[0]?.type === "lumenx-transport-ops-rejected",
+      );
+      const failedEvents = dispatchSpy.mock.calls.filter(
+        (c) => c[0]?.type === "lumenx-transport-ops-failed",
+      );
+
+      expect(rejectedEvents.length).toBe(1);
+      expect(rejectedEvents[0][0].detail.message).toContain("Student attendance locked");
+      expect(failedEvents.length).toBe(1);
+      expect(failedEvents[0][0].detail.rejected).toBe(true);
+      expect(failedEvents[0][0].detail.giveUp).toBe(true);
+    });
+  });
+
+  describe("regression: undo status preservation & confirmed DTO propagation", () => {
+    it("sends boardingStatus='pending' and droppingStatus='pending' when undoing marks", async () => {
+      enqueueOpsEvent({
+        eventType: "not_boarded",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        clientEventId: "undo-board-1",
+        payload: { boardingStatus: "pending" },
+      });
+      enqueueOpsEvent({
+        eventType: "not_dropped",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        clientEventId: "undo-drop-1",
+        payload: { droppingStatus: "pending" },
+      });
+
+      markTripDropping.mockResolvedValueOnce({ id: "be-1", droppingStatus: "pending" });
+      await flushOpsOutbox();
+
+      expect(markTripBoarding).toHaveBeenCalledWith(TRIP_ID, {
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        boardingStatus: "pending",
+        clientEventId: "undo-board-1",
+      });
+      expect(markTripDropping).toHaveBeenCalledWith(TRIP_ID, {
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        droppingStatus: "pending",
+        clientEventId: "undo-drop-1",
+      });
+    });
+
+    it("includes returned attendance DTO in lumenx-transport-ops-confirmed event detail", async () => {
+      const dispatchSpy = vi.fn();
+      vi.stubGlobal("window", {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: dispatchSpy,
+      });
+
+      const serverDto = {
+        id: "be-1",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        boardingStatus: "boarded",
+        droppingStatus: "pending",
+        boardedAt: "2026-11-09T08:05:00Z",
+        droppedAt: null,
+      };
+      markTripBoarding.mockResolvedValueOnce(serverDto);
+
+      enqueueOpsEvent({
+        eventType: "boarding",
+        tripId: TRIP_ID,
+        studentId: STUDENT_ID,
+        stopId: STOP_ID,
+        clientEventId: "board-dto-1",
+        payload: { boardingStatus: "boarded" },
+      });
+
+      await flushOpsOutbox();
+
+      const confirmed = dispatchSpy.mock.calls.filter(
+        (c) => c[0]?.type === "lumenx-transport-ops-confirmed",
+      );
+      expect(confirmed.length).toBe(1);
+      expect(confirmed[0][0].detail.dto).toEqual(serverDto);
+    });
   });
 });

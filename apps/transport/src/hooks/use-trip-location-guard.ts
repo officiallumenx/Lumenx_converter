@@ -5,12 +5,16 @@ import { toast } from "sonner";
 import { useTripSession } from "@/hooks/use-trip-session";
 import { isTripActive } from "@/lib/transport/trip";
 import {
+  getLocationStatusSnapshot,
   getLocationTrackSnapshot,
+  isLocationBlockedSnapshot,
   shouldNotifyLocationOff,
   startLocationTracking,
   stopLocationTracking,
+  subscribeLocationStatus,
   subscribeLocationTrack,
   type LocationTrackState,
+  type LocationTrackStatus,
 } from "@/lib/transport/location-tracking";
 
 export function useLocationTrack(): LocationTrackState {
@@ -18,6 +22,22 @@ export function useLocationTrack(): LocationTrackState {
     subscribeLocationTrack,
     getLocationTrackSnapshot,
     getLocationTrackSnapshot,
+  );
+}
+
+export function useLocationStatus(): LocationTrackStatus {
+  return useSyncExternalStore(
+    subscribeLocationStatus,
+    getLocationStatusSnapshot,
+    getLocationStatusSnapshot,
+  );
+}
+
+export function useLocationBlocked(): boolean {
+  return useSyncExternalStore(
+    subscribeLocationStatus,
+    isLocationBlockedSnapshot,
+    isLocationBlockedSnapshot,
   );
 }
 

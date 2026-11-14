@@ -224,44 +224,37 @@ export async function findStudentById(
   return row ? normalizeStudentRow(row) : null;
 }
 
-export async function insertStudent(
+export async function findStudentsByIds(
   admin: SupabaseClient,
-  input: CreateStudentInput & { displayName: string },
-): Promise<StudentRow> {
-  const inserted = await admin
-    .from("student")
-    .insert({
-      institute_id: input.instituteId,
-      user_profile_id: null,
-      legacy_code: input.legacyCode ?? null,
-      admission_number: input.admissionNumber ?? null,
-      source_admission_application_id: input.sourceAdmissionApplicationId ?? null,
-      first_name: input.firstName,
-      surname: input.surname,
-      display_name: input.displayName,
-      gender: input.gender,
-      date_of_birth: input.dateOfBirth ?? null,
-      address: input.address,
-      class_label: input.classLabel ?? null,
-      section_label: input.sectionLabel ?? null,
-      roll_no: input.rollNo ?? null,
-      status: input.status ?? "active",
-      access_status: input.accessStatus ?? "active",
-      blood_group: input.bloodGroup ?? null,
-      emergency_contact: input.emergencyContact ?? null,
-      house: input.house ?? null,
-      photo_asset_path: input.photoAssetPath ?? null,
-      id_card_issued_on: input.idCardIssuedOn ?? null,
-      id_card_valid_till: input.idCardValidTill ?? null,
-    })
-    .select("id")
-    .single();
-  const row = ensureDbOk(inserted) as { id: string };
-  const full = await findStudentById(admin, row.id);
-  if (!full) {
-    throw AppError.internal("Student insert succeeded but row could not be reloaded");
+  instituteId: string,
+  ids: string[],
+): Promise<StudentRow[]> {
+  if (ids.length === 0) return [];
+  const chunkSize = 200;
+  const rows: StudentRow[] = [];
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    let result = await admin
+      .from("student")
+      .select(studentSelectCols())
+      .eq("institute_id", instituteId)
+      .in("id", chunk)
+      .is("deleted_at", null);
+    if (result.error && isMissingGraduatedOnColumn(result.error)) {
+      noteMissingGraduatedOnColumn();
+      result = await admin
+        .from("student")
+        .select(STUDENT_COLS_WITHOUT_GRADUATED_ON)
+        .eq("institute_id", instituteId)
+        .in("id", chunk)
+        .is("deleted_at", null);
+    }
+    if (result.error) ensureDbOk(result);
+    if (result.data) {
+      rows.push(...normalizeStudentRows(result.data as StudentRow[]));
+    }
   }
-  return full;
+  return rows;
 }
 
 async function selectStudentAfterWrite(
@@ -276,6 +269,46 @@ async function selectStudentAfterWrite(
   if (result.error) ensureDbOk(result);
   const row = (result.data as StudentRow | null) ?? null;
   return row ? normalizeStudentRow(row) : null;
+}
+
+export async function insertStudent(
+  admin: SupabaseClient,
+  input: CreateStudentInput & { displayName: string },
+): Promise<StudentRow> {
+  const row = await selectStudentAfterWrite(admin, (cols) =>
+    admin
+      .from("student")
+      .insert({
+        institute_id: input.instituteId,
+        user_profile_id: null,
+        legacy_code: input.legacyCode ?? null,
+        admission_number: input.admissionNumber ?? null,
+        source_admission_application_id: input.sourceAdmissionApplicationId ?? null,
+        first_name: input.firstName,
+        surname: input.surname,
+        display_name: input.displayName,
+        gender: input.gender,
+        date_of_birth: input.dateOfBirth ?? null,
+        address: input.address,
+        class_label: input.classLabel ?? null,
+        section_label: input.sectionLabel ?? null,
+        roll_no: input.rollNo ?? null,
+        status: input.status ?? "active",
+        access_status: input.accessStatus ?? "active",
+        blood_group: input.bloodGroup ?? null,
+        emergency_contact: input.emergencyContact ?? null,
+        house: input.house ?? null,
+        photo_asset_path: input.photoAssetPath ?? null,
+        id_card_issued_on: input.idCardIssuedOn ?? null,
+        id_card_valid_till: input.idCardValidTill ?? null,
+      })
+      .select(cols)
+      .single(),
+  );
+  if (!row) {
+    throw AppError.internal("Student insert succeeded but row could not be reloaded");
+  }
+  return row;
 }
 
 export async function updateStudentFields(

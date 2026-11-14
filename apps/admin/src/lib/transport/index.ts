@@ -23,6 +23,8 @@ export {
   createEnrollment,
   updateEnrollment,
   deleteEnrollment,
+  assignStopStudents,
+  moveStopStudents,
   upsertTransportSettings,
   type CreateVehicleInput,
   type UpdateVehicleInput,
@@ -103,4 +105,6 @@ export type {
   TransportEnrollmentListItem,
   TransportSettingsDto,
   VehicleDto,
+  AssignStopStudentsInput,
+  MoveStopStudentsInput,
 } from "./types";

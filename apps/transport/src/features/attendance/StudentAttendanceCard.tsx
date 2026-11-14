@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "@lumenx/ui";
 
@@ -59,17 +60,25 @@ function formatStamp(iso: string | null): string | null {
   }
 }
 
-export function StudentAttendanceCard({
+export const StudentAttendanceCard = memo(function StudentAttendanceCard({
   student,
   mode,
+  currentStopName,
+  hasRouteStops = false,
   onTap,
   onLongPress,
+  onStudentTap,
+  onStudentLongPress,
   disabled = false,
 }: {
   student: AttendanceStudentState;
   mode: "boarding" | "dropping";
-  onTap: () => void;
-  onLongPress: () => void;
+  currentStopName?: string | null;
+  hasRouteStops?: boolean;
+  onTap?: () => void;
+  onLongPress?: () => void;
+  onStudentTap?: (studentId: string) => void;
+  onStudentLongPress?: (studentId: string) => void;
   disabled?: boolean;
 }) {
   const meta =
@@ -79,30 +88,47 @@ export function StudentAttendanceCard({
   const stamp =
     mode === "boarding" ? formatStamp(student.boardedAt) : formatStamp(student.droppedAt);
   const syncing = student.syncStatus === "syncing";
-  const stopMissing =
-    mode === "boarding"
-      ? !String(student.stopId ?? "").trim()
-      : !String(student.dropStopId ?? student.stopId ?? "").trim();
-  const cardDisabled = disabled || syncing || stopMissing;
-  const press = useTapLongPress(
-    () => {
-      if (!cardDisabled) onTap();
-    },
-    () => {
-      if (!cardDisabled) onLongPress();
-    },
+  const hasAssignedStop = Boolean(
+    (student.stopId && String(student.stopId).trim()) ||
+      (student.dropStopId && String(student.dropStopId).trim()),
   );
+  const canUseRouteStop = !hasAssignedStop && hasRouteStops;
+  const stopMissing = !hasAssignedStop && !canUseRouteStop;
+  const cardDisabled = disabled || syncing || stopMissing;
+
+  const handleTap = () => {
+    if (cardDisabled) return;
+    if (onStudentTap) {
+      onStudentTap(student.id);
+    } else if (onTap) {
+      onTap();
+    }
+  };
+
+  const handleLongPress = () => {
+    if (cardDisabled) return;
+    if (onStudentLongPress) {
+      onStudentLongPress(student.id);
+    } else if (onLongPress) {
+      onLongPress();
+    }
+  };
+
+  const press = useTapLongPress(handleTap, handleLongPress);
+
   const hint = disabled
     ? "Location is off. Turn on GPS to mark attendance."
     : stopMissing
-      ? mode === "boarding"
-        ? "Stop not assigned. Open Route Setup to assign a pickup stop."
-        : "No drop stop assigned for this student."
+      ? "No route stops configured for this trip."
       : syncing
         ? "Saving mark to server."
         : mode === "boarding"
-          ? "Tap to board or undo. Long press for not boarded."
-          : "Tap to drop or undo. Long press for not dropped.";
+          ? canUseRouteStop
+            ? `Tap to board at ${currentStopName ?? "current stop"}. Long press for not boarded.`
+            : "Tap to board or undo. Long press for not boarded."
+          : canUseRouteStop
+            ? `Tap to drop at ${currentStopName ?? "current stop"}. Long press for not dropped.`
+            : "Tap to drop or undo. Long press for not dropped.";
 
   return (
     <button
@@ -113,6 +139,7 @@ export function StudentAttendanceCard({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         "select-none",
         meta.card,
+        student.syncStatus === "error" && "border-destructive/50 bg-destructive/5",
         cardDisabled && "cursor-not-allowed opacity-60",
       )}
       aria-label={`${student.name}. ${meta.label}. ${hint}`}
@@ -122,12 +149,12 @@ export function StudentAttendanceCard({
         if (cardDisabled) return;
         if (event.key === "Enter" && event.shiftKey) {
           event.preventDefault();
-          onLongPress();
+          handleLongPress();
           return;
         }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onTap();
+          handleTap();
         }
       }}
     >
@@ -148,18 +175,18 @@ export function StudentAttendanceCard({
           <p className="mt-2.5 flex items-center gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-3.5 shrink-0 text-transport" aria-hidden />
             <span className="truncate">
-              {mode === "dropping" && student.dropStopName
-                ? student.dropStopName
-                : student.stopLocationLabel
+              {hasAssignedStop
+                ? student.stopLocationLabel
                   ? `${student.stopName} · ${student.stopLocationLabel}`
-                  : student.stopName}
+                  : (student.stopName || student.dropStopName)
+                : currentStopName
+                  ? `Unassigned · ${mode === "boarding" ? "Boards" : "Drops"} at ${currentStopName}`
+                  : `Unassigned · ${mode === "boarding" ? "Boards" : "Drops"} at current stop`}
             </span>
           </p>
           {stopMissing ? (
             <p className="mt-1 text-xs font-medium text-destructive" role="status">
-              {mode === "boarding"
-                ? "Stop not assigned — open Route Setup"
-                : "No drop stop — assign in Route Setup"}
+              No stop assigned — configure in Route Setup
             </p>
           ) : null}
           {stamp ? (
@@ -190,4 +217,4 @@ export function StudentAttendanceCard({
       </div>
     </button>
   );
-}
+});

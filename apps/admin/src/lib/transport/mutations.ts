@@ -16,6 +16,8 @@ import type {
   TransportEnrollmentDto,
   TransportSettingsDto,
   VehicleDto,
+  AssignStopStudentsInput,
+  MoveStopStudentsInput,
 } from "./types";
 
 function assertApiMode(): void {
@@ -375,12 +377,13 @@ export async function createEnrollment(
   ) {
     throw new Error("drop_stop_id must be a valid UUID");
   }
+  const commonStopId = input.pickupStopId?.trim() || input.dropStopId?.trim() || null;
   return client.post<TransportEnrollmentDto>("/api/v1/transport/enrollments", {
     institute_id: input.instituteId.trim(),
     student_id: input.studentId.trim(),
     route_id: input.routeId.trim(),
-    pickup_stop_id: input.pickupStopId?.trim() || null,
-    drop_stop_id: input.dropStopId?.trim() || null,
+    pickup_stop_id: commonStopId,
+    drop_stop_id: commonStopId,
     status: input.status,
   });
 }
@@ -396,8 +399,12 @@ export async function updateEnrollment(
   }
   const body: Record<string, unknown> = {};
   if (input.routeId !== undefined) body.route_id = input.routeId;
-  if (input.pickupStopId !== undefined) body.pickup_stop_id = input.pickupStopId;
-  if (input.dropStopId !== undefined) body.drop_stop_id = input.dropStopId;
+  if (input.pickupStopId !== undefined || input.dropStopId !== undefined) {
+    const common =
+      input.pickupStopId !== undefined ? input.pickupStopId : input.dropStopId;
+    body.pickup_stop_id = common;
+    body.drop_stop_id = common;
+  }
   if (input.status !== undefined) body.status = input.status;
   if (Object.keys(body).length === 0) {
     throw new Error("At least one field is required");
@@ -417,6 +424,67 @@ export async function deleteEnrollment(
     throw new Error("enrollment_id must be a valid UUID");
   }
   await client.delete(`/api/v1/transport/enrollments/${enrollmentId.trim()}`);
+}
+
+export async function assignStopStudents(
+  input: AssignStopStudentsInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{
+  assignedCount: number;
+  unassignedCount: number;
+  createdCount: number;
+  updatedCount: number;
+}> {
+  assertApiMode();
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(input.routeId)) {
+    throw new Error("route_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(input.stopId)) {
+    throw new Error("stop_id must be a valid UUID");
+  }
+  return client.post<{
+    assignedCount: number;
+    unassignedCount: number;
+    createdCount: number;
+    updatedCount: number;
+  }>(
+    `/api/v1/transport/routes/${input.routeId.trim()}/stops/${input.stopId.trim()}/assign-students`,
+    {
+      institute_id: input.instituteId.trim(),
+      student_ids: input.studentIds,
+    },
+  );
+}
+
+export async function moveStopStudents(
+  input: MoveStopStudentsInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ movedCount: number }> {
+  assertApiMode();
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(input.routeId)) {
+    throw new Error("route_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(input.fromStopId)) {
+    throw new Error("from_stop_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(input.toStopId)) {
+    throw new Error("to_stop_id must be a valid UUID");
+  }
+  return client.post<{ movedCount: number }>(
+    `/api/v1/transport/routes/${input.routeId.trim()}/stops/move-students`,
+    {
+      institute_id: input.instituteId.trim(),
+      from_stop_id: input.fromStopId.trim(),
+      to_stop_id: input.toStopId.trim(),
+      student_ids: input.studentIds,
+    },
+  );
 }
 
 export async function upsertTransportSettings(

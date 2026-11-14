@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Flowchart: Admin adds drivers (incl. PIN + vehicle), fleet, students (bus assign);
- * SOS + settings; routes/stops by driver with admin approval.
+ * SOS + settings; routes/stops by driver with admin approval or admin management.
  */
 describe("admin transport flowchart contract", () => {
   it("drivers require app PIN and support vehicle assignment", () => {
@@ -31,10 +31,10 @@ describe("admin transport flowchart contract", () => {
     expect(types).toContain("StopKind");
   });
 
-  it("forbids admin stop creation; driver creates, admin approves", () => {
+  it("enforces stop creation permissions; admin creates approved, driver creates pending", () => {
     const service = readFileSync(join(here, "service.ts"), "utf8");
-    expect(service).toContain("Stops are created by drivers");
-    expect(service).toContain("Approve them in Reviews");
+    expect(service).toContain("assertCanSubmitTransport");
+    expect(service).toContain("approvalStatusForCreate");
   });
 
   it("forbids admin route creation; driver creates, admin approves", () => {
@@ -44,8 +44,8 @@ describe("admin transport flowchart contract", () => {
 
   it("allows student bus enrollment without stops yet", () => {
     const service = readFileSync(join(here, "service.ts"), "utf8");
-    expect(service).toContain("if (input.pickupStopId)");
-    expect(service).toContain("if (input.dropStopId)");
+    expect(service).toMatch(/if\s*\(\s*(effectiveInput|input)\.pickupStopId\s*\)/);
+    expect(service).toMatch(/if\s*\(\s*(effectiveInput|input)\.dropStopId\s*\)/);
   });
 
   it("phone + PIN login creates account only when vehicle assigned", () => {

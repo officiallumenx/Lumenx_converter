@@ -3,11 +3,17 @@ import { isOperationallyUsable } from "./approval.js";
 import { listNotRidingStudentIds } from "./daily-exception-repository.js";
 import {
   findDriverById,
+  findStopById,
   listEnrollmentsForRoute,
   listStopsForRoute,
 } from "./repository.js";
 import type { StopRow } from "./types.js";
-import { haversineMeters } from "./geo.js";
+import {
+  haversineMeters,
+  pointToSegmentDistanceM,
+  isTrajectoryValidForInterpolation,
+  isArrivalGeofenceEntered,
+} from "./geo.js";
 import {
   computeStableEta,
   ingestTripGpsSample,
@@ -130,13 +136,19 @@ export function resolveStopGeofenceM(notificationRadiusM: unknown): number {
   return Number.isFinite(radius) && radius > 0 ? radius : STOP_RADIUS_DEFAULT_M;
 }
 
-/** True when bus distance is inside the stop notification radius. */
+/** True when bus distance is inside the stop notification radius (with GPS accuracy check). */
 export function isBusWithinStopRadius(
   distanceM: number,
   notificationRadiusM: unknown,
+  accuracyM?: number | null,
 ): boolean {
   if (!Number.isFinite(distanceM) || distanceM < 0) return false;
-  return distanceM <= resolveStopGeofenceM(notificationRadiusM);
+  const stopRadiusM = resolveStopGeofenceM(notificationRadiusM);
+  return isArrivalGeofenceEntered({
+    stopRadiusM,
+    distanceM,
+    accuracyM,
+  });
 }
 
 /** Pickup vs drop destination for approach / live arrival. */
@@ -155,22 +167,41 @@ export function approachDestinationModeForTrip(trip: {
   return "pickup";
 }
 
-/** Student stop used for arrival/notifications; null ⇒ skip (no fake arrival). */
+/**
+ * Student stop used for arrival/notifications; null ⇒ skip (no fake arrival).
+ * Product rule: ONE student = ONE assigned stop used for both morning and afternoon.
+ * Resolves the student's assigned stop (pickup or legacy drop).
+ */
 export function enrollmentApproachStopId(
   enrollment: {
     pickup_stop_id: string | null;
     drop_stop_id: string | null;
   },
-  mode: ApproachDestinationMode,
+  _mode?: ApproachDestinationMode,
 ): string | null {
-  return mode === "drop"
-    ? enrollment.drop_stop_id
-    : enrollment.pickup_stop_id;
+  const pickup = typeof enrollment.pickup_stop_id === "string" ? enrollment.pickup_stop_id.trim() : "";
+  if (pickup) return pickup;
+  const drop = typeof enrollment.drop_stop_id === "string" ? enrollment.drop_stop_id.trim() : "";
+  return drop || null;
+}
+
+type StopGeofenceState = {
+  isInside: boolean;
+  visitEpisode: number;
+  lastEnteredAtMs: number;
+  lastExitedAtMs?: number;
+};
+
+const stopGeofenceStateByTrip = new Map<string, StopGeofenceState>();
+
+export function clearStopGeofenceState(): void {
+  stopGeofenceStateByTrip.clear();
 }
 
 /** Test helper. */
 export function clearApproachRouteStopCache(): void {
   routeStopCache.clear();
+  stopGeofenceStateByTrip.clear();
 }
 
 /** Ordered plan stop ids for the active trip direction (pickup vs drop). */
@@ -231,6 +262,8 @@ type StopGeom = {
   distanceM: number;
   etaMinutes: number;
   withinRadius: boolean;
+  isNewArrival: boolean;
+  visitEpisode: number;
   studentIds: string[];
 };
 
@@ -250,11 +283,36 @@ export async function evaluateApproachAlertsOnPing(
     capturedAtMs?: number | null;
   },
   createdByUserId: string,
+  previousLocation?: {
+    latitude: number;
+    longitude: number;
+    speedKmh?: number | null;
+    accuracyM?: number | null;
+    capturedAtMs?: number | null;
+  } | null,
 ): Promise<void> {
+  // Guard against invalid GPS coordinates
+  if (
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude) ||
+    location.latitude < -90 ||
+    location.latitude > 90 ||
+    location.longitude < -180 ||
+    location.longitude > 180
+  ) {
+    return;
+  }
+
   const capturedAtMs =
     location.capturedAtMs != null && Number.isFinite(location.capturedAtMs)
       ? location.capturedAtMs
       : Date.now();
+
+  // Guard against stale GPS pings (> 120s old relative to server now)
+  const nowMs = Date.now();
+  if (nowMs - capturedAtMs > 120_000) {
+    return;
+  }
   ingestTripGpsSample({
     tripId: trip.id,
     latitude: location.latitude,
@@ -339,7 +397,14 @@ export async function evaluateApproachAlertsOnPing(
     );
     // No stop assignment ⇒ no approach / arrival notifications.
     if (!destinationStopId) continue;
-    const stop = stopById.get(destinationStopId);
+    let stop = stopById.get(destinationStopId);
+    if (!stop) {
+      const direct = await findStopById(admin, destinationStopId);
+      if (direct) {
+        stop = direct;
+        stopById.set(destinationStopId, direct);
+      }
+    }
     if (
       !stop ||
       stop.latitude == null ||
@@ -356,19 +421,62 @@ export async function evaluateApproachAlertsOnPing(
     // Spatial filter: skip students whose stop is far outside approach range.
     if (crowFliesM > APPROACH_EVAL_RADIUS_M) continue;
 
+    // Trajectory interpolation check: if previous location is valid, calculate chord distance
+    let effectiveArrivalDistanceM = crowFliesM;
+    if (
+      previousLocation &&
+      isTrajectoryValidForInterpolation(previousLocation, location)
+    ) {
+      const trajectoryChordM = pointToSegmentDistanceM(
+        { latitude, longitude },
+        previousLocation,
+        location,
+      );
+      effectiveArrivalDistanceM = Math.min(crowFliesM, trajectoryChordM);
+    }
+
+    const stopRadiusM = resolveStopGeofenceM(stop.notification_radius_m);
+    const withinRadius = isArrivalGeofenceEntered({
+      stopRadiusM,
+      distanceM: effectiveArrivalDistanceM,
+      accuracyM: location.accuracyM,
+    });
+
+    const tripStopKey = `${trip.id}:${stop.id}`;
+    let geoState = stopGeofenceStateByTrip.get(tripStopKey);
+    let isNewArrival = false;
+    let visitEpisode = geoState?.visitEpisode ?? 1;
+
+    if (withinRadius) {
+      if (!geoState || !geoState.isInside) {
+        // Fresh entry into geofence
+        visitEpisode = (geoState?.visitEpisode ?? 0) + 1;
+        geoState = {
+          isInside: true,
+          visitEpisode,
+          lastEnteredAtMs: capturedAtMs,
+        };
+        stopGeofenceStateByTrip.set(tripStopKey, geoState);
+        isNewArrival = true;
+      }
+    } else {
+      // Exit hysteresis: must move beyond 1.5x stopRadius (or radius + 50m) to register exit
+      const exitThresholdM = Math.max(stopRadiusM * 1.5, stopRadiusM + 50);
+      if (geoState?.isInside && effectiveArrivalDistanceM >= exitThresholdM) {
+        geoState.isInside = false;
+        geoState.lastExitedAtMs = capturedAtMs;
+      }
+    }
+
     const stable = computeStableEta({
       tripId: trip.id,
       stopId: stop.id,
       bus: location,
       orderedStops,
       destinationStopId: stop.id,
-      crowFliesFallbackM: crowFliesM,
+      crowFliesFallbackM: effectiveArrivalDistanceM,
     });
     const etaMinutes = stable.etaMinutes ?? Number.POSITIVE_INFINITY;
-    const withinRadius = isBusWithinStopRadius(
-      crowFliesM,
-      stop.notification_radius_m,
-    );
     const existing = nearby.get(stop.id);
     if (existing) {
       existing.studentIds.push(enrollment.student_id);
@@ -378,9 +486,11 @@ export async function evaluateApproachAlertsOnPing(
       stop,
       latitude,
       longitude,
-      distanceM: stable.distanceM,
+      distanceM: Math.min(stable.distanceM, effectiveArrivalDistanceM),
       etaMinutes,
       withinRadius,
+      isNewArrival,
+      visitEpisode,
       studentIds: [enrollment.student_id],
     });
   }
@@ -496,6 +606,8 @@ export async function evaluateApproachAlertsOnPing(
   // Arrival: rare once-per-stop; await create so timeline stays accurate.
   for (const geom of nearby.values()) {
     if (!geom.withinRadius) continue;
+    // Suppress re-notifying while bus is dwelling inside the stop
+    if (!geom.isNewArrival) continue;
 
     const uniqueParents = [
       ...new Set(
@@ -520,7 +632,7 @@ export async function evaluateApproachAlertsOnPing(
       body: `Bus has arrived at ${geom.stop.name.trim() || "your stop"}.`,
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "parent"),
       targetAudience: "parent",
-      dedupeKey: transportDedupe.arrived(trip.id, geom.stop.id),
+      dedupeKey: transportDedupe.arrived(trip.id, geom.stop.id, geom.visitEpisode),
       recipientUserIds: uniqueParents,
       payload: {
         tripId: trip.id,
@@ -528,6 +640,7 @@ export async function evaluateApproachAlertsOnPing(
         distanceM: Math.round(geom.distanceM),
         geofenceM: resolveStopGeofenceM(geom.stop.notification_radius_m),
         studentIds: geom.studentIds,
+        visitEpisode: geom.visitEpisode,
       },
     });
 
@@ -542,7 +655,7 @@ export async function evaluateApproachAlertsOnPing(
         body: `Bus arrived at ${geom.stop.name.trim() || "your stop"}.`,
         deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "student"),
         targetAudience: "student",
-        dedupeKey: `${transportDedupe.arrived(trip.id, geom.stop.id)}:student`,
+        dedupeKey: `${transportDedupe.arrived(trip.id, geom.stop.id, geom.visitEpisode)}:student`,
         recipientUserIds: uniqueStudents,
         payload: {
           tripId: trip.id,
@@ -550,6 +663,7 @@ export async function evaluateApproachAlertsOnPing(
           distanceM: Math.round(geom.distanceM),
           geofenceM: resolveStopGeofenceM(geom.stop.notification_radius_m),
           studentIds: geom.studentIds,
+          visitEpisode: geom.visitEpisode,
         },
       });
     }
@@ -569,9 +683,12 @@ export async function evaluateApproachAlertsOnPing(
         body: `Bus has arrived at ${geom.stop.name}`,
         deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "driver"),
         targetAudience: "driver",
-        dedupeKey: `transport:${trip.id}:stop:${geom.stop.id}:arrived:driver`,
+        dedupeKey:
+          geom.visitEpisode > 1
+            ? `transport:${trip.id}:stop:${geom.stop.id}:arrived:driver:ep${geom.visitEpisode}`
+            : `transport:${trip.id}:stop:${geom.stop.id}:arrived:driver`,
         recipientUserIds: [driver.user_profile_id],
-        payload: { tripId: trip.id, stopId: geom.stop.id },
+        payload: { tripId: trip.id, stopId: geom.stop.id, visitEpisode: geom.visitEpisode },
       });
     }
 
@@ -584,21 +701,35 @@ export async function evaluateApproachAlertsOnPing(
       body: `Live timeline: bus entered ${geom.stop.name} geofence.`,
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STOP_ARRIVED, "admin"),
       targetAudience: "admin",
-      dedupeKey: `transport:${trip.id}:stop:${geom.stop.id}:arrived:admin`,
+      dedupeKey:
+        geom.visitEpisode > 1
+          ? `transport:${trip.id}:stop:${geom.stop.id}:arrived:admin:ep${geom.visitEpisode}`
+          : `transport:${trip.id}:stop:${geom.stop.id}:arrived:admin`,
       recipientUserIds: await staffUserIdsForInstitute(admin, trip.institute_id),
-      payload: { tripId: trip.id, stopId: geom.stop.id },
+      payload: { tripId: trip.id, stopId: geom.stop.id, visitEpisode: geom.visitEpisode },
     });
 
-    await appendTripTimeline(admin, trip.id, {
-      id: `evt-arrived-${geom.stop.id}-${Date.now()}`,
-      at: new Date().toISOString(),
-      kind: TRANSPORT_EVENT.STOP_ARRIVED,
-      label: `Arrived at ${geom.stop.name}`,
-      stopId: geom.stop.id,
-    });
+    const planIdx = planStopIds.indexOf(geom.stop.id);
+    await appendTripTimeline(
+      admin,
+      trip.id,
+      {
+        id: `evt-arrived-${geom.stop.id}-${Date.now()}`,
+        at: new Date().toISOString(),
+        kind: TRANSPORT_EVENT.STOP_ARRIVED,
+        label: `Arrived at ${geom.stop.name}`,
+        stopId: geom.stop.id,
+        note: geom.visitEpisode > 1 ? `Episode ${geom.visitEpisode}` : undefined,
+      },
+      {
+        current_stop_id: geom.stop.id,
+        current_stop_index: planIdx >= 0 ? planIdx : 0,
+      },
+    );
+    trip.current_stop_id = geom.stop.id;
+    trip.current_stop_index = planIdx >= 0 ? planIdx : 0;
 
     // Sequential STOP_NEXT: only after confirmed arrival at plan stop N → announce N+1.
-    const planIdx = planStopIds.indexOf(geom.stop.id);
     if (planIdx < 0 || planIdx + 1 >= planStopIds.length) continue;
     const nextStopId = planStopIds[planIdx + 1]!;
     const nextStop = stopById.get(nextStopId);
@@ -695,23 +826,43 @@ export async function computeApproachForStudent(
     capturedAtMs?: number | null;
   },
 ): Promise<ApproachSnapshot | null> {
-  const enrollments = await listEnrollmentsForRoute(
-    admin,
-    input.instituteId,
-    input.routeId,
-  );
-  const enrollment = enrollments.find((e) => e.student_id === input.studentId);
-  if (!enrollment) return null;
+  let stopRef: { pickup_stop_id: string | null; drop_stop_id: string | null } | undefined;
+  if (input.tripId) {
+    const { listTripParticipants } = await import("./trip-participant-repository.js");
+    const participants = await listTripParticipants(admin, input.tripId).catch(() => []);
+    const participant = participants.find((p) => p.student_id === input.studentId);
+    if (participant) {
+      stopRef = {
+        pickup_stop_id: participant.pickup_stop_id,
+        drop_stop_id: participant.drop_stop_id,
+      };
+    }
+  }
+
+  if (!stopRef) {
+    const enrollments = await listEnrollmentsForRoute(
+      admin,
+      input.instituteId,
+      input.routeId,
+    );
+    const enrollment = enrollments.find((e) => e.student_id === input.studentId);
+    if (!enrollment) return null;
+    stopRef = enrollment;
+  }
 
   const mode = approachDestinationModeForTrip({
     phase: input.tripPhase ?? "running",
     slot: input.tripSlot ?? "morning",
   });
-  const destinationStopId = enrollmentApproachStopId(enrollment, mode);
+  const destinationStopId = enrollmentApproachStopId(stopRef, mode);
   if (!destinationStopId) return null;
 
   const stops = await loadRouteStopsCached(admin, input.routeId);
-  const stop = stops.find((s) => s.id === destinationStopId);
+  let stop = stops.find((s) => s.id === destinationStopId);
+  if (!stop) {
+    const direct = await findStopById(admin, destinationStopId);
+    if (direct) stop = direct;
+  }
   if (
     !stop ||
     stop.latitude == null ||
@@ -770,7 +921,11 @@ export async function computeApproachForStudent(
     stopId: stop.id,
     stopName: stop.name,
     distanceM: stable.distanceM || Math.round(crowFliesM),
-    withinRadius: crowFliesM <= geofenceM,
+    withinRadius: isArrivalGeofenceEntered({
+      stopRadiusM: geofenceM,
+      distanceM: crowFliesM,
+      accuracyM: input.accuracyM,
+    }),
     etaMinutes: stable.etaMinutes,
     band: Number.isFinite(etaForBand) ? approachBandForEta(etaForBand) : null,
     movementState: stable.movementState,

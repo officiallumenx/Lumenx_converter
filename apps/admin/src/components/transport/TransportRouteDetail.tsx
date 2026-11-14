@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -36,10 +36,37 @@ import {
   type TransportSnapshot,
 } from "@/lib/transport-store";
 
+import type { StudentListItem } from "@/lib/students/types";
+
 type Props = {
   snapshot: TransportSnapshot;
   route: TransportRoute;
   onChange: (next: TransportSnapshot) => void;
+  writesEnabled?: boolean;
+  onCreateStop?: (
+    routeId: string,
+    input: {
+      name: string;
+      locationLabel: string;
+      latitude: number;
+      longitude: number;
+      routeOrder: number;
+      studentIds?: string[];
+    },
+  ) => Promise<void>;
+  onUpdateStop?: (
+    stopId: string,
+    input: {
+      name?: string;
+      locationLabel?: string;
+      latitude?: number;
+      longitude?: number;
+    },
+  ) => Promise<void>;
+  onDeleteStop?: (stopId: string) => Promise<void>;
+  onAssignStopStudents?: (stopId: string, studentIds: string[]) => Promise<void>;
+  onMoveStudents?: (fromStopId: string, toStopId: string, studentIds: string[]) => Promise<void>;
+  studentsCatalog?: StudentListItem[];
 };
 
 function formatDate(iso: string | null) {
@@ -51,19 +78,35 @@ function formatDate(iso: string | null) {
   }
 }
 
-export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
+export function TransportRouteDetail({
+  snapshot,
+  route,
+  onChange,
+  writesEnabled = true,
+  onCreateStop,
+  onUpdateStop,
+  onDeleteStop,
+  onAssignStopStudents,
+  onMoveStudents,
+  studentsCatalog,
+}: Props) {
   const notify = useAdminToast();
   const locked = route.configStatus === "locked";
-  const canManageStops = false;
+  const canManageStops = Boolean(writesEnabled && !locked);
   const [expandedGps, setExpandedGps] = useState<Record<string, boolean>>({});
   const [editStop, setEditStop] = useState<AdminRouteStop | null>(null);
   const [assignStop, setAssignStop] = useState<AdminRouteStop | null>(null);
   const [assignIds, setAssignIds] = useState<string[]>([]);
+  const [savingAssign, setSavingAssign] = useState(false);
   const [moveStop, setMoveStop] = useState<AdminRouteStop | null>(null);
   const [moveTarget, setMoveTarget] = useState("");
   const [moveIds, setMoveIds] = useState<string[]>([]);
+  const [savingMove, setSavingMove] = useState(false);
   const [deleteStopId, setDeleteStopId] = useState<string | null>(null);
+  const [savingDelete, setSavingDelete] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [addName, setAddName] = useState("");
   const [addLocation, setAddLocation] = useState<LocationPasteValue | null>(null);
   const [addStudents, setAddStudents] = useState<string[]>([]);
@@ -85,9 +128,27 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
     });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editStop || !editName.trim() || !editLocation) {
       notify("Name and location are required");
+      return;
+    }
+    if (onUpdateStop) {
+      try {
+        setSavingEdit(true);
+        await onUpdateStop(editStop.id, {
+          name: editName.trim(),
+          locationLabel: editLocation.locationLabel,
+          latitude: editLocation.lat,
+          longitude: editLocation.lng,
+        });
+        setEditStop(null);
+        notify("Stop updated");
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Failed to update stop");
+      } finally {
+        setSavingEdit(false);
+      }
       return;
     }
     onChange(
@@ -103,16 +164,61 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
     notify("Stop updated");
   };
 
-  const saveAssign = () => {
+  const studentNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (studentsCatalog) {
+      for (const s of studentsCatalog) {
+        map.set(s.id, s.name);
+      }
+    }
+    return map;
+  }, [studentsCatalog]);
+
+  const resolveStudentNames = (studentIds: string[]): string[] => {
+    return studentIds.map((id) => {
+      const fromCatalog = studentNameMap.get(id);
+      if (fromCatalog) return fromCatalog;
+      const fromStore = studentsByIds([id])[0]?.name;
+      return fromStore || id;
+    });
+  };
+
+  const saveAssign = async () => {
     if (!assignStop) return;
+    if (onAssignStopStudents) {
+      try {
+        setSavingAssign(true);
+        await onAssignStopStudents(assignStop.id, assignIds);
+        setAssignStop(null);
+        notify("Student assignment updated");
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Failed to update student assignment");
+      } finally {
+        setSavingAssign(false);
+      }
+      return;
+    }
     onChange(setRouteStopStudents(snapshot, route.id, assignStop.id, assignIds));
     setAssignStop(null);
     notify("Student assignment updated");
   };
 
-  const saveMove = () => {
+  const saveMove = async () => {
     if (!moveStop || !moveTarget || moveIds.length === 0) {
       notify("Select students and a destination stop");
+      return;
+    }
+    if (onMoveStudents) {
+      try {
+        setSavingMove(true);
+        await onMoveStudents(moveStop.id, moveTarget, moveIds);
+        setMoveStop(null);
+        notify("Students moved");
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Failed to move students");
+      } finally {
+        setSavingMove(false);
+      }
       return;
     }
     onChange(
@@ -122,9 +228,32 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
     notify("Students moved");
   };
 
-  const saveAdd = () => {
+  const saveAdd = async () => {
     if (!addName.trim() || !addLocation) {
       notify("Stop name and location are required");
+      return;
+    }
+    if (onCreateStop) {
+      try {
+        setSavingAdd(true);
+        await onCreateStop(route.id, {
+          name: addName.trim(),
+          locationLabel: addLocation.locationLabel,
+          latitude: addLocation.lat,
+          longitude: addLocation.lng,
+          routeOrder: stops.length + 1,
+          studentIds: addStudents,
+        });
+        setAddOpen(false);
+        setAddName("");
+        setAddLocation(null);
+        setAddStudents([]);
+        notify("Stop added");
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Failed to add stop");
+      } finally {
+        setSavingAdd(false);
+      }
       return;
     }
     onChange(
@@ -145,6 +274,26 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
     setAddLocation(null);
     setAddStudents([]);
     notify("Stop added");
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteStopId) return;
+    if (onDeleteStop) {
+      try {
+        setSavingDelete(true);
+        await onDeleteStop(deleteStopId);
+        setDeleteStopId(null);
+        notify("Stop deleted");
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Failed to delete stop");
+      } finally {
+        setSavingDelete(false);
+      }
+      return;
+    }
+    onChange(deleteRouteSetupStop(snapshot, route.id, deleteStopId));
+    setDeleteStopId(null);
+    notify("Stop deleted");
   };
 
   return (
@@ -225,7 +374,7 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
       ) : (
         <div className="space-y-2">
           {stops.map((stop, index) => {
-            const students = studentsByIds(stop.studentIds);
+            const studentNames = resolveStudentNames(stop.studentIds);
             const gpsOpen = Boolean(expandedGps[stop.id]);
             return (
               <Card key={stop.id}>
@@ -245,8 +394,8 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
                       <div className="mt-1.5 flex items-start gap-1 text-[11px] text-muted-foreground">
                         <Users className="size-3 mt-0.5 shrink-0" />
                         <span>
-                          {students.length > 0
-                            ? students.map((s) => s.name).join(", ")
+                          {studentNames.length > 0
+                            ? studentNames.join(", ")
                             : "No students assigned"}
                         </span>
                       </div>
@@ -276,11 +425,8 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
                     </div>
                   ) : null}
 
-                  {canManageStops && !locked ? (
+                  {writesEnabled && !locked ? (
                     <div className="flex flex-wrap gap-1 pt-1">
-                      <Button size="sm" onClick={() => openEdit(stop)}>
-                        <Pencil className="size-3" /> Edit
-                      </Button>
                       <Button
                         size="sm"
                         onClick={() => {
@@ -301,27 +447,34 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
                       >
                         Move students
                       </Button>
-                      <Button
-                        size="sm"
-                        disabled={index === 0}
-                        onClick={() =>
-                          onChange(reorderRouteSetupStop(snapshot, route.id, stop.id, "up"))
-                        }
-                      >
-                        <ArrowUp className="size-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={index === stops.length - 1}
-                        onClick={() =>
-                          onChange(reorderRouteSetupStop(snapshot, route.id, stop.id, "down"))
-                        }
-                      >
-                        <ArrowDown className="size-3" />
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => setDeleteStopId(stop.id)}>
-                        <Trash2 className="size-3" />
-                      </Button>
+                      {canManageStops ? (
+                        <>
+                          <Button size="sm" onClick={() => openEdit(stop)}>
+                            <Pencil className="size-3" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={index === 0}
+                            onClick={() =>
+                              onChange(reorderRouteSetupStop(snapshot, route.id, stop.id, "up"))
+                            }
+                          >
+                            <ArrowUp className="size-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={index === stops.length - 1}
+                            onClick={() =>
+                              onChange(reorderRouteSetupStop(snapshot, route.id, stop.id, "down"))
+                            }
+                          >
+                            <ArrowDown className="size-3" />
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => setDeleteStopId(stop.id)}>
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -333,14 +486,14 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
 
       <Modal
         open={Boolean(editStop)}
-        onClose={() => setEditStop(null)}
+        onClose={() => !savingEdit && setEditStop(null)}
         title="Edit stop"
         size="lg"
         footer={
           <>
-            <Button onClick={() => setEditStop(null)}>Cancel</Button>
-            <Button variant="primary" onClick={saveEdit}>
-              Save
+            <Button disabled={savingEdit} onClick={() => setEditStop(null)}>Cancel</Button>
+            <Button variant="primary" disabled={savingEdit} onClick={saveEdit}>
+              {savingEdit ? "Saving…" : "Save"}
             </Button>
           </>
         }
@@ -357,38 +510,65 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
 
       <Modal
         open={Boolean(assignStop)}
-        onClose={() => setAssignStop(null)}
+        onClose={() => !savingAssign && setAssignStop(null)}
         title={`Students · ${assignStop?.name ?? ""}`}
         size="md"
         footer={
-          <>
-            <Button onClick={() => setAssignStop(null)}>Cancel</Button>
-            <Button variant="primary" onClick={saveAssign}>
-              Save assignment
-            </Button>
-          </>
+          <div className="flex w-full items-center justify-between">
+            {canManageStops ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={savingAssign}
+                onClick={() => {
+                  setAssignStop(null);
+                  setAddOpen(true);
+                }}
+              >
+                + Create new stop
+              </Button>
+            ) : <span />}
+            <div className="flex items-center gap-2">
+              <Button disabled={savingAssign} onClick={() => setAssignStop(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={savingAssign} onClick={saveAssign}>
+                {savingAssign ? "Saving…" : "Save assignment"}
+              </Button>
+            </div>
+          </div>
         }
       >
-        <AdminStudentAssignmentPicker selectedIds={assignIds} onChange={setAssignIds} />
+        <AdminStudentAssignmentPicker
+          selectedIds={assignIds}
+          onChange={setAssignIds}
+          disabled={savingAssign}
+        />
       </Modal>
 
       <Modal
         open={Boolean(moveStop)}
-        onClose={() => setMoveStop(null)}
+        onClose={() => !savingMove && setMoveStop(null)}
         title="Move students"
         size="md"
         footer={
           <>
-            <Button onClick={() => setMoveStop(null)}>Cancel</Button>
-            <Button variant="primary" onClick={saveMove}>
-              Move
+            <Button disabled={savingMove} onClick={() => setMoveStop(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={savingMove} onClick={saveMove}>
+              {savingMove ? "Moving…" : "Move"}
             </Button>
           </>
         }
       >
         <div className="space-y-3">
           <Field label="To stop" required>
-            <Select value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
+            <Select
+              value={moveTarget}
+              disabled={savingMove}
+              onChange={(e) => setMoveTarget(e.target.value)}
+            >
               {stops
                 .filter((s) => s.id !== moveStop?.id)
                 .map((s) => (
@@ -399,21 +579,25 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
             </Select>
           </Field>
           <Field label="Students to move">
-            <AdminStudentAssignmentPicker selectedIds={moveIds} onChange={setMoveIds} />
+            <AdminStudentAssignmentPicker
+              selectedIds={moveIds}
+              onChange={setMoveIds}
+              disabled={savingMove}
+            />
           </Field>
         </div>
       </Modal>
 
       <Modal
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={() => !savingAdd && setAddOpen(false)}
         title="Add stop"
         size="lg"
         footer={
           <>
-            <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={saveAdd}>
-              Add stop
+            <Button disabled={savingAdd} onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button variant="primary" disabled={savingAdd} onClick={saveAdd}>
+              {savingAdd ? "Adding…" : "Add stop"}
             </Button>
           </>
         }
@@ -437,22 +621,18 @@ export function TransportRouteDetail({ snapshot, route, onChange }: Props) {
 
       <Modal
         open={Boolean(deleteStopId)}
-        onClose={() => setDeleteStopId(null)}
+        onClose={() => !savingDelete && setDeleteStopId(null)}
         title="Delete stop"
         size="sm"
         footer={
           <>
-            <Button onClick={() => setDeleteStopId(null)}>Cancel</Button>
+            <Button disabled={savingDelete} onClick={() => setDeleteStopId(null)}>Cancel</Button>
             <Button
               variant="danger"
-              onClick={() => {
-                if (!deleteStopId) return;
-                onChange(deleteRouteSetupStop(snapshot, route.id, deleteStopId));
-                setDeleteStopId(null);
-                notify("Stop deleted");
-              }}
+              disabled={savingDelete}
+              onClick={confirmDelete}
             >
-              Delete
+              {savingDelete ? "Deleting…" : "Delete"}
             </Button>
           </>
         }

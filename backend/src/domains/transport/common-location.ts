@@ -1,7 +1,9 @@
 /**
  * Common student transport location helpers.
  * Product rule: one location for pickup and drop.
- * Legacy rows may still have diverging pickup_stop_id / drop_stop_id — map safely.
+ * - If only one is populated, resolves that as the student's common assigned stop.
+ * - If both are populated and match, resolves that stop.
+ * - If both are populated and conflict, reports conflict and returns null (does not silently choose either).
  */
 
 export type StopPair = {

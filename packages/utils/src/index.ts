@@ -385,6 +385,7 @@ export {
   formatGpsAgeLabel,
   formatRelativeTransportTime,
   isGpsShownAsLive,
+  parseTransportTimestampMs,
   type GpsFreshness,
 } from "./gps-freshness";
 export {

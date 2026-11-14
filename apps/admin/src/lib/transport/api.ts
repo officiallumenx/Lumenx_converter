@@ -78,11 +78,18 @@ export async function listTransportStops(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<StopDto[]> {
   assertApiMode();
-  if (!isInstituteUuid(params.routeId)) {
+  if (params.routeId && !isInstituteUuid(params.routeId)) {
     throw new Error("route_id must be a valid UUID");
   }
+  if (params.instituteId && !isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  if (!params.routeId && !params.instituteId) {
+    throw new Error("route_id or institute_id is required");
+  }
   const query = new URLSearchParams();
-  query.set("route_id", params.routeId.trim());
+  if (params.routeId) query.set("route_id", params.routeId.trim());
+  if (params.instituteId) query.set("institute_id", params.instituteId.trim());
   return client.get<StopDto[]>(
     `/api/v1/transport/stops?${query.toString()}`,
   );

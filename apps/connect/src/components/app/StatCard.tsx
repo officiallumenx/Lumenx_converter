@@ -99,9 +99,10 @@ export function StatCard({
           </p>
           <p
             className={cn(
-              "font-display font-semibold leading-none tracking-tight tabular-nums break-words [overflow-wrap:anywhere]",
+              "font-display font-semibold leading-none tracking-tight tabular-nums break-words [overflow-wrap:anywhere] line-clamp-2",
               compact ? "text-lg sm:text-xl" : "text-base sm:text-lg md:text-xl lg:text-2xl",
             )}
+            title={value}
           >
             {value}
           </p>

@@ -21,6 +21,29 @@ import { TRANSPORT_EVENT } from "./transport-events.js";
 import { shouldNotifyTripPhaseChange } from "./trip-lifecycle.js";
 
 describe("approach withinRadius radius handling", () => {
+  it("evaluates custom stop radius and default fallback", () => {
+    expect(isBusWithinStopRadius(80, 100)).toBe(true);
+    expect(isBusWithinStopRadius(105, 100)).toBe(false);
+    expect(isBusWithinStopRadius(140, 150)).toBe(true);
+    expect(isBusWithinStopRadius(155, 150)).toBe(false);
+    expect(isBusWithinStopRadius(40, 50)).toBe(true);
+    expect(isBusWithinStopRadius(60, 50)).toBe(false);
+    // null/undefined falls back to default 100m
+    expect(isBusWithinStopRadius(90, null)).toBe(true);
+    expect(isBusWithinStopRadius(110, null)).toBe(false);
+  });
+
+  it("reliably triggers arrival when within stop radius and rejects when outside or absurd accuracy", () => {
+    // Distance 85m on a 100m radius stop with typical 60m uncertainty: within radius -> true
+    expect(isBusWithinStopRadius(85, 100, 60)).toBe(true);
+    // Distance 85m with 15m clean accuracy: valid arrival -> true
+    expect(isBusWithinStopRadius(85, 100, 15)).toBe(true);
+    // Distance 105m: outside geofence -> false
+    expect(isBusWithinStopRadius(105, 100, 15)).toBe(false);
+    // Absurd GPS accuracy (> 500m): untrusted fix -> false
+    expect(isBusWithinStopRadius(50, 100, 550)).toBe(false);
+  });
+
   it("keeps ETA bands unchanged", () => {
     expect(approachBandForEta(4)).toBe(5);
     expect(approachBandForEta(10)).toBe(15);
@@ -225,25 +248,91 @@ describe("pickup vs drop destination stop selection", () => {
     ).toBe("drop");
   });
 
-  it("skips students without the relevant stop assignment", () => {
-    expect(
-      enrollmentApproachStopId(
-        { pickup_stop_id: null, drop_stop_id: "d1" },
-        "pickup",
-      ),
-    ).toBeNull();
-    expect(
-      enrollmentApproachStopId(
-        { pickup_stop_id: "p1", drop_stop_id: null },
-        "drop",
-      ),
-    ).toBeNull();
-    expect(
-      enrollmentApproachStopId(
-        { pickup_stop_id: "p1", drop_stop_id: "d1" },
-        "drop",
-      ),
-    ).toBe("d1");
+  describe("single-stop resolution (phase 1)", () => {
+    it("1. resolves when only pickup_stop_id is populated", () => {
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-pickup", drop_stop_id: null },
+          "pickup",
+        ),
+      ).toBe("stop-pickup");
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-pickup", drop_stop_id: null },
+          "drop",
+        ),
+      ).toBe("stop-pickup");
+    });
+
+    it("2. resolves when only drop_stop_id is populated (legacy record)", () => {
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: null, drop_stop_id: "stop-drop" },
+          "pickup",
+        ),
+      ).toBe("stop-drop");
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: null, drop_stop_id: "stop-drop" },
+          "drop",
+        ),
+      ).toBe("stop-drop");
+    });
+
+    it("3. resolves when both fields are populated with the same stop", () => {
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-common", drop_stop_id: "stop-common" },
+          "pickup",
+        ),
+      ).toBe("stop-common");
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-common", drop_stop_id: "stop-common" },
+          "drop",
+        ),
+      ).toBe("stop-common");
+    });
+
+    it("4. resolves primary stop on historical diverging pickup/drop consistently", () => {
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-a", drop_stop_id: "stop-b" },
+          "pickup",
+        ),
+      ).toBe("stop-a");
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "stop-a", drop_stop_id: "stop-b" },
+          "drop",
+        ),
+      ).toBe("stop-a");
+    });
+
+    it("5. returns null when neither field is populated", () => {
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: null, drop_stop_id: null },
+          "pickup",
+        ),
+      ).toBeNull();
+      expect(
+        enrollmentApproachStopId(
+          { pickup_stop_id: "", drop_stop_id: "  " },
+          "drop",
+        ),
+      ).toBeNull();
+    });
+
+    it("6. correct morning stop resolution matches single assigned stop", () => {
+      const enrollment = { pickup_stop_id: "stop-home", drop_stop_id: "stop-home" };
+      expect(enrollmentApproachStopId(enrollment, "pickup")).toBe("stop-home");
+    });
+
+    it("7. correct afternoon stop resolution uses exact same assigned stop", () => {
+      const enrollment = { pickup_stop_id: "stop-home", drop_stop_id: "stop-home" };
+      expect(enrollmentApproachStopId(enrollment, "drop")).toBe("stop-home");
+    });
   });
 });
 

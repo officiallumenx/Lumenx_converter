@@ -25,6 +25,14 @@ export async function listTripParticipants(
     .from("transport_trip_participant")
     .select(PARTICIPANT_COLS)
     .eq("trip_id", tripId);
+  if (
+    result.error &&
+    (result.error.code === "42P01" ||
+      result.error.code === "PGRST205" ||
+      result.error.code === "PGRST204")
+  ) {
+    return [];
+  }
   return ensureDbOk(result) as TransportTripParticipantRow[];
 }
 
@@ -91,7 +99,7 @@ export async function insertEnrollmentLocationChange(
     changedByUserId: string | null;
     effectiveMode: "immediate" | "next_trip";
   },
-): Promise<EnrollmentLocationChangeRow> {
+): Promise<EnrollmentLocationChangeRow | null> {
   const result = await admin
     .from("transport_enrollment_location_change")
     .insert({
@@ -107,8 +115,16 @@ export async function insertEnrollmentLocationChange(
       effective_mode: row.effectiveMode,
     })
     .select(CHANGE_COLS)
-    .single();
-  return ensureDbOk(result) as EnrollmentLocationChangeRow;
+    .maybeSingle();
+  if (
+    result.error &&
+    (result.error.code === "42P01" ||
+      result.error.code === "PGRST205" ||
+      result.error.code === "PGRST204")
+  ) {
+    return null;
+  }
+  return ensureDbOk(result) as EnrollmentLocationChangeRow | null;
 }
 
 export async function listEnrollmentLocationChanges(
@@ -122,5 +138,13 @@ export async function listEnrollmentLocationChanges(
     .eq("institute_id", instituteId)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(1, limit), 500));
+  if (
+    result.error &&
+    (result.error.code === "42P01" ||
+      result.error.code === "PGRST205" ||
+      result.error.code === "PGRST204")
+  ) {
+    return [];
+  }
   return ensureDbOk(result) as EnrollmentLocationChangeRow[];
 }

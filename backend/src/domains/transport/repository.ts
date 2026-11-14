@@ -10,6 +10,7 @@ import type {
   RouteRow,
   StopRow,
   TransportEnrollmentRow,
+  TransportApprovalStatus,
   TransportSettingsRow,
   UpdateDriverInput,
   UpdateEnrollmentInput,
@@ -33,8 +34,39 @@ const ROUTE_COLS =
 const STOP_COLS =
   "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, kind, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
-const ENROLLMENT_COLS =
+const EXTENDED_ENROLLMENT_COLS =
   "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, next_pickup_stop_id, next_drop_stop_id, next_stops_pending_at, location_changed_at, location_changed_by_driver_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
+
+const BASE_ENROLLMENT_COLS =
+  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
+
+let supportsExtendedEnrollment =
+  process.env.TRANSPORT_EXTENDED_ENROLLMENT_ENABLED === "true";
+
+function getEnrollmentCols(): string {
+  return supportsExtendedEnrollment ? EXTENDED_ENROLLMENT_COLS : BASE_ENROLLMENT_COLS;
+}
+
+export function enableExtendedEnrollment(): void {
+  supportsExtendedEnrollment = true;
+}
+
+function markExtendedEnrollmentUnsupported(): void {
+  supportsExtendedEnrollment = false;
+}
+
+function isMissingColumnError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string; details?: string };
+  const msg = `${e.message ?? ""} ${e.details ?? ""}`.toLowerCase();
+  return (
+    e.code === "42703" ||
+    e.code === "PGRST204" ||
+    e.code === "PGRST205" ||
+    msg.includes("next_pickup_stop_id") ||
+    msg.includes("does not exist")
+  );
+}
 
 const SETTINGS_COLS =
   "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, school_notification_radius_m, created_at, updated_at";
@@ -419,7 +451,11 @@ export async function softDeleteRoute(
 ): Promise<RouteRow | null> {
   const result = await admin
     .from("route")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({
+      deleted_at: new Date().toISOString(),
+      vehicle_id: null,
+      driver_id: null,
+    })
     .eq("id", id)
     .is("deleted_at", null)
     .select(ROUTE_COLS)
@@ -450,6 +486,18 @@ export async function listStopsForRoute(
     .from("stop")
     .select(STOP_COLS)
     .eq("route_id", routeId)
+    .is("deleted_at", null);
+  return (ensureDbOk(result) as StopRow[]).map(normalizeStopRow);
+}
+
+export async function listStopsForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<StopRow[]> {
+  const result = await admin
+    .from("stop")
+    .select(STOP_COLS)
+    .eq("institute_id", instituteId)
     .is("deleted_at", null);
   return (ensureDbOk(result) as StopRow[]).map(normalizeStopRow);
 }
@@ -551,6 +599,19 @@ export async function softDeleteStop(
   return (result.data as StopRow | null) ?? null;
 }
 
+export async function softDeleteStopsForRoute(
+  admin: SupabaseClient,
+  routeId: string,
+): Promise<number> {
+  const result = await admin
+    .from("stop")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("route_id", routeId)
+    .is("deleted_at", null);
+  if (result.error) ensureDbOk(result);
+  return result.count ?? 0;
+}
+
 export function toStopUpdatePatch(
   input: UpdateStopInput,
 ): Record<string, unknown> {
@@ -574,17 +635,26 @@ export async function listEnrollments(
   instituteId: string,
   studentIds?: string[],
 ): Promise<TransportEnrollmentRow[]> {
-  let query = admin
-    .from("transport_enrollment")
-    .select(ENROLLMENT_COLS)
-    .eq("institute_id", instituteId)
-    .is("deleted_at", null);
-  if (studentIds) {
-    if (studentIds.length === 0) return [];
-    query = query.in("student_id", studentIds);
+  const runQuery = async (cols: string) => {
+    let query = admin
+      .from("transport_enrollment")
+      .select(cols)
+      .eq("institute_id", instituteId)
+      .is("deleted_at", null);
+    if (studentIds) {
+      if (studentIds.length === 0) return { data: [], error: null };
+      query = query.in("student_id", studentIds);
+    }
+    return query;
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
   }
-  const result = await query;
-  return ensureDbOk(result) as TransportEnrollmentRow[];
+  return ensureDbOk(result) as unknown as TransportEnrollmentRow[];
 }
 
 /** Route-scoped enrollments — avoids institute-wide scans on GPS ping paths. */
@@ -594,29 +664,47 @@ export async function listEnrollmentsForRoute(
   routeId: string,
   opts?: { activeOnly?: boolean },
 ): Promise<TransportEnrollmentRow[]> {
-  let query = admin
-    .from("transport_enrollment")
-    .select(ENROLLMENT_COLS)
-    .eq("institute_id", instituteId)
-    .eq("route_id", routeId)
-    .is("deleted_at", null);
-  if (opts?.activeOnly !== false) {
-    query = query.eq("status", "active");
+  const runQuery = async (cols: string) => {
+    let query = admin
+      .from("transport_enrollment")
+      .select(cols)
+      .eq("institute_id", instituteId)
+      .eq("route_id", routeId)
+      .is("deleted_at", null);
+    if (opts?.activeOnly !== false) {
+      query = query.eq("status", "active");
+    }
+    return query;
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
   }
-  const result = await query;
-  return ensureDbOk(result) as TransportEnrollmentRow[];
+  return ensureDbOk(result) as unknown as TransportEnrollmentRow[];
 }
 
 export async function findEnrollmentById(
   admin: SupabaseClient,
   id: string,
 ): Promise<TransportEnrollmentRow | null> {
-  const result = await admin
-    .from("transport_enrollment")
-    .select(ENROLLMENT_COLS)
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const runQuery = async (cols: string) => {
+    return admin
+      .from("transport_enrollment")
+      .select(cols)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle();
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
+  }
   if (result.error) ensureDbOk(result);
   return (result.data as TransportEnrollmentRow | null) ?? null;
 }
@@ -625,21 +713,30 @@ export async function insertEnrollment(
   admin: SupabaseClient,
   input: CreateEnrollmentInput,
 ): Promise<TransportEnrollmentRow> {
-  const result = await admin
-    .from("transport_enrollment")
-    .insert({
-      institute_id: input.instituteId,
-      student_id: input.studentId,
-      route_id: input.routeId,
-      pickup_stop_id: input.pickupStopId ?? null,
-      drop_stop_id: input.dropStopId ?? null,
-      status: input.status ?? "active",
-      approval_status: input.approvalStatus ?? "approved",
-      submitted_by_user_id: input.submittedByUserId ?? null,
-    })
-    .select(ENROLLMENT_COLS)
-    .single();
-  return ensureDbOk(result) as TransportEnrollmentRow;
+  const runQuery = async (cols: string) => {
+    return admin
+      .from("transport_enrollment")
+      .insert({
+        institute_id: input.instituteId,
+        student_id: input.studentId,
+        route_id: input.routeId,
+        pickup_stop_id: input.pickupStopId ?? null,
+        drop_stop_id: input.dropStopId ?? null,
+        status: input.status ?? "active",
+        approval_status: input.approvalStatus ?? "approved",
+        submitted_by_user_id: input.submittedByUserId ?? null,
+      })
+      .select(cols)
+      .single();
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
+  }
+  return ensureDbOk(result) as unknown as TransportEnrollmentRow;
 }
 
 export async function updateEnrollmentFields(
@@ -647,13 +744,30 @@ export async function updateEnrollmentFields(
   id: string,
   patch: Record<string, unknown>,
 ): Promise<TransportEnrollmentRow | null> {
-  const result = await admin
-    .from("transport_enrollment")
-    .update(patch)
-    .eq("id", id)
-    .is("deleted_at", null)
-    .select(ENROLLMENT_COLS)
-    .maybeSingle();
+  const cleanPatch = { ...patch };
+  if (!supportsExtendedEnrollment) {
+    delete cleanPatch.next_pickup_stop_id;
+    delete cleanPatch.next_drop_stop_id;
+    delete cleanPatch.next_stops_pending_at;
+    delete cleanPatch.location_changed_at;
+    delete cleanPatch.location_changed_by_driver_id;
+  }
+  const runQuery = async (cols: string) => {
+    return admin
+      .from("transport_enrollment")
+      .update(cleanPatch)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select(cols)
+      .maybeSingle();
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
+  }
   if (result.error) ensureDbOk(result);
   return (result.data as TransportEnrollmentRow | null) ?? null;
 }
@@ -662,13 +776,22 @@ export async function softDeleteEnrollment(
   admin: SupabaseClient,
   id: string,
 ): Promise<TransportEnrollmentRow | null> {
-  const result = await admin
-    .from("transport_enrollment")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id)
-    .is("deleted_at", null)
-    .select(ENROLLMENT_COLS)
-    .maybeSingle();
+  const runQuery = async (cols: string) => {
+    return admin
+      .from("transport_enrollment")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select(cols)
+      .maybeSingle();
+  };
+
+  const cols = getEnrollmentCols();
+  let result = await runQuery(cols);
+  if (result.error && isMissingColumnError(result.error) && cols !== BASE_ENROLLMENT_COLS) {
+    markExtendedEnrollmentUnsupported();
+    result = await runQuery(BASE_ENROLLMENT_COLS);
+  }
   if (result.error) ensureDbOk(result);
   return (result.data as TransportEnrollmentRow | null) ?? null;
 }
@@ -682,6 +805,140 @@ export function toEnrollmentUpdatePatch(
   if (input.dropStopId !== undefined) patch.drop_stop_id = input.dropStopId;
   if (input.status !== undefined) patch.status = input.status;
   return patch;
+}
+
+export async function unassignEnrollmentsFromStop(
+  admin: SupabaseClient,
+  instituteId: string,
+  stopId: string,
+  keepStudentIds: string[],
+): Promise<number> {
+  const result = await admin
+    .from("transport_enrollment")
+    .select("id, student_id")
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .or(`pickup_stop_id.eq.${stopId},drop_stop_id.eq.${stopId}`);
+
+  const rows = ensureDbOk(result) as Array<{ id: string; student_id: string }>;
+  const keepSet = new Set(keepStudentIds);
+  const toUnassign = rows.filter((r) => !keepSet.has(r.student_id));
+  if (toUnassign.length === 0) return 0;
+
+  const updateResult = await admin
+    .from("transport_enrollment")
+    .update({
+      pickup_stop_id: null,
+      drop_stop_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .in(
+      "id",
+      toUnassign.map((r) => r.id),
+    );
+  ensureDbOk(updateResult);
+  return toUnassign.length;
+}
+
+export async function batchAssignStudentsToStop(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    routeId: string;
+    stopId: string;
+    studentIds: string[];
+    approvalStatus?: TransportApprovalStatus;
+    submittedByUserId?: string | null;
+  },
+): Promise<{ assignedCount: number; createdCount: number; updatedCount: number }> {
+  if (input.studentIds.length === 0) {
+    return { assignedCount: 0, createdCount: 0, updatedCount: 0 };
+  }
+
+  const existingRows = await listEnrollments(admin, input.instituteId, input.studentIds);
+  const existingByStudentId = new Map(existingRows.map((r) => [r.student_id, r]));
+
+  const toUpdateIds: string[] = [];
+  const toInsertRows: Array<Record<string, unknown>> = [];
+
+  for (const studentId of input.studentIds) {
+    const existing = existingByStudentId.get(studentId);
+    if (existing) {
+      toUpdateIds.push(existing.id);
+    } else {
+      toInsertRows.push({
+        institute_id: input.instituteId,
+        student_id: studentId,
+        route_id: input.routeId,
+        pickup_stop_id: input.stopId,
+        drop_stop_id: input.stopId,
+        status: "active",
+        approval_status: input.approvalStatus ?? "approved",
+        submitted_by_user_id: input.submittedByUserId ?? null,
+      });
+    }
+  }
+
+  if (toUpdateIds.length > 0) {
+    const updateResult = await admin
+      .from("transport_enrollment")
+      .update({
+        route_id: input.routeId,
+        pickup_stop_id: input.stopId,
+        drop_stop_id: input.stopId,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", toUpdateIds);
+    ensureDbOk(updateResult);
+  }
+
+  if (toInsertRows.length > 0) {
+    const insertResult = await admin
+      .from("transport_enrollment")
+      .insert(toInsertRows);
+    ensureDbOk(insertResult);
+  }
+
+  return {
+    assignedCount: input.studentIds.length,
+    createdCount: toInsertRows.length,
+    updatedCount: toUpdateIds.length,
+  };
+}
+
+export async function batchMoveStudentsBetweenStops(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    fromStopId: string;
+    toStopId: string;
+    studentIds: string[];
+  },
+): Promise<number> {
+  if (input.studentIds.length === 0) return 0;
+
+  const existingRows = await listEnrollments(admin, input.instituteId, input.studentIds);
+  const targetIds = existingRows
+    .filter(
+      (r) =>
+        r.pickup_stop_id === input.fromStopId ||
+        r.drop_stop_id === input.fromStopId,
+    )
+    .map((r) => r.id);
+
+  if (targetIds.length === 0) return 0;
+
+  const updateResult = await admin
+    .from("transport_enrollment")
+    .update({
+      pickup_stop_id: input.toStopId,
+      drop_stop_id: input.toStopId,
+      updated_at: new Date().toISOString(),
+    })
+    .in("id", targetIds);
+  ensureDbOk(updateResult);
+  return targetIds.length;
 }
 
 // ── Settings ─────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import {
   enqueueOpsEvent,
   flushOpsOutbox,
+  getPendingAttendanceOps,
   isOpsOutboxOnline,
   retryFailedStudentEvents,
 } from "../ops-outbox";
@@ -10,7 +11,9 @@ import { getTripSessionSnapshot } from "../trip/store";
 import { resolveDropStopIdForMark } from "./drop-stop";
 import { normalizeStopId, STOP_NOT_ASSIGNED_REASON } from "./stop-id";
 import type { AttendanceStudentState } from "../types";
+import type { TransportBoardingEventDto } from "../../transport-api";
 import {
+  applyConfirmedAttendanceDto,
   applyLocalBoarding,
   applyLocalDropping,
   getAttendanceSnapshot,
@@ -88,6 +91,9 @@ type AttendanceOutboxDetail = {
   eventType?: string;
   message?: string;
   clientEventId?: string;
+  giveUp?: boolean;
+  rejected?: boolean;
+  dto?: Partial<TransportBoardingEventDto> | null;
 };
 
 function onAttendanceOpsConfirmed(detail: AttendanceOutboxDetail): void {
@@ -110,7 +116,7 @@ function onAttendanceOpsConfirmed(detail: AttendanceOutboxDetail): void {
     eventType === "not_dropped"
   ) {
     clearRollback(studentId);
-    setStudentSyncStatus(studentId, "confirmed");
+    applyConfirmedAttendanceDto(studentId, detail.dto ?? null);
     toastAttendanceSuccess(studentId, eventType);
     void hydrateAttendanceFromApi();
     if (eventType === "drop" || eventType === "not_dropped") {
@@ -133,9 +139,7 @@ function onAttendanceOpsConflict(detail: AttendanceOutboxDetail): void {
   }
   if (studentId) {
     markInFlightByStudent.delete(studentId);
-    clearRollback(studentId);
-    setStudentSyncStatus(studentId, "confirmed");
-    void hydrateAttendanceFromApi();
+    rollbackStudent(studentId);
   }
   const tripCompleted =
     typeof message === "string" && /already completed|trip is completed/i.test(message);
@@ -151,9 +155,9 @@ function onAttendanceOpsConflict(detail: AttendanceOutboxDetail): void {
   if (attendanceConflict && message) {
     void import("sonner").then(({ toast }) => {
       if (tripCompleted) {
-        toast.message("Trip completed", { description: message });
+        toast.error("Trip already completed", { description: message });
       } else {
-        toast.message("Server updated", { description: message });
+        toast.error("Could not save attendance", { description: message });
       }
     });
   }
@@ -173,13 +177,31 @@ function onAttendanceOpsFailed(detail: AttendanceOutboxDetail): void {
     markInFlightByStudent.delete(studentId);
   }
   if (studentId && attendanceFail) {
-    rollbackStudent(studentId);
+    // Only roll back if the server has explicitly rejected the action.
+    // Temporary network or retryable errors must NEVER revert the student's status back to Not Marked;
+    // they remain marked with error status ("Failed — tap to retry") so retries/reconnects succeed.
+    if (detail.rejected) {
+      rollbackStudent(studentId);
+    } else {
+      setStudentSyncStatus(studentId, "error");
+    }
   } else if (studentId) {
     setStudentSyncStatus(studentId, "error");
   }
   if (attendanceFail && message) {
     void import("sonner").then(({ toast }) => {
-      toast.error("Could not save — tap to retry", { description: message });
+      if (detail.rejected) {
+        const rejectionTitle =
+          eventType === "drop" || eventType === "not_dropped"
+            ? "Dropping rejected by server"
+            : "Boarding rejected by server";
+        toast.error(rejectionTitle, { description: message });
+      } else {
+        toast.error(
+          detail.giveUp !== false ? "Could not save mark" : "Could not save — tap to retry",
+          { description: message },
+        );
+      }
     });
   }
 }
@@ -202,22 +224,61 @@ function ensureAttendanceOutboxBridge() {
   window.addEventListener("lumenx-transport-ops-failed", ((ev: CustomEvent) => {
     onAttendanceOpsFailed(ev.detail ?? {});
   }) as EventListener);
+
+  window.addEventListener("lumenx-transport-ops-rejected", ((ev: CustomEvent) => {
+    const detail = (ev.detail ?? {}) as AttendanceOutboxDetail;
+    if (detail.studentId) {
+      markInFlightByStudent.delete(detail.studentId);
+      rollbackStudent(detail.studentId);
+    }
+    if (detail.message) {
+      void import("sonner").then(({ toast }) => {
+        toast.error("Attendance rejected by server", { description: detail.message });
+      });
+    }
+  }) as EventListener);
 }
 
 ensureAttendanceOutboxBridge();
 
 /** Test helper — simulate outbox lifecycle without a DOM EventTarget. */
 export function __notifyAttendanceOutboxForTests(
-  kind: "confirmed" | "conflict" | "failed",
+  kind: "confirmed" | "conflict" | "failed" | "rejected",
   detail: AttendanceOutboxDetail,
 ): void {
   if (kind === "confirmed") onAttendanceOpsConfirmed(detail);
   else if (kind === "conflict") onAttendanceOpsConflict(detail);
-  else onAttendanceOpsFailed(detail);
+  else if (kind === "rejected") {
+    onAttendanceOpsFailed({ ...detail, rejected: true, giveUp: true });
+  } else {
+    onAttendanceOpsFailed(detail);
+  }
 }
 
-function guardInFlight(previous: AttendanceStudentState): AttendanceActionResult | null {
-  if (previous.syncStatus === "syncing" || markInFlightByStudent.has(previous.id)) {
+function guardInFlight(
+  previous: AttendanceStudentState,
+  tripId: string,
+  leg: "boarding" | "dropping",
+): AttendanceActionResult | null {
+  if (markInFlightByStudent.has(previous.id)) {
+    return {
+      ok: false,
+      reason: "Already saving this student. Wait for confirmation.",
+      code: "busy",
+      student: previous,
+    };
+  }
+  if (previous.syncStatus === "syncing") {
+    // Allow offline queuing of the opposite leg (e.g. afternoon drop after offline morning board)
+    if (!isOpsOutboxOnline()) {
+      const ops = getPendingAttendanceOps(tripId).filter((op) => op.studentId === previous.id);
+      const hasSameLegPending = ops.some((op) =>
+        leg === "boarding"
+          ? op.eventType === "boarding" || op.eventType === "not_boarded"
+          : op.eventType === "drop" || op.eventType === "not_dropped",
+      );
+      if (!hasSameLegPending) return null;
+    }
     return {
       ok: false,
       reason: "Already saving this student. Wait for confirmation.",
@@ -249,11 +310,13 @@ export const attendanceRepository = {
     if (!trip.tripId || !previous) {
       return { ok: false, reason: "No active trip or student.", code: "invalid" };
     }
-    const busy = guardInFlight(previous);
+    const busy = guardInFlight(previous, trip.tripId, "boarding");
     if (busy) return busy;
 
-    // Enrollment pickup stop is required — never invent a stop or keep "".
-    const stopId = normalizeStopId(previous.stopId);
+    // Resolve stop ID: use student's assigned pickup stop; if unassigned, resolve from active trip route
+    const routeStops = trip.assignment?.route?.stops ?? [];
+    const currentStop = routeStops[trip.currentStopIndex] ?? routeStops[0] ?? null;
+    const stopId = normalizeStopId(previous.stopId) || currentStop?.id;
     if (!stopId) {
       return {
         ok: false,
@@ -263,14 +326,17 @@ export const attendanceRepository = {
       };
     }
 
-    // Hold mutex only until syncStatus is syncing (closes double-tap race).
     markInFlightByStudent.add(id);
     try {
       rememberRollback(previous);
 
-      const local = applyLocalBoarding(id, status);
+      const fallbackStop = !previous.stopId && currentStop
+        ? { id: currentStop.id, name: currentStop.name }
+        : undefined;
+      const local = applyLocalBoarding(id, status, fallbackStop);
       if (!local.ok) {
         clearRollback(id);
+        markInFlightByStudent.delete(id);
         return local;
       }
 
@@ -292,10 +358,16 @@ export const attendanceRepository = {
       });
       setStudentSyncStatus(id, "syncing");
       const online = isOpsOutboxOnline();
-      if (online) void flushOpsOutbox();
+      if (online) {
+        void flushOpsOutbox();
+      } else {
+        // Offline queue settled synchronously; per-leg outbox guard prevents double-taps
+        markInFlightByStudent.delete(id);
+      }
       return { ...local, pending: true, queuedOffline: !online };
-    } finally {
+    } catch (err) {
       markInFlightByStudent.delete(id);
+      throw err;
     }
   },
 
@@ -312,15 +384,16 @@ export const attendanceRepository = {
     if (!trip.tripId || !previous) {
       return { ok: false, reason: "No active trip or student.", code: "invalid" };
     }
-    const busy = guardInFlight(previous);
+    const busy = guardInFlight(previous, trip.tripId, "dropping");
     if (busy) return busy;
 
-    const stops = trip.assignment.route.stops;
+    const stops = trip.assignment?.route?.stops ?? [];
+    const currentStop = stops[trip.currentStopIndex] ?? stops[stops.length - 1] ?? null;
     const dropStopId = resolveDropStopIdForMark({
       dropStopId: previous.dropStopId,
       pickupStopId: previous.stopId,
       routeStopIds: stops.map((s) => s.id),
-    });
+    }) || currentStop?.id;
     if (!dropStopId) {
       return {
         ok: false,
@@ -334,9 +407,13 @@ export const attendanceRepository = {
     try {
       rememberRollback(previous);
 
-      const local = applyLocalDropping(id, status);
+      const fallbackStop = !previous.dropStopId && !previous.stopId && currentStop
+        ? { id: currentStop.id, name: currentStop.name }
+        : undefined;
+      const local = applyLocalDropping(id, status, fallbackStop);
       if (!local.ok) {
         clearRollback(id);
+        markInFlightByStudent.delete(id);
         return local;
       }
 
@@ -357,10 +434,16 @@ export const attendanceRepository = {
       });
       setStudentSyncStatus(id, "syncing");
       const online = isOpsOutboxOnline();
-      if (online) void flushOpsOutbox();
+      if (online) {
+        void flushOpsOutbox();
+      } else {
+        // Offline queue settled synchronously; per-leg outbox guard prevents double-taps
+        markInFlightByStudent.delete(id);
+      }
       return { ...local, pending: true, queuedOffline: !online };
-    } finally {
+    } catch (err) {
       markInFlightByStudent.delete(id);
+      throw err;
     }
   },
 
@@ -373,6 +456,7 @@ export const attendanceRepository = {
   },
 
   reset() {
+    markInFlightByStudent.clear();
     rollbackByStudentId.clear();
     resetAttendanceStore();
   },
