@@ -10,15 +10,15 @@ const hasGallery = gallery.length > 0;
 
 {
   hasGallery ? (
-    <section id="walkthrough" class="py-16 dark:bg-dark lg:py-[100px]">
+    <section id="walkthrough" class="lx-section bg-white dark:bg-dark">
       <div class="container">
-        <div class="mx-auto mb-12 max-w-[640px] text-center lg:mb-16" data-reveal>
-          <span class="mb-2 block text-lg font-semibold text-primary">Inside the App</span>
-          <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
-            Take a look inside {page.product.shortName}
+        <div class="lx-section-intro mx-auto max-w-[620px] text-center" data-reveal>
+          <span class="lx-section-eyebrow">Product Walkthrough</span>
+          <h2 class="lx-section-title">
+            Inside {page.product.name}
           </h2>
-          <p class="text-base text-body-color dark:text-dark-6">
-            Click through real screens from {page.product.name} to see how clean and easy it is to use.
+          <p class="lx-section-lead">
+            Explore real interface screens from {page.product.shortName}.
           </p>
         </div>
 
@@ -38,7 +38,7 @@ const hasGallery = gallery.length > 0;
                 tabindex={index === 0 ? 0 : -1}
                 data-gallery-tab
                 data-index={index}
-                class={`lx-gallery-tab rounded-md px-4 py-2 text-sm font-medium transition ${
+                class={`lx-gallery-tab min-h-[40px] rounded-lg px-4 py-2 text-sm font-semibold transition ${
                   index === 0
                     ? "bg-primary text-white"
                     : "bg-gray-1 text-dark hover:bg-primary/10 dark:bg-dark-2 dark:text-white"
@@ -60,37 +60,25 @@ const hasGallery = gallery.length > 0;
               class="outline-none"
             >
               <div
-                class={`mx-auto overflow-hidden rounded-xl bg-[#E8EEF6] p-3 shadow-1 dark:bg-[#DBE4F0] sm:p-4 ${
-                  item.orientation === "portrait" ? "max-w-[360px]" : "max-w-[920px]"
+                class={`mx-auto overflow-hidden rounded-xl border border-stroke bg-[#E8EEF6] p-2.5 shadow-1 dark:border-dark-3 dark:bg-[#DBE4F0] sm:p-4 ${
+                  item.orientation === "portrait" ? "max-w-[320px] sm:max-w-[360px]" : "max-w-[920px]"
                 }`}
               >
                 <img
                   src={item.src}
                   alt={item.caption}
-                  class="mx-auto block h-auto max-h-[70vh] w-full object-contain"
+                  class="mx-auto block h-auto max-h-[68vh] w-full rounded-lg object-contain"
                   loading={index === 0 ? "eager" : "lazy"}
                   decoding="async"
                 />
               </div>
-              <p class="mx-auto mt-5 max-w-[640px] text-center text-base text-body-color dark:text-dark-6">
-                <span class="font-semibold text-dark dark:text-white">{item.title}.</span>
+              <p class="mx-auto mt-4 max-w-[600px] text-center text-sm text-body-color dark:text-dark-6 sm:text-base">
+                <span class="font-semibold text-dark dark:text-white">{item.title}:</span>
                 {" "}
                 {item.caption}
               </p>
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  ) : page.screenshotPending ? (
-    <section id="walkthrough" class="py-16 dark:bg-dark lg:py-[100px]">
-      <div class="container">
-        <div class="mx-auto max-w-[640px] rounded-xl border border-stroke bg-gray-1 p-10 text-center dark:border-dark-3 dark:bg-dark-2" data-reveal>
-          <h2 class="mb-3 text-2xl font-bold text-dark dark:text-white">Screenshots pending</h2>
-          <p class="text-base text-body-color dark:text-dark-6">
-            An authentic {page.product.name} interface screenshot is not available in this marketing project yet.
-            The capabilities described above are limited to verified platform-operator functions — no fabricated UI is shown.
-          </p>
         </div>
       </div>
     </section>

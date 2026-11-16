@@ -21,7 +21,7 @@ const nodes = [
   nexus && {
     ...nexus,
     layer: "outer",
-    blurb: "Manages campus onboarding, active modules, and support for school groups.",
+    blurb: "Your gateway to smarter services — connecting users with LumenX services, quick actions, and responsive support.",
   },
 ].filter(Boolean);
 
@@ -145,7 +145,12 @@ function satPosition(id) {
                   />
                 ) : null}
                 <span class="lx-orbit__hub-mark">
-                  <img src="/assets/logo/lumenx-logo-white.svg" alt="" width="120" height="26" />
+                  <span class="lx-orbit__hub-brand">
+                    <span class="lx-orbit__hub-brand-icon">
+                      <img src={hub.logo || "/assets/brand/admin.png"} alt="" width="28" height="28" />
+                    </span>
+                    <span class="lx-orbit__hub-brand-text">LumenX Admin</span>
+                  </span>
                 </span>
               </span>
               <span class="lx-orbit__node-label">
@@ -168,8 +173,20 @@ function satPosition(id) {
                 style={`left: ${pos.left}; top: ${pos.top};`}
                 aria-label={`${p.name}: ${p.role}`}
               >
-                <span class="lx-orbit__node-core">
-                  <span class="lx-orbit__initial">{p.shortName.slice(0, 1)}</span>
+                <span class="lx-orbit__node-core lx-orbit__node-core--logo">
+                  {p.logo ? (
+                    <img
+                      src={p.logo}
+                      alt=""
+                      class="lx-orbit__node-logo"
+                      width="56"
+                      height="56"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span class="lx-orbit__initial">{p.shortName.slice(0, 1)}</span>
+                  )}
                 </span>
                 <span class="lx-orbit__node-label">
                   <span class="lx-orbit__node-name">{p.shortName}</span>
@@ -189,12 +206,24 @@ function satPosition(id) {
               data-blurb={nexus.role}
               aria-label={`${nexus.name}: ${nexus.role}`}
             >
-              <span class="lx-orbit__node-core">
-                <span class="lx-orbit__initial">N</span>
+              <span class="lx-orbit__node-core lx-orbit__node-core--logo">
+                {nexus.logo ? (
+                  <img
+                    src={nexus.logo}
+                    alt=""
+                    class="lx-orbit__node-logo"
+                    width="56"
+                    height="56"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span class="lx-orbit__initial">N</span>
+                )}
               </span>
               <span class="lx-orbit__node-label">
                 <span class="lx-orbit__node-name">{nexus.shortName}</span>
-                <span class="lx-orbit__node-role">Platform services</span>
+                <span class="lx-orbit__node-role">Central Service Platform</span>
               </span>
             </a>
           )
@@ -214,8 +243,20 @@ function satPosition(id) {
             <li class={`lx-orbit-mobile__item lx-orbit-mobile__item--${node.layer}`}>
               {index > 0 && <span class="lx-orbit-mobile__connector" aria-hidden="true" />}
               <a href={node.href} class="lx-orbit-mobile__card">
-                <span class="lx-orbit-mobile__badge" aria-hidden="true">
-                  {node.shortName.slice(0, 1)}
+                <span class="lx-orbit-mobile__badge lx-orbit-mobile__badge--logo" aria-hidden="true">
+                  {node.logo ? (
+                    <img
+                      src={node.logo}
+                      alt=""
+                      class="h-full w-full rounded-xl object-contain"
+                      width="44"
+                      height="44"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    node.shortName.slice(0, 1)
+                  )}
                 </span>
                 <span class="lx-orbit-mobile__copy">
                   <span class="lx-orbit-mobile__name">{node.name}</span>

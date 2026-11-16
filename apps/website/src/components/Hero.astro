@@ -1,96 +1,57 @@
 ---
 ---
 
-<!-- ====== Hero Section Start -->
+<!-- ====== Section 1: Hero Start ====== -->
 <section
   id="home"
-  class="relative overflow-hidden bg-primary pt-[120px] md:pt-[130px] lg:pt-[160px]"
+  class="relative overflow-hidden border-b border-stroke/60 bg-gradient-to-b from-[#F8FAFC] to-white pt-[108px] pb-14 dark:border-dark-3 dark:from-[#0B132B] dark:via-[#111928] dark:to-[#111928] sm:pt-[124px] sm:pb-16 lg:pt-[144px] lg:pb-20"
 >
-  <div class="hero-ambient" aria-hidden="true"></div>
   <div class="container">
-    <div class="-mx-4 flex flex-wrap items-center hero-stage">
-      <div class="w-full px-4">
-        <div class="hero-content mx-auto max-w-[780px] text-center">
-          <p class="hero-eyebrow mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-white/80">
-            ALL-IN-ONE SCHOOL &amp; INSTITUTE PLATFORM
-          </p>
-          <h1
-            class="hero-title mb-6 text-3xl font-bold leading-snug text-white sm:text-4xl sm:leading-snug lg:text-5xl lg:leading-[1.2]"
+    <div class="hero-stage mx-auto max-w-[1080px]">
+      <div class="hero-content mx-auto max-w-[760px] text-center">
+        <span class="hero-eyebrow mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-primary dark:border-primary/30 dark:bg-primary/15 dark:text-sky-300 sm:text-[13px]">
+          <span class="h-1.5 w-1.5 rounded-full bg-primary dark:bg-sky-400" aria-hidden="true"></span>
+          Institutional Operations Platform
+        </span>
+
+        <h1 class="hero-title mb-5 font-heading font-bold text-dark dark:text-white">
+          One Connected Ecosystem for Smarter Institutions.
+        </h1>
+
+        <p class="hero-copy mx-auto mb-8 max-w-[620px] text-[15px] leading-relaxed text-body-color dark:text-dark-6 sm:text-[17px] sm:leading-[1.65]">
+          Manage your institution, connect teachers and parents, and simplify everyday operations through one integrated digital platform.
+        </p>
+
+        <div class="hero-actions mb-10 flex flex-col items-stretch justify-center gap-3 sm:mb-12 sm:flex-row sm:items-center sm:gap-4">
+          <a
+            href="/platform"
+            class="lx-btn inline-flex items-center justify-center rounded-lg bg-primary px-7 py-3.5 text-center font-semibold text-white shadow-sm transition hover:bg-blue-dark"
           >
-            Run your school simply, all in one place.
-          </h1>
-          <p
-            class="hero-copy mx-auto mb-9 max-w-[640px] font-normal text-base text-white/95 sm:text-lg sm:leading-[1.6]"
+            Explore LumenX
+          </a>
+          <a
+            href="/contact"
+            class="lx-btn inline-flex items-center justify-center rounded-lg border border-stroke bg-white px-7 py-3.5 text-center font-semibold text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:hover:border-primary"
           >
-            Bring your school office, teachers, parents, students, bus trips, admissions, and staff hiring together in one easy-to-use system.
-          </p>
-          <ul class="hero-actions mb-10 flex flex-wrap items-center justify-center gap-5">
-            <li>
-              <a
-                href="/contact?intent=demo#enquiry"
-                class="lx-btn inline-flex items-center justify-center rounded-md bg-white px-7 py-[14px] text-center text-base font-medium text-dark shadow-1 transition duration-300 ease-in-out hover:bg-gray-2 hover:text-body-color"
-              >
-                Book a Demo
-              </a>
-            </li>
-            <li>
-              <a
-                href="/platform"
-                class="lx-btn flex items-center gap-4 rounded-md bg-white/[0.12] px-6 py-[14px] text-base font-medium text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark"
-              >
-                Explore the Platform
-                <span aria-hidden="true">→</span>
-              </a>
-            </li>
-          </ul>
+            Contact Us
+          </a>
         </div>
       </div>
 
-      <div class="w-full px-4">
-        <div class="hero-preview relative z-10 mx-auto max-w-[845px]">
-          <div class="hero-preview-frame mt-16 overflow-hidden rounded-t-xl bg-white shadow-2">
-            <img
-              src="/assets/hero/hero-dashboard.png"
-              alt="LumenX Admin dashboard showing institute overview, attendance, and operations"
-              class="mx-auto block h-auto w-full max-w-full object-contain object-top"
-              width="1918"
-              height="1054"
-              fetchpriority="high"
-            />
-          </div>
-          <div class="absolute -left-9 bottom-0 z-[-1]">
-            <svg width="134" height="106" viewBox="0 0 134 106" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              {Array.from({ length: 10 }).map((_, col) =>
-                Array.from({ length: 8 }).map((_, row) => (
-                  <circle
-                    cx={1.66667 + col * 14.6667}
-                    cy={104 - row * 14.6667}
-                    r="1.66667"
-                    transform={`rotate(-90 ${1.66667 + col * 14.6667} ${104 - row * 14.6667})`}
-                    fill="white"
-                  />
-                ))
-              )}
-            </svg>
-          </div>
-          <div class="absolute -right-6 -top-6 z-[-1]">
-            <svg width="134" height="106" viewBox="0 0 134 106" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              {Array.from({ length: 10 }).map((_, col) =>
-                Array.from({ length: 8 }).map((_, row) => (
-                  <circle
-                    cx={1.66667 + col * 14.6667}
-                    cy={104 - row * 14.6667}
-                    r="1.66667"
-                    transform={`rotate(-90 ${1.66667 + col * 14.6667} ${104 - row * 14.6667})`}
-                    fill="white"
-                  />
-                ))
-              )}
-            </svg>
-          </div>
+      <div class="hero-preview relative z-10 mx-auto max-w-[960px]">
+        <div class="hero-preview-frame overflow-hidden rounded-xl border border-stroke bg-white p-1.5 shadow-lg dark:border-dark-3 dark:bg-dark-2 sm:rounded-2xl sm:p-2.5">
+          <img
+            src="/assets/hero/hero-dashboard.png"
+            alt="LumenX Admin dashboard showing institutional overview, attendance, and daily operations"
+            class="mx-auto block h-auto w-full max-w-full rounded-lg object-contain object-top"
+            width="1918"
+            height="1054"
+            fetchpriority="high"
+            decoding="async"
+          />
         </div>
       </div>
     </div>
   </div>
 </section>
-<!-- ====== Hero Section End -->
+<!-- ====== Section 1: Hero End ====== -->

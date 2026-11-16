@@ -34,14 +34,13 @@ if (navbarToggler && navbarCollapse) {
     if (event.key === "Escape") {
       closeMobileNav();
       document.querySelectorAll(".submenu-item .submenu").forEach((sub) => {
-        if (!sub.classList.contains("lg:block")) {
+        if (!sub.classList.contains("xl:block")) {
           sub.classList.add("hidden");
         }
       });
-      // On mobile, force-hide toggled submenus
-      document.querySelectorAll(".submenu-item .submenu.hidden").forEach(() => {});
+      // On mobile/tablet, force-hide toggled submenus
       document.querySelectorAll(".submenu-item .submenu:not(.hidden)").forEach((sub) => {
-        if (window.matchMedia("(max-width: 959px)").matches) {
+        if (window.matchMedia("(max-width: 1139px)").matches) {
           sub.classList.add("hidden");
         }
       });
@@ -49,7 +48,7 @@ if (navbarToggler && navbarCollapse) {
   });
 }
 
-// ===== Sub-menu (mobile toggle; desktop uses hover/focus-within CSS)
+// ===== Sub-menu (mobile/tablet toggle; desktop uses hover/focus-within CSS)
 const submenuItems = document.querySelectorAll(".submenu-item");
 submenuItems.forEach((el) => {
   const trigger = el.querySelector(":scope > a");
@@ -59,8 +58,8 @@ submenuItems.forEach((el) => {
   trigger.setAttribute("aria-haspopup", "true");
 
   trigger.addEventListener("click", (event) => {
-    // Desktop: allow navigation to parent Solutions path; mobile: toggle panel
-    if (window.matchMedia("(max-width: 959px)").matches) {
+    // Desktop: allow navigation to parent Solutions path; mobile/tablet: toggle panel
+    if (window.matchMedia("(max-width: 1139px)").matches) {
       event.preventDefault();
       submenu.classList.toggle("hidden");
       const expanded = !submenu.classList.contains("hidden");

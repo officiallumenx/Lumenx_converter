@@ -1,7 +1,6 @@
 ---
 import ContentPage from "../components/ContentPage.astro";
 import Layout from "../layouts/Layout.astro";
-import { SITE } from "../data/lumenx.js";
 ---
 
 <Layout
@@ -22,20 +21,74 @@ import { SITE } from "../data/lumenx.js";
 
     <h3 class="mb-4 text-xl font-bold text-dark dark:text-white">Where to sign in for each app</h3>
     <ul class="mb-8 space-y-4">
-      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
-        <strong class="font-heading text-dark dark:text-white">LumenX Admin &amp; LumenX Nexus</strong>
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/admin.png"
+            alt="LumenX Admin logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/logo/lumenx-mark.png"
+            alt="LumenX Nexus logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Admin &amp; LumenX Nexus</strong>
+        </div>
         <p class="mt-2 text-base text-body-color dark:text-dark-6">
-          Used by school office staff (Admin) and platform operators (Nexus). Sign in using the web app, Windows desktop app, or Android app from the <a href="/downloads" class="text-primary hover:underline">Downloads</a> page.
+          Used by school office staff (Admin) and service teams (Nexus). Sign in using the web app, Windows desktop app, or Android app from the <a href="/downloads" class="text-primary hover:underline">Downloads</a> page.
         </p>
       </li>
-      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
-        <strong class="font-heading text-dark dark:text-white">LumenX Connect &amp; LumenX Transport</strong>
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/connect.png"
+            alt="LumenX Connect logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/brand/transport.png"
+            alt="LumenX Transport logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Connect &amp; LumenX Transport</strong>
+        </div>
         <p class="mt-2 text-base text-body-color dark:text-dark-6">
           Android apps for teachers, parents, and students (Connect) and bus drivers (Transport). Download the app from the link shared by your school or from our <a href="/downloads" class="text-primary hover:underline">Downloads</a> page, then sign in with your school-issued details.
         </p>
       </li>
-      <li class="rounded-lg border border-stroke p-5 dark:border-dark-3">
-        <strong class="font-heading text-dark dark:text-white">LumenX Admissions &amp; LumenX Careers</strong>
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/admissions.png"
+            alt="LumenX Admissions logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/brand/careers.png"
+            alt="LumenX Careers logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Admissions &amp; LumenX Careers</strong>
+        </div>
         <p class="mt-2 text-base text-body-color dark:text-dark-6">
           Online portals and Android apps for new student admissions and teacher job applications. Open them from the link shared by the school or via our <a href="/downloads" class="text-primary hover:underline">Downloads</a> page.
         </p>

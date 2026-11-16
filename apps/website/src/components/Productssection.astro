@@ -1,27 +1,37 @@
 ---
 import { PRODUCTS } from "../data/lumenx.js";
+
+/**
+ * Present institutional modules in the Ecosystem grid.
+ * LumenX Nexus is presented in its own dedicated Central Service Platform section
+ * rather than as just another institutional module card.
+ */
+const ecosystemModules = PRODUCTS.filter((product) => product.id !== "nexus");
 ---
 
-<section id="platform" class="lx-section lx-section--products dark:bg-dark">
+<!-- ====== Section 3: LumenX Ecosystem Start ====== -->
+<section id="platform" class="lx-section lx-section--products bg-white dark:bg-dark" aria-labelledby="lx-ecosystem-heading">
   <div class="container">
-    <div class="lx-section-intro mx-auto max-w-[560px] text-center" data-reveal>
-      <span class="lx-section-eyebrow">Our Apps</span>
-      <h2 class="lx-section-title">Six dedicated apps. One shared system.</h2>
+    <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
+      <span class="lx-section-eyebrow">LumenX Ecosystem</span>
+      <h2 id="lx-ecosystem-heading" class="lx-section-title">
+        Purpose-built modules for every part of your institution.
+      </h2>
       <p class="lx-section-lead">
-        Every person on campus gets a clean, focused app built just for their daily work — all connected to your school office.
+        Manage institutional operations in <strong>Admin</strong>, connect parents, teachers, and students in <strong>Connect</strong>, simplify transport operations in <strong>Transport</strong>, and streamline intake and hiring.
       </p>
     </div>
 
     <div class="lx-product-grid" data-stagger>
       {
-        PRODUCTS.map((product) => (
+        ecosystemModules.map((product) => (
           <a
             href={product.href}
             class="lx-card lx-product-card group"
-            data-wow-delay=".1s"
+            data-reveal
           >
-            <div class="lx-shot-stage lx-product-card__media aspect-[4/3]">
-              {product.image ? (
+            <div class="lx-shot-stage lx-product-card__media aspect-[16/10]">
+              {product.image && (
                 <div class="lx-shot-frame">
                   <img
                     src={product.image}
@@ -29,27 +39,35 @@ import { PRODUCTS } from "../data/lumenx.js";
                     class="lx-shot"
                     loading="lazy"
                     decoding="async"
+                    width="800"
+                    height="500"
                   />
-                </div>
-              ) : (
-                <div class="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <span class="inline-flex h-14 w-14 items-center justify-center rounded-[14px] bg-primary text-xl font-bold text-white">
-                    {product.shortName.slice(0, 1)}
-                  </span>
-                  <span class="font-heading text-base font-semibold text-dark">{product.name}</span>
-                  <span class="text-sm text-body-color">
-                    Authentic product screenshot pending
-                  </span>
                 </div>
               )}
             </div>
 
             <div class="lx-product-card__body">
-              <span class="lx-product-card__label">{product.category}</span>
-              <h3 class="lx-product-card__title">{product.name}</h3>
-              <p class="lx-product-card__tagline">{product.tagline}</p>
+              <div class="mb-3 flex items-center gap-3">
+                {product.logo && (
+                  <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-stroke/80 bg-white shadow-sm dark:border-dark-3">
+                    <img
+                      src={product.logo}
+                      alt={`${product.name} logo`}
+                      class="h-full w-full object-contain"
+                      width="44"
+                      height="44"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                )}
+                <div class="min-w-0">
+                  <span class="lx-product-card__label !mb-0.5 block">{product.category}</span>
+                  <h3 class="lx-product-card__title !mb-0">{product.name}</h3>
+                </div>
+              </div>
               <p class="lx-product-card__body-text">{product.body}</p>
-              <span class="lx-card-cta lx-product-card__cta">View product →</span>
+              <span class="lx-card-cta lx-product-card__cta">Explore {product.shortName} →</span>
             </div>
           </a>
         ))
@@ -57,3 +75,4 @@ import { PRODUCTS } from "../data/lumenx.js";
     </div>
   </div>
 </section>
+<!-- ====== Section 3: LumenX Ecosystem End ====== -->

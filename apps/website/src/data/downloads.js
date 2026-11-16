@@ -74,6 +74,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Institute office console for academics, attendance, fees, and day-to-day operations.",
       href: "/platform/admin",
+      logo: p?.logo || "/assets/brand/admin.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Admin",
       platforms: {
@@ -106,6 +107,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Role-based campus app for teachers, parents, and students.",
       href: "/platform/connect",
+      logo: p?.logo || "/assets/brand/connect.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Connect",
       platforms: {
@@ -128,6 +130,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Driver and fleet app for routes, trips, and boarding workflows.",
       href: "/platform/transport",
+      logo: p?.logo || "/assets/brand/transport.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Transport",
       platforms: {
@@ -150,6 +153,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Hiring portal for jobs, applications, profiles, and interviews.",
       href: "/platform/careers",
+      logo: p?.logo || "/assets/brand/careers.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Careers",
       platforms: {
@@ -177,6 +181,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Admissions portal for programs, applications, and documents.",
       href: "/platform/admissions",
+      logo: p?.logo || "/assets/brand/admissions.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Admissions",
       platforms: {
@@ -206,6 +211,7 @@ export const DOWNLOAD_PRODUCTS = [
         p?.body ||
         "Platform services for licensing, modules, renewals, and operator support.",
       href: "/platform/nexus",
+      logo: p?.logo || "/assets/logo/lumenx-mark.png",
       image: p?.image || null,
       imageAlt: p?.imageAlt || "LumenX Nexus",
       // Approved matrix: Android + Windows only — no web download option.

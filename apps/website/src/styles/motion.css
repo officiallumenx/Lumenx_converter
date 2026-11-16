@@ -320,32 +320,30 @@ button:focus-visible,
 #navbarCollapse a {
   position: relative;
   transition: color var(--motion-fast) var(--motion-ease-out),
-    opacity var(--motion-fast) var(--motion-ease-out);
+    background-color var(--motion-fast) var(--motion-ease-out);
 }
 
-#navbarCollapse > ul > li > a::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 1.15rem;
-  height: 2px;
-  background: currentColor;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform var(--motion-ui) var(--motion-ease-out);
-  opacity: 0.7;
-}
+@media (min-width: 1140px) {
+  #navbarCollapse > ul > li > a.lx-nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 9999px;
+    background: #3758f9;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform var(--motion-ui) var(--motion-ease-out);
+  }
 
-@media (min-width: 960px) {
-  #navbarCollapse > ul > li > a:hover::after,
-  #navbarCollapse > ul > li > a:focus-visible::after,
-  #navbarCollapse > ul > li > a.active::after {
+  #navbarCollapse > ul > li > a.lx-nav-link.active::after {
     transform: scaleX(1);
   }
 }
 
-@media (min-width: 960px) {
+@media (min-width: 1140px) {
   .submenu-item .submenu {
     transition:
       opacity var(--motion-ui) var(--motion-ease-out),

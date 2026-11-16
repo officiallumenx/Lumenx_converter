@@ -1,66 +1,113 @@
 ---
-import { CAPABILITIES } from "../data/lumenx.js";
-
-const icons = [
-  "assets/features/icon-01.svg",
-  "assets/features/icon-02.svg",
-  "assets/features/icon-03.svg",
-  "assets/features/icon-04.svg",
+const advantages = [
+  {
+    title: "Connected institutional workflows",
+    description:
+      "Updates made in the office carry across academics, attendance, fees, transport, and campus portals without duplicate entry.",
+    icon: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+  },
+  {
+    title: "Centralized information",
+    description:
+      "Student profiles, guardian links, staff directories, fee structures, and academic records stay organized in one system of record.",
+    icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
+  },
+  {
+    title: "Better communication",
+    description:
+      "Teachers, parents, and students receive structured announcements, homework, and attendance updates without noisy chat threads.",
+    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
+  },
+  {
+    title: "Simplified daily operations",
+    description:
+      "Routine tasks—marking attendance, tracking fee dues, issuing certificates, and reviewing bus boarding—take minutes instead of hours.",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
+  },
+  {
+    title: "Accessible digital experience",
+    description:
+      "Role-appropriate interfaces across web, Android, and Windows ensure administrators, teachers, families, and drivers only see what they need.",
+    icon: "M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z",
+  },
 ];
-
-const features = CAPABILITIES.map((cap, i) => ({
-  icon: icons[i % icons.length],
-  title: cap.title,
-  ref: cap.href,
-  refTitle: "Learn More",
-  description: cap.description,
-}));
 ---
 
-<!-- ====== Features Section Start -->
-<section id="features" class="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px] dark:bg-dark">
+<!-- ====== Section 4: Why LumenX Start ====== -->
+<section id="features" class="lx-section bg-gray-1 dark:bg-dark-2" aria-labelledby="lx-why-heading">
   <div class="container">
-    <div class="-mx-4 flex flex-wrap">
-      <div class="w-full px-4">
-        <div class="mb-12 mx-auto max-w-[560px] lg:mb-[70px] text-center" data-reveal>
-          <span class="mb-2 block text-lg font-semibold text-primary">
-            Everything Your School Needs
-          </span>
-          <h2 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
-            Simple tools for every part of the school day.
-          </h2>
-          <p class="text-base text-body-color dark:text-dark-6">
-            From morning attendance and class timetables to fee collection, parent updates, school buses, admissions, and hiring — everything works together smoothly.
-          </p>
-        </div>
-      </div>
+    <div class="lx-section-intro mx-auto max-w-[600px] text-center" data-reveal>
+      <span class="lx-section-eyebrow">Why LumenX</span>
+      <h2 id="lx-why-heading" class="lx-section-title">
+        Designed for clarity, reliability, and everyday ease.
+      </h2>
+      <p class="lx-section-lead">
+        Five core advantages that help institutions run smoother days without software complexity.
+      </p>
     </div>
-    <div class="-mx-4 flex flex-wrap" data-stagger>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6" data-stagger>
       {
-        features.map((feature) => (
-          <div class="w-full px-4 sm:w-1/2 lg:w-1/3 xl:w-1/4">
-            <div class="wow fadeInUp group mb-12" data-wow-delay=".1s">
-              <div class="relative z-10 mb-8 flex h-[70px] w-[70px] items-center justify-center rounded-[14px] bg-primary">
-                <span class="absolute top-0 left-0 -z-[1] mb-8 flex h-[70px] w-[70px] rotate-[25deg] items-center justify-center rounded-[14px] bg-primary bg-opacity-20 duration-300 group-hover:rotate-45"></span>
-                <img src={feature.icon} alt="" />
-              </div>
-              <h4 class="mb-3 text-xl font-bold text-dark dark:text-white">
-                {feature.title}
-              </h4>
-              <p class="mb-6 text-body-color dark:text-dark-6 lg:mb-8">
-                {feature.description}
-              </p>
-              <a
-                href={feature.ref}
-                class="text-base font-medium text-dark dark:text-white hover:text-primary dark:hover:text-primary"
+        advantages.map((item) => (
+          <div
+            class="lx-card flex flex-col rounded-xl border border-stroke bg-white p-6 shadow-1 dark:border-dark-3 dark:bg-dark sm:p-7"
+            data-reveal
+          >
+            <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20 dark:text-white">
+              <svg
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
               >
-                {feature.refTitle}
-              </a>
+                <path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+              </svg>
             </div>
+            <h3 class="mb-2.5 font-heading text-lg font-bold text-dark dark:text-white sm:text-xl">
+              {item.title}
+            </h3>
+            <p class="flex-1 text-sm leading-relaxed text-body-color dark:text-dark-6 sm:text-[15px]">
+              {item.description}
+            </p>
           </div>
         ))
       }
+
+      <!-- 6th summary card linking to full modules & pricing -->
+      <div
+        class="lx-card flex flex-col justify-between rounded-xl border border-primary/20 bg-[#F4F7FF] p-6 dark:border-primary/30 dark:bg-dark sm:p-7"
+        data-reveal
+      >
+        <div>
+          <span class="mb-2 inline-block text-xs font-semibold uppercase tracking-wider text-primary">
+            Explore Capabilities
+          </span>
+          <h3 class="mb-2.5 font-heading text-lg font-bold text-dark dark:text-white sm:text-xl">
+            12 integrated campus modules.
+          </h3>
+          <p class="mb-5 text-sm leading-relaxed text-body-color dark:text-dark-6 sm:text-[15px]">
+            See all academic, administrative, transport, admission, and recruitment capabilities—or calculate your institution's plan.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <a
+            href="/modules"
+            class="inline-flex items-center text-sm font-semibold text-primary hover:underline"
+          >
+            View All Modules →
+          </a>
+          <span class="text-stroke dark:text-dark-3" aria-hidden="true">|</span>
+          <a
+            href="/pricing"
+            class="inline-flex items-center text-sm font-semibold text-dark hover:text-primary dark:text-white"
+          >
+            See Pricing
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </section>
-<!-- ====== Features Section End -->
+<!-- ====== Section 4: Why LumenX End ====== -->

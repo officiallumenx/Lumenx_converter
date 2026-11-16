@@ -1,38 +1,28 @@
 ---
-import About from '../components/Aboutsection.astro';
-import Features from '../components/Features.astro';
 import Hero from '../components/Hero.astro';
-import Rolessection from '../components/Rolessection.astro';
+import About from '../components/Aboutsection.astro';
 import Productssection from '../components/Productssection.astro';
-import Ecosystemsection from '../components/Ecosystemsection.astro';
-import Layout from '../layouts/Layout.astro';
-import PricingCalculator from '../components/PricingCalculator.astro';
-import Faq from '../components/Faq.astro';
-import Contact from '../components/Contactsection.astro';
+import NexusSection from '../components/NexusSection.astro';
+import Features from '../components/Features.astro';
 import CTA from '../components/CTAsection.astro';
-import Enquirysection from '../components/Enquirysection.astro';
+import Layout from '../layouts/Layout.astro';
 import { SITE } from '../data/lumenx.js';
 ---
 
 <Layout
   description={SITE.description}
-  title="LumenX — One connected ecosystem. Smarter institutions."
+  title="LumenX — One Connected Ecosystem for Smarter Institutions"
 >
-  <!-- 1. What is LumenX? -->
+  <!-- Section 1: Hero -->
   <Hero />
-  <!-- 2. What problem / how institutions work -->
+  <!-- Section 2: The Problem and the Solution -->
   <About />
-  <!-- 3–4. Products and how each helps -->
+  <!-- Section 3: LumenX Ecosystem (Institutional Modules) -->
   <Productssection />
-  <Ecosystemsection />
+  <!-- Dedicated Section: Meet LumenX Nexus (Central Service Platform) -->
+  <NexusSection />
+  <!-- Section 4: Why LumenX -->
   <Features />
-  <!-- 5. Who each experience is for -->
-  <Rolessection />
-  <!-- 6. Pricing -->
-  <PricingCalculator />
-  <Faq />
-  <!-- 7. What to do next -->
+  <!-- Section 5: Final CTA -->
   <CTA />
-  <Enquirysection />
-  <Contact />
 </Layout>

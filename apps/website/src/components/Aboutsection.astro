@@ -1,112 +1,127 @@
-<!-- ====== About Section Start -->
+---
+const challenges = [
+  {
+    title: "Disconnected management processes",
+    problem: "Admissions, academics, attendance, and fee records live in separate files that never stay in sync.",
+    solution: "One shared institutional record powers the office, classrooms, and campus services.",
+  },
+  {
+    title: "Scattered communication",
+    problem: "Important notices, homework, and parent updates get lost inside informal chat groups.",
+    solution: "Role-based channels deliver announcements and class updates directly to teachers, parents, and students.",
+  },
+  {
+    title: "Manual administrative work",
+    problem: "Office staff spend hours re-entering the same student, guardian, and staff details across tools.",
+    solution: "Enter records once in Admin and convert accepted applicants or hires in a single click.",
+  },
+  {
+    title: "Limited visibility into daily operations",
+    problem: "Leadership has to chase registers and spreadsheets to check attendance, dues, or bus routes.",
+    solution: "Live operational dashboards surface daily attendance, fee status, and transport activity at a glance.",
+  },
+];
+---
+
+<!-- ====== Section 2: The Problem and the Solution Start ====== -->
 <section
   id="about"
-  class="bg-gray-1 pt-20 pb-8 dark:bg-dark-2 lg:pt-[120px] lg:pb-[70px]"
+  class="lx-section bg-gray-1 dark:bg-dark-2"
+  aria-labelledby="lx-problem-solution-heading"
 >
   <div class="container">
-    <div class="wow fadeInUp" data-wow-delay=".2s" data-reveal>
-      <div class="-mx-4 flex flex-wrap items-center">
-        <div class="w-full px-4 lg:w-1/2">
-          <div class="mb-12 max-w-[540px] lg:mb-0">
-            <span class="mb-3 block text-lg font-semibold text-primary">Why LumenX</span>
-            <h2
-              class="mb-5 text-3xl font-bold leading-tight text-dark dark:text-white sm:text-[40px] sm:leading-[1.2]"
-            >
-              Built for how schools actually work every day.
-            </h2>
-            <p class="mb-10 text-base leading-relaxed text-body-color dark:text-dark-6">
-              Most schools end up juggling separate spreadsheets, paper registers, and chat groups just to get through the day. LumenX brings everything together into one simple, connected family of apps.
-              <br /><br />
-              Your office team manages daily records in <strong>Admin</strong>. Teachers, parents, and students stay updated on <strong>Connect</strong>. And whenever you need bus tracking, online admissions, or teacher hiring, <strong>Transport</strong>, <strong>Admissions</strong>, and <strong>Careers</strong> plug right in without any extra typing.
-            </p>
+    <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
+      <span class="lx-section-eyebrow">The Problem &amp; The Solution</span>
+      <h2 id="lx-problem-solution-heading" class="lx-section-title">
+        Replace fragmented tools with one unified workflow.
+      </h2>
+      <p class="lx-section-lead">
+        Most institutions lose hours every week managing disconnected spreadsheets, paper registers, and separate messaging apps. LumenX brings every daily workflow into one structured system.
+      </p>
+    </div>
 
-            <a
-              href="/platform"
-              class="lx-btn inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-center text-base font-medium text-white hover:border-blue-dark hover:bg-blue-dark"
-            >
-              See All 6 Apps
-            </a>
-          </div>
-        </div>
-
-        <div class="w-full px-4 lg:w-1/2">
-          <!--
-            Intentional composition (grid/flex only — no absolute image offsets):
-            1) Admin landscape (primary)
-            2) Connect portrait + ecosystem stat (secondary row)
-          -->
-          <div class="flex flex-col gap-4 sm:gap-5">
-            <!-- Native Admin ratio (~16:9) so the full dashboard fills the stage -->
-            <div class="overflow-hidden rounded-xl bg-[#E8EEF6] p-2 sm:p-3">
-              <img
-                src="/assets/about/about-image-01.jpg"
-                alt="LumenX Admin dashboard — institute overview and operations"
-                class="block h-auto w-full rounded-lg object-contain"
-                loading="lazy"
-                decoding="async"
-                width="1918"
-                height="1054"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] sm:gap-5">
-              <div class="flex justify-center sm:block">
-                <!-- Native Connect ratio so the full phone UI is visible -->
-                <div class="w-full max-w-[240px] overflow-hidden rounded-xl bg-[#E8EEF6] p-2 sm:max-w-none sm:p-3">
-                  <img
-                    src="/assets/about/about-image-02.jpg"
-                    alt="LumenX Connect mobile home — parent and student campus view"
-                    class="block h-auto w-full rounded-lg object-contain"
-                    loading="lazy"
-                    decoding="async"
-                    width="609"
-                    height="1301"
-                  />
-                </div>
-              </div>
-
-              <div
-                class="relative flex items-center justify-center overflow-hidden rounded-xl bg-primary px-6 py-10 sm:px-5"
-              >
-                <div class="relative z-10 text-center">
-                  <span class="font-heading block text-5xl font-extrabold leading-none text-white sm:text-[52px]">
-                    6
-                  </span>
-                  <span class="mt-2 block text-base font-semibold text-white">Products</span>
-                  <span class="block text-base font-medium text-white/70">in one ecosystem</span>
-                </div>
-                <span class="pointer-events-none absolute top-0 left-0" aria-hidden="true">
-                  <svg width="106" height="144" viewBox="0 0 106 144" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect
-                      opacity="0.1"
-                      x="-67"
-                      y="47.127"
-                      width="113.378"
-                      height="131.304"
-                      transform="rotate(-42.8643 -67 47.127)"
-                      fill="url(#paint0_linear_about_lx)"
-                    />
-                    <defs>
-                      <linearGradient
-                        id="paint0_linear_about_lx"
-                        x1="-10.3111"
-                        y1="47.127"
-                        x2="-10.3111"
-                        y2="178.431"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        <stop stop-color="white" />
-                        <stop offset="1" stop-color="white" stop-opacity="0" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-6" data-stagger>
+      {
+        challenges.map((item, idx) => (
+          <div
+            class="lx-card flex flex-col justify-between rounded-xl border border-stroke bg-white p-5 shadow-1 dark:border-dark-3 dark:bg-dark sm:p-7"
+            data-reveal
+          >
+            <div>
+              <div class="mb-3 flex items-center gap-3">
+                <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary dark:bg-primary/20 dark:text-white">
+                  0{idx + 1}
                 </span>
+                <h3 class="font-heading text-lg font-bold text-dark dark:text-white sm:text-xl">
+                  {item.title}
+                </h3>
               </div>
+              <p class="mb-4 text-sm leading-relaxed text-body-color dark:text-dark-6 sm:text-[15px]">
+                {item.problem}
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-primary/15 bg-[#F4F7FF] px-4 py-3 dark:border-primary/25 dark:bg-dark-2">
+              <p class="text-xs font-semibold uppercase tracking-wider text-primary">
+                How LumenX solves it
+              </p>
+              <p class="mt-1 text-sm font-medium leading-snug text-dark dark:text-white">
+                {item.solution}
+              </p>
             </div>
           </div>
+        ))
+      }
+    </div>
+
+    <!-- Authentic visual pairing: Office Console + Mobile Campus Portal -->
+    <div
+      class="mt-8 grid grid-cols-1 items-center gap-6 rounded-2xl border border-stroke bg-white p-5 shadow-1 dark:border-dark-3 dark:bg-dark sm:mt-10 sm:p-7 lg:grid-cols-12 lg:gap-8"
+      data-reveal
+    >
+      <div class="lg:col-span-5">
+        <span class="mb-2 inline-block text-xs font-semibold uppercase tracking-wider text-primary">
+          Connected by design
+        </span>
+        <h3 class="mb-3 font-heading text-xl font-bold text-dark dark:text-white sm:text-2xl">
+          Updated in the office. Reflected across campus.
+        </h3>
+        <p class="mb-5 text-sm leading-relaxed text-body-color dark:text-dark-6 sm:text-base">
+          Administrators manage institutional records in <strong>LumenX Admin</strong> while teachers, parents, students, and drivers interact with the exact information relevant to their role.
+        </p>
+        <a
+          href="/platform"
+          class="lx-btn inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-dark"
+        >
+          See How the Platform Works →
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 items-center gap-4 sm:grid-cols-12 lg:col-span-7">
+        <div class="overflow-hidden rounded-xl border border-stroke/80 bg-[#E8EEF6] p-2 sm:col-span-8">
+          <img
+            src="/assets/about/about-image-01.jpg"
+            alt="LumenX Admin console showing campus overview and attendance"
+            class="block h-auto w-full rounded-lg object-contain"
+            loading="lazy"
+            decoding="async"
+            width="1918"
+            height="1054"
+          />
+        </div>
+        <div class="mx-auto w-full max-w-[180px] overflow-hidden rounded-xl border border-stroke/80 bg-[#E8EEF6] p-2 sm:col-span-4 sm:max-w-none">
+          <img
+            src="/assets/about/about-image-02.jpg"
+            alt="LumenX Connect mobile portal for parents, teachers, and students"
+            class="block h-auto w-full rounded-lg object-contain"
+            loading="lazy"
+            decoding="async"
+            width="609"
+            height="1301"
+          />
         </div>
       </div>
     </div>
   </div>
 </section>
-<!-- ====== About Section End -->
+<!-- ====== Section 2: The Problem and the Solution End ====== -->

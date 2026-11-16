@@ -6,33 +6,33 @@ interface Props {
 const { page } = Astro.props;
 ---
 
-<section class="relative z-10 overflow-hidden bg-primary py-16 lg:py-[100px]">
+<section class="relative z-10 overflow-hidden border-t border-stroke/80 bg-[#F8FAFC] py-16 dark:border-dark-3 dark:bg-dark-2 lg:py-24">
   <div class="container">
-    <div class="mx-auto max-w-[640px] text-center" data-reveal>
-      <h2 class="mb-4 text-3xl font-bold text-white md:text-[38px] md:leading-[1.35]">
+    <div class="mx-auto max-w-[740px] rounded-2xl border border-stroke bg-white px-6 py-10 text-center shadow-sm dark:border-dark-3 dark:bg-dark sm:px-12 sm:py-14" data-reveal>
+      <h2 class="mb-4 font-heading text-2xl font-bold text-dark dark:text-white sm:text-3xl">
         {page.cta.title}
       </h2>
-      <p class="mx-auto mb-8 max-w-[520px] text-base leading-relaxed text-white/90">
+      <p class="mx-auto mb-8 max-w-[520px] text-[15px] leading-relaxed text-body-color dark:text-dark-6 sm:text-base">
         {page.cta.body}
       </p>
-      <div class="flex flex-wrap items-center justify-center gap-4">
+      <div class="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
         <a
           href="/contact?intent=demo#enquiry"
-          class="lx-btn inline-flex items-center justify-center rounded-md bg-secondary px-7 py-3 text-base font-medium text-white transition hover:bg-[#0BB489]"
+          class="lx-btn inline-flex items-center justify-center rounded-lg bg-primary px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-dark"
         >
           Book a Demo
         </a>
         <a
           href="/platform"
-          class="lx-btn inline-flex items-center justify-center rounded-md border border-white/40 px-7 py-3 text-base font-medium text-white transition hover:bg-white hover:text-dark"
+          class="lx-btn inline-flex items-center justify-center rounded-lg border border-stroke bg-white px-7 py-3.5 text-sm font-semibold text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:hover:border-primary"
         >
-          All products
+          All Products
         </a>
         <a
           href="/get-started"
-          class="lx-btn inline-flex items-center justify-center rounded-md px-7 py-3 text-base font-medium text-white underline-offset-4 hover:underline"
+          class="lx-btn inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold text-primary underline-offset-4 hover:underline"
         >
-          Get started
+          Get Started →
         </a>
       </div>
     </div>

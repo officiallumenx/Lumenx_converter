@@ -1,149 +1,146 @@
 ---
-import { PRODUCTS, ROLES, SITE } from "../../data/lumenx.js";
+import { PRODUCTS, SITE } from "../../data/lumenx.js";
 
-const footerLinks = [
-  {
-    header: "Platform",
-    links: PRODUCTS.map((p) => ({
-      name: p.shortName,
-      href: p.href,
-      isExternal: false,
-    })),
-  },
-  {
-    header: "Solutions",
-    links: ROLES.map((r) => ({
-      name: r.title,
-      href: r.href,
-      isExternal: false,
-    })),
-  },
-  {
-    header: "Company",
-    links: [
-      { name: "About", href: "/about", isExternal: false },
-      { name: "Modules", href: "/modules", isExternal: false },
-      { name: "Pricing", href: "/pricing", isExternal: false },
-      { name: "Downloads", href: "/downloads", isExternal: false },
-      { name: "Resources", href: "/resources", isExternal: false },
-      { name: "Contact", href: "/contact", isExternal: false },
-      { name: "Get Started", href: "/get-started", isExternal: false },
-      { name: "Login", href: "/login", isExternal: false },
-    ],
-  },
+const contactEmail = "lumenxtech.official@gmail.com";
+
+const platformLinks = PRODUCTS.map((p) => ({
+  name: p.shortName,
+  href: p.href,
+}));
+
+const navigationLinks = [
+  { name: "Platform", href: "/platform" },
+  { name: "Solutions", href: "/solutions" },
+  { name: "Modules", href: "/modules" },
+  { name: "Pricing", href: "/pricing" },
+  { name: "Downloads", href: "/downloads" },
+  { name: "Resources", href: "/resources" },
+  { name: "About", href: "/about" },
+  { name: "Contact", href: "/contact" },
+  { name: "Login", href: "/login" },
+];
+
+const legalLinks = [
+  { name: "Privacy Policy", href: "/privacy" },
+  { name: "Terms of Service", href: "/terms" },
+  { name: "Cookies", href: "/cookies" },
+  { name: "Data Request", href: "/data-request" },
 ];
 ---
 
-<footer
-  class="wow fadeInUp relative z-10 bg-[#090E34] pt-20 lg:pt-[100px]"
-  data-wow-delay=".15s"
->
-  <div class="container">
-    <div class="-mx-4 flex flex-wrap">
-      <div class="w-full px-4 sm:w-1/2 md:w-1/2 lg:w-4/12 xl:w-3/12">
-        <div class="mb-10 w-full">
-          <a href="/" class="mb-6 inline-block max-w-[160px]">
+<!-- ====== Section 6: Footer Start ====== -->
+<footer class="relative z-10 border-t border-stroke bg-white text-body-color dark:border-dark-3 dark:bg-[#090E34] dark:text-gray-7">
+  <div class="container py-12 sm:py-16 lg:py-20">
+    <div class="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-12 lg:gap-8">
+      <!-- Brand & short description -->
+      <div class="lg:col-span-4">
+        <a href="/" class="mb-4 inline-flex items-center gap-2.5">
+          <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-stroke/60 bg-white p-0.5 shadow-sm dark:border-dark-3">
             <img
-              src="/assets/logo/lumenx-logo-white.svg"
-              alt="LumenX"
-              class="max-w-full"
+              src="/assets/logo/lumenx-mark.png"
+              alt=""
+              class="h-full w-full object-contain object-center"
+              width="36"
+              height="36"
+              loading="lazy"
+              aria-hidden="true"
             />
-          </a>
-          <p class="mb-8 max-w-[270px] text-base text-gray-7">
-            {SITE.description}
+          </span>
+          <span class="font-heading text-xl font-bold tracking-tight text-dark dark:text-white">
+            LumenX
+          </span>
+        </a>
+        <p class="mb-5 max-w-[320px] text-sm leading-relaxed text-body-color dark:text-gray-7">
+          {SITE.description}
+        </p>
+        <div class="space-y-1.5 text-sm">
+          <p>
+            <a
+              href={`mailto:${contactEmail}`}
+              class="font-medium text-dark transition hover:text-primary dark:text-white/90 dark:hover:text-primary"
+            >
+              {contactEmail}
+            </a>
+          </p>
+          <p>
+            <a
+              href={SITE.productionOrigin}
+              class="text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+            >
+              lumenxtech.in
+            </a>
           </p>
         </div>
       </div>
-      {
-        footerLinks.map((column) => (
-          <div class="w-full px-4 sm:w-1/2 md:w-1/2 lg:w-2/12 xl:w-2/12">
-            <div class="mb-10 w-full">
-              <h4 class="mb-9 text-lg font-semibold text-white">{column.header}</h4>
-              <ul>
-                {column.links.map((link) => (
-                  <li>
-                    <a
-                      href={link.href}
-                      class="mb-3 inline-block text-base text-gray-7 hover:text-primary"
-                      target={link.isExternal ? "_blank" : undefined}
-                      rel={link.isExternal ? "noopener noreferrer" : undefined}
-                    >
-                      {link.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        ))
-      }
-      <div class="w-full px-4 md:w-2/3 lg:w-6/12 xl:w-3/12">
-        <div class="mb-10 w-full">
-          <h4 class="mb-9 text-lg font-semibold text-white">Next steps</h4>
-          <ul class="flex flex-col gap-4">
-            <li>
-              <a class="text-base text-gray-7 hover:text-white" href="/contact?intent=demo#enquiry">
-                Book a Demo
-              </a>
-            </li>
-            <li>
-              <a class="text-base text-gray-7 hover:text-white" href="/get-started">
-                Get Started
-              </a>
-            </li>
-            <li>
-              <a class="text-base text-gray-7 hover:text-white" href="/platform">
-                Explore the Platform
-              </a>
-            </li>
-          </ul>
-        </div>
+
+      <!-- Ecosystem modules -->
+      <div class="lg:col-span-3">
+        <h3 class="mb-4 font-heading text-xs font-semibold uppercase tracking-wider text-dark dark:text-white">
+          Ecosystem
+        </h3>
+        <ul class="space-y-2.5 text-sm">
+          {
+            platformLinks.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="inline-block text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+                >
+                  LumenX {link.name}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <!-- Navigation -->
+      <div class="lg:col-span-3">
+        <h3 class="mb-4 font-heading text-xs font-semibold uppercase tracking-wider text-dark dark:text-white">
+          Navigation
+        </h3>
+        <ul class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-1">
+          {
+            navigationLinks.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="inline-block text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+                >
+                  {link.name}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <!-- Legal & Support -->
+      <div class="lg:col-span-2">
+        <h3 class="mb-4 font-heading text-xs font-semibold uppercase tracking-wider text-dark dark:text-white">
+          Legal
+        </h3>
+        <ul class="space-y-2.5 text-sm">
+          {
+            legalLinks.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  class="inline-block text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+                >
+                  {link.name}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
       </div>
     </div>
-  </div>
 
-  <div class="mt-12 border-t border-[#8890A4] border-opacity-40 py-8 lg:mt-[60px]">
-    <div class="container">
-      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-8">
-        <nav
-          class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 md:justify-start"
-          aria-label="Legal"
-        >
-          <a
-            href="/privacy"
-            class="text-base leading-7 tracking-normal text-gray-7 hover:text-white hover:underline"
-          >
-            Privacy policy
-          </a>
-          <a
-            href="/terms"
-            class="text-base leading-7 tracking-normal text-gray-7 hover:text-white hover:underline"
-          >
-            Terms of service
-          </a>
-          <a
-            href="/cookies"
-            class="text-base leading-7 tracking-normal text-gray-7 hover:text-white hover:underline"
-          >
-            Cookies
-          </a>
-          <a
-            href="/data-request"
-            class="text-base leading-7 tracking-normal text-gray-7 hover:text-white hover:underline"
-          >
-            Data request
-          </a>
-        </nav>
-      </div>
+    <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-stroke pt-6 text-xs text-body-color dark:border-white/10 dark:text-gray-7 sm:flex-row">
+      <p>© {new Date().getFullYear()} {SITE.company}. All rights reserved.</p>
+      <p>Connected institutional operations across Web, Android, and Windows.</p>
     </div>
-  </div>
-
-  <div>
-    <span class="absolute left-0 top-0 z-[-1]">
-      <img src="/assets/footer/shape-1.svg" alt="" />
-    </span>
-    <span class="absolute bottom-0 right-0 z-[-1]">
-      <img src="/assets/footer/shape-3.svg" alt="" />
-    </span>
   </div>
 </footer>
+<!-- ====== Section 6: Footer End ====== -->

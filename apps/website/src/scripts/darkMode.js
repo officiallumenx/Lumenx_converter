@@ -1,24 +1,15 @@
 /* ========  themeSwitcher start ========= */
 document.addEventListener('DOMContentLoaded', () => {
-  // themeSwitcher
-  const themeSwitcher = document.getElementById('themeSwitcher');
+  const themeSwitchers = document.querySelectorAll('[data-theme-toggle], #themeSwitcher');
 
-  // Theme Vars
-  const userTheme = localStorage.getItem('theme');
-  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-  // Initial Theme Check
+  // Initial Theme Check — Light Mode is strictly the default for new visitors.
+  // Dark Mode is only enabled when the user explicitly selects 'dark'.
   const themeCheck = () => {
+    const userTheme = localStorage.getItem('theme');
     if (userTheme === 'dark') {
       document.documentElement.classList.add('dark');
-    } else if (userTheme === 'light') {
-      document.documentElement.classList.remove('dark');
     } else {
-      if (systemTheme) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      document.documentElement.classList.remove('dark');
     }
   };
 
@@ -33,11 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // call theme switch on clicking buttons
-  themeSwitcher.addEventListener('click', () => {
-    themeSwitch();
+  // Call theme switch on clicking any theme toggle button (desktop or mobile)
+  themeSwitchers.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      themeSwitch();
+    });
   });
 
-  // invoke theme check on initial load
+  // Invoke theme check on initial load
   themeCheck();
 });
+

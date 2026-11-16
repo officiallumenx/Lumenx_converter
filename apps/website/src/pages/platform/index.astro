@@ -2,16 +2,18 @@
 import Breadcrumb from "../../components/layout/Breadcrumb.astro";
 import Layout from "../../layouts/Layout.astro";
 import Productssection from "../../components/Productssection.astro";
+import NexusSection from "../../components/NexusSection.astro";
 import Ecosystemsection from "../../components/Ecosystemsection.astro";
 ---
 
 <Layout
-  description="Explore LumenX Admin, Connect, Transport, Admissions, Careers, and Nexus — six products in one connected institute management ecosystem."
+  description="Explore the LumenX ecosystem: Admin, Connect, Transport, Admissions, Careers, and LumenX Nexus — the central service platform connecting you to LumenX services."
   title="Platform"
 >
-  <Breadcrumb description="Admin, Connect, Transport, Admissions, Careers, and Nexus — each with a defined purpose in one connected ecosystem.">
+  <Breadcrumb description="Purpose-built institutional modules and LumenX Nexus, our central service platform — working together in one connected ecosystem.">
     <Fragment slot="title">Platform</Fragment>
   </Breadcrumb>
   <Productssection />
+  <NexusSection />
   <Ecosystemsection />
 </Layout>
