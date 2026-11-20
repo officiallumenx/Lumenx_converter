@@ -4,6 +4,7 @@ import { JobsBrowsePage } from "@/careers-portal/features/jobs/JobsBrowsePage";
 
 const searchSchema = z.object({
   q: z.string().optional(),
+  institute: z.string().uuid().optional(),
 });
 
 export const Route = createFileRoute("/_app/jobs/")({
@@ -13,6 +14,6 @@ export const Route = createFileRoute("/_app/jobs/")({
 });
 
 function JobsBrowseRoute() {
-  const { q } = Route.useSearch();
-  return <JobsBrowsePage initialQuery={q} />;
+  const { q, institute } = Route.useSearch();
+  return <JobsBrowsePage initialQuery={q} initialInstituteId={institute} />;
 }

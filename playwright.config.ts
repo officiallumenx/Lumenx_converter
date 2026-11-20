@@ -16,6 +16,18 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4181" },
     },
     {
+      name: "staging-multi-role",
+      testMatch:
+        /staging\/multi-role-(attendance|marks|homework|fees|leave|announcements|certificates)\.spec\.ts/,
+      timeout: 360_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:5174",
+        screenshot: "only-on-failure",
+        trace: "retain-on-failure",
+      },
+    },
+    {
       name: "nexus",
       testMatch: /nexus-(auth-boundaries|certificate-catalog-safe)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:4182" },
@@ -172,9 +184,21 @@ export default defineConfig({
         VITE_API_BASE_URL: "http://127.0.0.1:4186",
       },
     },
-  ].filter(
-    (server) =>
+  ].filter((server) => {
+    // Only skip Playwright webServers when the staging-multi-role project runs.
+    // Do not key off STAGING_E2E alone — leftover env would break safe suites on 418x.
+    const argv = process.argv.join(" ");
+    const stagingMultiRole =
+      process.env.STAGING_E2E === "1" &&
+      (/--project[= ]staging-multi-role/.test(argv) ||
+        /staging\/multi-role-(attendance|marks|homework|fees|leave|announcements|certificates)/.test(
+          argv,
+        ) ||
+        process.env.E2E_APP === "staging-multi-role");
+    if (stagingMultiRole) return false;
+    return (
       !process.env.E2E_APP ||
-      server.command.includes(`@lumenx/app-${process.env.E2E_APP}`),
-  ),
+      server.command.includes(`@lumenx/app-${process.env.E2E_APP}`)
+    );
+  }),
 });

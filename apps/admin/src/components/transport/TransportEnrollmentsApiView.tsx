@@ -210,8 +210,7 @@ export function TransportEnrollmentsApiView({
         row.studentName.toLowerCase().includes(needle) ||
         row.studentClass.toLowerCase().includes(needle) ||
         row.routeName.toLowerCase().includes(needle) ||
-        row.pickupStopName.toLowerCase().includes(needle) ||
-        row.dropStopName.toLowerCase().includes(needle)
+        (row.pickupStopName || row.dropStopName || "").toLowerCase().includes(needle)
       );
     });
   }, [
@@ -375,8 +374,7 @@ export function TransportEnrollmentsApiView({
                 <Th>Student</Th>
                 <Th>Class</Th>
                 <Th>Route</Th>
-                <Th>Pickup</Th>
-                <Th>Drop</Th>
+                <Th>Assigned Stop</Th>
                 <Th>Status</Th>
                 {writesEnabled ? <Th>Actions</Th> : null}
               </tr>
@@ -387,8 +385,9 @@ export function TransportEnrollmentsApiView({
                   <Td className="font-medium">{row.studentName}</Td>
                   <Td>{row.studentClass}</Td>
                   <Td>{row.routeName}</Td>
-                  <Td className="text-xs text-muted-foreground">{row.pickupStopName}</Td>
-                  <Td className="text-xs text-muted-foreground">{row.dropStopName}</Td>
+                  <Td className="text-xs text-muted-foreground">
+                    {row.pickupStopName || row.dropStopName || "No stop assigned"}
+                  </Td>
                   <Td>
                     <Pill tone={statusTone(row.status)}>{row.status}</Pill>
                   </Td>

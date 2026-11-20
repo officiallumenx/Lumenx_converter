@@ -53,6 +53,60 @@ describe("subjects mutations", () => {
     );
   });
 
+  it("posts create with capacity and empty class_periods (create form)", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: SUBJECT });
+    const client = { post } as never;
+    const { createSubject } = await import("./mutations");
+    await createSubject(
+      {
+        instituteId: INST,
+        name: "Physics",
+        code: "PHY",
+        category: "Core",
+        periodsPerWeek: 5,
+        applicableClassCodes: [],
+        capacity: 30,
+        classPeriods: {},
+        status: "active",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/subjects",
+      expect.objectContaining({
+        institute_id: INST,
+        capacity: 30,
+        class_periods: {},
+        applicable_class_codes: [],
+      }),
+    );
+  });
+
+  it("patches independent per-class periods without dropping siblings", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: SUBJECT });
+    const client = { patch } as never;
+    const { updateSubject } = await import("./mutations");
+    await updateSubject(
+      SUBJECT,
+      {
+        applicableClassCodes: ["6", "7", "8"],
+        classPeriods: { "6": 4, "7": 5, "8": 3 },
+        capacity: 40,
+      },
+      client,
+    );
+    expect(patch).toHaveBeenCalledWith(
+      `/api/v1/subjects/${SUBJECT}`,
+      expect.objectContaining({
+        applicable_class_codes: ["6", "7", "8"],
+        class_periods: { "6": 4, "7": 5, "8": 3 },
+        capacity: 40,
+      }),
+    );
+  });
+
   it("patches subject in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const patch = vi.fn().mockResolvedValue({ id: SUBJECT });

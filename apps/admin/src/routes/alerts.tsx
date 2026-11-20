@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
@@ -37,7 +37,6 @@ import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useEffect, useMemo, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { AlertsApiRulesPanel } from "@/components/alerts/AlertsApiRulesPanel";
-import { AlertsBroadcastPanel } from "@/components/alerts/AlertsBroadcastPanel";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { enableAdminPushBootstrap } from "@/lib/push-bootstrap-gate";
 import {
@@ -75,14 +74,24 @@ function AlertsPage() {
     return (
       <AppShell
         title={M.alerts}
-        subtitle="Broadcast holidays & emergencies · configure alert rules"
+        subtitle="Alert rules and broadcast history · compose from Send"
       >
         <ModuleHero
           eyebrow="Communications"
           title={M.alerts}
-          subtitle="Broadcast holidays & emergencies · configure alert rules"
-        />
-        <AlertsBroadcastPanel />
+          subtitle="Alert rules · send broadcasts from Communications → Send"
+         helpKey="alerts" />
+        <div className="mb-4 rounded-xl border border-destructive/25 bg-destructive/[0.03] px-4 py-3 text-sm">
+          School alert broadcasts moved to{" "}
+          <Link
+            to="/send"
+            search={{ category: "alerts" }}
+            className="font-medium text-destructive underline underline-offset-2"
+          >
+            Send → Alerts
+          </Link>
+          . This page keeps rule configuration and related ops.
+        </div>
         <AlertsApiRulesPanel />
       </AppShell>
     );
@@ -248,7 +257,7 @@ function AlertsDemoPage() {
         eyebrow="Communications"
         title={M.alerts}
         subtitle="Configure operational, academic & emergency alert rules"
-      />
+       helpKey="alerts" />
       <div className="lx-kpi-grid lx-kpi-grid--3 mb-3">
         {[
           { label: "Active rules", value: String(rules.filter((r) => r.active).length) },

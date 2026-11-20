@@ -81,6 +81,11 @@ import type {
   UpdateSectionInput,
   UpdateSubjectInput,
 } from "./types.js";
+import {
+  assertClassPeriodsForWrite,
+  normalizeClassPeriodsForRead,
+  uniqueClassCodes,
+} from "./class-periods.js";
 
 /** Structure management — aligned with timetable writers. */
 export const ACADEMICS_STAFF_WRITE_ROLES = [
@@ -165,6 +170,8 @@ export function toSubjectDto(row: SubjectRow): SubjectDto {
     category: row.category,
     periodsPerWeek: row.periods_per_week,
     applicableClassCodes: row.applicable_class_codes ?? [],
+    capacity: row.capacity ?? null,
+    classPeriods: normalizeClassPeriodsForRead(row.class_periods),
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -663,7 +670,7 @@ export async function createSectionForActor(
     throw AppError.conflict("class is already exists");
   }
 
-  let classTeacherId = input.classTeacherId ?? null;
+  const classTeacherId = input.classTeacherId ?? null;
   if (classTeacherId) {
     const teacher = await findTeacherById(admin, classTeacherId);
     if (!teacher || teacher.institute_id !== instituteId || teacher.deleted_at) {
@@ -792,6 +799,12 @@ export async function createSubjectForActor(
       periods_per_week: ["Must be >= 1"],
     });
   }
+  if (input.capacity != null && input.capacity < 0) {
+    throw AppError.validation("capacity must be >= 0", {
+      capacity: ["Must be >= 0"],
+    });
+  }
+  const classPeriods = assertClassPeriodsForWrite(input.classPeriods);
 
   const byCode = await findSubjectByCodeInInstitute(admin, {
     instituteId,
@@ -823,7 +836,9 @@ export async function createSubjectForActor(
     name,
     code,
     category,
-    applicableClassCodes: input.applicableClassCodes.map((c) => c.trim()).filter(Boolean),
+    applicableClassCodes: uniqueClassCodes(input.applicableClassCodes),
+    capacity: input.capacity ?? null,
+    classPeriods,
   });
 
   for (const teacherId of teacherIds) {
@@ -855,9 +870,9 @@ export async function updateSubjectForActor(
     fieldPatch.category = fieldPatch.category.trim();
   }
   if (Array.isArray(fieldPatch.applicable_class_codes)) {
-    fieldPatch.applicable_class_codes = (fieldPatch.applicable_class_codes as string[])
-      .map((c) => c.trim())
-      .filter(Boolean);
+    fieldPatch.applicable_class_codes = uniqueClassCodes(
+      fieldPatch.applicable_class_codes as string[],
+    );
   }
   if (
     typeof fieldPatch.periods_per_week === "number" &&
@@ -866,6 +881,19 @@ export async function updateSubjectForActor(
     throw AppError.validation("periods_per_week must be at least 1", {
       periods_per_week: ["Must be >= 1"],
     });
+  }
+  if (
+    typeof fieldPatch.capacity === "number" &&
+    fieldPatch.capacity < 0
+  ) {
+    throw AppError.validation("capacity must be >= 0", {
+      capacity: ["Must be >= 0"],
+    });
+  }
+  if (fieldPatch.class_periods !== undefined) {
+    fieldPatch.class_periods = assertClassPeriodsForWrite(
+      fieldPatch.class_periods as Record<string, number>,
+    );
   }
 
   if (Object.keys(fieldPatch).length === 0) {

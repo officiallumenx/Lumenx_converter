@@ -74,6 +74,8 @@ Add the same origins to staging API `CORS_ORIGINS`.
 
 ## 4. Start the API against staging and check health
 
+### Local laptop
+
 From `backend/` (with `.env.staging` filled):
 
 ```bash
@@ -85,14 +87,22 @@ npm run build
 npm run start:staging
 ```
 
+### Hosted Railway staging
+
+Set `LUMENX_ENV=staging` and the staging gate / Supabase variables in the Railway
+service (see `qa-artifacts/staging-api-service-setup-plan.md`). An on-disk
+`.env.staging` file is **not** required when variables are injected by the
+platform. Do not package secrets into the image.
+
 Health (no secrets printed):
 
 ```bash
-curl -sS http://127.0.0.1:8787/health
+curl -sS http://127.0.0.1:8787/api/v1/health
 # expect JSON with status ok
 ```
 
-If the process exits with `Staging environment refused to start`, fix `.env.staging` confirmation / ref mismatch / denylist — do **not** weaken the guard.
+If the process exits with `Staging environment refused to start`, fix confirmation /
+ref mismatch / denylist / missing keys — do **not** weaken the guard.
 
 Optional: set `E2E_API_BASE_URL` / `SMOKE_API_BASE_URL` in `.env.staging` when the API is not on localhost.
 
@@ -215,11 +225,22 @@ npx supabase link --project-ref <STAGING_PROJECT_REF>
 npx supabase db push
 
 # Smokes
+# API + fixture logins only (shell probes FAIL unless Vite apps are already up):
 npm run smoke:login:staging
+# Reuses ready shells, starts missing ones on STAGING.md ports (staging anon only),
+# waits for readiness, runs smoke:login, then stops only processes it spawned:
+npm run smoke:login:staging:with-shells
+
+# Shell ports: Admin 8081, Nexus 8080, Connect 5174, Transport 5175,
+# Admissions 5177, Careers 5176, Website 8082.
 npm run smoke:tenant:staging
 # optional:
 # LIVE_AUTH_VERIFY=1 in .env.staging
 npm run verify:auth:live:staging
+
+# Hosted staging multi-role Playwright (opt-in; anon browser clients only)
+# node --env-file=.env.staging ../e2e/staging/ensure-multi-role-fixtures.mjs
+# STAGING_E2E=1 npm run test:e2e:staging-multi-role   # from repo root; Admin:8081 + Connect:5174 + API
 ```
 
 ---

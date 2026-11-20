@@ -1,2 +1,2 @@
-/** Shared async delay for mock repositories — swap for real HTTP later. */
-export const repositoryDelay = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Async resolution for repositories — resolves immediately to eliminate artificial UI lag. */
+export const repositoryDelay = (_ms = 0): Promise<void> => Promise.resolve();

@@ -22,6 +22,10 @@ import {
   apiSignOut,
   hydrateApiTransportSession,
 } from "@/lib/auth/api-auth";
+import {
+  bumpTransportAuthSessionGeneration,
+  setTransportApiUnauthorizedHandler,
+} from "@/lib/transport-api";
 import { setLumenXFeedbackTransport } from "@lumenx/utils";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
@@ -186,6 +190,7 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
     const session = await apiSignInWithPassword(email, password);
+    bumpTransportAuthSessionGeneration();
     const sessionUser = toSessionUser(session);
     setUser(sessionUser);
     persistSession(sessionUser);
@@ -194,6 +199,7 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
   const signInWithPhonePin = useCallback(
     async (phone: string, pin: string, instituteId?: string) => {
       const session = await apiSignInWithPhonePin(phone, pin, instituteId);
+      bumpTransportAuthSessionGeneration();
       const sessionUser = toSessionUser(session);
       setUser(sessionUser);
       persistSession(sessionUser);
@@ -202,10 +208,22 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
+    bumpTransportAuthSessionGeneration();
     setUser(null);
     void apiSignOut();
     clearTransportSession(storage);
     resetTransportStores();
+  }, []);
+
+  useEffect(() => {
+    setTransportApiUnauthorizedHandler(() => {
+      bumpTransportAuthSessionGeneration();
+      setUser(null);
+      clearTransportSession(storage);
+      resetTransportStores();
+      void apiSignOut();
+    });
+    return () => setTransportApiUnauthorizedHandler(null);
   }, []);
 
   const value = useMemo(

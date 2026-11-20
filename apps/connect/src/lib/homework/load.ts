@@ -48,6 +48,9 @@ function mapError(err: unknown, label: string): { status: HomeworkLoadStatus; me
 
 export async function loadParentHomeworkItems(input: {
   instituteId: string | null;
+  /** When set, only fetch homework for these linked children (avoids extra per-student calls). */
+  studentIds?: string[];
+  signal?: AbortSignal;
 }): Promise<{
   status: HomeworkLoadStatus;
   students: StudentDto[];
@@ -62,7 +65,17 @@ export async function loadParentHomeworkItems(input: {
   }
 
   try {
-    const students = await listStudents({ instituteId: input.instituteId });
+    if (input.signal?.aborted) {
+      return { status: "error", students: [], itemsByStudentId: new Map(), errorMessage: "Aborted" };
+    }
+    // Backend scopes this list to accessible students for parents; still page-capped.
+    // Prefer linked-children only when the caller passes them (see ParentHomeworkPage).
+    const listed = await listStudents({ instituteId: input.instituteId });
+    const allow = input.studentIds?.length ? new Set(input.studentIds) : null;
+    const students = allow ? listed.filter((s) => allow.has(s.id)) : listed;
+    if (input.signal?.aborted) {
+      return { status: "error", students: [], itemsByStudentId: new Map(), errorMessage: "Aborted" };
+    }
     const groups = await Promise.all(
       students.map((student) =>
         getStudentHomeworkItems({ instituteId: input.instituteId!, studentId: student.id }),

@@ -1,0 +1,116 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout
+  description="LumenX sign-in is institute-issued. Use your campus login links for Admin, Connect, Transport, Admissions, and Careers — not public registration on this marketing site."
+  title="Login"
+>
+  <ContentPage
+    title="Login"
+    description="Your school office provides your login details. Here is how to sign in to each LumenX app."
+    showCta={false}
+  >
+    <p class="mb-6 text-base leading-relaxed text-body-color dark:text-dark-6">
+      To keep student and school records safe, LumenX accounts are created by your school — not through public sign-ups on this website. Teachers, parents, students, bus drivers, and staff receive their login details directly from their school office.
+    </p>
+    <p class="mb-8 text-base leading-relaxed text-body-color dark:text-dark-6">
+      Please use the app or web link shared by your school. If you haven't received your login details yet, please check with your school office first, or <a href="/contact" class="text-primary hover:underline">contact our support team</a>.
+    </p>
+
+    <h3 class="mb-4 text-xl font-bold text-dark dark:text-white">Where to sign in for each app</h3>
+    <ul class="mb-8 space-y-4">
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/admin.png"
+            alt="LumenX Admin logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/logo/lumenx-mark.png"
+            alt="LumenX Nexus logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Admin &amp; LumenX Nexus</strong>
+        </div>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Used by school office staff (Admin) and service teams (Nexus). Sign in using the web app, Windows desktop app, or Android app from the <a href="/downloads" class="text-primary hover:underline">Downloads</a> page.
+        </p>
+      </li>
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/connect.png"
+            alt="LumenX Connect logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/brand/transport.png"
+            alt="LumenX Transport logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Connect &amp; LumenX Transport</strong>
+        </div>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Android apps for teachers, parents, and students (Connect) and bus drivers (Transport). Download the app from the link shared by your school or from our <a href="/downloads" class="text-primary hover:underline">Downloads</a> page, then sign in with your school-issued details.
+        </p>
+      </li>
+      <li class="rounded-xl border border-stroke p-5 dark:border-dark-3">
+        <div class="mb-2 flex items-center gap-3">
+          <img
+            src="/assets/brand/admissions.png"
+            alt="LumenX Admissions logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <img
+            src="/assets/brand/careers.png"
+            alt="LumenX Careers logo"
+            class="h-11 w-11 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+            width="44"
+            height="44"
+            loading="lazy"
+          />
+          <strong class="font-heading text-base text-dark dark:text-white">LumenX Admissions &amp; LumenX Careers</strong>
+        </div>
+        <p class="mt-2 text-base text-body-color dark:text-dark-6">
+          Online portals and Android apps for new student admissions and teacher job applications. Open them from the link shared by the school or via our <a href="/downloads" class="text-primary hover:underline">Downloads</a> page.
+        </p>
+      </li>
+    </ul>
+
+    <p class="text-base text-body-color dark:text-dark-6">
+      Need to install an app on your phone or computer? Visit the <a href="/downloads" class="text-primary hover:underline">Downloads page</a>.
+    </p>
+    <div class="mt-10 flex flex-wrap gap-4">
+      <a
+        href="/contact"
+        class="inline-flex items-center justify-center rounded-md border border-primary bg-primary px-7 py-3 text-base font-medium text-white transition hover:border-blue-dark hover:bg-blue-dark"
+      >
+        Contact support
+      </a>
+      <a
+        href="/get-started"
+        class="inline-flex items-center justify-center rounded-md border border-stroke px-7 py-3 text-base font-medium text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:text-white"
+      >
+        New institute? Get started
+      </a>
+    </div>
+  </ContentPage>
+</Layout>

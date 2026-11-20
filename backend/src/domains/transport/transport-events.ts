@@ -5,6 +5,11 @@ export const TRANSPORT_EVENT = {
   GPS_UPDATED: "GPS_UPDATED",
   STOP_APPROACHING: "STOP_APPROACHING",
   STOP_ARRIVED: "STOP_ARRIVED",
+  /**
+   * Sequential “your stop is next” — emitted only after the prior route-plan stop
+   * is confirmed arrived. Distinct from ETA-based STOP_APPROACHING.
+   */
+  STOP_NEXT: "STOP_NEXT",
   STUDENT_BOARDED: "STUDENT_BOARDED",
   STUDENT_NOT_BOARDED: "STUDENT_NOT_BOARDED",
   STUDENT_DROPPED: "STUDENT_DROPPED",

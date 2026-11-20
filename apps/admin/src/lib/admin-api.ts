@@ -1,3 +1,4 @@
+import { createAuthSessionClock } from "@lumenx/auth";
 import { createApiClient, type AdminApiClient } from "@/lib/api";
 import {
   getSupabaseAccessToken,
@@ -13,13 +14,35 @@ import {
 
 let onUnauthorizedHandler: (() => void) | null = null;
 let client: AdminApiClient | null = null;
+const authSessionClock = createAuthSessionClock();
+
+export function bumpAdminAuthSessionGeneration(): number {
+  return authSessionClock.bump();
+}
+
+export function getAdminAuthSessionGeneration(): number {
+  return authSessionClock.current();
+}
 
 export function setAdminApiUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorizedHandler = handler;
 }
 
+/** Production API origin used when Vite env is unset during a prod build. */
+const PROD_API_BASE_URL = "https://api.lumenxtech.in";
+const DEV_API_BASE_URL = "http://127.0.0.1:8787";
+
+/**
+ * Resolve the LumenX API base URL.
+ * Prefer VITE_API_BASE_URL; never fall back to localhost in production builds.
+ */
 export function getApiBaseUrl(): string {
-  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").trim();
+  const configured = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  return (import.meta.env.PROD ? PROD_API_BASE_URL : DEV_API_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
 }
 
 /**
@@ -36,9 +59,10 @@ export function getAdminApiClient(): AdminApiClient {
       return getSupabaseAccessToken();
     },
     tryRefreshSession: async () => {
-      if (!isApiAuthMode()) return false;
+      if (!isApiAuthMode()) return { kind: "unavailable" };
       return tryRefreshSupabaseSession();
     },
+    getSessionGeneration: () => authSessionClock.current(),
     onUnauthorized: () => {
       onUnauthorizedHandler?.();
     },
@@ -66,4 +90,5 @@ export function getAdminApiClient(): AdminApiClient {
 export function resetAdminApiClientForTests(): void {
   client = null;
   onUnauthorizedHandler = null;
+  authSessionClock.resetForTests();
 }

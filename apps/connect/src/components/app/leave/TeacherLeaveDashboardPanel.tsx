@@ -78,12 +78,12 @@ export function TeacherLeaveDashboardPanel() {
               compact
               apiMode
               requireIgnoreNote
-              onApprove={(id) => {
-                void decideStudentLeave(id, { outcome: "approved", note: "Accepted." });
-              }}
-              onIgnore={(id, note) => {
-                void decideStudentLeave(id, { outcome: "ignored", note: note || null });
-              }}
+              onApprove={(id) =>
+                decideStudentLeave(id, { outcome: "approved", note: "Accepted." })
+              }
+              onIgnore={(id, note) =>
+                decideStudentLeave(id, { outcome: "ignored", note: note || null })
+              }
               onAction={refresh}
             />
           ))}

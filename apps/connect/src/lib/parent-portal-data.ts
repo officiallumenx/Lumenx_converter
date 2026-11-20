@@ -20,6 +20,7 @@ import {
   studentTimetable,
   trend as baseTrend,
 } from "@/lib/mock-data";
+import type { ParentRemarkCard } from "@/lib/remarks";
 import { toLocalIsoDate } from "@/lib/leave-utils";
 import { gradeFor } from "@/lib/marks-utils";
 import { loadStudentAssignmentOverlays } from "@/lib/assignment-details";
@@ -289,7 +290,8 @@ export interface ParentPortalSnapshot {
   classTag: string;
   performance: { subject: string; score: number; prev: number }[];
   trend: { term: string; score: number }[];
-  remarks: typeof baseRemarks;
+  /** Demo + API remarks share the parent badge tone contract (includes neutral). */
+  remarks: ParentRemarkCard[];
   achievements: typeof baseAchievements;
   streaks: typeof baseStreaks;
   goals: Goal[];
@@ -312,10 +314,18 @@ export function buildParentPortalSnapshot(
   const classTag = childClassTag(child);
   const idx = children.findIndex((c) => c.id === child.id);
 
-  const remarks = [
+  const remarks: ParentRemarkCard[] = [
     ...baseRemarks.slice(idx % 2),
     ...baseRemarks.slice(0, Math.max(1, 3 - (idx % 2))),
-  ].slice(0, 3);
+  ]
+    .slice(0, 3)
+    .map((r) => ({
+      teacher: r.teacher,
+      subject: r.subject,
+      text: r.text,
+      date: r.date,
+      tone: r.tone,
+    }));
 
   const streaks = baseStreaks.map((s, i) => ({
     ...s,

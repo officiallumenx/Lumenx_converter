@@ -122,42 +122,66 @@ export function validateTeacherImportRow(
     );
   }
 
-  if (catalog?.sectionLabels && catalog.sectionLabels.length > 0) {
-    const known = new Set(
-      catalog.sectionLabels.map((label) => label.trim().toLowerCase().replace(/\s+/g, "")),
-    );
-    for (const label of splitCsvList(row.assignedSections)) {
-      const key = label.toLowerCase().replace(/\s+/g, "");
-      if (!known.has(key)) {
-        errors.push(
-          `Row ${rowNumber}: assigned_sections value "${label}" is not in this institute’s class list. Re-download the template.`,
-        );
+  const assignedLabels = splitCsvList(row.assignedSections);
+  const classTeacherLabels = splitCsvList(row.classTeacherSections);
+  const subjectLabels = splitCsvList(row.subjects);
+
+  if (catalog) {
+    const sectionLabels = catalog.sectionLabels ?? [];
+    const subjectNames = catalog.subjectNames ?? [];
+
+    // Fail closed: relationship columns require a non-empty institute catalog.
+    if (
+      (assignedLabels.length > 0 || classTeacherLabels.length > 0) &&
+      sectionLabels.length === 0
+    ) {
+      errors.push(
+        `Row ${rowNumber}: assigned_sections / class_teacher_sections require a loaded class catalog. Re-open the importer after classes load.`,
+      );
+    } else if (sectionLabels.length > 0) {
+      const known = new Set(
+        sectionLabels.map((label) =>
+          label.trim().toLowerCase().replace(/\s+/g, ""),
+        ),
+      );
+      for (const label of assignedLabels) {
+        const key = label.toLowerCase().replace(/\s+/g, "");
+        if (!known.has(key)) {
+          errors.push(
+            `Row ${rowNumber}: assigned_sections value "${label}" is not in this institute’s class list. Re-download the template.`,
+          );
+        }
+      }
+      for (const label of classTeacherLabels) {
+        const key = label.toLowerCase().replace(/\s+/g, "");
+        if (!known.has(key)) {
+          errors.push(
+            `Row ${rowNumber}: class_teacher_sections value "${label}" is not in this institute’s class list. Re-download the template.`,
+          );
+        }
       }
     }
-    for (const label of splitCsvList(row.classTeacherSections)) {
-      const key = label.toLowerCase().replace(/\s+/g, "");
-      if (!known.has(key)) {
-        errors.push(
-          `Row ${rowNumber}: class_teacher_sections value "${label}" is not in this institute’s class list. Re-download the template.`,
-        );
-      }
-    }
-    if (splitCsvList(row.classTeacherSections).length > 1) {
+
+    if (classTeacherLabels.length > 1) {
       errors.push(
         `Row ${rowNumber}: class_teacher_sections must be a single section (one homeroom).`,
       );
     }
-  }
 
-  if (catalog?.subjectNames && catalog.subjectNames.length > 0) {
-    const known = new Set(
-      catalog.subjectNames.map((name) => name.trim().toLowerCase()),
-    );
-    for (const subject of splitCsvList(row.subjects)) {
-      if (!known.has(subject.toLowerCase())) {
-        errors.push(
-          `Row ${rowNumber}: subject "${subject}" is not in this institute’s subject catalog. Re-download the template.`,
-        );
+    if (subjectLabels.length > 0 && subjectNames.length === 0) {
+      errors.push(
+        `Row ${rowNumber}: subjects require a loaded subject catalog. Re-open the importer after subjects load.`,
+      );
+    } else if (subjectNames.length > 0) {
+      const known = new Set(
+        subjectNames.map((name) => name.trim().toLowerCase()),
+      );
+      for (const subject of subjectLabels) {
+        if (!known.has(subject.toLowerCase())) {
+          errors.push(
+            `Row ${rowNumber}: subject "${subject}" is not in this institute’s subject catalog. Re-download the template.`,
+          );
+        }
       }
     }
   }
@@ -219,6 +243,18 @@ export function parseTeacherSheetRows(
   const errors = rows.flatMap((row, index) =>
     validateTeacherImportRow(row, index + 2, catalog),
   );
+  const seenPhones = new Set<string>();
+  rows.forEach((row, index) => {
+    const phone = normalizePhone(row.phone);
+    if (!/^\d{10}$/.test(phone)) return;
+    if (seenPhones.has(phone)) {
+      errors.push(
+        `Row ${index + 2}: duplicate phone "${row.phone.trim()}" in file.`,
+      );
+      return;
+    }
+    seenPhones.add(phone);
+  });
   return { rows, errors };
 }
 

@@ -53,3 +53,21 @@ export function photoListStaleTimeMs(
   }
   return sawExpiry ? min : maxStaleMs;
 }
+
+/**
+ * Prefer an in-memory signed URL that is still usable over a freshly signed
+ * replacement, so list remounts do not thrash <img> src while TTL remains.
+ */
+export function shouldReplaceCachedSignedPhoto(opts: {
+  cachedUrl: string | null | undefined;
+  cachedExpiresAt: string | null | undefined;
+  nextUrl: string | null | undefined;
+  nextExpiresAt: string | null | undefined;
+  now?: number;
+}): boolean {
+  const now = opts.now ?? Date.now();
+  if (isSignedPhotoUrlUsable(opts.cachedUrl, opts.cachedExpiresAt, now)) {
+    return false;
+  }
+  return isSignedPhotoUrlUsable(opts.nextUrl, opts.nextExpiresAt, now);
+}

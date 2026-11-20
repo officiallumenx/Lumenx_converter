@@ -18,6 +18,7 @@ export {
   decideLeave,
   cancelLeave,
   getLeaveDecision,
+  __clearLeaveDecisionInflightForTests,
 } from "./api";
 export {
   leaveDtoToConnectRequest,

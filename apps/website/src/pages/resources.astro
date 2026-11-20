@@ -1,0 +1,55 @@
+---
+import Breadcrumb from "../components/layout/Breadcrumb.astro";
+import Layout from "../layouts/Layout.astro";
+
+const links = [
+  { href: "/resources/faq", title: "FAQ", body: "Plain answers on products, pricing, trial, and getting started." },
+  { href: "/resources/help", title: "Help", body: "Getting started, product guidance, logins, and privacy." },
+  { href: "/downloads", title: "Downloads", body: "Web apps, Android, and Windows builds from the verified matrix." },
+  { href: "/pricing", title: "Pricing", body: "Per-student calculator with the campus minimum." },
+  { href: "/about", title: "About", body: "What LumenX is building for institutes." },
+  { href: "/contact", title: "Contact", body: "Reach the LumenX team." },
+  { href: "/get-started", title: "Get started", body: "Onboarding path for new institutes." },
+  { href: "/privacy", title: "Privacy", body: "How we handle personal data." },
+  { href: "/terms", title: "Terms", body: "Terms for using LumenX services." },
+  { href: "/cookies", title: "Cookies", body: "Cookies and similar technologies." },
+  { href: "/data-request", title: "Data request", body: "Access, correction, or erasure requests." },
+  { href: "/platform", title: "Platform", body: "Product family overview." },
+];
+---
+
+<Layout
+  description="LumenX resources: FAQ, help, downloads, pricing, legal, and platform overview."
+  title="Resources"
+>
+  <Breadcrumb>
+    <Fragment slot="title">Resources</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-12 mx-auto max-w-[560px] text-center">
+        <p class="text-base text-body-color dark:text-dark-6">
+          Quick links for institutes evaluating or onboarding with LumenX.
+        </p>
+      </div>
+      <ul class="mx-auto grid max-w-[720px] gap-4">
+        {
+          links.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="flex items-center justify-between gap-4 rounded-xl border border-stroke bg-white px-6 py-5 transition hover:border-primary dark:border-dark-3 dark:bg-dark-2"
+              >
+                <span>
+                  <span class="block text-lg font-semibold text-dark dark:text-white">{item.title}</span>
+                  <span class="mt-1 block text-sm text-body-color dark:text-dark-6">{item.body}</span>
+                </span>
+                <span class="text-primary">→</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</Layout>

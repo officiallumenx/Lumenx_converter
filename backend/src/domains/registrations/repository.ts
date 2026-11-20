@@ -1,10 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
+import { AppError } from "../../errors/app-error.js";
 import type {
   CreateRegistrationInput,
+  InstituteRegistrationLegalConsentRow,
   InstituteRegistrationPayload,
   InstituteRegistrationRow,
 } from "./types.js";
+import type { ValidatedRegistrationLegalConsent } from "./legal-consent.js";
 import { registrationRowFieldsFromPayload } from "./payload.js";
 
 const REGISTRATION_COLS =
@@ -225,6 +228,70 @@ export async function insertUserProfile(
   ensureDbOk(result);
 }
 
+function consentDocumentsJson(consent: ValidatedRegistrationLegalConsent) {
+  return consent.documents.map((doc) => ({
+    id: doc.id,
+    version: doc.version,
+  }));
+}
+
+function registrationMirrorRpcArgs(payload: InstituteRegistrationPayload) {
+  const fields = registrationRowFieldsFromPayload(payload);
+  return {
+    p_institute_code: fields.institute_code,
+    p_institute_type: fields.institute_type,
+    p_education_board: fields.education_board,
+    p_school_email: fields.school_email,
+    p_school_phone: fields.school_phone,
+    p_applicant_username: fields.applicant_username,
+    p_admin_designation: fields.admin_designation,
+    p_country: fields.country,
+    p_state: fields.state,
+    p_district: fields.district,
+    p_city: fields.city,
+    p_area: fields.area,
+    p_street: fields.street,
+    p_landmark: fields.landmark,
+    p_pincode: fields.pincode,
+    p_website: fields.website,
+  };
+}
+
+/**
+ * Atomically insert pending registration + required legal consent (Postgres RPC).
+ * No non-atomic client fallback — missing RPC must fail closed.
+ */
+export async function insertRegistrationWithLegalConsent(
+  admin: SupabaseClient,
+  input: {
+    applicantUserId: string;
+    applicantName: string;
+    email: string;
+    phone?: string | null;
+    payload: InstituteRegistrationPayload;
+    consent: ValidatedRegistrationLegalConsent;
+  },
+): Promise<InstituteRegistrationRow> {
+  const rpc = await admin.rpc("create_institute_registration_with_legal_consent", {
+    p_applicant_user_id: input.applicantUserId,
+    p_applicant_name: input.applicantName.trim(),
+    p_email: input.email.trim().toLowerCase(),
+    p_phone: input.phone?.trim() || null,
+    p_payload: input.payload,
+    ...registrationMirrorRpcArgs(input.payload),
+    p_consent_documents: consentDocumentsJson(input.consent),
+    p_consent_action: input.consent.action,
+    p_accepted_at: input.consent.acceptedAt,
+  });
+  if (rpc.error) ensureDbOk(rpc);
+  const row = ((rpc.data ?? []) as InstituteRegistrationRow[])[0];
+  if (!row) {
+    throw AppError.internal("Registration create returned no row");
+  }
+  return row;
+}
+
+/** @deprecated Prefer insertRegistrationWithLegalConsent — kept for non-consent tooling/tests. */
 export async function insertRegistration(
   admin: SupabaseClient,
   input: {
@@ -250,6 +317,67 @@ export async function insertRegistration(
     .single();
 
   return ensureDbOk(result) as InstituteRegistrationRow;
+}
+
+export async function listRegistrationLegalConsent(
+  admin: SupabaseClient,
+  registrationId: string,
+): Promise<InstituteRegistrationLegalConsentRow[]> {
+  const result = await admin
+    .from("institute_registration_legal_consent")
+    .select(
+      "id, registration_id, document_id, document_version, action, accepted_at, created_at",
+    )
+    .eq("registration_id", registrationId)
+    .order("document_id", { ascending: true });
+  return ensureDbOk(result) as InstituteRegistrationLegalConsentRow[];
+}
+
+/**
+ * Attach/repair consent for an existing registration (pending retry).
+ * Single RPC — all consent rows succeed or fail together.
+ */
+export async function upsertRegistrationLegalConsent(
+  admin: SupabaseClient,
+  registrationId: string,
+  consent: ValidatedRegistrationLegalConsent,
+): Promise<void> {
+  const rpc = await admin.rpc("upsert_institute_registration_legal_consent", {
+    p_registration_id: registrationId,
+    p_consent_documents: consentDocumentsJson(consent),
+    p_consent_action: consent.action,
+    p_accepted_at: consent.acceptedAt,
+  });
+  if (rpc.error) ensureDbOk(rpc);
+}
+
+/**
+ * Atomically move rejected → pending and upsert legal consent.
+ */
+export async function resubmitRegistrationWithLegalConsent(
+  admin: SupabaseClient,
+  input: {
+    registrationId: string;
+    applicantUserId: string;
+    applicantName: string;
+    phone?: string | null;
+    payload: InstituteRegistrationPayload;
+    consent: ValidatedRegistrationLegalConsent;
+  },
+): Promise<InstituteRegistrationRow | null> {
+  const rpc = await admin.rpc("resubmit_institute_registration_with_legal_consent", {
+    p_registration_id: input.registrationId,
+    p_applicant_user_id: input.applicantUserId,
+    p_applicant_name: input.applicantName.trim(),
+    p_phone: input.phone,
+    p_payload: input.payload,
+    ...registrationMirrorRpcArgs(input.payload),
+    p_consent_documents: consentDocumentsJson(input.consent),
+    p_accepted_at: input.consent.acceptedAt,
+  });
+  if (rpc.error) ensureDbOk(rpc);
+  const row = ((rpc.data ?? []) as InstituteRegistrationRow[])[0];
+  return row ?? null;
 }
 
 export async function isPlatformOperatorUser(

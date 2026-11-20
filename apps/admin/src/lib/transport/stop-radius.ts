@@ -1,7 +1,8 @@
 /** Product bounds for stop geofence radius (meters). Keep in sync with backend stop-radius. */
 export const STOP_RADIUS_MIN_M = 20;
 export const STOP_RADIUS_MAX_M = 5000;
-export const STOP_RADIUS_DEFAULT_M = 150;
+/** Keep in sync with backend STOP_RADIUS_DEFAULT_M (Phase 7: 100 m). */
+export const STOP_RADIUS_DEFAULT_M = 100;
 
 /** Parse/validate stop radius for Admin UI. Never silently fall back to default. */
 export function parseStopRadiusInput(

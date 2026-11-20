@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseStopRadiusInput,
+  STOP_RADIUS_DEFAULT_M,
   STOP_RADIUS_MAX_M,
   STOP_RADIUS_MIN_M,
 } from "./stop-radius";
@@ -10,6 +11,10 @@ describe("parseStopRadiusInput", () => {
     expect(parseStopRadiusInput(50)).toEqual({ ok: true, meters: 50 });
     expect(parseStopRadiusInput("100")).toEqual({ ok: true, meters: 100 });
     expect(parseStopRadiusInput(150)).toEqual({ ok: true, meters: 150 });
+  });
+
+  it("product default geofence is 100 m", () => {
+    expect(STOP_RADIUS_DEFAULT_M).toBe(100);
   });
 
   it("rejects invalid values without silent default", () => {

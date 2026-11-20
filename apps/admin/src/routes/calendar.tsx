@@ -423,7 +423,7 @@ function CalendarPage() {
         eyebrow="Institute"
         title={M.calendar}
         subtitle="Year view for next events · month grid to add holidays and events"
-      />
+       helpKey="calendar" />
 
       <div className="lx-kpi-grid">
         <Kpi

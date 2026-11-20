@@ -1,0 +1,28 @@
+---
+import Hero from '../components/Hero.astro';
+import About from '../components/Aboutsection.astro';
+import Productssection from '../components/Productssection.astro';
+import NexusSection from '../components/NexusSection.astro';
+import Features from '../components/Features.astro';
+import CTA from '../components/CTAsection.astro';
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../data/lumenx.js';
+---
+
+<Layout
+  description={SITE.description}
+  title="LumenX (LumenXTech) — Best ERP for Schools, School Management System & Institute Platform"
+>
+  <!-- Section 1: Hero -->
+  <Hero />
+  <!-- Section 2: The Problem and the Solution -->
+  <About />
+  <!-- Section 3: LumenX Ecosystem (Institutional Modules) -->
+  <Productssection />
+  <!-- Dedicated Section: Meet LumenX Nexus (Central Service Platform) -->
+  <NexusSection />
+  <!-- Section 4: Why LumenX -->
+  <Features />
+  <!-- Section 5: Final CTA -->
+  <CTA />
+</Layout>

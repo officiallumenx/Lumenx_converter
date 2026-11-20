@@ -11,6 +11,7 @@ import { useApp } from "@/lib/app-state";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { activityRepository } from "@/lib/activity/repositories";
 import { connectQueryKeys, scopedConnectKey } from "@/lib/connect-queries";
+import { useConnectQueryRestoring } from "@/lib/connect-queries/PersistProvider";
 import { useConnectQueryUserId } from "@/lib/connect-queries/use-connect-query-user";
 import { prefetchActivityModuleQueries } from "@/lib/connect-queries/prefetch-activity";
 import { isInstituteUuid } from "@/lib/institute-id";
@@ -33,6 +34,7 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
   const access = useTeacherPortalAccess();
   const queryClient = useQueryClient();
   const userId = useConnectQueryUserId();
+  const isRestoring = useConnectQueryRestoring();
 
   const isActive =
     role === "teacher" &&
@@ -50,7 +52,7 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
       connectQueryKeys.activityWorkspace(activeInstituteId ?? "_"),
     ),
     queryFn: () => activityRepository.getDashboard(),
-    enabled: canRun,
+    enabled: canRun && !isRestoring,
   });
 
   useEffect(() => {
@@ -59,9 +61,9 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
   }, [isActive, queryClient]);
 
   useEffect(() => {
-    if (!canRun || !activeInstituteId) return;
+    if (!canRun || isRestoring || !activeInstituteId) return;
     prefetchActivityModuleQueries(queryClient, userId, activeInstituteId);
-  }, [canRun, activeInstituteId, queryClient, userId]);
+  }, [canRun, isRestoring, activeInstituteId, queryClient, userId]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;
@@ -74,7 +76,10 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
   }, [activeInstituteId, queryClient, userId]);
 
   const dashboard = query.data ?? null;
-  const isLoading = canRun && query.isLoading && !dashboard;
+  // Match teacher/student portals: treat IndexedDB restore as loading.
+  const isLoading =
+    isActive &&
+    (isRestoring || (canRun && query.isLoading && !dashboard));
 
   const value = useMemo<ActivityWorkspaceState>(() => {
     if (!isActive) return { isActivityMode: false };

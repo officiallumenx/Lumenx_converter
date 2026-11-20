@@ -1,7 +1,15 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
+import {
+  classifySupabaseRefreshFailure,
+  isSessionRefreshSuccess,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 
 let client: SupabaseClient | null = null;
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: Promise<SessionRefreshOutcome> | null = null;
+let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
+
+const AUTH_STORAGE_KEY = "lumenx.transport.supabase.auth.v1";
 
 const REFRESH_SKEW_MS = 60_000;
 const AUTH_CALL_TIMEOUT_MS = 5_000;
@@ -53,7 +61,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: "lumenx.transport.supabase.auth.v1",
+      storageKey: AUTH_STORAGE_KEY,
       storage,
     },
   });
@@ -63,17 +71,63 @@ export function getSupabaseBrowserClient(): SupabaseClient {
 export function resetSupabaseBrowserClientForTests(): void {
   client = null;
   refreshInFlight = null;
+  cachedAccessToken = null;
 }
 
-export async function tryRefreshSupabaseSession(): Promise<boolean> {
+function hasStoredRefreshToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage?.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { refresh_token?: unknown };
+    return typeof parsed.refresh_token === "string" && parsed.refresh_token.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function cacheToken(session: Session | null): string | null {
+  const token = session?.access_token ?? null;
+  if (!token) {
+    cachedAccessToken = null;
+    return null;
+  }
+  cachedAccessToken = {
+    token,
+    expiresAtMs: (session?.expires_at ?? 0) * 1000 || Date.now() + 55_000,
+  };
+  return token;
+}
+
+export async function tryRefreshSupabaseSession(): Promise<SessionRefreshOutcome> {
+  if (!hasStoredRefreshToken()) return { kind: "unavailable" };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return { kind: "transient" };
+  }
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.refreshSession();
-      return !error && Boolean(data.session?.access_token);
-    } catch {
-      return false;
+      if (!error && data.session?.access_token) {
+        cacheToken(data.session);
+        return { kind: "refreshed" as const };
+      }
+      if (!error && !data.session) {
+        return { kind: "invalid" as const };
+      }
+      if (error) {
+        const classified = classifySupabaseRefreshFailure(error);
+        if (classified === "transient") return { kind: "transient" as const };
+        if (classified === "invalid") return { kind: "invalid" as const };
+        return { kind: "unknown" as const };
+      }
+      return { kind: "unknown" as const };
+    } catch (err) {
+      const classified = classifySupabaseRefreshFailure(err);
+      if (classified === "invalid") return { kind: "invalid" as const };
+      if (classified === "transient") return { kind: "transient" as const };
+      return { kind: "unknown" as const };
     } finally {
       refreshInFlight = null;
     }
@@ -82,6 +136,18 @@ export async function tryRefreshSupabaseSession(): Promise<boolean> {
 }
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
+  if (
+    cachedAccessToken &&
+    Date.now() < cachedAccessToken.expiresAtMs - REFRESH_SKEW_MS
+  ) {
+    return cachedAccessToken.token;
+  }
+
+  if (!hasStoredRefreshToken()) {
+    cachedAccessToken = null;
+    return null;
+  }
+
   const supabase = getSupabaseBrowserClient();
   try {
     const { data, error } = await withTimeout(
@@ -94,19 +160,21 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 
     const expiresAtMs = (session.expires_at ?? 0) * 1000;
     if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
-      const ok = await withTimeout(tryRefreshSupabaseSession(), AUTH_CALL_TIMEOUT_MS).catch(
-        () => false,
+      const outcome = await withTimeout(tryRefreshSupabaseSession(), AUTH_CALL_TIMEOUT_MS).catch(
+        (): SessionRefreshOutcome => ({ kind: "transient" }),
       );
-      if (!ok) {
-        return expiresAtMs > Date.now() ? session.access_token : null;
+      if (isSessionRefreshSuccess(outcome)) {
+        const refreshed = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_CALL_TIMEOUT_MS,
+        ).catch(() => null);
+        session = refreshed?.data.session ?? session;
+      } else if (!expiresAtMs || expiresAtMs <= Date.now()) {
+        cachedAccessToken = null;
+        return null;
       }
-      const refreshed = await withTimeout(
-        supabase.auth.getSession(),
-        AUTH_CALL_TIMEOUT_MS,
-      ).catch(() => null);
-      session = refreshed?.data.session ?? session;
     }
-    return session.access_token ?? null;
+    return cacheToken(session);
   } catch {
     return null;
   }

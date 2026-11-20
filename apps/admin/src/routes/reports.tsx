@@ -71,7 +71,7 @@ function ReportsDemoPage() {
         eyebrow="Insights"
         title={M.reports}
         subtitle="Download & export only · Excel, PDF, CSV · no charts or live dashboards"
-      />
+       helpKey="reports" />
       <PageStack>
         <Card className="border-border bg-muted/40 p-4">
           <div className="flex gap-3">
@@ -214,7 +214,7 @@ function ReportsPage() {
           eyebrow="Insights"
           title={M.reports}
           subtitle="Download & export only · CSV · no charts or live dashboards"
-        />
+         helpKey="reports" />
         <ReportsApiCatalogPanel />
       </AppShell>
     );

@@ -129,6 +129,7 @@ describe("loadTeacherPortalApiData — class-teacher-only sections", () => {
   it("includes sections where teacher is class teacher with zero subject assignments", async () => {
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "api");
     vi.doMock("./api", () => ({
+      clearTeacherCatalogCache: vi.fn(),
       fetchMe: vi.fn(async () => ({
         identities: {
           teachers: [{ instituteId: INST, teacherId: TEACHER }],
@@ -162,6 +163,7 @@ describe("loadTeacherPortalApiData — class-teacher-only sections", () => {
   it("matches assigned_section_labels when graph links are missing", async () => {
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "api");
     vi.doMock("./api", () => ({
+      clearTeacherCatalogCache: vi.fn(),
       fetchMe: vi.fn(async () => ({
         identities: {
           teachers: [{ instituteId: INST, teacherId: TEACHER }],
@@ -209,6 +211,7 @@ describe("loadTeacherPortalApiData — class-teacher-only sections", () => {
   it("returns null without inventing demo classes when teacher identity is missing", async () => {
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "api");
     vi.doMock("./api", () => ({
+      clearTeacherCatalogCache: vi.fn(),
       fetchMe: vi.fn(async () => ({
         identities: { teachers: [] },
       })),
@@ -231,6 +234,7 @@ describe("loadTeacherPortalApiData — class-teacher-only sections", () => {
   it("keeps portal/me class-teacher sections when section catalog returns empty", async () => {
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "api");
     vi.doMock("./api", () => ({
+      clearTeacherCatalogCache: vi.fn(),
       fetchMe: vi.fn(async () => ({
         identities: {
           teachers: [{ instituteId: INST, teacherId: TEACHER, status: "active" }],

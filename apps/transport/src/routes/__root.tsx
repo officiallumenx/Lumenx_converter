@@ -21,6 +21,7 @@ import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenReg
 import { PushPermissionRecoveryBanner } from "@lumenx/notifications";
 import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { TransportAlertsSync } from "@/components/app/TransportAlertsSync";
+import { TransportRealtimeSync } from "@/components/app/TransportRealtimeSync";
 import { useSettings } from "@/hooks/use-settings";
 import { applyThemeMode } from "@/lib/transport/settings";
 import appCss from "../styles.css?url";
@@ -169,6 +170,7 @@ function RootComponent() {
               <PushPermissionRecoveryBanner />
             </div>
             <TransportAlertsSync />
+            <TransportRealtimeSync />
             <Outlet />
           </TypographyProvider>
         </OfflineSyncHost>

@@ -11,6 +11,7 @@ import {
   Modal,
   Pill,
   SearchInput,
+  Select,
   TextInput,
   Th,
   Td,
@@ -23,6 +24,11 @@ import {
   type IssuedCertificateRecord,
 } from "@/lib/certificate-numbering-store";
 import type { IssuedCertificateHistoryItem } from "@/lib/certificates";
+import {
+  filterPublishedItems,
+  sortPublishedItems,
+  templateFilterOptions,
+} from "@/lib/docs-certs/published-list";
 
 type HistoryRow = IssuedCertificateRecord | IssuedCertificateHistoryItem;
 
@@ -55,31 +61,14 @@ function fileReference(row: HistoryRow): string {
   return row.fileName || ("bundleFileName" in row ? row.bundleFileName : undefined) || "—";
 }
 
-function matchesQuery(row: HistoryRow, query: string): boolean {
-  if (!query) return true;
-  const hay = [
-    row.studentName,
-    row.admissionNumber,
-    row.categoryName,
-    row.templateName,
-    String(row.templateVersion),
-    row.certificateNumber,
-    row.issuedByName,
-    row.fileName,
-    row.status,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return hay.includes(query);
-}
-
 type CertificateHistoryPanelProps = {
   records?: IssuedCertificateHistoryItem[];
   listBlocked?: boolean;
   listHint?: string | null;
   writesEnabled?: boolean;
   onRevokeCertificate?: (id: string, reason: string) => void | Promise<void>;
+  /** Real template records for the Published template filter. */
+  templateOptions?: Array<{ id: string; name: string }>;
 };
 
 export function CertificateHistoryPanel({
@@ -88,9 +77,11 @@ export function CertificateHistoryPanel({
   listHint = null,
   writesEnabled = false,
   onRevokeCertificate,
+  templateOptions = [],
 }: CertificateHistoryPanelProps) {
   const [rows, setRows] = useState<HistoryRow[]>(() => records ?? listIssuedCertificates());
   const [query, setQuery] = useState("");
+  const [templateId, setTemplateId] = useState("");
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("Issued in error");
 
@@ -104,12 +95,28 @@ export function CertificateHistoryPanel({
     return subscribeCertificateNumbering(refresh);
   }, [records]);
 
+  const filterTemplates = useMemo(
+    () => templateFilterOptions(templateOptions),
+    [templateOptions],
+  );
+
   // Must stay above any listBlocked early return — flipping listBlocked must not
   // change the hook call count (React hooks-order crash).
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((row) => matchesQuery(row, q));
-  }, [rows, query]);
+    const mapped = rows.map((row) => ({
+      id: row.id,
+      studentName: row.studentName,
+      classSection: row.admissionNumber,
+      templateId: row.templateId ?? null,
+      templateName: row.templateName,
+      documentNumber: row.certificateNumber,
+      publishedAt: row.issuedAt,
+      status: row.status,
+      raw: row,
+    }));
+    const filtered = filterPublishedItems(mapped, { query, templateId });
+    return sortPublishedItems(filtered, "published_desc").map((item) => item.raw);
+  }, [rows, query, templateId]);
 
   if (listBlocked) {
     return (
@@ -124,20 +131,50 @@ export function CertificateHistoryPanel({
     );
   }
 
+  const activeTemplateName =
+    filterTemplates.find((t) => t.id === templateId)?.name ?? null;
+
   return (
     <Card>
       <CardHeader
-        title="Issued history"
-        hint="Permanent records · original template version is kept when a newer version is published"
+        title="Published certificates"
+        hint="Newest first · filter by template · revoke when permitted"
         action={
-          <SearchInput
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search student, number, template…"
-            className="w-full sm:w-64"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search student, number, template…"
+              className="w-full sm:w-64"
+            />
+            {filterTemplates.length > 0 ? (
+              <Select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                aria-label="Filter by template"
+              >
+                <option value="">All templates</option>
+                {filterTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            {templateId ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setTemplateId("")}>
+                Clear filter
+              </Button>
+            ) : null}
+          </div>
         }
       />
+      {activeTemplateName ? (
+        <p className="px-5 pb-2 text-xs text-muted-foreground">
+          Showing template:{" "}
+          <span className="font-medium text-foreground">{activeTemplateName}</span>
+        </p>
+      ) : null}
       {visible.length === 0 ? (
         <CardBody>
           <EmptyState

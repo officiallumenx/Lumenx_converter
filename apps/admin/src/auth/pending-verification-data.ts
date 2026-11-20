@@ -54,7 +54,8 @@ function loadingApplicationStatus(): DemoApplicationStatus {
     registrationDate: new Date().toISOString(),
     overallStatus: "under_review",
     overallLabel: "Institute Registration Under Review",
-    estimatedReviewDays: "1–2 business days",
+    // Never invent SLA / turnaround — Nexus does not publish one on the DTO.
+    estimatedReviewDays: "—",
     timeline: [],
     lastCheckedAt: null,
     application: null,
@@ -273,7 +274,7 @@ function getApplicationStatusFromApiRegistration(
     registrationDate: submittedAt,
     overallStatus: "under_review",
     overallLabel: "Institute Registration Under Review",
-    estimatedReviewDays: "1–2 business days",
+    estimatedReviewDays: "—",
     timeline: buildTimelineFromApiRegistration(registration),
     lastCheckedAt: null,
     application: null,
@@ -293,7 +294,16 @@ function getApiApplicationStatus(): DemoApplicationStatus {
   }
 
   if (snapshot) {
-    return getApplicationStatusFromApiRegistration(snapshot);
+    const fromServer = getApplicationStatusFromApiRegistration(snapshot);
+    // Failed refresh must surface Retry — never treat a failed fetch as a decision.
+    if (syncError) {
+      return {
+        ...fromServer,
+        loadState: "error",
+        errorMessage: syncError,
+      };
+    }
+    return fromServer;
   }
 
   return errorApplicationStatus("Registration not found for this account.");
@@ -360,7 +370,7 @@ export function getApplicationStatusForEmail(
     registrationDate: submittedAt,
     overallStatus: "under_review",
     overallLabel: "Institute Under Review",
-    estimatedReviewDays: "1–2 business days",
+    estimatedReviewDays: "—",
     timeline: buildTimeline(application, submittedAt),
     lastCheckedAt: null,
     application,

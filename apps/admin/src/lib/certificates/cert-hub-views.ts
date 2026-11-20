@@ -1,23 +1,22 @@
 /**
  * Certificates hub information architecture (Admin route /templates).
+ * Exactly two primary sections: Templates | Published.
  */
-export const CERT_HUB_VIEWS = [
-  "overview",
-  "templates",
-  "issue",
-  "issued",
-  "verify",
-] as const;
+export const CERT_HUB_VIEWS = ["templates", "published"] as const;
 
 export type CertHubView = (typeof CERT_HUB_VIEWS)[number];
 
 export const CERTIFICATES_VIEW_CONFIG = {
   views: CERT_HUB_VIEWS,
-  defaultView: "overview" as const,
+  defaultView: "templates" as const,
   aliases: {
+    overview: "templates",
     catalog: "templates",
-    history: "issued",
-    generate: "issue",
+    issue: "templates",
+    generate: "templates",
+    issued: "published",
+    history: "published",
+    verify: "published",
   } satisfies Partial<Record<string, CertHubView>>,
 };
 
@@ -25,27 +24,19 @@ export const CERT_HUB_PRIMARY_NAV: {
   view: CertHubView;
   label: string;
   short: string;
-  highlight?: boolean;
 }[] = [
-  { view: "overview", label: "Overview", short: "Home" },
   { view: "templates", label: "Templates", short: "Templates" },
-  { view: "issue", label: "Generate & issue", short: "Issue", highlight: true },
-  { view: "issued", label: "Issued", short: "Issued" },
-  { view: "verify", label: "Verify", short: "Verify" },
+  { view: "published", label: "Published", short: "Published" },
 ];
 
 export const CERT_VIEW_TITLES: Record<CertHubView, string> = {
-  overview: "Certificates",
   templates: "Certificate templates",
-  issue: "Generate & issue",
-  issued: "Issued certificates",
-  verify: "Verify a certificate",
+  published: "Published certificates",
 };
 
 export const CERT_VIEW_SUBTITLES: Record<CertHubView, string> = {
-  overview: "Issue academic certificates, review pending work, and retrieve issued records",
-  templates: "Active certificate templates for this institute",
-  issue: "Select a student and template, preview, then issue with an official number",
-  issued: "Search and manage issued certificate records · download or revoke when permitted",
-  verify: "Public verification uses the Connect verify page · does not expose the PDF",
+  templates:
+    "Select a template, choose students, generate, preview, then publish",
+  published:
+    "Search, review, and manage issued certificates · verify via Connect when needed",
 };

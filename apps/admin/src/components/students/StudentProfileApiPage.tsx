@@ -119,7 +119,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   const guardiansQuery = useStudentGuardiansQuery(
     instituteCtx.activeInstituteId,
     studentId,
-    detailEnabled && detailQuery.data?.status === "ready",
+    detailEnabled,
   );
 
   const student = detailQuery.data?.student ?? null;
@@ -304,7 +304,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
         eyebrow="People"
         title={displayStudent?.name ?? "Student profile"}
         subtitle="Student directory record"
-      />
+       helpKey="students" />
       <PageStack>
         {saveError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">

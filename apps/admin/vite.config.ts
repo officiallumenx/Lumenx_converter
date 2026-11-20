@@ -45,6 +45,8 @@ function adminLumenxUiChartStubResolve(): Plugin {
 }
 
 const createConfig = defineConfig({
+  // Force Nitro cloudflare-module output so Workers Builds can upload dist/server.
+  nitro: true,
   tanstackStart: {
     server: { entry: "server" },
   },
@@ -65,6 +67,20 @@ export default async (env: ConfigEnv): Promise<UserConfig> => {
   // Dev-only: keep production builds on the real chart module (already tree-shaken
   // out of the Admin Home entry). Do not alias the `recharts` package itself.
   if (env.command === "serve") {
+    // Optional same-origin proxy so local Admin can call production API without CORS.
+    // Enable with: VITE_API_BASE_URL=http://127.0.0.1:8080 VITE_DEV_API_PROXY=https://api.lumenxtech.in
+    const proxyTarget = process.env.VITE_DEV_API_PROXY?.trim();
+    if (proxyTarget) {
+      config.server ??= {};
+      config.server.proxy = {
+        ...(config.server.proxy ?? {}),
+        "/api": {
+          target: proxyTarget.replace(/\/+$/, ""),
+          changeOrigin: true,
+          secure: true,
+        },
+      };
+    }
     const chartStubAlias = {
       find: lumenxUiChartPathRe,
       replacement: lumenxUiChartStub,

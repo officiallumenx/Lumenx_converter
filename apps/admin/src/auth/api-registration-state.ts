@@ -20,6 +20,9 @@ let snapshot: InstituteRegistrationDto | null | undefined = undefined;
 let syncError: string | null = null;
 let loaded = false;
 let syncing = false;
+/** Deduplicate concurrent GET /registrations/me (Check Status + poll + entry refresh). */
+let syncInFlight: Promise<InstituteRegistrationDto | null> | null = null;
+let syncInFlightUserId: string | null = null;
 
 const EMPTY_VIEW: ApiRegistrationView = {
   boundUserId: null,
@@ -96,6 +99,8 @@ export function clearApiRegistrationSnapshot(): void {
   syncError = null;
   loaded = false;
   syncing = false;
+  syncInFlight = null;
+  syncInFlightUserId = null;
   cachedView = EMPTY_VIEW;
   emit();
 }
@@ -108,6 +113,8 @@ export function bindApiRegistrationUser(userId: string | null): void {
   syncError = null;
   loaded = false;
   syncing = false;
+  syncInFlight = null;
+  syncInFlightUserId = null;
   emit();
 }
 
@@ -125,38 +132,59 @@ export async function syncApiRegistrationFromBackend(): Promise<
     throw new Error("Registration sync requires a bound user id.");
   }
 
+  if (syncInFlight && syncInFlightUserId === boundUserId) {
+    return syncInFlight;
+  }
+
+  const requestedUserId = boundUserId;
   syncing = true;
   syncError = null;
   emit();
 
-  try {
-    const registration = await fetchOwnRegistration();
-    if (registration.applicantUserId !== boundUserId) {
-      snapshot = null;
+  syncInFlightUserId = requestedUserId;
+  syncInFlight = (async () => {
+    try {
+      const registration = await fetchOwnRegistration();
+      if (boundUserId !== requestedUserId) {
+        return null;
+      }
+      if (registration.applicantUserId !== boundUserId) {
+        snapshot = null;
+        loaded = true;
+        syncing = false;
+        emit();
+        return null;
+      }
+      snapshot = registration;
       loaded = true;
       syncing = false;
       emit();
-      return null;
-    }
-    snapshot = registration;
-    loaded = true;
-    syncing = false;
-    emit();
-    return registration;
-  } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) {
-      snapshot = null;
+      return registration;
+    } catch (err) {
+      if (boundUserId !== requestedUserId) {
+        throw err;
+      }
+      if (err instanceof ApiClientError && err.status === 404) {
+        snapshot = null;
+        loaded = true;
+        syncing = false;
+        emit();
+        return null;
+      }
+      syncError = toSyncError(err);
       loaded = true;
       syncing = false;
       emit();
-      return null;
+      throw err;
+    } finally {
+      if (syncInFlightUserId === requestedUserId) {
+        syncInFlight = null;
+        syncInFlightUserId = null;
+      }
     }
-    syncError = toSyncError(err);
-    loaded = true;
-    syncing = false;
-    emit();
-    throw err;
-  }
+  })();
+
+  return syncInFlight;
 }
 
 /** Drop cached registration so the next sync hits the backend. */

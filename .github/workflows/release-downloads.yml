@@ -1,0 +1,141 @@
+name: Release downloads
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "downloads-v*"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: release-downloads-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  website-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck -w @lumenx/app-website
+
+  windows-electron:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build Admin desktop installer
+        run: npm run dist -w @lumenx/app-admin-desktop
+        env:
+          LUMENX_ADMIN_ORIGIN: https://admin.lumenxtech.in
+      - name: Build Nexus desktop installer
+        run: npm run dist -w @lumenx/app-nexus-desktop
+        env:
+          LUMENX_NEXUS_ORIGIN: https://nexus.lumenxtech.in
+      - name: Collect Windows installers
+        run: node scripts/collect-windows-installers.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: dist/releases/windows/*
+          if-no-files-found: warn
+
+  android-apks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Note signing requirement
+        run: |
+          echo "Release APK signing requires keystore.properties + google-services.json (or CI secrets)."
+          echo "This job uploads whatever assembleRelease produces when present."
+      - name: Capacitor web builds (best effort)
+        continue-on-error: true
+        run: |
+          for app in admin connect transport careers nexus admissions; do
+            npm run build:capacitor -w @lumenx/app-$app || true
+            (cd apps/$app && npx cap sync android) || true
+            (cd apps/$app/android && chmod +x gradlew && ./gradlew assembleRelease) || true
+          done
+      - name: Collect APKs
+        run: node scripts/collect-android-apks.mjs
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: dist/releases/android/*
+          if-no-files-found: warn
+
+  checksums:
+    needs: [windows-electron, android-apks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble releases folder + SHA-256
+        run: |
+          mkdir -p dist/releases/android dist/releases/windows
+          cp -n artifacts/android-apks/* dist/releases/android/ 2>/dev/null || true
+          cp -n artifacts/windows-installers/* dist/releases/windows/ 2>/dev/null || true
+          find dist/releases -type f -print0 | sort -z | xargs -0 sha256sum > dist/releases/SHA256SUMS.txt || true
+          cat dist/releases/SHA256SUMS.txt || echo "No release files yet"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-checksums
+          path: dist/releases/SHA256SUMS.txt
+          if-no-files-found: warn
+
+  publish-r2:
+    needs: [checksums]
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/downloads-v')
+    runs-on: ubuntu-latest
+    environment: production-downloads
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist/releases/android dist/releases/windows
+          cp -n artifacts/android-apks/* dist/releases/android/ 2>/dev/null || true
+          cp -n artifacts/windows-installers/* dist/releases/windows/ 2>/dev/null || true
+          ls -laR dist/releases || true
+      - name: Publish to R2 (requires CLOUDFLARE_API_TOKEN + bucket)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LUMENX_DOWNLOADS_BUCKET: lumenx-downloads
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN missing — skip R2 publish (artifacts remain on Actions)."
+            exit 0
+          fi
+          node scripts/publish-downloads.mjs

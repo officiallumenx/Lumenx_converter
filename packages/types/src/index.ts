@@ -181,7 +181,13 @@ export interface SchoolAlert {
   relatedLeaveId?: string;
 }
 
-export type LeaveStatus = "pending" | "approved" | "rejected" | "ignored";
+/** Aligned with leave_request.status CHECK + backend LeaveStatus (incl. cancelled). */
+export type LeaveStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "ignored"
+  | "cancelled";
 
 export interface LeaveRequest {
   id: string;

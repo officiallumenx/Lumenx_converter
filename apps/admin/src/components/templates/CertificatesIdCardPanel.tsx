@@ -36,7 +36,7 @@ export function CertificatesIdCardPanel({ apiMode }: { apiMode: boolean }) {
               <CreditCard className="size-3.5" /> Student profiles
             </Button>
           </Link>
-          <Link to="/documents" search={{ view: "official" }}>
+          <Link to="/documents" search={{ view: "templates" }}>
             <Button type="button" variant="outline" size="sm">
               Document generator
             </Button>

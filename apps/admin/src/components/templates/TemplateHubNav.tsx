@@ -4,21 +4,11 @@ import {
   CERT_HUB_PRIMARY_NAV,
   type CertHubView,
 } from "@/lib/certificates/cert-hub-views";
-import {
-  Award,
-  FileCheck2,
-  LayoutDashboard,
-  LayoutTemplate,
-  ShieldCheck,
-  Wand2,
-} from "lucide-react";
+import { Award, FileCheck2, LayoutTemplate } from "lucide-react";
 
-const ICONS: Record<CertHubView, typeof LayoutDashboard> = {
-  overview: LayoutDashboard,
+const ICONS: Record<CertHubView, typeof LayoutTemplate> = {
   templates: LayoutTemplate,
-  issue: Wand2,
-  issued: FileCheck2,
-  verify: ShieldCheck,
+  published: FileCheck2,
 };
 
 /** @deprecated Use CertHubNav instead. Kept for backward compatibility. */
@@ -54,8 +44,8 @@ export function TemplateHubNav({
                 variant={isActive ? "brand" : "soft"}
                 active={isActive}
               />
-              <span className="hidden sm:inline">{label}</span>
-              <span className="sm:hidden">{short}</span>
+              <span className="hidden lg:inline">{label}</span>
+              <span className="lg:hidden text-[10px]">{short}</span>
             </Link>
           );
         })}

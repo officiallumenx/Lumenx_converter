@@ -53,7 +53,8 @@ export type CreateGeneratedDocumentInput = {
   teacherId?: string | null;
   recipientName: string;
   recipientRef?: string | null;
-  certificateNumber?: string | null;
+  /** Draft idempotency key for a generation batch item. */
+  generationKey?: string | null;
   payload?: unknown;
 };
 
@@ -191,7 +192,7 @@ export async function createGeneratedDocument(
     teacher_id: input.teacherId,
     recipient_name: input.recipientName.trim(),
     recipient_ref: input.recipientRef,
-    certificate_number: input.certificateNumber,
+    generation_key: input.generationKey,
     payload: input.payload,
   });
 }
@@ -211,6 +212,31 @@ export async function transitionGeneratedDocument(
       workflow_state: input.workflowState,
       rejection_reason: input.rejectionReason,
     },
+  );
+}
+
+export type RepublishGeneratedDocumentInput = {
+  title?: string;
+  payload?: unknown;
+  notify?: boolean;
+};
+
+export async function republishGeneratedDocument(
+  generatedId: string,
+  input: RepublishGeneratedDocumentInput = {},
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<GeneratedDocumentDto> {
+  assertApiMode();
+  if (!isInstituteUuid(generatedId)) {
+    throw new Error("generated_document_id must be a valid UUID");
+  }
+  const body: Record<string, unknown> = {};
+  if (input.title !== undefined) body.title = input.title.trim();
+  if (input.payload !== undefined) body.payload = input.payload;
+  if (input.notify !== undefined) body.notify = input.notify;
+  return client.post<GeneratedDocumentDto>(
+    `/api/v1/documents/generated/${generatedId.trim()}/republish`,
+    body,
   );
 }
 

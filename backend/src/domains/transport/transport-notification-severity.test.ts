@@ -40,8 +40,8 @@ describe("transport notification severity", () => {
     expect(transportDedupe.dropped("t1", "stu")).toBe(
       "transport:t1:student:stu:dropped",
     );
-    expect(transportDedupe.approach("t1", "stu", 5)).toBe(
-      "transport:t1:student:stu:approach:5",
+    expect(transportDedupe.approach("t1", "stop1", 5)).toBe(
+      "transport:t1:stop:stop1:approach:5",
     );
     expect(transportDedupe.schoolArrived("t1", "parent")).toBe(
       "transport:t1:school_arrived:parent",

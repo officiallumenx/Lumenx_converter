@@ -126,6 +126,9 @@ export type GeneratedDocument = {
   kind: TemplateKind;
   recipientName: string;
   recipientRef: string;
+  /** From generation payload when present (API mode). */
+  classLabel?: string | null;
+  sectionLabel?: string | null;
   generatedAt: string;
   generatedBy: string;
   batchId?: string;

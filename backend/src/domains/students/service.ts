@@ -34,6 +34,7 @@ import {
 } from "../parents/service.js";
 import {
   findParentById,
+  findParentsByIds,
   findParentByPhoneInInstitute,
   listLinksForStudent,
   updateParentFields,
@@ -383,10 +384,10 @@ export async function updateStudentForActor(
     fieldPatch.status !== undefined &&
     fieldPatch.status !== existing.status
   ) {
-    await syncSubscriptionActiveStudentCountSafe(
+    void syncSubscriptionActiveStudentCountSafe(
       admin,
       existing.institute_id,
-    );
+    ).catch(() => {});
   }
 
   return toStudentDto(updated);
@@ -422,7 +423,7 @@ export async function deleteStudentForActor(
     subtitle: existing.admission_number,
   });
 
-  await syncSubscriptionActiveStudentCountSafe(admin, existing.institute_id);
+  void syncSubscriptionActiveStudentCountSafe(admin, existing.institute_id).catch(() => {});
 }
 
 export async function getStudentGuardiansForActor(
@@ -436,10 +437,15 @@ export async function getStudentGuardiansForActor(
   await assertCanReadStudent(admin, actor, row);
 
   const links = await listLinksForStudent(admin, studentId, row.institute_id);
-  const guardians: StudentGuardianDto[] = [];
+  if (links.length === 0) return [];
 
+  const parentIds = [...new Set(links.map((l) => l.parent_id).filter(Boolean))];
+  const parents = await findParentsByIds(admin, parentIds);
+  const parentById = new Map(parents.map((p) => [p.id, p]));
+
+  const guardians: StudentGuardianDto[] = [];
   for (const link of links) {
-    const parent = await findParentById(admin, link.parent_id);
+    const parent = parentById.get(link.parent_id);
     if (!parent || parent.deleted_at) continue;
     guardians.push({
       linkId: link.id,

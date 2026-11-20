@@ -518,7 +518,7 @@ function SettingsPage() {
         eyebrow="Settings"
         title={M.settings}
         subtitle="School-wide profile, platform, and support"
-      />
+       helpKey="settings" />
       <PageStack>
         <SettingsTabRow tabs={TABS} active={tab} onChange={setTab} />
 

@@ -36,6 +36,7 @@ export {
   buildLiveTrackingFromApi,
   loadLearnerTransportLive,
   mapLearnerSummaryToAssignment,
+  reconcileLearnerLiveDto,
   subscribeLearnerLiveTrip,
   summaryStopsToTimeline,
 } from "./learner-live";
@@ -45,3 +46,11 @@ export {
   type ParentTransportStatus,
 } from "./parent-status";
 export { maybePlayArrivalChime } from "./arrival-chime";
+export {
+  DEFAULT_TRANSPORT_TIMEZONE,
+  resolveTransportTimeZone,
+  formatExpectedPickupLabel,
+  formatTransportDate,
+  formatTransportDateTime,
+  formatTransportInstant,
+} from "./format-time";

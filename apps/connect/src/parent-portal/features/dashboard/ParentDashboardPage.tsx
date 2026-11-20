@@ -287,8 +287,8 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
     );
   }
 
-  // First load only — keep home visible while soft-refresh refetches the same child.
-  if (portal.isLoading && !snap) {
+  // Linked child identity is enough for the Home hero; do not block greeting on snapshot.
+  if (!child) {
     return (
       <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
         <ChildSwitcher />
@@ -301,18 +301,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
     );
   }
 
-  if (!child || !snap || !attendanceToday || !attendanceHistory) {
-    return (
-      <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
-        <ChildSwitcher />
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-32 w-full rounded-2xl" />
-          <Skeleton className="h-24 w-full rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
+  const shellOnly = !snap || !attendanceToday || !attendanceHistory;
 
   return (
     <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
@@ -350,28 +339,30 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
             <p className="mt-0.5 text-xs text-white/75 sm:text-sm">
               {child.className} · Section {child.section} · Roll {child.rollNo}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge
-                variant="outline"
-                className="border-white/25 bg-white/15 text-white backdrop-blur-sm"
-              >
-                Attendance {attendanceHistory.summary.attendancePct}%
-              </Badge>
-              <Badge
-                variant="outline"
-                className="border-white/25 bg-white/15 text-white backdrop-blur-sm"
-              >
-                {todayWorkCount} due today
-              </Badge>
-              {unreadNotifications > 0 ? (
+            {!shellOnly && attendanceHistory ? (
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Badge
                   variant="outline"
-                  className="border-white/30 bg-white/20 text-white backdrop-blur-sm"
+                  className="border-white/25 bg-white/15 text-white backdrop-blur-sm"
                 >
-                  {unreadNotifications} unread
+                  Attendance {attendanceHistory.summary.attendancePct}%
                 </Badge>
-              ) : null}
-            </div>
+                <Badge
+                  variant="outline"
+                  className="border-white/25 bg-white/15 text-white backdrop-blur-sm"
+                >
+                  {todayWorkCount} due today
+                </Badge>
+                {unreadNotifications > 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-white/30 bg-white/20 text-white backdrop-blur-sm"
+                  >
+                    {unreadNotifications} unread
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="flex w-full min-w-0 shrink-0 gap-2 sm:w-auto">
             <Link to="/messages" className="min-w-0 flex-1 sm:flex-none">
@@ -386,6 +377,15 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         </div>
       </div>
 
+      {shellOnly ? (
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      ) : null}
+
+      {!shellOnly && attendanceToday && attendanceHistory ? (
       <div className="min-w-0 space-y-4 md:space-y-6">
         {PARENT_HOME_WIDGETS.map(({ id }) => {
           const node = (() => {
@@ -761,6 +761,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
           return node ? <div key={id}>{node}</div> : null;
         })}
         </div>
+      ) : null}
     </div>
   );
 });

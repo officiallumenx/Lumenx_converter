@@ -1,0 +1,26 @@
+---
+import ContentPage from "../components/ContentPage.astro";
+import Layout from "../layouts/Layout.astro";
+import LegalDocument from "../components/LegalDocument.astro";
+import { PLATFORM_TERMS } from "../data/legal.js";
+---
+
+<Layout
+  description="LumenX Terms & Conditions for the platform, applications, and this marketing website."
+  title="Terms of Service"
+>
+  <ContentPage title="Terms of Service" description={`Last updated ${PLATFORM_TERMS.lastUpdated}.`} showCta={false}>
+    <LegalDocument
+      title={PLATFORM_TERMS.title}
+      lastUpdated={PLATFORM_TERMS.lastUpdated}
+      intro={PLATFORM_TERMS.intro}
+      websiteNote={PLATFORM_TERMS.websiteNote}
+      sections={PLATFORM_TERMS.sections}
+    />
+    <p class="mx-auto mt-10 max-w-[800px] text-base text-body-color dark:text-dark-6">
+      Related:
+      <a class="text-primary hover:underline" href="/privacy">Privacy Policy</a>,
+      <a class="text-primary hover:underline" href="/cookies">Cookie Policy</a>.
+    </p>
+  </ContentPage>
+</Layout>

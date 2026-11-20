@@ -153,7 +153,9 @@ export function shouldDehydrateAdminQuery(query: {
   // (photoAssetPath alone is enough; signed URLs re-seed after list refetch).
   if (
     key.includes("photos") &&
-    (key.includes("teachers") || key.includes("students"))
+    (key.includes("teachers") ||
+      key.includes("students") ||
+      key.includes("drivers"))
   ) {
     return false;
   }

@@ -22,6 +22,8 @@ export type FcmWorkerResult = {
   failed: number;
   skipped: number;
   retried: number;
+  /** Pending rows considered this tick (0 ⇒ queue idle for adaptive backoff). */
+  pendingFound: number;
 };
 
 const DEFAULT_BATCH = 50;
@@ -120,6 +122,7 @@ export async function processPendingFcmDeliveries(
     failed: 0,
     skipped: 0,
     retried: 0,
+    pendingFound: 0,
   };
   if (!messaging) return result;
 
@@ -129,6 +132,7 @@ export async function processPendingFcmDeliveries(
     admin,
     options?.limit ?? DEFAULT_BATCH,
   );
+  result.pendingFound = pending.length;
   if (pending.length === 0) return result;
 
   const notificationCache = new Map<

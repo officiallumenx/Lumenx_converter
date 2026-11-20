@@ -13,7 +13,10 @@ import {
 
 import { apiSignOut } from "@/auth/api-auth";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { getConnectApiClient } from "@/lib/connect-api";
+import {
+  bumpConnectAuthSessionGeneration,
+  getConnectApiClient,
+} from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
 import type { AdmissionsUser } from "@/lib/admissions/types";
 import {
@@ -160,12 +163,27 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       })
       .finally(() => setHydrated(true));
-    return listenForAdminSyncRequests(() => getAllApplications());
+
+    const onConnectAuthCleared = () => {
+      setUser(null);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("lumenx:connect-auth-cleared", onConnectAuthCleared);
+    }
+
+    const stopAdminSync = listenForAdminSyncRequests(() => getAllApplications());
+    return () => {
+      stopAdminSync();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("lumenx:connect-auth-cleared", onConnectAuthCleared);
+      }
+    };
   }, []);
 
   const signUp = useCallback(async (input: SignUpInput) => {
     requireApiMode();
     const next = await apiSignUp(input);
+    bumpConnectAuthSessionGeneration();
     setUser(next);
     return next;
   }, []);
@@ -178,6 +196,7 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
     ) => {
       requireApiMode();
       const next = await apiSignIn(identifier, password, expectedAccountType);
+      bumpConnectAuthSessionGeneration();
       setUser(next);
       return next;
     },
@@ -190,6 +209,7 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    bumpConnectAuthSessionGeneration();
     signOutUser();
     setUser(null);
     await apiSignOut().catch(() => undefined);

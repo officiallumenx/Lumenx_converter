@@ -79,6 +79,24 @@ export async function findActiveTripForVehicle(
   return (result.data as TransportTripRow | null) ?? null;
 }
 
+export async function findActiveTripForRoute(
+  admin: SupabaseClient,
+  routeId: string,
+): Promise<TransportTripRow | null> {
+  const result = await admin
+    .from("transport_trip")
+    .select(TRIP_COLS)
+    .eq("route_id", routeId)
+    .eq("finalized", false)
+    .neq("phase", "completed")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TransportTripRow | null) ?? null;
+}
+
 /** Completed trip for vehicle + date + slot (Pickup before Drop enforcement). */
 export async function findCompletedTripForVehicleSlotDate(
   admin: SupabaseClient,
@@ -135,7 +153,7 @@ export async function insertTrip(
       driver_id: input.driverId,
       slot: input.slot ?? "morning",
       trip_date: input.tripDate ?? new Date().toISOString().slice(0, 10),
-      phase: "starting",
+      phase: input.phase ?? "starting",
       started_at: new Date().toISOString(),
       finalized: false,
       current_stop_index: 0,
@@ -246,47 +264,57 @@ export async function findBoardingEvent(
   return (result.data as TransportBoardingEventRow | null) ?? null;
 }
 
+type UpsertBoardingEventInput = {
+  instituteId: string;
+  tripId: string;
+  studentId: string;
+  stopId: string;
+  boardingStatus?: BoardingStatus;
+  droppingStatus?: DroppingStatus;
+  boardedAt?: string | null;
+  droppedAt?: string | null;
+  finalized?: boolean;
+  boardingClientEventId?: string | null;
+  droppingClientEventId?: string | null;
+};
+
+async function updateExistingBoardingEvent(
+  admin: SupabaseClient,
+  existingId: string,
+  input: UpsertBoardingEventInput,
+): Promise<TransportBoardingEventRow> {
+  const patch: Record<string, unknown> = { stop_id: input.stopId };
+  if (input.boardingStatus !== undefined) {
+    patch.boarding_status = input.boardingStatus;
+    patch.boarded_at = input.boardedAt ?? null;
+  }
+  if (input.droppingStatus !== undefined) {
+    patch.dropping_status = input.droppingStatus;
+    patch.dropped_at = input.droppedAt ?? null;
+  }
+  if (input.finalized !== undefined) patch.finalized = input.finalized;
+  if (input.boardingClientEventId !== undefined) {
+    patch.boarding_client_event_id = input.boardingClientEventId;
+  }
+  if (input.droppingClientEventId !== undefined) {
+    patch.dropping_client_event_id = input.droppingClientEventId;
+  }
+  const result = await admin
+    .from("transport_boarding_event")
+    .update(patch)
+    .eq("id", existingId)
+    .select(BOARDING_COLS)
+    .single();
+  return ensureDbOk(result) as TransportBoardingEventRow;
+}
+
 export async function upsertBoardingEvent(
   admin: SupabaseClient,
-  input: {
-    instituteId: string;
-    tripId: string;
-    studentId: string;
-    stopId: string;
-    boardingStatus?: BoardingStatus;
-    droppingStatus?: DroppingStatus;
-    boardedAt?: string | null;
-    droppedAt?: string | null;
-    finalized?: boolean;
-    boardingClientEventId?: string | null;
-    droppingClientEventId?: string | null;
-  },
+  input: UpsertBoardingEventInput,
 ): Promise<TransportBoardingEventRow> {
   const existing = await findBoardingEvent(admin, input.tripId, input.studentId);
   if (existing) {
-    const patch: Record<string, unknown> = { stop_id: input.stopId };
-    if (input.boardingStatus !== undefined) {
-      patch.boarding_status = input.boardingStatus;
-      patch.boarded_at = input.boardedAt ?? null;
-    }
-    if (input.droppingStatus !== undefined) {
-      patch.dropping_status = input.droppingStatus;
-      patch.dropped_at = input.droppedAt ?? null;
-    }
-    if (input.finalized !== undefined) patch.finalized = input.finalized;
-    if (input.boardingClientEventId !== undefined) {
-      patch.boarding_client_event_id = input.boardingClientEventId;
-    }
-    if (input.droppingClientEventId !== undefined) {
-      patch.dropping_client_event_id = input.droppingClientEventId;
-    }
-    const result = await admin
-      .from("transport_boarding_event")
-      .update(patch)
-      .eq("id", existing.id)
-      .select(BOARDING_COLS)
-      .single();
-    return ensureDbOk(result) as TransportBoardingEventRow;
+    return updateExistingBoardingEvent(admin, existing.id, input);
   }
 
   const result = await admin
@@ -306,6 +334,14 @@ export async function upsertBoardingEvent(
     })
     .select(BOARDING_COLS)
     .single();
+
+  // Recover atomically from concurrent insert race on UNIQUE (trip_id, student_id).
+  if (result.error?.code === "23505") {
+    const raced = await findBoardingEvent(admin, input.tripId, input.studentId);
+    if (raced) {
+      return updateExistingBoardingEvent(admin, raced.id, input);
+    }
+  }
   return ensureDbOk(result) as TransportBoardingEventRow;
 }
 
@@ -590,7 +626,33 @@ export async function findActiveTripForStudent(
   instituteId: string,
   studentId: string,
 ): Promise<TransportTripRow | null> {
-  // Pending enrollments are operationally usable; only rejected stay out of live trip lookup.
+  // 1. Direct check: is student in an active trip participant snapshot?
+  const participantResult = await admin
+    .from("transport_trip_participant")
+    .select("trip_id")
+    .eq("institute_id", instituteId)
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (!participantResult.error && participantResult.data && participantResult.data.length > 0) {
+    const tripIds = [...new Set(participantResult.data.map((r: { trip_id: string }) => r.trip_id))];
+    const tripResult = await admin
+      .from("transport_trip")
+      .select(TRIP_COLS)
+      .eq("institute_id", instituteId)
+      .in("id", tripIds)
+      .eq("finalized", false)
+      .neq("phase", "completed")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!tripResult.error && tripResult.data) {
+      return tripResult.data as TransportTripRow;
+    }
+  }
+
+  // 2. Fallback: resolve student's route from enrollment
   const enrollResult = await admin
     .from("transport_enrollment")
     .select("route_id, approval_status")
@@ -599,6 +661,8 @@ export async function findActiveTripForStudent(
     .eq("status", "active")
     .is("deleted_at", null)
     .in("approval_status", ["pending", "approved"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (enrollResult.error) ensureDbOk(enrollResult);
   const enrollment = enrollResult.data as { route_id: string } | null;

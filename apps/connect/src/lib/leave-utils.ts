@@ -8,6 +8,7 @@ export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
   approved: "Approved",
   rejected: "Rejected",
   ignored: "Ignored",
+  cancelled: "Cancelled",
 };
 
 export const LEAVE_STATUS_TONE: Record<
@@ -18,6 +19,7 @@ export const LEAVE_STATUS_TONE: Record<
   approved: "success",
   rejected: "destructive",
   ignored: "muted",
+  cancelled: "muted",
 };
 
 /** Earliest selectable leave date — at least one calendar day ahead. */

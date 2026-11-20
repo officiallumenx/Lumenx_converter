@@ -4,6 +4,7 @@
  */
 import { loadSession } from "@/auth/auth-store";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { getApiBaseUrl } from "@/lib/admin-api";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { getDemoProfile, readDemoProfileId } from "@lumenx/types";
 import {
@@ -44,7 +45,7 @@ export function getCareersOrigin(): string {
       return `${protocol}//${hostname}:5176`;
     }
   }
-  return "https://careers.lumenx.app";
+  return "https://careers.lumenxtech.in";
 }
 
 export function careersPortalUrl(path: string): string {
@@ -61,7 +62,7 @@ export function getAdmissionsOrigin(): string {
       return `${protocol}//${hostname}:5177`;
     }
   }
-  return "https://admissions.lumenx.app";
+  return "https://admissions.lumenxtech.in";
 }
 
 export function admissionsPortalUrl(path: string): string {
@@ -262,7 +263,7 @@ async function issuePortalHandoff(
   if (!session?.access_token || !session.refresh_token) {
     throw new Error("No active API session");
   }
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const base = getApiBaseUrl();
   const response = await fetch(`${base}/api/v1/auth/handoff/issue`, {
     method: "POST",
     headers: {

@@ -9,7 +9,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { AuthButton } from "@/auth/components/AuthButton";
+import { linkCtaClassName } from "@/auth/create-account-navigation";
 import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { AUTH_CARD_ENTER, AUTH_PAGE_ENTER } from "@/auth/auth-ui";
 
@@ -76,15 +76,18 @@ function WelcomePage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <LumenXAdminLogo size="sm" className="h-8" />
           <nav className="flex shrink-0 items-center gap-2" aria-label="Account">
-            <Link to="/login" className="block">
-              <AuthButton variant="outline" size="sm" fullWidth={false}>
-                Login
-              </AuthButton>
+            {/* Link-styled CTAs — never nest <button> inside <Link> (first-click nav bug). */}
+            <Link
+              to="/login"
+              className={linkCtaClassName({ variant: "outline", size: "sm", fullWidth: false })}
+            >
+              Login
             </Link>
-            <Link to="/signup" className="block">
-              <AuthButton variant="primary" size="sm" fullWidth={false}>
-                Register
-              </AuthButton>
+            <Link
+              to="/signup"
+              className={linkCtaClassName({ variant: "primary", size: "sm", fullWidth: false })}
+            >
+              Register
             </Link>
           </nav>
         </div>
@@ -170,16 +173,18 @@ function WelcomePage() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Link to="/signup" className="block min-w-0 flex-1">
-                  <AuthButton variant="primary" fullWidth>
-                    Register institute
-                    <ArrowRight className="size-4" />
-                  </AuthButton>
+                <Link
+                  to="/signup"
+                  className={`min-w-0 flex-1 ${linkCtaClassName({ variant: "primary" })}`}
+                >
+                  Register institute
+                  <ArrowRight className="size-4" aria-hidden />
                 </Link>
-                <Link to="/login" className="block min-w-0 flex-1">
-                  <AuthButton variant="outline" fullWidth>
-                    Login
-                  </AuthButton>
+                <Link
+                  to="/login"
+                  className={`min-w-0 flex-1 ${linkCtaClassName({ variant: "outline" })}`}
+                >
+                  Login
                 </Link>
               </div>
               <p className="mt-3 text-center text-[11px] text-muted-foreground sm:text-left">

@@ -1,0 +1,308 @@
+---
+import { INSTITUTE_TYPES } from "../utils/enquiry.js";
+
+// Vite only inlines PUBLIC_* when accessed as import.meta.env.PUBLIC_* (no optional chaining).
+const web3Key = String(import.meta.env.PUBLIC_WEB3FORMS_ACCESS_KEY ?? "").trim();
+
+const fieldClass =
+  "w-full rounded-md border border-stroke bg-transparent px-4 py-3 text-base text-dark outline-none transition focus:border-primary dark:border-dark-3 dark:text-white";
+const labelClass = "mb-2 block text-sm font-medium text-dark dark:text-white";
+const errorClass = "mt-1.5 hidden text-sm text-red-500";
+---
+
+<section
+  id="enquiry"
+  class="lx-section relative overflow-hidden bg-[#F4F7FF] dark:bg-dark-2"
+  data-enquiry-root
+  data-enquiry-web3-key={web3Key}
+  aria-labelledby="lx-enquiry-heading"
+>
+  <div class="container">
+    <div class="lx-section-intro mx-auto max-w-[640px] text-center" data-reveal>
+      <span class="lx-section-eyebrow">Talk with us</span>
+      <h2 id="lx-enquiry-heading" class="lx-section-title">
+        Let's build the right solution for your institution.
+      </h2>
+      <p class="lx-section-lead">
+        Ask a question, book a personalized demo, or discuss a custom application for your
+        institution.
+      </p>
+    </div>
+
+    <div
+      class="mx-auto max-w-[860px] rounded-xl border border-stroke bg-white p-5 shadow-1 dark:border-dark-3 dark:bg-dark sm:p-8 lg:p-10"
+      data-reveal
+    >
+      <div
+        class="mb-8 grid gap-3 sm:grid-cols-3"
+        role="tablist"
+        aria-label="Enquiry type"
+      >
+        <button
+          type="button"
+          role="tab"
+          data-enquiry-type-btn="question"
+          aria-selected="true"
+          class="lx-enquiry-tab is-active"
+        >
+          Ask a Question
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-enquiry-type-btn="demo"
+          aria-selected="false"
+          class="lx-enquiry-tab"
+        >
+          Book a Demo
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-enquiry-type-btn="custom_application"
+          aria-selected="false"
+          class="lx-enquiry-tab"
+        >
+          Custom Application
+        </button>
+      </div>
+
+      <!-- Form A: Ask a Question -->
+      <div data-enquiry-panel="question" role="tabpanel">
+        <form data-enquiry-form="question" class="grid gap-5" novalidate>
+          <input
+            type="text"
+            name="companyWebsite"
+            tabindex="-1"
+            autocomplete="off"
+            class="absolute left-[-10000px] h-px w-px overflow-hidden opacity-0"
+            aria-hidden="true"
+          />
+          <div>
+            <label for="q-name" class={labelClass}>Name*</label>
+            <input id="q-name" name="name" type="text" required maxlength="120" autocomplete="name" class={fieldClass} />
+            <p data-field-error="name" class={errorClass}></p>
+          </div>
+          <div>
+            <label for="q-mobile" class={labelClass}>Mobile Number*</label>
+            <input id="q-mobile" name="mobile" type="tel" required maxlength="40" inputmode="tel" autocomplete="tel" class={fieldClass} />
+            <p data-field-error="mobile" class={errorClass}></p>
+          </div>
+          <div>
+            <label for="q-email" class={labelClass}>Email*</label>
+            <input id="q-email" name="email" type="email" required maxlength="254" autocomplete="email" class={fieldClass} />
+            <p data-field-error="email" class={errorClass}></p>
+          </div>
+          <div>
+            <label for="q-description" class={labelClass}>Description*</label>
+            <textarea id="q-description" name="description" rows="4" required maxlength="4000" class={`${fieldClass} resize-y`}></textarea>
+            <p data-field-error="description" class={errorClass}></p>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              data-enquiry-submit
+              class="lx-btn lx-enquiry-submit inline-flex items-center justify-center rounded-md bg-primary px-7 py-3 text-base font-medium text-white transition hover:bg-blue-dark disabled:cursor-not-allowed"
+            >
+              Submit Question
+            </button>
+            <p
+              data-enquiry-form-status
+              class="hidden text-sm font-semibold"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+        </form>
+      </div>
+
+      <!-- Form B: Book a Demo -->
+      <div data-enquiry-panel="demo" role="tabpanel" class="hidden" hidden>
+        <form data-enquiry-form="demo" class="grid gap-5" novalidate>
+          <input
+            type="text"
+            name="companyWebsite"
+            tabindex="-1"
+            autocomplete="off"
+            class="absolute left-[-10000px] h-px w-px overflow-hidden opacity-0"
+            aria-hidden="true"
+          />
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="d-name" class={labelClass}>Name*</label>
+              <input id="d-name" name="name" type="text" required maxlength="120" autocomplete="name" class={fieldClass} />
+              <p data-field-error="name" class={errorClass}></p>
+            </div>
+            <div>
+              <label for="d-institute" class={labelClass}>Institute Name*</label>
+              <input id="d-institute" name="instituteName" type="text" required maxlength="160" autocomplete="organization" class={fieldClass} />
+              <p data-field-error="instituteName" class={errorClass}></p>
+            </div>
+          </div>
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="d-mobile" class={labelClass}>Mobile Number*</label>
+              <input id="d-mobile" name="mobile" type="tel" required maxlength="40" inputmode="tel" autocomplete="tel" class={fieldClass} />
+              <p data-field-error="mobile" class={errorClass}></p>
+            </div>
+            <div>
+              <label for="d-phone" class={labelClass}>Phone Number*</label>
+              <input id="d-phone" name="phone" type="tel" required maxlength="40" inputmode="tel" autocomplete="tel-national" class={fieldClass} />
+              <p data-field-error="phone" class={errorClass}></p>
+            </div>
+          </div>
+          <div>
+            <label for="d-email" class={labelClass}>Email*</label>
+            <input id="d-email" name="email" type="email" required maxlength="254" autocomplete="email" class={fieldClass} />
+            <p data-field-error="email" class={errorClass}></p>
+          </div>
+          <div>
+            <label for="d-description" class={labelClass}>Description*</label>
+            <textarea id="d-description" name="description" rows="4" required maxlength="4000" class={`${fieldClass} resize-y`}></textarea>
+            <p data-field-error="description" class={errorClass}></p>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              data-enquiry-submit
+              class="lx-btn lx-enquiry-submit inline-flex items-center justify-center rounded-md bg-primary px-7 py-3 text-base font-medium text-white transition hover:bg-blue-dark disabled:cursor-not-allowed"
+            >
+              Book Demo
+            </button>
+            <p
+              data-enquiry-form-status
+              class="hidden text-sm font-semibold"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+        </form>
+      </div>
+
+      <!-- Form C: Custom Application -->
+      <div data-enquiry-panel="custom_application" role="tabpanel" class="hidden" hidden>
+        <form data-enquiry-form="custom_application" class="grid gap-5" novalidate>
+          <input
+            type="text"
+            name="companyWebsite"
+            tabindex="-1"
+            autocomplete="off"
+            class="absolute left-[-10000px] h-px w-px overflow-hidden opacity-0"
+            aria-hidden="true"
+          />
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="c-name" class={labelClass}>Name*</label>
+              <input id="c-name" name="name" type="text" required maxlength="120" autocomplete="name" class={fieldClass} />
+              <p data-field-error="name" class={errorClass}></p>
+            </div>
+            <div>
+              <label for="c-institute" class={labelClass}>Institute Name*</label>
+              <input id="c-institute" name="instituteName" type="text" required maxlength="160" autocomplete="organization" class={fieldClass} />
+              <p data-field-error="instituteName" class={errorClass}></p>
+            </div>
+          </div>
+          <div>
+            <label for="c-type" class={labelClass}>Type of Institute*</label>
+            <select id="c-type" name="instituteType" required class={fieldClass}>
+              <option value="">Select type</option>
+              {INSTITUTE_TYPES.map((type) => (
+                <option value={type}>{type}</option>
+              ))}
+            </select>
+            <p data-field-error="instituteType" class={errorClass}></p>
+          </div>
+          <div data-institute-other class="hidden">
+            <label for="c-type-other" class={labelClass}>Describe institute type*</label>
+            <input id="c-type-other" name="instituteTypeOther" type="text" maxlength="160" class={fieldClass} />
+            <p data-field-error="instituteTypeOther" class={errorClass}></p>
+          </div>
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="c-phone" class={labelClass}>Phone Number*</label>
+              <input id="c-phone" name="phone" type="tel" required maxlength="40" inputmode="tel" autocomplete="tel" class={fieldClass} />
+              <p data-field-error="phone" class={errorClass}></p>
+            </div>
+            <div>
+              <label for="c-email" class={labelClass}>Email*</label>
+              <input id="c-email" name="email" type="email" required maxlength="254" autocomplete="email" class={fieldClass} />
+              <p data-field-error="email" class={errorClass}></p>
+            </div>
+          </div>
+          <div>
+            <label for="c-description" class={labelClass}>Description*</label>
+            <textarea id="c-description" name="description" rows="4" required maxlength="4000" class={`${fieldClass} resize-y`}></textarea>
+            <p data-field-error="description" class={errorClass}></p>
+          </div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              data-enquiry-submit
+              class="lx-btn lx-enquiry-submit inline-flex items-center justify-center rounded-md bg-primary px-7 py-3 text-base font-medium text-white transition hover:bg-blue-dark disabled:cursor-not-allowed"
+            >
+              Submit Request
+            </button>
+            <p
+              data-enquiry-form-status
+              class="hidden text-sm font-semibold"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .lx-enquiry-submit.is-sending {
+    background: #4b5563 !important;
+  }
+
+  .lx-enquiry-submit.is-success {
+    background: #059669 !important;
+    box-shadow: 0 8px 18px rgba(5, 150, 105, 0.28);
+  }
+
+  .lx-enquiry-submit.is-error {
+    background: #dc2626 !important;
+  }
+
+  .lx-enquiry-tab {
+    border-radius: 0.65rem;
+    border: 1px solid rgba(55, 88, 249, 0.18);
+    background: #f8faff;
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111928;
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  :global(.dark) .lx-enquiry-tab {
+    background: #1f2a37;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #f3f4f6;
+  }
+
+  .lx-enquiry-tab.is-active {
+    border-color: #3758f9;
+    background: #3758f9;
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(55, 88, 249, 0.22);
+  }
+
+  .lx-enquiry-tab:focus-visible {
+    outline: 2px solid #3758f9;
+    outline-offset: 3px;
+  }
+</style>
+
+<script>
+  import "../scripts/enquiry-forms.js";
+</script>

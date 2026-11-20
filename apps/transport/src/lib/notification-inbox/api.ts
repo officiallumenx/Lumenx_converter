@@ -10,7 +10,13 @@ function apiBaseUrl(): string {
   return getTransportApiBaseUrl();
 }
 
-async function transportInboxFetch<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
+type InboxFetchInit = {
+  method?: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
+async function transportInboxFetch<T>(path: string, init?: InboxFetchInit): Promise<T> {
   if (!isApiAuthMode()) {
     throw new Error("Transport notification inbox requires VITE_TRANSPORT_AUTH_MODE=api");
   }
@@ -20,13 +26,13 @@ async function transportInboxFetch<T>(path: string, init?: RequestInit & { body?
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
+    ...(init?.headers ?? {}),
   };
   if (init?.body !== undefined) headers["Content-Type"] = "application/json";
 
   const response = await fetch(`${apiBaseUrl()}${path}`, {
-    ...init,
     method: init?.method ?? (init?.body !== undefined ? "PATCH" : "GET"),
-    headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
+    headers,
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
 

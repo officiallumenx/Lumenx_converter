@@ -38,7 +38,7 @@ function StudentAttendancePage() {
             ? "Method · owner · notifications"
             : "Mark by class · section · date"
         }
-      />
+       helpKey="student-attendance" />
       <div className="mb-4 max-w-md">
         <SegmentedControl
           value={section}

@@ -192,3 +192,14 @@ export {
   sanitizeAnalyticsParams,
   scrubCrashMessage,
 } from "./firebase/privacy";
+export {
+  asSessionRefreshOutcome,
+  classifySupabaseRefreshFailure,
+  createAuthSessionClock,
+  isRecoverableRefreshFailure,
+  isSessionRefreshSuccess,
+  shouldClearSessionOnRefreshFailure,
+  type AuthSessionClock,
+  type SessionRefreshKind,
+  type SessionRefreshOutcome,
+} from "./session-safety";

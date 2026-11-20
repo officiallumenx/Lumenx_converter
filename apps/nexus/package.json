@@ -5,9 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/prepare-cf-worker-deploy.mjs",
+    "build:capacitor": "node scripts/sync-app-version.mjs && vite build --config vite.config.capacitor.ts --mode capacitor && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy": "wrangler deploy --config dist/server/wrangler.json",
+    "cf:upload": "wrangler versions upload --config dist/server/wrangler.json",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:add:android": "npx cap add android",
+    "android:apk": "cd android && gradlew.bat assembleRelease",
+    "cap:apk": "npm run build:capacitor && npx cap sync android && npm run android:apk",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:billing-calc": "tsx src/lib/billing/billing-calc.selftest.ts",
@@ -21,9 +29,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.7",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.7",
+    "@capacitor/status-bar": "^7.0.6",
     "@cloudflare/vite-plugin": "^1.25.5",
     "@lumenx/config": "*",
     "@lumenx/auth": "*",
+    "@lumenx/capacitor": "*",
     "@lumenx/module-certificates": "*",
     "@lumenx/notifications": "*",
     "@lumenx/ui": "*",
@@ -44,6 +57,7 @@
     "@lumenx/legal": "*"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.7",
     "@lovable.dev/vite-tanstack-config": "^1.7.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
@@ -54,5 +68,6 @@
     "typescript": "^5.8.3",
     "vite": "^7.3.1",
     "vitest": "^3.2.7"
-  }
+  },
+  "version": "1.0.0"
 }

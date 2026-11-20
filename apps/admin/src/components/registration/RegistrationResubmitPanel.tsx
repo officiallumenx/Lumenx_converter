@@ -1,6 +1,12 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { AuthButton } from "@/auth/components/AuthButton";
+import {
+  SIGNUP_CONSENT_CHECKBOX_ID,
+  SIGNUP_CONSENT_REQUIRED_MESSAGE,
+  buildRegistrationLegalConsentAssertion,
+} from "@/auth/signup-legal-consent";
 import { resubmitRegistration } from "@/lib/registrations/api";
 import { syncApiRegistrationFromBackend } from "@/auth/api-registration-state";
 import type { InstituteRegistrationDto } from "@/lib/registrations/types";
@@ -17,6 +23,7 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
   const [city, setCity] = useState(payload.city ?? "");
   const [state, setState] = useState(payload.state ?? "");
   const [address, setAddress] = useState(payload.address ?? "");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -33,6 +40,10 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
       setError("Institute code must be 3–32 characters (letters, numbers, - or _).");
       return;
     }
+    if (!acceptTerms) {
+      setError(SIGNUP_CONSENT_REQUIRED_MESSAGE);
+      return;
+    }
     setLoading(true);
     try {
       await resubmitRegistration({
@@ -46,6 +57,7 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
           state: state.trim() || undefined,
           address: address.trim() || undefined,
         },
+        legalConsent: buildRegistrationLegalConsentAssertion(),
       });
       await syncApiRegistrationFromBackend();
       setSuccess(true);
@@ -149,11 +161,41 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
         />
       </label>
 
+      <label
+        htmlFor={`${SIGNUP_CONSENT_CHECKBOX_ID}-resubmit`}
+        className="flex cursor-pointer items-start gap-2.5"
+      >
+        <input
+          id={`${SIGNUP_CONSENT_CHECKBOX_ID}-resubmit`}
+          type="checkbox"
+          checked={acceptTerms}
+          onChange={(e) => setAcceptTerms(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+        />
+        <span className="text-[11px] leading-relaxed text-muted-foreground">
+          I have read and agree to the{" "}
+          <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            Privacy Policy
+          </Link>{" "}
+          and{" "}
+          <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            Terms of Service
+          </Link>
+          .
+        </span>
+      </label>
+
       {error && (
-        <p className="text-[11px] text-destructive">{error}</p>
+        <p className="text-[11px] text-destructive" role="alert">{error}</p>
       )}
 
-      <AuthButton type="submit" variant="primary" fullWidth loading={loading}>
+      <AuthButton
+        type="submit"
+        variant="primary"
+        fullWidth
+        loading={loading}
+        disabled={!acceptTerms}
+      >
         {loading ? <Loader2 className="size-3.5 animate-spin" /> : null}
         Resubmit application
       </AuthButton>

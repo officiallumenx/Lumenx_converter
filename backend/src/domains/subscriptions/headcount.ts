@@ -16,10 +16,13 @@
  * (and Nexus platform upsert) write active_student_count.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createLogger } from "../../logger/logger.js";
 import {
   findSubscriptionByInstituteId,
   updateSubscriptionFields,
 } from "../nexus/repository.js";
+
+const log = createLogger("error");
 
 const STUDENT_COLS = "id, status, deleted_at";
 
@@ -138,7 +141,11 @@ export async function syncSubscriptionActiveStudentCountSafe(
 ): Promise<void> {
   try {
     await syncSubscriptionActiveStudentCount(admin, instituteId);
-  } catch {
+  } catch (err) {
+    log.error("subscription_headcount_sync_failed", {
+      instituteId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     // Primary academic mutation already succeeded; headcount will self-heal
     // on the next enrollment change or explicit sync.
   }

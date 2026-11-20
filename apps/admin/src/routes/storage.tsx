@@ -198,7 +198,7 @@ function StoragePage() {
 
   return (
     <AppShell title={M.storage} subtitle={storageSubtitle}>
-      <ModuleHero eyebrow="Operations" title={M.storage} subtitle={storageSubtitle} />
+      <ModuleHero eyebrow="Operations" title={M.storage} subtitle={storageSubtitle}  helpKey="storage" />
       <div className="mb-4">
         <OfflineSyncStatusBar />
       </div>

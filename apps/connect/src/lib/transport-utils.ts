@@ -66,7 +66,10 @@ export function formatApproachEta(input: ApproachEtaDisplayInput): string {
       : null;
 
   if (mode === "stale" || freshness === "stale" || freshness === "offline") {
-    if (input.lastUpdated) return `Location is stale · ${input.lastUpdated}`;
+    if (input.lastUpdated) {
+      const cleanAge = input.lastUpdated.replace(/^Location\s+/i, "");
+      return `Location is stale · ${cleanAge}`;
+    }
     return "Location is stale";
   }
 

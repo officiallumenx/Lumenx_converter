@@ -1,7 +1,14 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { APP_NAME } from "@/constants";
-import { BusInformationPage } from "@/features/bus-information";
+import { RouteLazyFallback } from "@/components/app/RouteLazyFallback";
+
+const BusInformationPage = lazy(() =>
+  import("@/features/bus-information").then((m) => ({
+    default: m.BusInformationPage,
+  })),
+);
 
 export const Route = createFileRoute("/_app/more/bus-information")({
   head: () => ({ meta: [{ title: `Bus Information — ${APP_NAME}` }] }),
@@ -9,5 +16,9 @@ export const Route = createFileRoute("/_app/more/bus-information")({
 });
 
 function BusInformationRoute() {
-  return <BusInformationPage />;
+  return (
+    <Suspense fallback={<RouteLazyFallback />}>
+      <BusInformationPage />
+    </Suspense>
+  );
 }

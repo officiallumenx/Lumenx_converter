@@ -35,14 +35,17 @@ vi.mock("./me-bridge", () => ({
 describe("Admissions API auth failures", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("awaits and propagates password-reset failure", async () => {
-    mocks.resetPasswordForEmail.mockResolvedValueOnce({
-      error: new Error("reset unavailable"),
+  it("awaits and propagates password-reset OTP failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: { message: "Unable to send OTP." } }),
     });
-    const { apiRequestPasswordReset } = await import("./api-auth");
-    await expect(apiRequestPasswordReset("parent@example.com")).rejects.toThrow(
-      "reset unavailable",
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiRequestPasswordResetOtp } = await import("./api-auth");
+    await expect(apiRequestPasswordResetOtp("+91 9876543210")).rejects.toThrow(
+      "Unable to send OTP.",
     );
+    vi.unstubAllGlobals();
   });
 
   it("does not report success when async sign-in fails", async () => {

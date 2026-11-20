@@ -250,7 +250,7 @@ function normalizeSnapshot(raw: TransportSnapshot): TransportSnapshot {
     })),
     routes: asList<TransportRoute>(raw.routes).map((r) => normalizeRoute(r)),
     settings: {
-      defaultNotificationRadiusM: raw.settings?.defaultNotificationRadiusM ?? 150,
+      defaultNotificationRadiusM: raw.settings?.defaultNotificationRadiusM ?? 100,
       defaultPickupBufferMins: raw.settings?.defaultPickupBufferMins ?? 5,
       workingDays: Array.isArray(raw.settings?.workingDays)
         ? raw.settings.workingDays
@@ -261,7 +261,7 @@ function normalizeSnapshot(raw: TransportSnapshot): TransportSnapshot {
       schoolLocationLabel: raw.settings?.schoolLocationLabel ?? null,
       schoolLatitude: raw.settings?.schoolLatitude ?? null,
       schoolLongitude: raw.settings?.schoolLongitude ?? null,
-      schoolNotificationRadiusM: raw.settings?.schoolNotificationRadiusM ?? 150,
+      schoolNotificationRadiusM: raw.settings?.schoolNotificationRadiusM ?? 100,
     },
   };
 }
@@ -622,13 +622,13 @@ function seedSnapshot(): TransportSnapshot {
     assignments,
     trips,
     settings: {
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: 100,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: "07:30",
-      schoolNotificationRadiusM: 150,
+      schoolNotificationRadiusM: 100,
     },
   };
 }
@@ -642,13 +642,13 @@ function emptyTransportSnapshot(): TransportSnapshot {
     assignments: [],
     trips: [],
     settings: {
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: 100,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: "07:30",
-      schoolNotificationRadiusM: 150,
+      schoolNotificationRadiusM: 100,
     },
   };
 }

@@ -559,7 +559,7 @@ function ExamsPage() {
           eyebrow="Academics"
           title={selectedTt.examName}
           subtitle={`${examTimetableRange(selectedTt.slots)} · ${selectedTt.slots.length} papers`}
-        />
+         helpKey="exams" />
         {selectedTtOutdated && (
           <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
             This timetable is linked to an outdated exam — view only. You can delete it but not
@@ -724,7 +724,7 @@ function ExamsPage() {
             ? `${countLabel(displayExams.length)} exams`
             : "Exam pipeline, exam timetables, and grading · marks in Marks module"
         }
-      />
+       helpKey="exams" />
       <div className="lx-kpi-grid">
         <Kpi label="Upcoming" value={countLabel(upcoming)} delta="Next 30 days" />
         <Kpi label="Exam timetables" value={countLabel(kpiTimetables.length)} delta={`${countLabel(ttPublished)} published`} />

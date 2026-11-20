@@ -555,3 +555,105 @@ describe("notifications — mark all read and due_at", () => {
     expect(row.notification.priority).toBe("critical");
   });
 });
+
+describe("notifications — institute dedupe idempotency", () => {
+  it("replays an identical dedupe_key without creating a second notification row", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const payload = {
+      institute_id: INST_A,
+      category: "system",
+      title: "Once",
+      body: "Only once",
+      dedupe_key: "exam-published:exam-1",
+      recipient_user_ids: [USER_STUDENT],
+    };
+
+    const first = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify(payload),
+    });
+    expect(first.status).toBe(201);
+    const firstId = (await json(first)).data[0].notification.id as string;
+
+    const second = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify(payload),
+    });
+    expect(second.status).toBe(201);
+    const secondBody = await json(second);
+    expect(secondBody.data[0].notification.id).toBe(firstId);
+    expect(db.notification.filter((n) => n.dedupe_key === "exam-published:exam-1")).toHaveLength(
+      1,
+    );
+    expect(
+      db.notification_recipient.filter((r) => r.notification_id === firstId),
+    ).toHaveLength(1);
+  });
+
+  it("keeps distinct dedupe keys and isolates institutes", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const a1 = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "system",
+        title: "A1",
+        body: "Body A1",
+        dedupe_key: "shared-label",
+        recipient_user_ids: [USER_STUDENT],
+      }),
+    });
+    expect(a1.status).toBe(201);
+
+    const a2 = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "system",
+        title: "A2",
+        body: "Body A2",
+        dedupe_key: "other-label",
+        recipient_user_ids: [USER_STUDENT],
+      }),
+    });
+    expect(a2.status).toBe(201);
+
+    // Same dedupe string is allowed in another institute (index is institute-scoped).
+    db.membership.push({
+      id: "aa555555-5555-4555-8555-555555555555",
+      user_id: USER_ADMIN,
+      institute_id: INST_B,
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership_role.push({
+      membership_id: "aa555555-5555-4555-8555-555555555555",
+      role_code: "institute_admin",
+    });
+
+    const b1 = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_B,
+        category: "system",
+        title: "B1",
+        body: "Body B1",
+        dedupe_key: "shared-label",
+        recipient_user_ids: [USER_OTHER],
+      }),
+    });
+    expect(b1.status).toBe(201);
+
+    expect(db.notification.filter((n) => n.dedupe_key === "shared-label")).toHaveLength(2);
+    expect(db.notification.filter((n) => n.institute_id === INST_A)).toHaveLength(2);
+    expect(db.notification.filter((n) => n.institute_id === INST_B)).toHaveLength(1);
+  });
+});

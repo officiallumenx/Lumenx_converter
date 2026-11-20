@@ -2,85 +2,84 @@ import { useEffect, useRef } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import { alertStore } from "@/lib/alert-store";
-import { loadTeacherLeavePortal } from "@/lib/leave";
 import {
   setConnectApiAlertCounts,
   setConnectTeacherLeaveAlertCount,
 } from "@/lib/use-connect-alert-badge";
 import { dispatchInAppAlert } from "@lumenx/notifications";
+import {
+  useSchoolAlertsQuery,
+  useTeacherLeaveQuery,
+} from "@/lib/connect-queries/hooks";
 
 const POLL_MS = 45_000;
 
-/** Polls school alerts / teacher leave counts so badges and toasts update without navigating. */
+/**
+ * Single shared source for school-alert / teacher-leave badge freshness.
+ * Uses React Query (same keys as Alerts / Leave modules) with a 45s refetch interval
+ * so Home widgets and nav badges do not run competing timers.
+ */
 export function ConnectSchoolAlertsSync(): null {
   const { role, activeInstituteId } = useApp();
   const portal = useTeacherPortal();
   const seenAlertIdsRef = useRef<Set<string> | null>(null);
   const initialLoadDoneRef = useRef(false);
 
+  const isLearner = role === "parent" || role === "student";
+  const isTeacher = role === "teacher" && portal.isTeacher;
+  const teacherId = portal.teacherId ?? portal.profile?.id ?? null;
+
+  const alertsQuery = useSchoolAlertsQuery(activeInstituteId, isLearner && isApiAuthMode(), {
+    refetchInterval: POLL_MS,
+  });
+  const leaveQuery = useTeacherLeaveQuery(
+    activeInstituteId,
+    teacherId,
+    isTeacher && isApiAuthMode(),
+    { refetchInterval: POLL_MS },
+  );
+
   useEffect(() => {
-    if (!isApiAuthMode() || !activeInstituteId) return;
-    if (role !== "parent" && role !== "student" && role !== "teacher") return;
+    if (!isLearner) return;
+    const result = alertsQuery.data;
+    if (!result) return;
+    if (result.status === "error" || result.status === "forbidden") return;
 
-    let cancelled = false;
+    const unack = result.alerts.filter((alert) => !alert.acknowledged).length;
+    const emergency = result.alerts.filter(
+      (alert) => alert.severity === "emergency" && !alert.acknowledged,
+    ).length;
+    setConnectApiAlertCounts({ unack, emergency });
 
-    const pollLearnerAlerts = async () => {
-      const result = await loadPortalSchoolAlerts({ instituteId: activeInstituteId });
-      if (cancelled || result.status === "error" || result.status === "forbidden") return;
+    if (result.status === "ready" || result.status === "empty") {
+      alertStore.replaceFromApi(result.alerts);
+    }
 
-      const unack = result.alerts.filter((alert) => !alert.acknowledged).length;
-      const emergency = result.alerts.filter(
-        (alert) => alert.severity === "emergency" && !alert.acknowledged,
-      ).length;
-      setConnectApiAlertCounts({ unack, emergency });
-
-      if (result.status === "ready" || result.status === "empty") {
-        alertStore.replaceFromApi(result.alerts);
+    const currentIds = new Set(result.alerts.map((alert) => alert.id));
+    if (seenAlertIdsRef.current !== null && initialLoadDoneRef.current) {
+      for (const alert of result.alerts) {
+        if (alert.acknowledged || seenAlertIdsRef.current.has(alert.id)) continue;
+        dispatchInAppAlert({
+          title: alert.title,
+          body: alert.summary || alert.title,
+          href: "/alerts",
+          variant: "alert",
+          severity: alert.severity,
+        });
       }
+    }
+    seenAlertIdsRef.current = currentIds;
+    initialLoadDoneRef.current = true;
+  }, [isLearner, alertsQuery.data]);
 
-      const currentIds = new Set(result.alerts.map((alert) => alert.id));
-      if (seenAlertIdsRef.current !== null && initialLoadDoneRef.current) {
-        for (const alert of result.alerts) {
-          if (alert.acknowledged || seenAlertIdsRef.current.has(alert.id)) continue;
-          dispatchInAppAlert({
-            title: alert.title,
-            body: alert.summary || alert.title,
-            href: "/alerts",
-            variant: "alert",
-            severity: alert.severity,
-          });
-        }
-      }
-      seenAlertIdsRef.current = currentIds;
-      initialLoadDoneRef.current = true;
-    };
-
-    const pollTeacherLeave = async () => {
-      if (!portal.isTeacher) return;
-      const teacherId = portal.teacherId ?? portal.profile?.id ?? null;
-      const result = await loadTeacherLeavePortal({
-        instituteId: activeInstituteId,
-        teacherId,
-      });
-      if (cancelled) return;
-      const pending = result.studentRequests.filter((row) => row.status === "pending").length;
-      setConnectTeacherLeaveAlertCount(pending);
-    };
-
-    const poll = () => {
-      if (role === "parent" || role === "student") void pollLearnerAlerts();
-      if (role === "teacher") void pollTeacherLeave();
-    };
-
-    poll();
-    const timer = window.setInterval(poll, POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [role, activeInstituteId, portal.isTeacher, portal.profile?.id]);
+  useEffect(() => {
+    if (!isTeacher) return;
+    const result = leaveQuery.data;
+    if (!result) return;
+    const pending = result.studentRequests.filter((row) => row.status === "pending").length;
+    setConnectTeacherLeaveAlertCount(pending);
+  }, [isTeacher, leaveQuery.data]);
 
   return null;
 }

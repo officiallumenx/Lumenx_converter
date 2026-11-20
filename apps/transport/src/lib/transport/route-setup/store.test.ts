@@ -168,7 +168,7 @@ describe("route setup API memory store", () => {
     expect(unassigned).toBeTruthy();
     expect(unassigned?.stopId).toBeNull();
     expect(unassigned?.stopName).toBe("Stop not assigned");
-    expect(unassigned?.dropStopName).toBe("Drop stop not assigned");
+    expect(unassigned?.dropStopName).toBe("Stop not assigned");
 
     expect(orphan).toBeTruthy();
     expect(orphan?.stopId).toBeNull();

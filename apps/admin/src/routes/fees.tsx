@@ -490,7 +490,7 @@ function FeesPage() {
 
   return (
     <AppShell title={pageTitle} subtitle={pageSubtitle}>
-      <ModuleHero eyebrow="Services" title={pageTitle} subtitle={pageSubtitle} />
+      <ModuleHero eyebrow="Services" title={pageTitle} subtitle={pageSubtitle}  helpKey="fees" />
       <FeesHubNav active={view} />
       {apiMode && instituteCtx.activeInstituteId ? (
         <div className="mb-4 max-w-sm">

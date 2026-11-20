@@ -1,0 +1,18 @@
+---
+import PricingCalculator from '../components/PricingCalculator.astro';
+import Faq from '../components/Faq.astro';
+import Breadcrumb from '../components/layout/Breadcrumb.astro';
+import Layout from '../layouts/Layout.astro';
+import { PRICING } from '../data/lumenx.js';
+---
+
+<Layout
+  description={`LumenX School ERP pricing calculator: students × custom rate (₹${PRICING.rateMin}+), monthly payable max(₹${PRICING.minimumMonthly.toLocaleString("en-IN")}, subtotal). Bill for 3, 6, or 12 months (annual: pay 10 for 12 months of service).`}
+  title="School ERP Pricing Calculator"
+>
+  <Breadcrumb description="Simple per-student pricing starting at ₹10/student per month, with an ₹8,000/month minimum for smaller campuses and 2 months free on annual plans.">
+    <Fragment slot="title">Pricing</Fragment>
+  </Breadcrumb>
+  <PricingCalculator />
+  <Faq />
+</Layout>

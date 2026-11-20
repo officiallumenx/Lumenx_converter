@@ -28,14 +28,20 @@ import {
   insertVehicle,
   listDrivers,
   listEnrollments,
+  listEnrollmentsForRoute,
   listRoutes,
   listStopsForRoute,
+  listStopsForInstitute,
   listVehicles,
   softDeleteDriver,
   softDeleteEnrollment,
   softDeleteRoute,
   softDeleteStop,
+  softDeleteStopsForRoute,
   softDeleteVehicle,
+  unassignEnrollmentsFromStop,
+  batchAssignStudentsToStop,
+  batchMoveStudentsBetweenStops,
   toDriverUpdatePatch,
   toEnrollmentUpdatePatch,
   toRouteUpdatePatch,
@@ -48,6 +54,7 @@ import {
   updateVehicleFields,
   upsertTransportSettings,
 } from "./repository.js";
+import { findActiveTripForRoute } from "./ops-repository.js";
 import {
   parseStopNotificationRadiusM,
   STOP_RADIUS_DEFAULT_M,
@@ -199,13 +206,23 @@ export function toStopDto(row: StopRow): StopDto {
 }
 
 export function toEnrollmentDto(row: TransportEnrollmentRow): TransportEnrollmentDto {
+  const commonStopId =
+    (typeof row.pickup_stop_id === "string" && row.pickup_stop_id.trim()) ||
+    (typeof row.drop_stop_id === "string" && row.drop_stop_id.trim()) ||
+    null;
   return {
     id: row.id,
     instituteId: row.institute_id,
     studentId: row.student_id,
     routeId: row.route_id,
-    pickupStopId: row.pickup_stop_id,
-    dropStopId: row.drop_stop_id,
+    pickupStopId: commonStopId,
+    dropStopId: commonStopId,
+    commonStopId,
+    nextPickupStopId: row.next_pickup_stop_id ?? null,
+    nextDropStopId: row.next_drop_stop_id ?? null,
+    nextStopsPendingAt: row.next_stops_pending_at ?? null,
+    locationChangedAt: row.location_changed_at ?? null,
+    locationChangedByDriverId: row.location_changed_by_driver_id ?? null,
     status: row.status,
     approvalStatus: row.approval_status,
     submittedByUserId: row.submitted_by_user_id,
@@ -233,7 +250,8 @@ export function toTransportSettingsDto(
     schoolLocationLabel: row.school_location_label ?? null,
     schoolLatitude: row.school_latitude ?? null,
     schoolLongitude: row.school_longitude ?? null,
-    schoolNotificationRadiusM: row.school_notification_radius_m ?? 150,
+    schoolNotificationRadiusM:
+      row.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -930,17 +948,43 @@ export async function deleteRouteForActor(
 ): Promise<void> {
   const existing = await findRouteById(admin, routeId);
   if (!existing) throw AppError.notFound("Route not found");
-  if (isTransportWriter(actor, existing.institute_id)) {
-    const deleted = await softDeleteRoute(admin, routeId);
-    if (!deleted) throw AppError.conflict("Route was already deleted");
-    return;
+
+  assertTransportStaffReader(actor, existing.institute_id);
+
+  if (!isTransportWriter(actor, existing.institute_id)) {
+    assertCanDeleteRejected(
+      actor,
+      existing.institute_id,
+      existing.submitted_by_user_id,
+      existing.approval_status,
+    );
   }
-  assertCanDeleteRejected(
-    actor,
+
+  // 1. Safety check: Cannot delete a route currently used by an active trip
+  const activeTrip = await findActiveTripForRoute(admin, routeId);
+  if (activeTrip) {
+    throw AppError.conflict(
+      "Cannot delete a route with an active trip in progress. Complete or finalize the trip first.",
+    );
+  }
+
+  // 2. Safety check: Cannot delete route if students are assigned to it
+  const enrollments = await listEnrollmentsForRoute(
+    admin,
     existing.institute_id,
-    existing.submitted_by_user_id,
-    existing.approval_status,
+    routeId,
+    { activeOnly: true },
   );
+  if (enrollments.length > 0) {
+    throw AppError.conflict(
+      `Cannot delete route with ${enrollments.length} assigned student${enrollments.length > 1 ? "s" : ""}. Please reassign or remove students first.`,
+    );
+  }
+
+  // 3. Clean up route stops without corrupting operational records
+  await softDeleteStopsForRoute(admin, routeId);
+
+  // 4. Soft delete the route itself
   const deleted = await softDeleteRoute(admin, routeId);
   if (!deleted) throw AppError.conflict("Route was already deleted");
 }
@@ -950,18 +994,46 @@ export async function deleteRouteForActor(
 export async function listStopsForActor(
   admin: SupabaseClient,
   actor: Actor,
-  routeId: string,
+  queryOrRouteId: string | { routeId?: string; instituteId?: string },
 ): Promise<StopDto[]> {
-  const route = await findRouteById(admin, routeId);
-  if (!route) throw AppError.notFound("Route not found");
-  assertTransportStaffReader(actor, route.institute_id);
-  await assertDriverCanAccessRoute(admin, actor, route);
-  const rows = filterApprovalRows(
-    actor,
-    route.institute_id,
-    await listStopsForRoute(admin, routeId),
-  );
-  return rows.map(toStopDto);
+  if (typeof queryOrRouteId === "string") {
+    const route = await findRouteById(admin, queryOrRouteId);
+    if (!route) throw AppError.notFound("Route not found");
+    assertTransportStaffReader(actor, route.institute_id);
+    await assertDriverCanAccessRoute(admin, actor, route);
+    const rows = filterApprovalRows(
+      actor,
+      route.institute_id,
+      await listStopsForRoute(admin, queryOrRouteId),
+    );
+    return rows.map(toStopDto);
+  }
+
+  if (queryOrRouteId.routeId) {
+    const route = await findRouteById(admin, queryOrRouteId.routeId);
+    if (!route) throw AppError.notFound("Route not found");
+    assertTransportStaffReader(actor, route.institute_id);
+    await assertDriverCanAccessRoute(admin, actor, route);
+    const rows = filterApprovalRows(
+      actor,
+      route.institute_id,
+      await listStopsForRoute(admin, queryOrRouteId.routeId),
+    );
+    return rows.map(toStopDto);
+  }
+
+  if (queryOrRouteId.instituteId) {
+    const instituteId = requireInstituteId(actor, queryOrRouteId.instituteId);
+    assertTransportStaffReader(actor, instituteId);
+    const rows = filterApprovalRows(
+      actor,
+      instituteId,
+      await listStopsForInstitute(admin, instituteId),
+    );
+    return rows.map(toStopDto);
+  }
+
+  throw AppError.validation("route_id or institute_id is required");
 }
 
 export async function getStopForActor(
@@ -991,16 +1063,6 @@ export async function createStopForActor(
   input: CreateStopInput,
 ): Promise<StopDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  // Flowchart note: routes/stops are created by the driver; admin only approves.
-  // School endpoint stops are synced from transport_settings (Admin), not POST /stops.
-  if (
-    isTransportWriter(actor, instituteId) &&
-    !isDriverForInstitute(actor, instituteId)
-  ) {
-    throw AppError.forbidden(
-      "Stops are created by drivers. Approve them in Reviews.",
-    );
-  }
   assertCanSubmitTransport(actor, instituteId);
   const writer = isTransportWriter(actor, instituteId);
   const approvalStatus = approvalStatusForCreate(actor, instituteId);
@@ -1032,6 +1094,18 @@ export async function createStopForActor(
   }
   if (input.longitude < -180 || input.longitude > 180) {
     throw AppError.validation("longitude must be between -180 and 180");
+  }
+
+  // Prevent accidental duplicate stop names on the same route (for waypoints)
+  if (kind !== "parking") {
+    const existingStops = await listStopsForRoute(admin, input.routeId);
+    const normalizedName = name.toLowerCase();
+    const duplicate = existingStops.find(
+      (s) => s.name.trim().toLowerCase() === normalizedName && s.kind === kind,
+    );
+    if (duplicate) {
+      throw AppError.conflict(`A stop named "${name}" already exists on this route`);
+    }
   }
 
   // Default radius ONLY when creating a new stop and client omitted it.
@@ -1121,6 +1195,20 @@ export async function updateStopForActor(
   const fieldPatch = toStopUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") {
     fieldPatch.name = fieldPatch.name.trim();
+    if (!fieldPatch.name) throw AppError.validation("name cannot be empty");
+    const routeStops = await listStopsForRoute(admin, existing.route_id);
+    const normalizedName = (fieldPatch.name as string).toLowerCase();
+    const duplicate = routeStops.find(
+      (s) =>
+        s.id !== existing.id &&
+        s.name.trim().toLowerCase() === normalizedName &&
+        s.kind === existing.kind,
+    );
+    if (duplicate) {
+      throw AppError.conflict(
+        `A stop named "${fieldPatch.name}" already exists on this route`,
+      );
+    }
   }
   if (typeof fieldPatch.location_label === "string") {
     fieldPatch.location_label = fieldPatch.location_label.trim();
@@ -1246,19 +1334,27 @@ export async function createEnrollmentForActor(
     throw AppError.notFound("Student not found");
   }
 
-  const route = await assertRouteInInstitute(admin, input.routeId, instituteId);
+  let effectiveInput = { ...input };
+  const rawP = input.pickupStopId?.trim() || null;
+  const rawD = input.dropStopId?.trim() || null;
+  // Authoritative stop: pickupStopId takes precedence; fallback to dropStopId.
+  const common = rawP || rawD || null;
+  effectiveInput.pickupStopId = common;
+  effectiveInput.dropStopId = common;
+
+  const route = await assertRouteInInstitute(admin, effectiveInput.routeId, instituteId);
   if (!writer) {
     await assertDriverCanAccessRoute(admin, actor, route);
   }
-  if (input.pickupStopId) {
-    await assertStopOnRoute(admin, input.pickupStopId, input.routeId, instituteId);
+  if (effectiveInput.pickupStopId) {
+    await assertStopOnRoute(admin, effectiveInput.pickupStopId, effectiveInput.routeId, instituteId);
   }
-  if (input.dropStopId) {
-    await assertStopOnRoute(admin, input.dropStopId, input.routeId, instituteId);
+  if (effectiveInput.dropStopId) {
+    await assertStopOnRoute(admin, effectiveInput.dropStopId, effectiveInput.routeId, instituteId);
   }
 
   const row = await insertEnrollment(admin, {
-    ...input,
+    ...effectiveInput,
     instituteId,
     approvalStatus,
     submittedByUserId: writer ? null : actor.userId,
@@ -1311,13 +1407,37 @@ export async function updateEnrollmentForActor(
     await assertRouteInInstitute(admin, patch.routeId, existing.institute_id);
   }
 
-  const pickupStopId = patch.pickupStopId ?? existing.pickup_stop_id;
-  const dropStopId = patch.dropStopId ?? existing.drop_stop_id;
+  // Common location: enforce single-stop rule on update
+  let nextPatch = { ...patch };
+  if (patch.pickupStopId !== undefined || patch.dropStopId !== undefined) {
+    const rawP = typeof patch.pickupStopId === "string" ? patch.pickupStopId.trim() : null;
+    const rawD = typeof patch.dropStopId === "string" ? patch.dropStopId.trim() : null;
+    // Authoritative stop: pickup takes precedence; fallback to drop.
+    const chosen = rawP || rawD || "";
+    if (chosen) {
+      const { commonLocationWritePair } = await import("./common-location.js");
+      const pair = commonLocationWritePair(chosen);
+      nextPatch = {
+        ...patch,
+        pickupStopId: pair.pickupStopId,
+        dropStopId: pair.dropStopId,
+      };
+    } else if (patch.pickupStopId === null || patch.dropStopId === null) {
+      nextPatch = {
+        ...patch,
+        pickupStopId: null,
+        dropStopId: null,
+      };
+    }
+  }
+
+  const pickupStopId = nextPatch.pickupStopId ?? existing.pickup_stop_id;
+  const dropStopId = nextPatch.dropStopId ?? existing.drop_stop_id;
 
   if (
-    patch.routeId !== undefined ||
-    patch.pickupStopId !== undefined ||
-    patch.dropStopId !== undefined
+    nextPatch.routeId !== undefined ||
+    nextPatch.pickupStopId !== undefined ||
+    nextPatch.dropStopId !== undefined
   ) {
     if (pickupStopId) {
       await assertStopOnRoute(
@@ -1332,7 +1452,28 @@ export async function updateEnrollmentForActor(
     }
   }
 
-  const fieldPatch = toEnrollmentUpdatePatch(patch);
+  // Next-trip-only: if route has an active trip, queue deferred columns instead of live.
+  let fieldPatch = toEnrollmentUpdatePatch(nextPatch);
+  if (nextPatch.pickupStopId !== undefined || nextPatch.dropStopId !== undefined) {
+    const route = await findRouteById(admin, existing.route_id);
+    const { routeHasActiveTrip } = await import("./location-assignment.js");
+    if (route && (await routeHasActiveTrip(admin, route))) {
+      const chosen =
+        (typeof nextPatch.pickupStopId === "string" &&
+          nextPatch.pickupStopId.trim()) ||
+        (typeof nextPatch.dropStopId === "string" &&
+          nextPatch.dropStopId.trim()) ||
+        "";
+      if (chosen) {
+        fieldPatch = {
+          next_pickup_stop_id: chosen,
+          next_drop_stop_id: chosen,
+          next_stops_pending_at: new Date().toISOString(),
+          location_changed_at: new Date().toISOString(),
+        };
+      }
+    }
+  }
   if (Object.keys(fieldPatch).length === 0) return toEnrollmentDto(existing);
 
   const updated = await updateEnrollmentFields(admin, enrollmentId, fieldPatch);
@@ -1362,6 +1503,102 @@ export async function deleteEnrollmentForActor(
   if (!deleted) throw AppError.conflict("Enrollment was already deleted");
 }
 
+export async function assignStopStudentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: {
+    instituteId: string;
+    routeId: string;
+    stopId: string;
+    studentIds: string[];
+  },
+): Promise<{
+  assignedCount: number;
+  unassignedCount: number;
+  createdCount: number;
+  updatedCount: number;
+}> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertTransportWriter(actor, instituteId);
+
+  await assertRouteInInstitute(admin, input.routeId, instituteId);
+  await assertStopOnRoute(admin, input.stopId, input.routeId, instituteId);
+
+  const uniqueStudentIds = Array.from(
+    new Set(
+      input.studentIds.filter(
+        (id) => typeof id === "string" && id.trim().length > 0,
+      ),
+    ),
+  );
+
+  const unassignedCount = await unassignEnrollmentsFromStop(
+    admin,
+    instituteId,
+    input.stopId,
+    uniqueStudentIds,
+  );
+
+  const { assignedCount, createdCount, updatedCount } =
+    await batchAssignStudentsToStop(admin, {
+      instituteId,
+      routeId: input.routeId,
+      stopId: input.stopId,
+      studentIds: uniqueStudentIds,
+      approvalStatus: "approved",
+      submittedByUserId: actor.userId,
+    });
+
+  return { assignedCount, unassignedCount, createdCount, updatedCount };
+}
+
+export async function moveStopStudentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: {
+    instituteId: string;
+    routeId?: string;
+    fromStopId: string;
+    toStopId: string;
+    studentIds: string[];
+  },
+): Promise<{ movedCount: number }> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertTransportWriter(actor, instituteId);
+
+  if (input.fromStopId === input.toStopId) {
+    return { movedCount: 0 };
+  }
+
+  const [fromStop, toStop] = await Promise.all([
+    findStopById(admin, input.fromStopId),
+    findStopById(admin, input.toStopId),
+  ]);
+  if (!fromStop || fromStop.institute_id !== instituteId) {
+    throw AppError.notFound("Source stop not found in institute");
+  }
+  if (!toStop || toStop.institute_id !== instituteId) {
+    throw AppError.notFound("Destination stop not found in institute");
+  }
+
+  const uniqueStudentIds = Array.from(
+    new Set(
+      input.studentIds.filter(
+        (id) => typeof id === "string" && id.trim().length > 0,
+      ),
+    ),
+  );
+
+  const movedCount = await batchMoveStudentsBetweenStops(admin, {
+    instituteId,
+    fromStopId: input.fromStopId,
+    toStopId: input.toStopId,
+    studentIds: uniqueStudentIds,
+  });
+
+  return { movedCount };
+}
+
 // ── Settings ─────────────────────────────────────────────────────
 
 export async function getTransportSettingsForActor(
@@ -1376,7 +1613,7 @@ export async function getTransportSettingsForActor(
   if (!row) {
     return {
       instituteId: id,
-      defaultNotificationRadiusM: 150,
+      defaultNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       defaultPickupBufferMins: 5,
       workingDays: [1, 2, 3, 4, 5],
       notificationsEnabled: true,
@@ -1385,7 +1622,7 @@ export async function getTransportSettingsForActor(
       schoolLocationLabel: null,
       schoolLatitude: null,
       schoolLongitude: null,
-      schoolNotificationRadiusM: 150,
+      schoolNotificationRadiusM: STOP_RADIUS_DEFAULT_M,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
@@ -1411,7 +1648,7 @@ async function upsertSchoolStopOnRoute(
   const label =
     settings.school_location_label?.trim() ||
     `${settings.school_latitude.toFixed(5)}, ${settings.school_longitude.toFixed(5)}`;
-  const radius = settings.school_notification_radius_m ?? 150;
+  const radius = settings.school_notification_radius_m ?? STOP_RADIUS_DEFAULT_M;
   const existing = await findStopByKindOnRoute(admin, route.id, "school");
   if (existing) {
     await updateStopFields(admin, existing.id, {

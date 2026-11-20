@@ -19,6 +19,11 @@ import {
 import type { BillingCadence } from "@/lib/institute-licensing-store";
 import { compressInstituteLogoDataUrl } from "@lumenx/utils";
 import { InstituteLogo } from "@/components/institutes/InstituteDirectoryCard";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import {
+  createInstituteViaApi,
+  slugifyInstituteCode,
+} from "@/lib/institutes/create-api";
 
 export function CreateInstituteDialog({
   open,
@@ -27,11 +32,13 @@ export function CreateInstituteDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreated: (inst: PlatformInstitute) => void;
+  onCreated: (inst: { id: string }) => void;
 }) {
+  const apiMode = isNexusApiMode();
   const [form, setForm] = useState<CreateInstituteInput>(() => defaultCreateForm());
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const groups = useMemo(
     () => Array.from(new Set(NEXUS_MODULE_CATALOG.map((m) => m.group))),
@@ -87,6 +94,28 @@ export function CreateInstituteDialog({
       setError("Institute name is required.");
       return;
     }
+    if (apiMode) {
+      if (submitting) return;
+      setSubmitting(true);
+      setError(null);
+      void createInstituteViaApi({
+        code: slugifyInstituteCode(form.name),
+        name: form.name.trim(),
+        kind: "school",
+      })
+        .then((created) => {
+          reset();
+          onCreated({ id: created.id });
+          onClose();
+        })
+        .catch((err) => {
+          setError(
+            err instanceof Error ? err.message : "Failed to create institute",
+          );
+        })
+        .finally(() => setSubmitting(false));
+      return;
+    }
     if (!form.city.trim() || !form.state.trim()) {
       setError("City and state are required for platform onboarding.");
       return;
@@ -125,8 +154,12 @@ export function CreateInstituteDialog({
           >
             Cancel
           </Button>
-          <Button variant="primary" onClick={submit} disabled={logoBusy}>
-            Create institute
+          <Button
+            variant="primary"
+            onClick={submit}
+            disabled={logoBusy || submitting}
+          >
+            {submitting ? "Creating…" : "Create institute"}
           </Button>
         </>
       }

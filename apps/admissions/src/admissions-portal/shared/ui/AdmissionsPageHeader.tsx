@@ -2,20 +2,27 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@lumenx/ui";
+import { ModuleHelpControl } from "@/components/module-help";
 
 export function AdmissionsPageHeader({
   title,
   subtitle,
   backTo,
   action,
+  helpKey,
   className,
 }: {
   title: string;
   subtitle?: string;
   backTo?: string;
   action?: ReactNode;
+  /** Registry id for the module-help info popup. */
+  helpKey?: string;
   className?: string;
 }) {
+  const help = helpKey ? <ModuleHelpControl helpKey={helpKey} /> : null;
+  const hasAction = Boolean(action || help);
+
   return (
     <div className={cn("mb-5 sm:mb-6", className)}>
       {backTo && (
@@ -37,11 +44,12 @@ export function AdmissionsPageHeader({
             </p>
           )}
         </div>
-        {action && (
+        {hasAction ? (
           <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
             {action}
+            {help}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

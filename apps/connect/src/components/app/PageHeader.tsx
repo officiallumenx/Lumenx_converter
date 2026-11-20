@@ -1,14 +1,21 @@
 import type { ReactNode } from "react";
+import { ModuleHelpControl } from "@/components/module-help";
 
 export function PageHeader({
   title,
   subtitle,
   action,
+  helpKey,
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  /** Registry id for the module-help info popup (e.g. "attendance"). */
+  helpKey?: string;
 }) {
+  const help = helpKey ? <ModuleHelpControl helpKey={helpKey} /> : null;
+  const hasAction = Boolean(action || help);
+
   return (
     <div className="connect-page-header mb-5 flex min-w-0 max-w-full flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1">
@@ -21,11 +28,12 @@ export function PageHeader({
           </p>
         )}
       </div>
-      {action && (
+      {hasAction ? (
         <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           {action}
+          {help}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

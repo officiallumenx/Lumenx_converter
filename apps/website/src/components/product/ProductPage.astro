@@ -1,0 +1,29 @@
+---
+import ProductHero from "./ProductHero.astro";
+import ProductProblem from "./ProductProblem.astro";
+import ProductModules from "./ProductModules.astro";
+import ProductWorkflow from "./ProductWorkflow.astro";
+import ProductExperiences from "./ProductExperiences.astro";
+import ProductRoles from "./ProductRoles.astro";
+import ProductGallery from "./ProductGallery.astro";
+import ProductCta from "./ProductCta.astro";
+
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+---
+
+<ProductHero page={page} />
+<ProductProblem page={page} />
+<ProductModules page={page} />
+{page.experiences?.length ? <ProductExperiences page={page} /> : null}
+<ProductWorkflow page={page} />
+<ProductRoles page={page} />
+<ProductGallery page={page} />
+<ProductCta page={page} />
+
+<script>
+  import "../../scripts/product-gallery.js";
+</script>

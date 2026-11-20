@@ -56,6 +56,42 @@ describe("deriveParentTransportStatus", () => {
     ).toBe("location_unavailable");
   });
 
+  it("maps live / stale / offline / recovered GPS freshness for active trips", () => {
+    expect(
+      deriveParentTransportStatus(
+        base({ hasLiveGps: true, gpsFreshness: "live", boardingStatus: "pending" }),
+      ),
+    ).toBe("trip_started");
+
+    expect(
+      deriveParentTransportStatus(
+        base({ hasLiveGps: true, gpsFreshness: "stale", boardingStatus: "pending" }),
+      ),
+    ).toBe("location_unavailable");
+
+    expect(
+      deriveParentTransportStatus(
+        base({ hasLiveGps: false, gpsFreshness: "offline", boardingStatus: "pending" }),
+      ),
+    ).toBe("location_unavailable");
+
+    // Recovered: freshness returns to live after a stale/offline period.
+    expect(
+      deriveParentTransportStatus(
+        base({ hasLiveGps: true, gpsFreshness: "live", boardingStatus: "pending" }),
+      ),
+    ).toBe("trip_started");
+    expect(
+      trackingStatusLabel(
+        tracking({
+          parentStatus: "trip_started",
+          gpsFreshness: "live",
+          sharedTripActive: true,
+        }),
+      ),
+    ).not.toMatch(/stale|unavailable/i);
+  });
+
   it("maps arrival when unmarked student is within stop radius", () => {
     expect(
       deriveParentTransportStatus(

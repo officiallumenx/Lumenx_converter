@@ -8,10 +8,12 @@ import {
   apiAuthHeaders,
   approveStopInAdminUi,
   asAdminFixture,
+  listEnrollmentsApi,
   listStopsApi,
   newAdminContext,
   openTransportRouteSetup as openRouteSetup,
   rejectStopInAdminUi,
+  setUniqueStopGeolocation,
   signInAdminUi,
   submitNewPendingStopViaUi,
   type AdminFixture,
@@ -155,6 +157,16 @@ test("Test 3: Admin declines with reason → driver sees + resubmits", async ({
     });
   } else {
     await edit.click();
+    // Move GPS off other E2E stops at the shared baseline so client
+    // duplicate-GPS (~25 m) does not block resubmit without an API call.
+    await setUniqueStopGeolocation(page, Date.now() + 17);
+    const refreshGps = page.getByRole("button", { name: /Update Current GPS/i });
+    if (await refreshGps.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await refreshGps.click();
+      await expect
+        .poll(async () => page.locator("body").innerText(), { timeout: 15_000 })
+        .toMatch(/GPS updated|GPS captured|17\.\d+/i);
+    }
     const resubmit = page.getByRole("button", {
       name: /Resubmit to Admin|Send to Admin/i,
     });
@@ -315,3 +327,87 @@ test("Test 6: Persistence after reload", async ({ page, browser }) => {
   }
 });
 }); // end Safety / authz / persistence
+
+test.describe("Admin assignment (Phase 7 step 1)", () => {
+  test("Test 7: Admin assigns unassigned student to route via UI", async ({
+    browser,
+  }) => {
+    test.skip(
+      !fixture.student3Id || !fixture.student3Name,
+      "BLOCKED: fixture missing student3 — re-run provision-fixture.mjs",
+    );
+
+    const adminHeaders = await apiAuthHeaders(fixture, "admin");
+    // Idempotent: soft-clear any prior assign from earlier Test 7 runs.
+    const before = await listEnrollmentsApi(fixture, adminHeaders);
+    for (const row of before.filter((e) => e.studentId === fixture.student3Id)) {
+      const del = await fetch(
+        `${fixture.apiBaseUrl}/api/v1/transport/enrollments/${row.id}`,
+        { method: "DELETE", headers: adminHeaders },
+      );
+      expect([200, 204, 404]).toContain(del.status);
+    }
+    const cleared = await listEnrollmentsApi(fixture, adminHeaders);
+    expect(
+      cleared.some((e) => e.studentId === fixture.student3Id),
+      "student3 must start unassigned",
+    ).toBeFalsy();
+
+    const { context, page } = await newAdminContext(browser);
+    await signInAdminUi(page, fixture);
+    await page.goto(`${fixture.adminBaseUrl}/transport?view=students`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page.getByRole("button", { name: /Add student/i })).toBeVisible({
+      timeout: 45_000,
+    });
+    await page.getByRole("button", { name: /Add student/i }).click();
+    await expect(page.getByRole("heading", { name: /Assign student to transport/i })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const dialog = page.getByRole("dialog", { name: /Assign student to transport/i });
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+
+    // Custom Select controls are buttons (not native <select>).
+    const studentBtn = dialog.getByRole("button", { name: /^Student/i });
+    await expect(studentBtn).toBeVisible({ timeout: 15_000 });
+    await studentBtn.click();
+    await page
+      .getByRole("option", { name: new RegExp(escapeRegExp(fixture.student3Name!), "i") })
+      .first()
+      .click();
+
+    const routeBtn = dialog.getByRole("button", { name: /Route \/ bus/i });
+    await expect(routeBtn).toBeVisible({ timeout: 10_000 });
+    await routeBtn.click();
+    await page
+      .getByRole("option", { name: new RegExp(escapeRegExp(fixture.routeName), "i") })
+      .first()
+      .click();
+
+    const enrollPost = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" &&
+        /\/api\/v1\/transport\/enrollments$/.test(res.url().split("?")[0] ?? "") &&
+        res.status() < 500,
+      { timeout: 60_000 },
+    );
+    await dialog.getByRole("button", { name: /^Assign$/i }).click();
+    const res = await enrollPost;
+    expect(res.status(), `assign enrollment HTTP ${res.status()}`).toBeLessThan(300);
+
+    await expect
+      .poll(async () => page.locator("body").innerText(), { timeout: 30_000 })
+      .toMatch(/Student assigned to transport|E2E Rider Three/i);
+
+    const after = await listEnrollmentsApi(fixture, adminHeaders);
+    const row = after.find(
+      (e) =>
+        e.studentId === fixture.student3Id && e.routeId === fixture.routeId,
+    );
+    expect(row, "persisted enrollment for student3").toBeTruthy();
+    expect(row!.approvalStatus).toMatch(/pending|approved/i);
+    await context.close();
+  });
+});

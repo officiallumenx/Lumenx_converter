@@ -1,0 +1,33 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const problem = page.problem;
+---
+
+<section id="problem" class="bg-gray-1 py-16 dark:bg-dark-2 lg:py-[100px]">
+  <div class="container">
+    <div class="mx-auto mb-12 max-w-[640px] text-center lg:mb-16" data-reveal>
+      <span class="mb-2 block text-lg font-semibold text-primary">{problem.eyebrow}</span>
+      <h2 class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+        {problem.title}
+      </h2>
+      <p class="text-base text-body-color dark:text-dark-6">{problem.body}</p>
+    </div>
+
+    <div class="-mx-4 flex flex-wrap" data-stagger>
+      {
+        problem.points.map((point) => (
+          <div class="mb-8 w-full px-4 md:w-1/3">
+            <div class="lx-card h-full rounded-xl bg-white p-8 shadow-1 dark:bg-dark">
+              <h3 class="mb-3 text-xl font-bold text-dark dark:text-white">{point.title}</h3>
+              <p class="text-base text-body-color dark:text-dark-6">{point.body}</p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

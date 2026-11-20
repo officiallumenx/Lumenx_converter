@@ -276,6 +276,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     description: "Inbox from teachers and parents via Connect",
   },
   {
+    id: "send",
+    label: M.send,
+    route: "/send",
+    minPlan: "plus",
+    group: "Communications",
+    description: "Send announcements and school alert broadcasts",
+  },
+  {
     id: "announcements",
     label: "Announcements",
     route: "/announcements",

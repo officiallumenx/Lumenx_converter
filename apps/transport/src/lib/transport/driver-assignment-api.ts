@@ -1,51 +1,15 @@
 import { normalizeIndianMobile } from "@/lib/auth/demo-drivers";
-import { getTransportApiBaseUrl } from "@/lib/api-base-url";
-import { getDriverMe, getDriverRouteRoster } from "@/lib/transport-api";
+import { getDriverMe, getDriverRouteRoster, type DriverRouteRoster } from "@/lib/transport-api";
 import type { DriverAssignment } from "./driver-assignment";
 import type { BusAssignment, DriverProfile, RouteAssignment, TripAssignment } from "./types";
 import { setApiAttendanceRoster } from "./attendance/store";
 import { clearApiDriverRoster, setApiDriverRoster } from "./api-roster";
 
-export type TransportRouteDto = {
-  id: string;
-  instituteId: string;
-  name: string;
-  vehicleId: string | null;
-  driverId: string | null;
-  status: string;
-  configStatus: string;
-  approvalStatus: string;
-};
+/** Last roster returned by assignment load — reused by hydrate (avoids a second roster GET). */
+let lastAssignmentRoster: DriverRouteRoster | null = null;
 
-type VehicleDto = {
-  id: string;
-  vehicleNumber: string;
-  registrationNumber: string;
-  capacity?: number | null;
-};
-
-async function transportGet<T>(path: string): Promise<T> {
-  const base = getTransportApiBaseUrl();
-  const { getSupabaseAccessToken } = await import("@/lib/supabase-browser");
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error("Authentication required");
-  const response = await fetch(`${base}${path}`, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(12_000),
-  });
-  const json = (await response.json()) as { data?: T; error?: { message?: string } };
-  if (!response.ok) throw new Error(json.error?.message ?? "Request failed");
-  return json.data as T;
-}
-
-async function listRoutes(instituteId: string): Promise<TransportRouteDto[]> {
-  const query = new URLSearchParams({ institute_id: instituteId });
-  return transportGet<TransportRouteDto[]>(`/api/v1/transport/routes?${query.toString()}`);
-}
-
-async function listVehicles(instituteId: string): Promise<VehicleDto[]> {
-  const query = new URLSearchParams({ institute_id: instituteId });
-  return transportGet<VehicleDto[]>(`/api/v1/transport/vehicles?${query.toString()}`);
+export function takeLastAssignmentRoster(): DriverRouteRoster | null {
+  return lastAssignmentRoster;
 }
 
 export async function loadApiDriverAssignment(input: {
@@ -56,7 +20,14 @@ export async function loadApiDriverAssignment(input: {
   employeeId: string;
   licenseNumber?: string;
 }): Promise<DriverAssignment> {
-  const driverMe = await getDriverMe(input.instituteId);
+  // Parallel live APIs: driver profile + scoped roster (includes vehicle/route fields).
+  // Avoid listing every institute route/vehicle on cold open.
+  const [driverMe, roster] = await Promise.all([
+    getDriverMe(input.instituteId),
+    getDriverRouteRoster(input.instituteId).catch(() => null),
+  ]);
+  lastAssignmentRoster = roster;
+
   const instituteTimezone = driverMe.timezone?.trim() || "Asia/Kolkata";
   const phoneDigits = normalizeIndianMobile(input.phone || driverMe.phone);
 
@@ -84,27 +55,7 @@ export async function loadApiDriverAssignment(input: {
     busNumber: "—",
   };
 
-  const [routes, vehicles, roster] = await Promise.all([
-    listRoutes(input.instituteId),
-    listVehicles(input.instituteId).catch(() => [] as VehicleDto[]),
-    getDriverRouteRoster(input.instituteId).catch(() => null),
-  ]);
-
-  // Prefer the roster's route (backend SoT) so enrollments and assignment stay aligned.
-  const routeFromRoster = roster?.routeId
-    ? (routes.find((r) => r.id === roster.routeId) ?? null)
-    : null;
-  const route =
-    routeFromRoster ??
-    routes.find(
-      (r) =>
-        r.driverId === driverMe.driverId &&
-        (r.approvalStatus === "approved" || r.approvalStatus === "pending"),
-    ) ??
-    routes.find((r) => r.driverId === driverMe.driverId) ??
-    null;
-
-  if (!route && !roster?.routeId) {
+  if (!roster?.routeId) {
     setApiAttendanceRoster([]);
     clearApiDriverRoster();
     return {
@@ -121,12 +72,10 @@ export async function loadApiDriverAssignment(input: {
     };
   }
 
-  const resolvedRouteId = route?.id ?? roster?.routeId ?? null;
-  const resolvedRouteName = route?.name ?? roster?.routeName ?? "Route";
-  // Never invent vehicleId from route.id — that breaks New-student roster matching.
-  const vehicleId = route?.vehicleId ?? roster?.vehicleId ?? null;
-  const vehicle = vehicleId ? vehicles.find((v) => v.id === vehicleId) : undefined;
-  const busNumber = vehicle?.vehicleNumber ?? "—";
+  const resolvedRouteId = roster.routeId;
+  const resolvedRouteName = roster.routeName?.trim() || "Route";
+  const vehicleId = roster.vehicleId ?? null;
+  const busNumber = roster.vehicleNumber?.trim() || "—";
   const busVehicleId = vehicleId ?? "";
 
   account.vehicleId = busVehicleId || null;
@@ -135,10 +84,10 @@ export async function loadApiDriverAssignment(input: {
   driver.busNumber = busNumber;
 
   const capacity =
-    typeof vehicle?.capacity === "number" &&
-    Number.isFinite(vehicle.capacity) &&
-    vehicle.capacity > 0
-      ? vehicle.capacity
+    typeof roster.vehicleCapacity === "number" &&
+    Number.isFinite(roster.vehicleCapacity) &&
+    roster.vehicleCapacity > 0
+      ? roster.vehicleCapacity
       : null;
 
   const bus: BusAssignment = {
@@ -149,13 +98,13 @@ export async function loadApiDriverAssignment(input: {
     capacity,
   };
 
-  const usableStops = (roster?.stops ?? [])
+  const usableStops = (roster.stops ?? [])
     .filter((s) => s.approvalStatus === "approved" || s.approvalStatus === "pending")
     .slice()
     .sort((a, b) => a.routeOrder - b.routeOrder);
 
   const routeAssignment: RouteAssignment = {
-    adminRouteId: resolvedRouteId ?? "",
+    adminRouteId: resolvedRouteId,
     code: resolvedRouteName.slice(0, 3).toUpperCase(),
     name: resolvedRouteName,
     stops: usableStops.map((s) => ({
@@ -165,32 +114,49 @@ export async function loadApiDriverAssignment(input: {
     })),
   };
 
-  const usableStudents = (roster?.students ?? []).filter(
+  const usableStudents = (roster.students ?? []).filter(
     (s) => s.approvalStatus === "approved" || s.approvalStatus === "pending",
   );
   const expectedStudents = usableStudents.filter((s) => !s.notRidingToday);
   const studentCount = usableStudents.length;
 
-  if (roster) {
-    setApiDriverRoster(roster, {
-      vehicleNumber: busNumber,
-      vehicleId: busVehicleId || roster.vehicleId,
-    });
-  } else {
-    clearApiDriverRoster();
+  setApiDriverRoster(roster, {
+    vehicleNumber: busNumber,
+    vehicleId: busVehicleId || roster.vehicleId,
+  });
+
+  const stopLocationById = new Map<string, string>();
+  for (const stop of usableStops) {
+    const label = typeof stop.locationLabel === "string" ? stop.locationLabel.trim() : "";
+    if (stop.id && label) stopLocationById.set(stop.id, label);
   }
 
   setApiAttendanceRoster(
-    expectedStudents.map((s) => ({
-      id: s.studentId,
-      name: s.studentName,
-      grade: s.classLabel,
-      stopName: s.pickupStopName ?? "Stop assignment pending",
-      stopId: s.pickupStopId,
-      dropStopId: s.dropStopId ?? null,
-      dropStopName: s.dropStopName ?? null,
-      rollNo: s.rollNo,
-    })),
+    expectedStudents.map((s) => {
+      const pickupStopId =
+        typeof s.pickupStopId === "string" && s.pickupStopId.trim()
+          ? s.pickupStopId.trim()
+          : undefined;
+      const dropStopId =
+        typeof s.dropStopId === "string" && s.dropStopId.trim()
+          ? s.dropStopId.trim()
+          : null;
+      return {
+        id: s.studentId,
+        name: s.studentName,
+        grade: s.classLabel,
+        stopName:
+          (typeof s.pickupStopName === "string" && s.pickupStopName.trim()) ||
+          (pickupStopId ? "Pickup stop" : "Stop not assigned"),
+        stopLocationLabel: pickupStopId
+          ? stopLocationById.get(pickupStopId) ?? null
+          : null,
+        stopId: pickupStopId,
+        dropStopId,
+        dropStopName: s.dropStopName ?? null,
+        rollNo: s.rollNo,
+      };
+    }),
   );
 
   const tripAssignment: TripAssignment = {
@@ -207,7 +173,7 @@ export async function loadApiDriverAssignment(input: {
     bus,
     route: routeAssignment,
     studentCount,
-    lockedByAdmin: roster?.locked ?? route?.configStatus === "locked",
+    lockedByAdmin: roster.locked,
     tripAssignment,
     message: null,
     timezone: instituteTimezone,
@@ -216,5 +182,7 @@ export async function loadApiDriverAssignment(input: {
 
 /** Roster payload used to hydrate route-setup after assignment scope is set. */
 export async function loadDriverRosterForHydrate(instituteId: string) {
-  return getDriverRouteRoster(instituteId).catch(() => null);
+  const roster = await getDriverRouteRoster(instituteId).catch(() => null);
+  if (roster) lastAssignmentRoster = roster;
+  return roster;
 }

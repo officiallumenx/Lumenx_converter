@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
+import { startConnectBackgroundPreload } from "@/lib/connect-queries/background-preload";
 
 const ParentDashboardPage = lazy(() =>
   import("@/parent-portal/features/dashboard").then((m) => ({ default: m.ParentDashboardPage })),
@@ -40,6 +41,12 @@ function Index() {
 function Inner() {
   const { role } = useApp();
   const portalAccess = useTeacherPortalAccess();
+
+  useEffect(() => {
+    if (role !== "parent" && role !== "teacher" && role !== "student") return;
+    if (role === "teacher" && !portalAccess.isReady) return;
+    return startConnectBackgroundPreload(role);
+  }, [role, portalAccess.isReady]);
 
   if (role === "teacher" && !portalAccess.isReady) {
     return <DashboardFallback />;

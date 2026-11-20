@@ -26,8 +26,8 @@ describe("parseStopNotificationRadiusM", () => {
     expect(() => parseStopNotificationRadiusM(12.5)).toThrow(AppError);
   });
 
-  it("allows omit when not required", () => {
+  it("allows omit when not required and default is 100 m", () => {
     expect(parseStopNotificationRadiusM(undefined)).toBeUndefined();
-    expect(STOP_RADIUS_DEFAULT_M).toBe(150);
+    expect(STOP_RADIUS_DEFAULT_M).toBe(100);
   });
 });

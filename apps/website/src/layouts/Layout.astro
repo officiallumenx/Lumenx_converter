@@ -1,0 +1,221 @@
+---
+import "@fontsource-variable/inter";
+import "../styles/tailwind.css";
+import "../styles/typography.css";
+import "../styles/section-layout.css";
+import "../styles/ecosystem-orbit.css";
+import "../styles/motion.css";
+
+import Footer from '../components/layout/Footer.astro';
+import Header from '../components/layout/Header.astro';
+import BackToTop from '../components/layout/BackToTop.astro';
+import { SITE, FAQS, PRICING } from '../data/lumenx.js';
+
+interface Props {
+  description: string;
+  title: string;
+  image?: string;
+  keywords?: string;
+}
+
+const {
+  description,
+  title,
+  image = '/assets/brand/lumenx-ecosystem.jpg',
+  keywords = SITE.keywords,
+} = Astro.props;
+
+const fullTitle = title.includes('LumenX') ? title : `${title} | LumenX`;
+const cleanPath = Astro.url.pathname === "/" ? "/" : Astro.url.pathname.replace(/\/$/, "");
+const canonicalUrl = `${SITE.productionOrigin}${cleanPath}`;
+const absoluteImage = image.startsWith("http") ? image : `${SITE.productionOrigin}${image}`;
+
+const breadcrumbItems = [
+  {
+    "@type": "ListItem",
+    "position": 1,
+    "name": "LumenX Home",
+    "item": SITE.productionOrigin,
+  },
+  ...(cleanPath !== "/"
+    ? cleanPath
+        .split("/")
+        .filter(Boolean)
+        .map((seg, idx, arr) => ({
+          "@type": "ListItem",
+          "position": idx + 2,
+          "name": seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "),
+          "item": `${SITE.productionOrigin}/${arr.slice(0, idx + 1).join("/")}`,
+        }))
+    : []),
+];
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE.productionOrigin}/#organization`,
+      "name": "LumenX",
+      "alternateName": [
+        "LumenXTech",
+        "LumenX Technologies",
+        "LumenX ERP",
+        "LumenXTech ERP",
+        "LumenX Management Platform",
+        "LumenXTech Institute Management System",
+      ],
+      "legalName": SITE.company,
+      "url": SITE.productionOrigin,
+      "logo": {
+        "@type": "ImageObject",
+        "url": `${SITE.productionOrigin}/assets/logo/lumenx-mark.png`,
+      },
+      "email": "lumenxtech.official@gmail.com",
+      "description": SITE.description,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.productionOrigin}/#website`,
+      "url": SITE.productionOrigin,
+      "name": "LumenX (LumenXTech) — Best ERP for Schools, School Management System & Institute Platform",
+      "alternateName": ["LumenX", "LumenXTech", "LumenX School ERP", "LumenX Institute Management System"],
+      "publisher": {
+        "@id": `${SITE.productionOrigin}/#organization`,
+      },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE.productionOrigin}/#software`,
+      "name": "LumenX — School ERP, School Management System & Institute Management Platform",
+      "alternateName": [
+        "LumenX ERP",
+        "LumenXTech ERP",
+        "LumenXTech Institute Management System",
+        "LumenX Management Platform",
+        "LumenX School Platform",
+        "LumenX Institute Platform",
+      ],
+      "applicationCategory": "EducationalApplication, BusinessApplication",
+      "applicationSubCategory": "School ERP, School Management System, Institute Management System",
+      "operatingSystem": "Web, Android, Windows",
+      "url": SITE.productionOrigin,
+      "description":
+        "LumenX (LumenXTech) is an integrated School ERP, school management system, and institute management platform uniting LumenX Admin, Connect, Transport, Admissions, Careers, and Nexus for schools and educational institutions.",
+      "offers": {
+        "@type": "Offer",
+        "price": String(PRICING.rateMin),
+        "priceCurrency": "INR",
+        "description": `Per-student pricing starting at ₹${PRICING.rateMin}/student/month with a ₹${PRICING.minimumMonthly.toLocaleString("en-IN")}/month campus minimum and ${PRICING.trialDays}-day free trial.`,
+      },
+      "featureList": [
+        "LumenX Admin — School ERP, School Management System & Institute Management System",
+        "LumenX Connect — Parent, Teacher & Student Communication Platform",
+        "LumenX Transport — School Bus GPS & Boarding Management System",
+        "LumenX Admissions — Online School & Institute Admissions Platform",
+        "LumenX Careers — Teacher & Staff Recruitment Portal",
+        "LumenX Nexus — Central Service Platform",
+      ],
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${canonicalUrl}#breadcrumb`,
+      "itemListElement": breadcrumbItems,
+    },
+    ...(cleanPath === "/" || cleanPath === "/pricing" || cleanPath === "/resources/faq"
+      ? [
+          {
+            "@type": "FAQPage",
+            "@id": `${canonicalUrl}#faq`,
+            "mainEntity": FAQS.map((item) => ({
+              "@type": "Question",
+              "name": item.title,
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": item.description,
+              },
+            })),
+          },
+        ]
+      : []),
+  ],
+};
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/png" href="/assets/logo/lumenx-mark.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="generator" content="LumenX" />
+    <meta name="application-name" content="LumenX" />
+    <meta name="author" content={SITE.company} />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+    <meta name="theme-color" content="#3758F9" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={absoluteImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteImage} />
+    <title>{fullTitle}</title>
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+    <script is:inline>
+      try {
+        if (localStorage.getItem("theme") === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      } catch (_) {
+        document.documentElement.classList.remove("dark");
+      }
+    </script>
+  </head>
+  <body class="bg-white font-body text-dark antialiased dark:bg-dark dark:text-white">
+    <Header />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+    <BackToTop />
+    <style is:global>
+      .sticky-header {
+        @apply fixed z-[9999] bg-white/95 dark:bg-dark/95 transition;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 1px 2px 0 rgba(17, 25, 40, 0.06);
+      }
+
+      .navbarTogglerActive > span:nth-child(1) {
+        @apply top-[6px] rotate-45 transform;
+      }
+      .navbarTogglerActive > span:nth-child(2) {
+        @apply opacity-0;
+      }
+      .navbarTogglerActive > span:nth-child(3) {
+        @apply top-[-6px] rotate-[135deg];
+      }
+    </style>
+    <script>
+      import "../scripts/reveal.js";
+      import "../scripts/faq.js";
+      import "../scripts/stickymenu.js";
+      import "../scripts/dropdown.js";
+      import "../scripts/darkMode.js";
+      import "../scripts/scrolltop.js";
+      import "../scripts/scrollmenu.js";
+      import "../scripts/smoothscroll.js";
+    </script>
+  </body>
+</html>

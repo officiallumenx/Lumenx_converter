@@ -6,7 +6,7 @@ import type { DashboardSnapshot, TeacherClass } from "@/lib/teacher/types";
 import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
 import { loadConnectEvents, pickUpcomingEvents } from "@/lib/events";
 import { loadTeacherExamPapers, pickUpcomingExamPapers } from "@/lib/exams";
-import { getTeacherHomeworkSheet, loadTeacherHomeworkClassOverview, loadTeacherHomeworkList } from "@/lib/homework";
+import { loadTeacherHomeworkList } from "@/lib/homework";
 import { listMarkEntries } from "@/lib/marks/api";
 import { listAttendanceRegisters } from "@/lib/attendance/api";
 import {
@@ -40,6 +40,10 @@ export async function enrichTeacherDashboardSnapshot(input: {
   const today = localYmd();
   const sectionIds = new Set(classes.map((c) => c.id));
 
+  const classLabels = new Map(
+    classes.map((c) => [c.id, `${c.className}-${c.section}`] as const),
+  );
+
   const [
     homeworkResult,
     examsResult,
@@ -49,7 +53,12 @@ export async function enrichTeacherDashboardSnapshot(input: {
     attendanceRegisters,
   ] = await Promise.all([
     loadTeacherHomeworkList({ instituteId, teacherId }),
-    loadTeacherExamPapers({ instituteId, defaultClassId: classes[0]?.id }),
+    loadTeacherExamPapers({
+      instituteId,
+      defaultClassId: classes[0]?.id,
+      teacherId,
+      classLabels,
+    }),
     loadConnectEvents({ instituteId }),
     loadConnectPortalInbox(instituteId),
     optionalList(listMarkEntries({ instituteId, teacherId, status: "submitted" })),
@@ -61,56 +70,22 @@ export async function enrichTeacherDashboardSnapshot(input: {
       ? homeworkResult.items
       : [];
 
+  // Avoid N+1 sheet fetches on Home — list payload + roster class rates are enough
+  // for dashboard widgets. Detailed sheet counts load on the Homework module.
   const dueSoon = homeworkItems
     .filter((item) => item.status === "published" && item.dueDate >= today)
     .slice(0, 8);
-  const homeworkSheets = await Promise.all(
-    dueSoon.map((item) =>
-      getTeacherHomeworkSheet({ instituteId, homeworkId: item.id }).catch(() => null),
-    ),
-  );
-  const pendingHomework = dueSoon
-    .map((item, index) => {
-      const sheet = homeworkSheets[index];
-      const pendingCount = sheet
-        ? Math.max(0, sheet.totalCount - sheet.submittedCount)
-        : 1;
-      return {
-        assignmentId: item.id,
-        label: item.title,
-        pendingCount,
-      };
-    })
-    .filter((row) => row.pendingCount > 0);
+  const pendingHomework = dueSoon.map((item) => ({
+    assignmentId: item.id,
+    label: item.title,
+    pendingCount: 1,
+  }));
 
-  const overviewResults = await Promise.all(
-    classes.map((teacherClass) =>
-      loadTeacherHomeworkClassOverview({
-        instituteId,
-        sectionId: teacherClass.id,
-        kind: "homework",
-        homeworkItems,
-      }),
-    ),
-  );
-  const homeworkOverview = classes.map((teacherClass, index) => {
-    const overview = overviewResults[index];
-    const students = overview?.students ?? [];
-    const submissionPct =
-      students.length === 0
-        ? 0
-        : Math.round(
-            students.reduce((sum, row) => {
-              const pct = row.total > 0 ? (row.submitted / row.total) * 100 : 0;
-              return sum + pct;
-            }, 0) / students.length,
-          );
-    return {
-      classId: teacherClass.id,
-      label: `${teacherClass.className}-${teacherClass.section}`,
-      submissionPct,
-    };
-  });
+  const homeworkOverview = classes.map((teacherClass) => ({
+    classId: teacherClass.id,
+    label: `${teacherClass.className}-${teacherClass.section}`,
+    submissionPct: teacherClass.homeworkSubmissionRate,
+  }));
 
   const pendingMarksByExam = new Map<string, { label: string; count: number }>();
   for (const entry of markEntries) {

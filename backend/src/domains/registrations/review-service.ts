@@ -14,16 +14,7 @@ import {
 import type { InstituteKind } from "../identity/types.js";
 import { recordPlatformAuditForActor } from "../audit/service.js";
 import { ensureDefaultAccessRoles } from "../access-roles/service.js";
-import {
-  findSubscriptionByInstituteId,
-  insertSubscription,
-} from "../nexus/repository.js";
-import {
-  addUtcDays,
-  DEFAULT_GRACE_DAYS,
-  DEFAULT_PER_STUDENT_RATE_INR,
-  DEFAULT_TRIAL_DAYS,
-} from "../subscriptions/pricing.js";
+import { ensureTrialSubscriptionForInstitute } from "../subscriptions/ensure-trial.js";
 import {
   beginRegistrationApproval,
   findActiveMembershipForUserInstitute,
@@ -104,22 +95,7 @@ async function ensureTrialSubscriptionOnApproval(
   admin: SupabaseClient,
   instituteId: string,
 ): Promise<void> {
-  const existing = await findSubscriptionByInstituteId(admin, instituteId);
-  if (existing) return;
-
-  const trialStartAt = new Date().toISOString();
-  const trialEndAt = addUtcDays(trialStartAt, DEFAULT_TRIAL_DAYS);
-  const graceEndsAt = addUtcDays(trialEndAt, DEFAULT_GRACE_DAYS);
-
-  await insertSubscription(admin, {
-    instituteId,
-    lifecycleStatus: "trial_active",
-    assignedRateInr: DEFAULT_PER_STUDENT_RATE_INR,
-    activeStudentCount: 0,
-    trialStartAt,
-    trialEndAt,
-    graceEndsAt,
-  });
+  await ensureTrialSubscriptionForInstitute(admin, instituteId);
 }
 
 async function ensureApplicantProfile(
@@ -405,6 +381,7 @@ export async function rejectRegistrationForReviewer(
   assertRegistrationReviewer(actor);
 
   if (registration.status === "rejected") {
+    // Idempotent: repeated reject returns the existing rejected row.
     return toRegistrationDto(registration);
   }
 
@@ -412,20 +389,33 @@ export async function rejectRegistrationForReviewer(
     throw AppError.conflict("Registration was already approved");
   }
 
-  if (registration.status !== "pending") {
+  // Allow reject from pending or stuck approving (failed/abandoned provision).
+  if (registration.status !== "pending" && registration.status !== "approving") {
     throw AppError.conflict("Registration is not pending approval");
   }
 
   const reviewedAt = new Date().toISOString();
-  const updated = await updateRegistrationFieldsIfStatus(admin, registrationId, "pending", {
-    status: "rejected",
-    rejection_reason: trimmedReason,
-    reviewed_by: actor.userId,
-    reviewed_at: reviewedAt,
-    institute_id: null,
-  });
+  const updated = await updateRegistrationFieldsIfStatus(
+    admin,
+    registrationId,
+    registration.status,
+    {
+      status: "rejected",
+      rejection_reason: trimmedReason,
+      reviewed_by: actor.userId,
+      reviewed_at: reviewedAt,
+      institute_id: null,
+    },
+  );
 
-  if (!updated) throw AppError.conflict("Registration review state changed");
+  if (!updated) {
+    // Concurrent finish may have approved or another reject won — re-read.
+    const latest = await findRegistrationById(admin, registrationId);
+    if (latest?.status === "rejected") {
+      return toRegistrationDto(latest);
+    }
+    throw AppError.conflict("Registration review state changed");
+  }
 
   const instituteName =
     registration.payload.instituteName?.trim() || "Registration application";

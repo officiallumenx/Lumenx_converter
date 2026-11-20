@@ -303,7 +303,7 @@ export function applyApiApprovedHydration(input: {
         updatedAt: s.createdAt,
         createdBy: "api",
         studentIds: input.students
-          .filter((st) => st.pickupStopId === s.id)
+          .filter((st) => (st.pickupStopId?.trim() || st.dropStopId?.trim()) === s.id)
           .map((st) => st.studentId),
         // School stays at the end; waypoints are renumbered below.
         routeOrder: kind === "school" ? 10_000 : s.routeOrder + 1,
@@ -333,23 +333,24 @@ export function applyApiApprovedHydration(input: {
 
   // Keep every roster student — including null / orphan pickup — so enrolled
   // riders stay visible in My Assignments (Connect already shows them).
+  // Single-Stop Rule: student's assigned stop is identical for pickup and drop.
   const apiAssignments: StudentStopAssignment[] = input.students.map((s) => {
     const rawPickup = s.pickupStopId?.trim() ? s.pickupStopId.trim() : null;
     const rawDrop = s.dropStopId?.trim() ? s.dropStopId.trim() : null;
-    const livePickupName = rawPickup ? stopNameById.get(rawPickup) : undefined;
-    const liveDropName = rawDrop ? stopNameById.get(rawDrop) : undefined;
+    const rawAssigned = rawPickup || rawDrop || null;
+    const liveAssignedName = rawAssigned ? stopNameById.get(rawAssigned) : undefined;
     // Orphan = FK set but stop not in live route stops (soft-deleted / wrong route).
-    const stopId = rawPickup && livePickupName ? rawPickup : null;
-    const dropStopId = rawDrop && liveDropName ? rawDrop : null;
+    const stopId = rawAssigned && liveAssignedName ? rawAssigned : null;
+    const dropStopId = stopId;
     return {
       id: s.enrollmentId,
       studentId: s.studentId,
       studentName: s.studentName,
       studentClass: s.classLabel,
       stopId,
-      stopName: stopId ? livePickupName! : STOP_NOT_ASSIGNED_LABEL,
+      stopName: stopId && liveAssignedName ? liveAssignedName : STOP_NOT_ASSIGNED_LABEL,
       dropStopId,
-      dropStopName: dropStopId ? liveDropName! : DROP_STOP_NOT_ASSIGNED_LABEL,
+      dropStopName: dropStopId && liveAssignedName ? liveAssignedName : STOP_NOT_ASSIGNED_LABEL,
       status: mapStatus(s.approvalStatus),
       createdAt: now,
       updatedAt: now,
@@ -461,6 +462,8 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
         next[index] = {
           ...existing,
           stopName: stop.name,
+          dropStopId: stop.id,
+          dropStopName: stop.name,
           studentName: meta.studentName,
           studentClass: meta.studentClass,
           status: "pending",
@@ -477,6 +480,8 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
           studentClass: meta.studentClass,
           stopId: stop.id,
           stopName: stop.name,
+          dropStopId: stop.id,
+          dropStopName: stop.name,
           status: "pending",
           createdAt: now,
           updatedAt: now,
@@ -495,6 +500,8 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
         ...movedFrom,
         stopId: stop.id,
         stopName: stop.name,
+        dropStopId: stop.id,
+        dropStopName: stop.name,
         status: "pending",
         updatedAt: now,
       };
@@ -513,6 +520,8 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
         studentClass: meta.studentClass,
         stopId: stop.id,
         stopName: stop.name,
+        dropStopId: stop.id,
+        dropStopName: stop.name,
         status: "pending",
         createdAt: now,
         updatedAt: now,
@@ -791,6 +800,8 @@ export function movePendingAssignment(assignmentId: string, targetStopId: string
             ...a,
             stopId: targetStop.id,
             stopName: targetStop.name,
+            dropStopId: targetStop.id,
+            dropStopName: targetStop.name,
             status: "pending" as const,
             updatedAt: now,
           }

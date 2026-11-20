@@ -16,9 +16,21 @@ export function TransportAlertsSync(): null {
 
   useEffect(() => {
     if (!instituteId) return;
-    return subscribeInAppAlerts(() => {
+    const onInApp = () => {
       refresh();
-    });
+    };
+    const onPushForeground = () => {
+      refresh();
+    };
+    const unsub = subscribeInAppAlerts(onInApp);
+    window.addEventListener("lumenx-transport-push-foreground", onPushForeground);
+    return () => {
+      unsub();
+      window.removeEventListener(
+        "lumenx-transport-push-foreground",
+        onPushForeground,
+      );
+    };
   }, [instituteId, refresh]);
 
   return null;

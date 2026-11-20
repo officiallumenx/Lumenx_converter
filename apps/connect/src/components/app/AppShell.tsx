@@ -12,6 +12,7 @@ import {
 } from "react";
 import { AppLockScreen } from "@/components/app/AppLockScreen";
 import { RouteOutletErrorBoundary } from "@/components/app/RouteOutletErrorBoundary";
+import { ModuleHelpRouteControl } from "@/components/module-help";
 import { appLockStore } from "@/lib/app-lock-store";
 import { useIsConnectSettingsRoute } from "@/lib/connect-settings-route";
 import { readMainScroll, saveMainScroll } from "@/lib/main-scroll-memory";
@@ -657,6 +658,7 @@ function AuthenticatedAppShell({ children }: { children?: ReactNode }) {
                 </Link>
               )}
             <GlobalSearch />
+            <ModuleHelpRouteControl />
             <PendingSyncBadge className="hidden sm:inline-flex" />
             <Button
               variant="ghost"

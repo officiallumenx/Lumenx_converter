@@ -4,6 +4,7 @@ const config = createCapacitorConfig({
   appId: "com.lumenx.app.careers",
   appName: "LumenX Careers",
   backgroundColor: "#FCFCFD",
+  hostname: "careers.lumenxtech.in",
 });
 
 export default config;

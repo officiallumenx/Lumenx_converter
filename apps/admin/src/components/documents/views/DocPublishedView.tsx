@@ -856,7 +856,7 @@ export function DocPublishedView() {
               </button>
             ))}
           </div>
-          <Link to="/documents" search={{ view: "official" }}>
+          <Link to="/documents" search={{ view: "templates" }}>
             <Button size="sm" variant="primary">
               <Wand2 className="size-3.5" /> Generate more
             </Button>

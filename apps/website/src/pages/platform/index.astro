@@ -1,0 +1,19 @@
+---
+import Breadcrumb from "../../components/layout/Breadcrumb.astro";
+import Layout from "../../layouts/Layout.astro";
+import Productssection from "../../components/Productssection.astro";
+import NexusSection from "../../components/NexusSection.astro";
+import Ecosystemsection from "../../components/Ecosystemsection.astro";
+---
+
+<Layout
+  description="Explore the LumenX School ERP ecosystem: Admin, Connect, Transport, Admissions, Careers, and LumenX Nexus — the central service platform connecting you to LumenX services."
+  title="School ERP Platform & Ecosystem"
+>
+  <Breadcrumb description="Purpose-built institutional modules and LumenX Nexus, our central service platform — working together in one connected ecosystem.">
+    <Fragment slot="title">Platform</Fragment>
+  </Breadcrumb>
+  <Productssection />
+  <NexusSection />
+  <Ecosystemsection />
+</Layout>

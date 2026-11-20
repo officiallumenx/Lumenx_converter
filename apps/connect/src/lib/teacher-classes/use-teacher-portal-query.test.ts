@@ -18,30 +18,39 @@ const INST_B = "22222222-2222-4222-8222-222222222222";
 const rosterA: TeacherPortalApiData = {
   instituteId: INST_A,
   teacherId: "teacher-a",
+  portalSelf: null,
   classes: [],
   studentsBySection: new Map(),
   allStudents: [],
+  studentsLoaded: true,
 };
 
 const rosterB: TeacherPortalApiData = {
   instituteId: INST_B,
   teacherId: "teacher-b",
+  portalSelf: null,
   classes: [],
   studentsBySection: new Map(),
   allStudents: [],
+  studentsLoaded: true,
 };
 
-const fetchRoster = vi.fn(async (instituteId: string) => {
-  if (instituteId === INST_A) return rosterA;
-  if (instituteId === INST_B) return rosterB;
-  return null;
-});
+const fetchRoster = vi.fn(
+  async (instituteId: string, _options?: { includeStudents?: boolean }) => {
+    if (instituteId === INST_A) return rosterA;
+    if (instituteId === INST_B) return rosterB;
+    return null;
+  },
+);
 
 vi.mock("./load", async () => {
   const actual = await vi.importActual<typeof import("./load")>("./load");
   return {
     ...actual,
-    loadTeacherPortalApiData: (instituteId: string) => fetchRoster(instituteId),
+    loadTeacherPortalApiData: (
+      instituteId: string,
+      options?: { includeStudents?: boolean },
+    ) => fetchRoster(instituteId, options),
   };
 });
 
@@ -153,12 +162,12 @@ describe("teacher portal query cache", () => {
     const other = await ensureTeacherPortalRoster(INST_B);
     expect(other?.teacherId).toBe("teacher-b");
     expect(other?.instituteId).toBe(INST_B);
-    expect(fetchRoster).toHaveBeenCalledWith(INST_B);
+    expect(fetchRoster).toHaveBeenCalledWith(INST_B, { includeStudents: true });
 
     spy.mockRestore();
   });
 
-  it("ensureTeacherPortalRoster reuses module cache for the same institute", async () => {
+  it("ensureTeacherPortalRoster reuses full module cache for the same institute", async () => {
     bindTeacherPortalQueryClient(null);
     const load = await import("./load");
     const spy = vi.spyOn(load, "getTeacherPortalApiCache").mockReturnValue(rosterA);
@@ -167,6 +176,35 @@ describe("teacher portal query cache", () => {
     const hit = await ensureTeacherPortalRoster(INST_A);
     expect(hit?.teacherId).toBe("teacher-a");
     expect(fetchRoster).not.toHaveBeenCalled();
+
+    spy.mockRestore();
+  });
+
+  it("ensureTeacherPortalRoster upgrades a Home shell roster to include students", async () => {
+    const client = makeClient();
+    bindTeacherPortalQueryClient(client);
+    const shell: TeacherPortalApiData = { ...rosterA, studentsLoaded: false };
+    const key = teacherPortalQueryKey(USER_A, INST_A);
+    client.setQueryData(key, shell);
+    fetchRoster.mockClear();
+    fetchRoster.mockResolvedValueOnce({ ...rosterA, studentsLoaded: true });
+
+    const result = await ensureTeacherPortalRoster(INST_A, USER_A);
+    expect(result?.studentsLoaded).toBe(true);
+    expect(fetchRoster).toHaveBeenCalledWith(INST_A, { includeStudents: true });
+  });
+
+  it("ensureTeacherPortalRoster does not treat a shell module cache as complete", async () => {
+    bindTeacherPortalQueryClient(null);
+    const load = await import("./load");
+    const shell: TeacherPortalApiData = { ...rosterA, studentsLoaded: false };
+    const spy = vi.spyOn(load, "getTeacherPortalApiCache").mockReturnValue(shell);
+    fetchRoster.mockClear();
+    fetchRoster.mockResolvedValueOnce({ ...rosterA, studentsLoaded: true });
+
+    const hit = await ensureTeacherPortalRoster(INST_A);
+    expect(hit?.studentsLoaded).toBe(true);
+    expect(fetchRoster).toHaveBeenCalledWith(INST_A, { includeStudents: true });
 
     spy.mockRestore();
   });

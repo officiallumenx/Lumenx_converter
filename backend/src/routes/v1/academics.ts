@@ -391,6 +391,8 @@ subjects.post("/", async (c) => {
       category: z.string().min(1).max(100),
       periods_per_week: z.number().int().min(1).max(40),
       applicable_class_codes: z.array(z.string().min(1).max(50)).max(50),
+      capacity: z.number().int().min(0).max(10000).nullable().optional(),
+      class_periods: z.record(z.string(), z.number().int().min(1).max(40)).optional(),
       status: subjectStatusSchema.optional(),
       teacher_ids: z.array(uuid).max(50).optional(),
     }),
@@ -403,6 +405,8 @@ subjects.post("/", async (c) => {
     category: body.category,
     periodsPerWeek: body.periods_per_week,
     applicableClassCodes: body.applicable_class_codes,
+    capacity: body.capacity,
+    classPeriods: body.class_periods,
     status: body.status,
     teacherIds: body.teacher_ids,
   });
@@ -424,6 +428,10 @@ subjects.patch("/:id", async (c) => {
           .array(z.string().min(1).max(50))
           .max(50)
           .optional(),
+        capacity: z.number().int().min(0).max(10000).nullable().optional(),
+        class_periods: z
+          .record(z.string(), z.number().int().min(1).max(40))
+          .optional(),
         status: subjectStatusSchema.optional(),
       })
       .refine((b) => Object.keys(b).length > 0, {
@@ -437,6 +445,8 @@ subjects.patch("/:id", async (c) => {
     category: body.category,
     periodsPerWeek: body.periods_per_week,
     applicableClassCodes: body.applicable_class_codes,
+    capacity: body.capacity,
+    classPeriods: body.class_periods,
     status: body.status,
   });
   return c.json({ data });

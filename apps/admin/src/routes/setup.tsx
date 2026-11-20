@@ -28,7 +28,7 @@ function SetupPage() {
         eyebrow="Setup"
         title="Setup"
         subtitle="Finish institute setup so Admin, Connect, and Transport share live data"
-      />
+       helpKey="setup" />
       <SetupChecklistPanel state={state} onRefresh={() => void reload({ force: true })} />
     </AppShell>
   );

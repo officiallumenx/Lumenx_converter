@@ -143,7 +143,7 @@ function ParentProfileDemo({ id }: { id: string }) {
   if (!parent) {
     return (
       <AppShell title="Parent not found" subtitle={id}>
-        <ModuleHero eyebrow="People" title="Parent not found" subtitle={id} />
+        <ModuleHero eyebrow="People" title="Parent not found" subtitle={id}  helpKey="parents" />
         <Card className="p-8 text-center">
           <p className="text-sm">This parent record is not available.</p>
           <Link
@@ -198,7 +198,7 @@ function ParentProfileDemo({ id }: { id: string }) {
         eyebrow="People"
         title="Parent detail"
         subtitle={`${view.name} · ${view.id}`}
-      />
+       helpKey="parents" />
       {errors.length > 0 && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           {errors.map((error) => (

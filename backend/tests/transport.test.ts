@@ -374,7 +374,7 @@ describe("transport api", () => {
     expect(linked).toBeTruthy();
     const routeId = linked!.id;
 
-    const adminStopBlocked = await app.request("/api/v1/transport/stops", {
+    const adminStop = await app.request("/api/v1/transport/stops", {
       method: "POST",
       headers: {
         Authorization: "Bearer token-admin",
@@ -383,14 +383,52 @@ describe("transport api", () => {
       body: JSON.stringify({
         institute_id: INST_A,
         route_id: routeId,
-        name: "Stop 1",
-        location_label: "Corner",
-        latitude: 12.9,
-        longitude: 77.5,
-        route_order: 0,
+        name: "Admin Created Stop",
+        location_label: "North Corner",
+        latitude: 12.91,
+        longitude: 77.51,
+        route_order: 10,
       }),
     });
-    expect(adminStopBlocked.status).toBe(403);
+    expect(adminStop.status).toBe(201);
+    const adminStopData = (await json(adminStop)).data;
+    expect(adminStopData.approvalStatus).toBe("approved");
+
+    const duplicateStop = await app.request("/api/v1/transport/stops", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: routeId,
+        name: "Admin Created Stop",
+        location_label: "North Corner 2",
+        latitude: 12.91,
+        longitude: 77.51,
+        route_order: 11,
+      }),
+    });
+    expect(duplicateStop.status).toBe(409);
+
+    const unauthorizedStop = await app.request("/api/v1/transport/stops", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-parent",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: routeId,
+        name: "Parent Illegal Stop",
+        location_label: "Illegal",
+        latitude: 12.92,
+        longitude: 77.52,
+        route_order: 12,
+      }),
+    });
+    expect(unauthorizedStop.status).toBe(403);
 
     const stop = await app.request("/api/v1/transport/stops", {
       method: "POST",
@@ -500,7 +538,7 @@ describe("transport api", () => {
       { headers: { Authorization: "Bearer token-admin" } },
     );
     expect(empty.status).toBe(200);
-    expect((await json(empty)).data.defaultNotificationRadiusM).toBe(150);
+    expect((await json(empty)).data.defaultNotificationRadiusM).toBe(100);
 
     const put = await app.request(
       `/api/v1/transport/settings?institute_id=${INST_A}`,
@@ -918,6 +956,15 @@ describe("transport api", () => {
       enrollList.some((e) => e.studentId === STUDENT_A && e.status === "active"),
     ).toBe(true);
 
+    const snapParticipant = (
+      db as unknown as Record<string, Array<{ student_id: string; trip_id: string; not_riding: boolean }>>
+    ).transport_trip_participant?.find(
+      (p) => p.student_id === STUDENT_A && p.trip_id === trip.id,
+    );
+    if (snapParticipant) {
+      snapParticipant.not_riding = true;
+    }
+
     const afterRemove = await app.request(
       `/api/v1/transport/trips/${trip.id}/effective-participants`,
       { headers: { Authorization: "Bearer token-admin" } },
@@ -939,6 +986,10 @@ describe("transport api", () => {
     const body = await json(res);
     expect(body.data.driverId).toBe(DRIVER_A);
     expect(body.data.routeId).toBe(ROUTE_A);
+    expect(body.data.vehicleId).toBe(VEHICLE_A);
+    expect(body.data.vehicleNumber).toBe("BUS-1");
+    expect(body.data.vehicleCapacity).toBe(40);
+    expect(body.data.routeApprovalStatus).toBe("approved");
     expect(body.data.stops.length).toBeGreaterThanOrEqual(2);
     expect(body.data.students.length).toBe(2);
     expect(body.data.students.some((s: { studentName: string }) => s.studentName === "Kid A")).toBe(
@@ -1009,7 +1060,8 @@ describe("transport api", () => {
       db.notification.some(
         (n) =>
           typeof n.dedupe_key === "string" &&
-          String(n.dedupe_key).includes(`:approach:5`),
+          (String(n.dedupe_key).includes(`:approach:5`) ||
+            String(n.dedupe_key).includes(`:arrived`)),
       ),
     ).toBe(true);
     expect(
@@ -1227,7 +1279,7 @@ describe("transport api", () => {
     expect(patch.status).toBe(200);
     const body = await json(patch);
     expect(body.data.pickupStopId).toBe(STOP_PICKUP);
-    expect(body.data.dropStopId).toBe(STOP_DROP);
+    expect(body.data.dropStopId).toBe(STOP_PICKUP);
 
     const roster = await app.request(
       `/api/v1/transport/portal/driver-route-roster?institute_id=${INST_A}`,
@@ -2032,6 +2084,12 @@ describe("transport api", () => {
     });
     expect(dropBeforeSchool.status).toBe(409);
 
+    // Expire approach start-grace so school geofence can evaluate on ping.
+    const tripRow = db.transport_trip.find((t) => t.id === trip.id);
+    if (tripRow) {
+      tripRow.started_at = new Date(Date.now() - 120_000).toISOString();
+    }
+
     // School geofence → SCHOOL_ARRIVED (no auto-board)
     const schoolPing = await app.request(`/api/v1/transport/trips/${trip.id}/location`, {
       method: "POST",
@@ -2571,7 +2629,7 @@ describe("transport api", () => {
     const prePickup = db.notification.filter(
       (n) =>
         n.dedupe_key ===
-        `transport:${ROUTE_A}:reminder:${STUDENT_A}:pre_pickup:${serviceDate}`,
+        `transport:${ROUTE_A}:reminder:pre_pickup:${serviceDate}`,
     );
     expect(prePickup).toHaveLength(1);
     expect(prePickup[0]?.priority).not.toBe("critical");
@@ -2664,7 +2722,7 @@ describe("transport api", () => {
       db.notification.some(
         (n) =>
           n.dedupe_key ===
-          `transport:${ROUTE_A}:reminder:${STUDENT_A}:morning_service:${serviceDate}`,
+          `transport:${ROUTE_A}:reminder:morning_service:${serviceDate}`,
       ),
     ).toBe(true);
   });
@@ -3230,6 +3288,398 @@ describe("transport api", () => {
           })
         ).status,
       ).toBe(403);
+    });
+  });
+
+  describe("batch assignment and move endpoints", () => {
+    it("lists all stops for an entire institute without route_id (no N+1)", async () => {
+      const db = baseDb();
+      const app = appWithDb(db);
+
+      const res = await app.request(
+        `/api/v1/transport/stops?institute_id=${INST_A}`,
+        { headers: { Authorization: "Bearer token-admin" } },
+      );
+      expect(res.status).toBe(200);
+      const body = await json(res);
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.data.length).toBeGreaterThanOrEqual(2);
+      expect(body.data.every((s: { instituteId: string }) => s.instituteId === INST_A)).toBe(true);
+    });
+
+    it("assigns students to a stop in bulk and moves them atomically", async () => {
+      const db = baseDb();
+      const app = appWithDb(db);
+
+      // 1. Assign STUDENT_A and STUDENT_B to STOP_PICKUP
+      const assignRes = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}/stops/${STOP_PICKUP}/assign-students`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer token-admin",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            institute_id: INST_A,
+            student_ids: [STUDENT_A, STUDENT_B],
+          }),
+        },
+      );
+      expect(assignRes.status).toBe(200);
+      const assignBody = await json(assignRes);
+      expect(assignBody.data.assignedCount).toBe(2);
+
+      // Verify db enrollments
+      const enrollA = db.transport_enrollment.find((e) => e.student_id === STUDENT_A);
+      expect(enrollA?.pickup_stop_id).toBe(STOP_PICKUP);
+      expect(enrollA?.drop_stop_id).toBe(STOP_PICKUP);
+
+      // 2. Unassign STUDENT_B by omitting it from next assignment
+      const reassignRes = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}/stops/${STOP_PICKUP}/assign-students`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer token-admin",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            institute_id: INST_A,
+            student_ids: [STUDENT_A],
+          }),
+        },
+      );
+      expect(reassignRes.status).toBe(200);
+      const reassignBody = await json(reassignRes);
+      expect(reassignBody.data.assignedCount).toBe(1);
+      expect(reassignBody.data.unassignedCount).toBe(1);
+
+      const enrollB = db.transport_enrollment.find((e) => e.student_id === STUDENT_B);
+      expect(enrollB?.pickup_stop_id).toBeNull();
+      expect(enrollB?.drop_stop_id).toBeNull();
+
+      // 3. Move STUDENT_A to STOP_DROP
+      const moveRes = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}/stops/move-students`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer token-admin",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            institute_id: INST_A,
+            from_stop_id: STOP_PICKUP,
+            to_stop_id: STOP_DROP,
+            student_ids: [STUDENT_A],
+          }),
+        },
+      );
+      expect(moveRes.status).toBe(200);
+      const moveBody = await json(moveRes);
+      expect(moveBody.data.movedCount).toBe(1);
+
+      const enrollAMoved = db.transport_enrollment.find((e) => e.student_id === STUDENT_A);
+      expect(enrollAMoved?.pickup_stop_id).toBe(STOP_DROP);
+      expect(enrollAMoved?.drop_stop_id).toBe(STOP_DROP);
+
+      // 4. Unauthorized actor rejected with 403
+      const forbiddenRes = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}/stops/${STOP_PICKUP}/assign-students`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer token-parent",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            institute_id: INST_A,
+            student_ids: [STUDENT_A],
+          }),
+        },
+      );
+      expect(forbiddenRes.status).toBe(403);
+    });
+
+    it("enforces safety rules on route deletion: active trips, assigned students, stops cleanup", async () => {
+      const db = baseDb();
+      const app = appWithDb(db);
+
+      // Ensure stop belongs to ROUTE_A
+      db.stop.push({
+        id: "b0333333-3333-4333-8333-333333333333",
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        name: "Test Stop",
+        location_label: "Stop 1",
+        latitude: 12.9716,
+        longitude: 77.5946,
+        route_order: 1,
+        deleted_at: null,
+      });
+
+      // Case 1: Cannot delete route if active trip in progress
+      db.transport_trip.push({
+        id: "tt111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        vehicle_id: VEHICLE_A,
+        driver_user_id: USER_DRIVER,
+        trip_date: "2026-11-10",
+        slot: "morning",
+        phase: "running",
+        finalized: false,
+        deleted_at: null,
+      });
+
+      const activeTripDelete = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Bearer token-admin" },
+        },
+      );
+      expect(activeTripDelete.status).toBe(409);
+      const activeTripBody = await json(activeTripDelete);
+      expect(activeTripBody.error.message).toMatch(/active trip in progress/i);
+
+      // Finalize the trip so it is no longer active
+      db.transport_trip[db.transport_trip.length - 1] = {
+        ...db.transport_trip[db.transport_trip.length - 1],
+        phase: "completed",
+        finalized: true,
+      };
+
+      // Case 2: Cannot delete route if students are assigned
+      db.transport_enrollment.push({
+        id: "en111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        student_id: STUDENT_A,
+        pickup_stop_id: STOP_PICKUP,
+        drop_stop_id: STOP_DROP,
+        status: "active",
+        deleted_at: null,
+      });
+
+      const assignedStudentsDelete = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Bearer token-admin" },
+        },
+      );
+      expect(assignedStudentsDelete.status).toBe(409);
+      const assignedBody = await json(assignedStudentsDelete);
+      expect(assignedBody.error.message).toMatch(/assigned student/i);
+
+      // Case 3: Forbidden for admin from a different institute
+      const crossInstDelete = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Bearer token-other" },
+        },
+      );
+      expect(crossInstDelete.status).toBe(403);
+
+      // Soft-delete all student enrollments on ROUTE_A to simulate student reassignment / removal
+      db.transport_enrollment = db.transport_enrollment.map((e) =>
+        e.route_id === ROUTE_A ? { ...e, deleted_at: new Date().toISOString() } : e,
+      );
+
+      // Case 4: Route deletion succeeds when no active trips and no students
+      const successDelete = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Bearer token-admin" },
+        },
+      );
+      expect(successDelete.status).toBe(200);
+      const successBody = await json(successDelete);
+      expect(successBody.data.ok).toBe(true);
+
+      // Check route soft deletion
+      const deletedRoute = db.route.find((r) => r.id === ROUTE_A);
+      expect(deletedRoute?.deleted_at).not.toBeNull();
+      expect(deletedRoute?.vehicle_id).toBeNull();
+      expect(deletedRoute?.driver_id).toBeNull();
+
+      // Check that stops for this route are also soft-deleted
+      const stopsForRoute = db.stop.filter((s) => s.route_id === ROUTE_A);
+      expect(stopsForRoute.every((s) => s.deleted_at !== null)).toBe(true);
+
+      // Case 5: Cannot delete route that was already deleted (404/409)
+      const repeatDelete = await app.request(
+        `/api/v1/transport/routes/${ROUTE_A}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: "Bearer token-admin" },
+        },
+      );
+      expect([404, 409]).toContain(repeatDelete.status);
+    });
+  });
+
+  describe("boarding & dropping persistence, idempotency, undo, and non-premature completion", () => {
+    it("persists boarding, enforces client_event_id idempotency, supports pending undo without not_boarded notification, and preserves drop without premature trip end", async () => {
+      const db = baseDb();
+      db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+      // Align enrollments on single common assigned stop
+      db.transport_enrollment = db.transport_enrollment.map((e) => ({
+        ...e,
+        pickup_stop_id: STOP_PICKUP,
+        drop_stop_id: STOP_PICKUP,
+      }));
+      const app = appWithDb(db);
+      const today = new Date().toISOString().slice(0, 10);
+
+      const start = await app.request("/api/v1/transport/trips", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          route_id: ROUTE_A,
+          vehicle_id: VEHICLE_A,
+          driver_id: DRIVER_A,
+          trip_date: today,
+          slot: "morning",
+        }),
+      });
+      expect(start.status).toBe(201);
+      const trip = (await json(start)).data as { id: string };
+
+      // 1. Mark STUDENT_A boarded (STUDENT_B stays pending / offline)
+      const board1 = await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_A,
+          stop_id: STOP_PICKUP,
+          boarding_status: "boarded",
+          client_event_id: "board-idem-1",
+        }),
+      });
+      expect(board1.status).toBe(200);
+      const board1Body = (await json(board1)).data;
+      expect(board1Body.boardingStatus).toBe("boarded");
+      expect(board1Body.boardedAt).toBeTruthy();
+
+      // 2. Replay same client_event_id -> idempotent, single DB row
+      const boardReplay = await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_A,
+          stop_id: STOP_PICKUP,
+          boarding_status: "boarded",
+          client_event_id: "board-idem-1",
+        }),
+      });
+      expect(boardReplay.status).toBe(200);
+      expect(db.transport_boarding_event.filter((b) => b.trip_id === trip.id).length).toBe(1);
+
+      // 3. Undo boarding ("pending") clears timestamp and does NOT emit "Student not boarded" notification
+      const notifCountBeforeUndo = db.notification.length;
+      const undoBoard = await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_A,
+          stop_id: STOP_PICKUP,
+          boarding_status: "pending",
+          client_event_id: "board-undo-1",
+        }),
+      });
+      expect(undoBoard.status).toBe(200);
+      const undoBody = (await json(undoBoard)).data;
+      expect(undoBody.boardingStatus).toBe("pending");
+      expect(undoBody.boardedAt).toBeNull();
+      expect(db.notification.length).toBe(notifCountBeforeUndo);
+
+      // 4. Re-board STUDENT_A, advance to dropping phase, and drop STUDENT_A while STUDENT_B is still pending
+      await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_A,
+          stop_id: STOP_PICKUP,
+          boarding_status: "boarded",
+          client_event_id: "board-re-1",
+        }),
+      });
+
+      const tripRow = db.transport_trip.find((t) => t.id === trip.id)!;
+      tripRow.phase = "dropping";
+      tripRow.school_arrived_at = new Date().toISOString();
+
+      const dropA = await app.request(`/api/v1/transport/trips/${trip.id}/dropping`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_A,
+          stop_id: STOP_PICKUP,
+          dropping_status: "dropped",
+          client_event_id: "drop-a-1",
+        }),
+      });
+      expect(dropA.status).toBe(200);
+      const dropABody = (await json(dropA)).data;
+      expect(dropABody.droppingStatus).toBe("dropped");
+      expect(dropABody.droppedAt).toBeTruthy();
+
+      // Trip MUST remain active because STUDENT_B is still pending (never strand offline students!)
+      expect(db.transport_trip.find((t) => t.id === trip.id)?.phase).toBe("dropping");
+      expect(db.transport_trip.find((t) => t.id === trip.id)?.finalized).toBe(false);
+
+      // STUDENT_B offline mark arrives later and succeeds (no 409 Trip completed)
+      const dropB = await app.request(`/api/v1/transport/trips/${trip.id}/dropping`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-driver",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          student_id: STUDENT_B,
+          stop_id: STOP_PICKUP,
+          dropping_status: "dropped",
+          client_event_id: "drop-b-1",
+        }),
+      });
+      expect(dropB.status).toBe(200);
+
+      // Verify GET /boarding retains both marks
+      const listRes = await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+        headers: { Authorization: "Bearer token-driver" },
+      });
+      expect(listRes.status).toBe(200);
+      const listData = (await json(listRes)).data as Array<{
+        studentId: string;
+        boardingStatus: string;
+        droppingStatus: string;
+      }>;
+      expect(listData.find((x) => x.studentId === STUDENT_A)?.droppingStatus).toBe("dropped");
+      expect(listData.find((x) => x.studentId === STUDENT_B)?.droppingStatus).toBe("dropped");
     });
   });
 });

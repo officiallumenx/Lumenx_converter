@@ -1,7 +1,8 @@
 /**
- * Transport → Connect (guardians) + Admin staff + Driver notifications.
+ * Transport → Connect (guardians + linked students) + Admin staff + Driver notifications.
  * Complements approach.ts (ETA bands / arrival) with trip lifecycle / boarding / SOS.
  * Backend emit is SoT — no frontend-generated business notifications.
+ * Student fanout uses student.user_profile_id only (never invents recipients).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listLinksForStudentIds } from "../parents/repository.js";
@@ -9,7 +10,12 @@ import { findStudentById } from "../students/repository.js";
 import type { BoardingStatus, DroppingStatus } from "./ops-types.js";
 import type { TransportTripRow } from "./ops-types.js";
 import { isOperationallyUsable } from "./approval.js";
-import { findDriverById, findStopById, listEnrollmentsForRoute } from "./repository.js";
+import {
+  findDriverById,
+  findStopById,
+  findVehicleById,
+  listEnrollmentsForRoute,
+} from "./repository.js";
 import { TRANSPORT_EVENT } from "./transport-events.js";
 import { emitTransportNotification, emitTransportNotificationSafe } from "./transport-notification-emit.js";
 import {
@@ -106,6 +112,62 @@ export async function guardianUserIdsForRoute(
   return [...all];
 }
 
+/** Linked Connect user for a student (user_profile_id), institute-scoped. */
+export async function studentUserIdForStudent(
+  admin: SupabaseClient,
+  instituteId: string,
+  studentId: string,
+): Promise<string | null> {
+  const student = await findStudentById(admin, studentId);
+  if (!student || student.institute_id !== instituteId) return null;
+  if (student.deleted_at) return null;
+  return student.user_profile_id ?? null;
+}
+
+/** Batch student Connect user ids keyed by student id. */
+export async function studentUserIdsForStudents(
+  admin: SupabaseClient,
+  instituteId: string,
+  studentIds: string[],
+): Promise<Map<string, string | null>> {
+  const unique = [...new Set(studentIds.filter(Boolean))];
+  const out = new Map<string, string | null>();
+  for (const id of unique) out.set(id, null);
+  if (unique.length === 0) return out;
+
+  const result = await admin
+    .from("student")
+    .select("id, user_profile_id")
+    .eq("institute_id", instituteId)
+    .in("id", unique)
+    .is("deleted_at", null);
+  const rows = (result.data ?? []) as Array<{
+    id: string;
+    user_profile_id: string | null;
+  }>;
+  for (const row of rows) {
+    out.set(row.id, row.user_profile_id ?? null);
+  }
+  return out;
+}
+
+export async function studentUserIdsForRoute(
+  admin: SupabaseClient,
+  instituteId: string,
+  routeId: string,
+): Promise<string[]> {
+  const enrollments = (await listEnrollmentsForRoute(admin, instituteId, routeId)).filter(
+    (e) => isOperationallyUsable(e.approval_status),
+  );
+  const studentIds = [...new Set(enrollments.map((e) => e.student_id))];
+  const byStudent = await studentUserIdsForStudents(admin, instituteId, studentIds);
+  const all = new Set<string>();
+  for (const userId of byStudent.values()) {
+    if (userId) all.add(userId);
+  }
+  return [...all];
+}
+
 export async function staffUserIdsForInstitute(
   admin: SupabaseClient,
   instituteId: string,
@@ -168,6 +230,11 @@ export async function notifyTripStarted(
     trip.institute_id,
     trip.route_id,
   );
+  const students = await studentUserIdsForRoute(
+    admin,
+    trip.institute_id,
+    trip.route_id,
+  );
   const staff = await staffUserIdsForInstitute(admin, trip.institute_id);
   const driverUserId = await driverUserIdForTrip(admin, trip);
 
@@ -182,6 +249,20 @@ export async function notifyTripStarted(
       targetAudience: "parent",
       dedupeKey: transportDedupe.tripStarted(trip.id, "parent"),
       recipientUserIds: guardians,
+      payload: { tripId: trip.id, routeId: trip.route_id },
+    });
+  }
+  if (students.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.TRIP_STARTED,
+      title: "Bus is started",
+      body: "Your school bus trip has started. You can follow live status in Connect.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_STARTED, "student"),
+      targetAudience: "student",
+      dedupeKey: transportDedupe.tripStarted(trip.id, "student"),
+      recipientUserIds: students,
       payload: { tripId: trip.id, routeId: trip.route_id },
     });
   }
@@ -226,21 +307,42 @@ export async function notifySchoolArrived(
     trip.institute_id,
     trip.route_id,
   );
+  const students = await studentUserIdsForRoute(
+    admin,
+    trip.institute_id,
+    trip.route_id,
+  );
   const staff = await staffUserIdsForInstitute(admin, trip.institute_id);
   const driverUserId = await driverUserIdForTrip(admin, trip);
+  const vehicle = await findVehicleById(admin, trip.vehicle_id);
+  const busName = vehicle?.vehicle_number?.trim() || "Bus";
 
   if (guardians.length > 0) {
     emitTransportNotificationSafe(admin, {
       instituteId: trip.institute_id,
       createdByUserId,
       kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
-      title: "Bus reached school",
-      body: "The school bus has arrived at school.",
+      title: "Children reached school safely",
+      body: "Your children reached school safely.",
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "parent"),
       targetAudience: "parent",
       dedupeKey: transportDedupe.schoolArrived(trip.id, "parent"),
       recipientUserIds: guardians,
-      payload: { tripId: trip.id, routeId: trip.route_id },
+      payload: { tripId: trip.id, routeId: trip.route_id, vehicleNumber: busName },
+    });
+  }
+  if (students.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
+      title: "Bus reached school",
+      body: "Bus reached school.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "student"),
+      targetAudience: "student",
+      dedupeKey: transportDedupe.schoolArrived(trip.id, "student"),
+      recipientUserIds: students,
+      payload: { tripId: trip.id, routeId: trip.route_id, vehicleNumber: busName },
     });
   }
   if (staff.length > 0) {
@@ -248,13 +350,13 @@ export async function notifySchoolArrived(
       instituteId: trip.institute_id,
       createdByUserId,
       kind: TRANSPORT_EVENT.SCHOOL_ARRIVED,
-      title: "Bus reached school",
-      body: "A transport trip has arrived at school.",
+      title: `${busName} reached school successfully`,
+      body: `${busName} reached school successfully.`,
       deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.SCHOOL_ARRIVED, "admin"),
       targetAudience: "admin",
       dedupeKey: transportDedupe.schoolArrived(trip.id, "admin"),
       recipientUserIds: staff,
-      payload: { tripId: trip.id, routeId: trip.route_id },
+      payload: { tripId: trip.id, routeId: trip.route_id, vehicleNumber: busName },
     });
   }
   if (driverUserId) {
@@ -305,12 +407,38 @@ export async function notifyTripEnded(
   trip: TransportTripRow,
   createdByUserId: string,
 ): Promise<void> {
+  const staff = await staffUserIdsForInstitute(admin, trip.institute_id);
+  const vehicle = await findVehicleById(admin, trip.vehicle_id);
+  const busName = vehicle?.vehicle_number?.trim() || "Bus";
+
+  // Step 34: evening/drop completion is admin-only with bus-specific copy.
+  if (trip.slot === "evening") {
+    if (staff.length === 0) return;
+    emitTransportNotificationSafe(admin, {
+      instituteId: trip.institute_id,
+      createdByUserId,
+      kind: TRANSPORT_EVENT.TRIP_COMPLETED,
+      title: `${busName} successfully dropped all students`,
+      body: `${busName} successfully dropped all students.`,
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.TRIP_COMPLETED, "admin"),
+      targetAudience: "admin",
+      dedupeKey: `transport:${trip.id}:completed:admin`,
+      recipientUserIds: staff,
+      payload: {
+        tripId: trip.id,
+        routeId: trip.route_id,
+        vehicleNumber: busName,
+        slot: trip.slot,
+      },
+    });
+    return;
+  }
+
   const guardians = await guardianUserIdsForRoute(
     admin,
     trip.institute_id,
     trip.route_id,
   );
-  const staff = await staffUserIdsForInstitute(admin, trip.institute_id);
   if (guardians.length > 0) {
     emitTransportNotificationSafe(admin, {
       instituteId: trip.institute_id,
@@ -366,36 +494,81 @@ export async function notifyBoardingMarked(
     input.trip.institute_id,
     input.studentId,
   );
-  if (recipients.length === 0) return;
+  const studentUserId = await studentUserIdForStudent(
+    admin,
+    input.trip.institute_id,
+    input.studentId,
+  );
 
   const boarded = input.boardingStatus === "boarded";
-  await emitTransportNotification(admin, {
-    instituteId: input.trip.institute_id,
-    createdByUserId: input.createdByUserId,
-    kind: boarded
-      ? TRANSPORT_EVENT.STUDENT_BOARDED
-      : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
-    title: boarded ? `${name} boarded` : `${name} not boarded`,
-    body: boarded
-      ? `${name} has boarded the bus.`
-      : `${name} was marked not boarded for this trip.`,
-    deepLink: deepLinkForTransportEvent(
-      boarded
+  if (recipients.length > 0) {
+    await emitTransportNotification(admin, {
+      instituteId: input.trip.institute_id,
+      createdByUserId: input.createdByUserId,
+      kind: boarded
         ? TRANSPORT_EVENT.STUDENT_BOARDED
         : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
-      "parent",
-    ),
-    targetAudience: "parent",
-    dedupeKey: boarded
-      ? transportDedupe.boarded(input.trip.id, input.studentId)
-      : transportDedupe.notBoarded(input.trip.id, input.studentId),
-    recipientUserIds: recipients,
-    positiveOutcome: boarded,
-    payload: {
-      tripId: input.trip.id,
-      studentId: input.studentId,
-    },
-  });
+      title: boarded ? `${name} picked up safely` : `${name} not boarded`,
+      body: boarded
+        ? `${name} has boarded the bus.`
+        : `${name} was marked not boarded for this trip.`,
+      deepLink: deepLinkForTransportEvent(
+        boarded
+          ? TRANSPORT_EVENT.STUDENT_BOARDED
+          : TRANSPORT_EVENT.STUDENT_NOT_BOARDED,
+        "parent",
+      ),
+      targetAudience: "parent",
+      dedupeKey: boarded
+        ? transportDedupe.boarded(input.trip.id, input.studentId)
+        : transportDedupe.notBoarded(input.trip.id, input.studentId),
+      recipientUserIds: recipients,
+      positiveOutcome: boarded,
+      payload: {
+        tripId: input.trip.id,
+        studentId: input.studentId,
+      },
+    });
+  }
+  if (boarded && studentUserId) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.trip.institute_id,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.STUDENT_BOARDED,
+      title: "You marked as picked up",
+      body: "You marked as picked up.",
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_BOARDED, "student"),
+      targetAudience: "student",
+      dedupeKey: `${transportDedupe.boarded(input.trip.id, input.studentId)}:student`,
+      recipientUserIds: [studentUserId],
+      positiveOutcome: true,
+      payload: {
+        tripId: input.trip.id,
+        studentId: input.studentId,
+      },
+    });
+  }
+}
+
+/** Pure parent drop copy — school wording only when stop is school. */
+export function buildStudentDroppedParentCopy(input: {
+  studentName: string;
+  stopName: string;
+  stopKind: string | null | undefined;
+}): { title: string; body: string; atSchool: boolean } {
+  const name = input.studentName.trim() || "Your child";
+  const stopName = input.stopName.trim() || "the stop";
+  const atSchool =
+    input.stopKind === "school" || /^school\b/i.test(stopName);
+  return {
+    atSchool,
+    title: atSchool
+      ? `${name} reached school safely`
+      : `${name} dropped off safely`,
+    body: atSchool
+      ? `${name} was dropped at school (${stopName}).`
+      : `${name} was dropped at ${stopName}.`,
+  };
 }
 
 export async function notifyDroppingMarked(
@@ -419,31 +592,70 @@ export async function notifyDroppingMarked(
     input.trip.institute_id,
     input.studentId,
   );
-  if (recipients.length === 0) return;
+  const studentUserId = await studentUserIdForStudent(
+    admin,
+    input.trip.institute_id,
+    input.studentId,
+  );
 
   let stopName = "the stop";
+  let stopKind: string | null = null;
   if (input.stopId) {
     const stop = await findStopById(admin, input.stopId);
     if (stop?.name?.trim()) stopName = stop.name.trim();
+    stopKind = stop?.kind ?? null;
   }
 
-  await emitTransportNotification(admin, {
-    instituteId: input.trip.institute_id,
-    createdByUserId: input.createdByUserId,
-    kind: TRANSPORT_EVENT.STUDENT_DROPPED,
-    title: `${name} dropped off`,
-    body: `${name} has been dropped at ${stopName}.`,
-    deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "parent"),
-      targetAudience: "parent",
-    dedupeKey: transportDedupe.dropped(input.trip.id, input.studentId),
-    recipientUserIds: recipients,
-    positiveOutcome: true,
-    payload: {
-      tripId: input.trip.id,
-      studentId: input.studentId,
-      stopId: input.stopId ?? null,
-    },
+  // Accurate singular copy from the actual stop name — never invent “at school”
+  // unless the stop is the school stop (or its name already says so).
+  const { title: parentTitle, body: parentBody } = buildStudentDroppedParentCopy({
+    studentName: name,
+    stopName,
+    stopKind,
   });
+
+  if (recipients.length > 0) {
+    await emitTransportNotification(admin, {
+      instituteId: input.trip.institute_id,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.STUDENT_DROPPED,
+      title: parentTitle,
+      body: parentBody,
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "parent"),
+      targetAudience: "parent",
+      dedupeKey: transportDedupe.dropped(input.trip.id, input.studentId),
+      recipientUserIds: recipients,
+      positiveOutcome: true,
+      payload: {
+        tripId: input.trip.id,
+        studentId: input.studentId,
+        stopId: input.stopId ?? null,
+        stopName,
+        stopKind,
+      },
+    });
+  }
+  if (studentUserId) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.trip.institute_id,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.STUDENT_DROPPED,
+      title: "You marked as dropped",
+      body: `You marked as dropped at ${stopName}.`,
+      deepLink: deepLinkForTransportEvent(TRANSPORT_EVENT.STUDENT_DROPPED, "student"),
+      targetAudience: "student",
+      dedupeKey: `${transportDedupe.dropped(input.trip.id, input.studentId)}:student`,
+      recipientUserIds: [studentUserId],
+      positiveOutcome: true,
+      payload: {
+        tripId: input.trip.id,
+        studentId: input.studentId,
+        stopId: input.stopId ?? null,
+        stopName,
+        stopKind,
+      },
+    });
+  }
 }
 
 export async function notifyEmergencyOpened(
@@ -617,24 +829,46 @@ export async function notifyNotRidingCreated(
     input.studentId,
   );
   const staff = await staffUserIdsForInstitute(admin, input.instituteId);
-  const recipients = [...new Set([...guardians, ...staff])];
-  if (recipients.length === 0) return;
-  emitTransportNotificationSafe(admin, {
-    instituteId: input.instituteId,
-    createdByUserId: input.createdByUserId,
-    kind: TRANSPORT_EVENT.NOT_RIDING_CREATED,
-    title: "Not Riding Today",
-    body: `${name} is marked not riding on ${input.serviceDate}.`,
-    deepLink: "/transport",
-    targetAudience: "parent",
-    targetApps: ["connect", "admin"],
-    dedupeKey: transportDedupe.notRiding(input.studentId, input.serviceDate),
-    recipientUserIds: recipients,
-    payload: {
-      studentId: input.studentId,
-      serviceDate: input.serviceDate,
-    },
-  });
+  const payload = {
+    studentId: input.studentId,
+    serviceDate: input.serviceDate,
+  };
+  // Separate audience emits (same pattern as trip lifecycle) — do not mix
+  // staff into a parent-audience fanout.
+  if (guardians.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.instituteId,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.NOT_RIDING_CREATED,
+      title: "Not Riding Today",
+      body: `${name} is marked not riding on ${input.serviceDate}.`,
+      deepLink: deepLinkForTransportEvent(
+        TRANSPORT_EVENT.NOT_RIDING_CREATED,
+        "parent",
+      ),
+      targetAudience: "parent",
+      dedupeKey: transportDedupe.notRiding(input.studentId, input.serviceDate),
+      recipientUserIds: guardians,
+      payload,
+    });
+  }
+  if (staff.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.instituteId,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.NOT_RIDING_CREATED,
+      title: "Not Riding Today",
+      body: `${name} is marked not riding on ${input.serviceDate}.`,
+      deepLink: deepLinkForTransportEvent(
+        TRANSPORT_EVENT.NOT_RIDING_CREATED,
+        "admin",
+      ),
+      targetAudience: "admin",
+      dedupeKey: `${transportDedupe.notRiding(input.studentId, input.serviceDate)}:admin`,
+      recipientUserIds: staff,
+      payload,
+    });
+  }
 }
 
 export async function notifyNotRidingCancelled(
@@ -657,25 +891,48 @@ export async function notifyNotRidingCancelled(
     input.studentId,
   );
   const staff = await staffUserIdsForInstitute(admin, input.instituteId);
-  const recipients = [...new Set([...guardians, ...staff])];
-  if (recipients.length === 0) return;
-  emitTransportNotificationSafe(admin, {
-    instituteId: input.instituteId,
-    createdByUserId: input.createdByUserId,
-    kind: TRANSPORT_EVENT.NOT_RIDING_CANCELLED,
-    title: "Not Riding cancelled",
-    body: `${name} will ride again on ${input.serviceDate}.`,
-    deepLink: "/transport",
-    targetAudience: "parent",
-    targetApps: ["connect", "admin"],
-    dedupeKey: transportDedupe.notRidingCancelled(
-      input.studentId,
-      input.serviceDate,
-    ),
-    recipientUserIds: recipients,
-    payload: {
-      studentId: input.studentId,
-      serviceDate: input.serviceDate,
-    },
-  });
+  const payload = {
+    studentId: input.studentId,
+    serviceDate: input.serviceDate,
+  };
+  if (guardians.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.instituteId,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.NOT_RIDING_CANCELLED,
+      title: "Not Riding cancelled",
+      body: `${name} will ride again on ${input.serviceDate}.`,
+      deepLink: deepLinkForTransportEvent(
+        TRANSPORT_EVENT.NOT_RIDING_CANCELLED,
+        "parent",
+      ),
+      targetAudience: "parent",
+      dedupeKey: transportDedupe.notRidingCancelled(
+        input.studentId,
+        input.serviceDate,
+      ),
+      recipientUserIds: guardians,
+      payload,
+    });
+  }
+  if (staff.length > 0) {
+    emitTransportNotificationSafe(admin, {
+      instituteId: input.instituteId,
+      createdByUserId: input.createdByUserId,
+      kind: TRANSPORT_EVENT.NOT_RIDING_CANCELLED,
+      title: "Not Riding cancelled",
+      body: `${name} will ride again on ${input.serviceDate}.`,
+      deepLink: deepLinkForTransportEvent(
+        TRANSPORT_EVENT.NOT_RIDING_CANCELLED,
+        "admin",
+      ),
+      targetAudience: "admin",
+      dedupeKey: `${transportDedupe.notRidingCancelled(
+        input.studentId,
+        input.serviceDate,
+      )}:admin`,
+      recipientUserIds: staff,
+      payload,
+    });
+  }
 }

@@ -67,18 +67,25 @@ export type StudentStopAssignment = {
 export const STOP_NOT_ASSIGNED_LABEL = "Stop not assigned";
 export const DROP_STOP_NOT_ASSIGNED_LABEL = "Drop stop not assigned";
 
-/** True when the enrollment needs an explicit pickup stop choice (no inventing). */
-export function needsPickupStopAssignment(
-  assignment: Pick<StudentStopAssignment, "stopId">,
+/** Single-Stop Rule: student needs stop assignment if neither stopId nor dropStopId is assigned. */
+export function needsStopAssignment(
+  assignment: Pick<StudentStopAssignment, "stopId"> & { dropStopId?: string | null },
 ): boolean {
-  return !assignment.stopId;
+  return !assignment.stopId && !assignment.dropStopId;
 }
 
-/** True when drop is missing (null/orphan). */
-export function needsDropStopAssignment(
-  assignment: Pick<StudentStopAssignment, "dropStopId">,
+/** Legacy alias: true when the enrollment needs an explicit stop choice. */
+export function needsPickupStopAssignment(
+  assignment: Pick<StudentStopAssignment, "stopId"> & { dropStopId?: string | null },
 ): boolean {
-  return !assignment.dropStopId;
+  return !assignment.stopId && !assignment.dropStopId;
+}
+
+/** Legacy alias: true when the enrollment needs an explicit stop choice. */
+export function needsDropStopAssignment(
+  assignment: Pick<StudentStopAssignment, "dropStopId"> & { stopId?: string | null },
+): boolean {
+  return !assignment.dropStopId && !assignment.stopId;
 }
 
 export type RouteSetupRecord = {

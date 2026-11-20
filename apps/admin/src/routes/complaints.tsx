@@ -278,7 +278,7 @@ function ComplaintsPage() {
             ? "Create / transition / delete"
             : "Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
         }
-      />
+       helpKey="complaints" />
       <PageStack>
         {displayStatus === "loading" ||
         displayStatus === "needs_institute" ||

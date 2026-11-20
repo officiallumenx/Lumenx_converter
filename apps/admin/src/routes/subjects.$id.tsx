@@ -225,7 +225,7 @@ function SubjectDetailDemo({ id }: { id: string }) {
   if (!subject) {
     return (
       <AppShell title="Subject not found" subtitle={id}>
-        <ModuleHero eyebrow="Academics" title="Subject not found" subtitle={id} />
+        <ModuleHero eyebrow="Academics" title="Subject not found" subtitle={id}  helpKey="subjects" />
         <Card className="p-8 text-center">
           <p className="text-sm">This subject is not available.</p>
           <Link
@@ -281,7 +281,7 @@ function SubjectDetailDemo({ id }: { id: string }) {
         eyebrow="Academics"
         title={subject.name}
         subtitle={`${subject.code} · ${subject.category}`}
-      />
+       helpKey="subjects" />
       {editing && draft && (
         <Card className="mb-5">
           <CardHeader

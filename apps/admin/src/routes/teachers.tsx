@@ -73,7 +73,15 @@ import {
   splitCsvList,
   type TeacherImportRow,
 } from "@/lib/teachers/bulk-import-parse";
-import { matchSectionIdsByTeacherLabels } from "@/lib/teachers/bulk-import-resolve";
+import {
+  matchSectionIdsByTeacherLabels,
+  unmatchedTeacherSectionLabels,
+} from "@/lib/teachers/bulk-import-resolve";
+import {
+  outcomeAfterSuccessfulCreate,
+  shouldIgnoreDuplicateCreateClick,
+  type CreateSubmitMode,
+} from "@/lib/forms/create-and-add-another";
 import { RouteChunkFallback } from "@/components/RouteChunkFallback";
 import { formatApiClientError } from "@/lib/api";
 
@@ -380,6 +388,7 @@ function TeachersPage() {
   );
   const [pendingDelete, setPendingDelete] = useState<TeacherRow | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creatingTeacher, setCreatingTeacher] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -922,7 +931,8 @@ function TeachersPage() {
     setShowNewPassword(false);
   };
 
-  const onboard = () => {
+  const onboard = (mode: CreateSubmitMode = "create") => {
+    if (shouldIgnoreDuplicateCreateClick(creatingTeacher)) return;
     if (!guardWrite()) return;
     if (!newFirstName.trim() || !newSurname.trim()) {
       notify("Enter name and surname");
@@ -997,6 +1007,7 @@ function TeachersPage() {
         )
         .map((option) => option.value);
 
+      setCreatingTeacher(true);
       void createTeacherApi({
         instituteId,
         displayName: newName,
@@ -1013,8 +1024,11 @@ function TeachersPage() {
         classTeacherSectionIds,
       })
         .then((created) => {
+          const outcome = outcomeAfterSuccessfulCreate(mode);
           resetCreateForm();
-          setCreateDialogOpen(false);
+          if (!outcome.stayOpen) {
+            setCreateDialogOpen(false);
+          }
           if (instituteCtx.activeInstituteId) {
             const id = instituteCtx.activeInstituteId;
             queryClient.setQueriesData(
@@ -1029,7 +1043,9 @@ function TeachersPage() {
           }
           const linkCount = created.assignmentIds?.length ?? assignments.length;
           notify(
-            `${created.displayName} onboarded · ${linkCount} class link${linkCount === 1 ? "" : "s"} ready for Connect`,
+            outcome.stayOpen
+              ? `${created.displayName} onboarded · ready for another`
+              : `${created.displayName} onboarded · ${linkCount} class link${linkCount === 1 ? "" : "s"} ready for Connect`,
           );
           bumpTeachersReload({
             includeClasses:
@@ -1038,6 +1054,9 @@ function TeachersPage() {
         })
         .catch((err) => {
           notify(formatApiClientError(err, "Failed to create teacher"));
+        })
+        .finally(() => {
+          setCreatingTeacher(false);
         });
       return;
     }
@@ -1076,9 +1095,16 @@ function TeachersPage() {
       id,
       newRole === "activity-coordinator" ? [] : newSubjectIds,
     );
+    const outcome = outcomeAfterSuccessfulCreate(mode);
     resetCreateForm();
-    setCreateDialogOpen(false);
-    notify(`${newName} onboarded · portal invite sent`);
+    if (!outcome.stayOpen) {
+      setCreateDialogOpen(false);
+    }
+    notify(
+      outcome.stayOpen
+        ? `${newName} onboarded · ready for another`
+        : `${newName} onboarded · portal invite sent`,
+    );
   };
 
   const importTeachers = (importRows: TeacherImportRow[]) => {
@@ -1098,12 +1124,14 @@ function TeachersPage() {
       const failures: string[] = [];
       let classes: ClassDto[] = [];
       let sections: SectionDto[] = [];
+      let catalogLoaded = false;
       try {
         const catalog = await listClassesCatalog({ instituteId });
         classes = catalog.classes;
         sections = catalog.sections;
+        catalogLoaded = true;
       } catch {
-        // Soft labels still work without catalog; class-teacher UUID resolve may be empty.
+        catalogLoaded = false;
       }
 
       const existingPhones = new Set(
@@ -1121,11 +1149,65 @@ function TeachersPage() {
         }
         const assignedSectionLabels = splitCsvList(imported.assignedSections);
         const classTeacherLabels = splitCsvList(imported.classTeacherSections);
+        const needsSectionResolve =
+          assignedSectionLabels.length > 0 || classTeacherLabels.length > 0;
+
+        if (needsSectionResolve && !catalogLoaded) {
+          failed += 1;
+          failures.push(
+            `${imported.displayName}: could not load class catalog to validate sections`,
+          );
+          continue;
+        }
+
+        if (needsSectionResolve && classes.length === 0 && sections.length === 0) {
+          failed += 1;
+          failures.push(
+            `${imported.displayName}: institute has no classes/sections to match`,
+          );
+          continue;
+        }
+
+        const unmatchedAssigned = unmatchedTeacherSectionLabels(
+          assignedSectionLabels,
+          sections,
+          classes,
+        );
+        const unmatchedHomeroom = unmatchedTeacherSectionLabels(
+          classTeacherLabels,
+          sections,
+          classes,
+        );
+        if (unmatchedAssigned.length > 0 || unmatchedHomeroom.length > 0) {
+          failed += 1;
+          const bad = [...unmatchedAssigned, ...unmatchedHomeroom];
+          failures.push(
+            `${imported.displayName}: unknown section label(s): ${bad.join(", ")}`,
+          );
+          continue;
+        }
+
+        if (classTeacherLabels.length > 1) {
+          failed += 1;
+          failures.push(
+            `${imported.displayName}: class_teacher_sections must be a single section`,
+          );
+          continue;
+        }
+
         const classTeacherSectionIds = matchSectionIdsByTeacherLabels(
           classTeacherLabels,
           sections,
           classes,
         );
+        if (classTeacherLabels.length > 0 && classTeacherSectionIds.length === 0) {
+          failed += 1;
+          failures.push(
+            `${imported.displayName}: class_teacher_sections did not resolve to a section`,
+          );
+          continue;
+        }
+
         const subjects = splitCsvList(imported.subjects);
         try {
           await createTeacherApi({
@@ -1206,7 +1288,7 @@ function TeachersPage() {
             ? `${countLabel(list.length)} teachers`
             : `${list.length} teachers`
         }
-      />
+       helpKey="teachers" />
       <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput
@@ -1815,7 +1897,9 @@ function TeachersPage() {
       {writesEnabled ? (
       <Modal
         open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
+        onClose={() => {
+          if (!creatingTeacher) setCreateDialogOpen(false);
+        }}
         title="Onboard teacher"
         subtitle={
           apiMode
@@ -1825,17 +1909,35 @@ function TeachersPage() {
         size="lg"
         footer={
           <>
-            <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
             <Button
-              variant="primary"
-              onClick={onboard}
+              onClick={() => setCreateDialogOpen(false)}
+              disabled={creatingTeacher}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => onboard("create_and_add_another")}
               disabled={
+                creatingTeacher ||
                 !newFirstName.trim() ||
                 !newSurname.trim() ||
                 newPhone.replace(/\D/g, "").length < 10
               }
             >
-              <UserPlus className="size-3.5" /> Onboard
+              Create &amp; Add Another
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => onboard("create")}
+              disabled={
+                creatingTeacher ||
+                !newFirstName.trim() ||
+                !newSurname.trim() ||
+                newPhone.replace(/\D/g, "").length < 10
+              }
+            >
+              <UserPlus className="size-3.5" />{" "}
+              {creatingTeacher ? "Onboarding…" : "Onboard"}
             </Button>
           </>
         }

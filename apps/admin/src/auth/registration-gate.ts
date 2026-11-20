@@ -85,6 +85,12 @@ function resolveApiRegistrationGate(user: AuthUser | null): RegistrationGate {
     return { kind: "allow", application: null };
   }
 
+  // Fresh signup / pending applicant: never treat "no row yet" as dashboard access.
+  // Existing admins with no registration row are verified institute members.
+  if (!user.isVerified && snapshot === null) {
+    return { kind: "pending", application: null };
+  }
+
   // No registration row (existing admin account).
   return { kind: "allow", application: null };
 }

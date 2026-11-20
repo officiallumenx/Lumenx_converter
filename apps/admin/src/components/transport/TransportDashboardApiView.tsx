@@ -1,16 +1,15 @@
-import { Card, CardHeader, Button, PageStack, Pill } from "@lumenx/ui-admin";
+import { useMemo } from "react";
+import { Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
 import {
-  AlertTriangle,
+  ArrowRight,
   Bus,
-  MapPin,
+  ClipboardCheck,
   Navigation,
   Route,
   Siren,
   UserRound,
   Users,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { useMemo } from "react";
 import type { TransportHubView } from "@/routes/transport";
 import type {
   TransportDriversListView,
@@ -18,19 +17,15 @@ import type {
   TransportRoutesListView,
   TransportVehiclesListView,
 } from "@/lib/transport";
-import { TransportPendingStopsActionCard } from "@/components/transport/TransportPendingStopsActionCard";
 import {
   useTransportAnalyticsOpsQuery,
   useTransportEmergenciesQuery,
+  useTransportReviewQueueQuery,
   useTransportTripsQuery,
 } from "@/lib/admin-queries";
 import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
-import {
-  filterMonitorTrips,
-  isTripActive,
-  isTripDelayed,
-  isTripGpsStale,
-} from "@/lib/transport/monitor-helpers";
+import { isTripActive } from "@/lib/transport/monitor-helpers";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   vehiclesView: TransportVehiclesListView;
@@ -43,63 +38,25 @@ type Props = {
   onNavigate: (view: TransportHubView) => void;
 };
 
-function countOrDash(valid: boolean, value: number | undefined | null): string {
-  if (!valid || value == null) return "…";
-  return String(value);
-}
-
-function StatCell({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  icon?: ReactNode;
-  tone?: "default" | "warning" | "danger" | "success";
-}) {
-  const toneClass =
-    tone === "danger"
-      ? "bg-destructive/10"
-      : tone === "warning"
-        ? "bg-warning/10"
-        : tone === "success"
-          ? "bg-success/10"
-          : "bg-muted/40";
-  return (
-    <div className={`min-w-0 rounded-md px-2.5 py-2 ${toneClass}`}>
-      <div className="flex items-center justify-between gap-1">
-        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        {icon ? <span className="text-muted-foreground" aria-hidden>{icon}</span> : null}
-      </div>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums leading-none">{value}</p>
-    </div>
-  );
-}
-
 export function TransportDashboardApiView({
   vehiclesView,
   driversView,
   routesView,
   enrollmentsView,
   instituteId,
-  writesEnabled = true,
-  onNotify,
   onNavigate,
 }: Props) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const analyticsQuery = useTransportAnalyticsOpsQuery(instituteId, today, Boolean(instituteId));
   const tripsQuery = useTransportTripsQuery(instituteId, today, Boolean(instituteId));
   const emergenciesQuery = useTransportEmergenciesQuery(instituteId, Boolean(instituteId));
+  const reviewQueueQuery = useTransportReviewQueueQuery(instituteId ?? "");
   useTransportRealtimeInvalidate(instituteId ?? "");
 
   const analytics = analyticsQuery.data;
   const trips = tripsQuery.data ?? [];
   const emergencies = emergenciesQuery.data ?? [];
-  const opsReady = Boolean(analytics) || trips.length > 0 || !analyticsQuery.isLoading;
+  const reviewQueue = reviewQueueQuery.data ?? [];
 
   const fleetValid =
     vehiclesView.rowsValid &&
@@ -107,165 +64,275 @@ export function TransportDashboardApiView({
     routesView.rowsValid &&
     enrollmentsView.rowsValid;
 
-  const activeBuses =
-    analytics?.activeBuses ??
-    new Set(trips.filter(isTripActive).map((t) => t.vehicleId)).size;
-  const totalBuses = analytics?.totalVehicles ?? (fleetValid ? vehiclesView.items.length : null);
-  const activeDrivers =
-    analytics?.activeDrivers ??
-    new Set(trips.filter(isTripActive).map((t) => t.driverId)).size;
-  const totalDrivers = analytics?.totalDrivers ?? (fleetValid ? driversView.items.length : null);
+  const totalBuses =
+    analytics?.totalVehicles ?? (fleetValid ? vehiclesView.items.length : vehiclesView.items.length);
+  const totalDrivers =
+    analytics?.totalDrivers ?? (fleetValid ? driversView.items.length : driversView.items.length);
+  const totalRoutes =
+    analytics?.totalRoutes ?? (fleetValid ? routesView.items.length : routesView.items.length);
   const studentsUsing =
     analytics?.studentsUsingTransport ??
     (fleetValid
       ? enrollmentsView.items.filter((e) => e.status === "active").length
-      : null);
+      : enrollmentsView.items.length);
+
+  const activeBuses =
+    analytics?.activeBuses ??
+    new Set(trips.filter(isTripActive).map((t) => t.vehicleId)).size;
   const activeTrips = analytics?.activeTrips ?? trips.filter(isTripActive).length;
-  const delayedTrips =
-    analytics?.delayedTrips ?? trips.filter((t) => isTripActive(t) && isTripDelayed(t)).length;
   const openEmergencies =
     analytics?.openEmergencies ??
     emergencies.filter((e) => e.status === "active" || e.status === "acknowledged").length;
-  const staleGps =
-    analytics?.busesWithStaleGps ?? trips.filter(isTripGpsStale).length;
 
-  const activePreview = filterMonitorTrips(trips, "active", emergencies).slice(0, 4);
+  const pendingStopApprovals = reviewQueue.filter(
+    (item) => item.kind === "stop" || item.kind === "route",
+  ).length;
+
+  const handleKeyNavigation = (e: React.KeyboardEvent, targetView: TransportHubView) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onNavigate(targetView);
+    }
+  };
 
   return (
-    <PageStack className="gap-3">
-      <Card>
-        <CardHeader
-          title="Operations command center"
-          hint={
-            opsReady
-              ? `Live for ${today} · realtime updates without full reload`
-              : "Loading live transport metrics…"
-          }
-          action={
-            <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" variant="outline" onClick={() => onNavigate("trips")}>
-                Monitor trips
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onNavigate("emergencies")}>
-                Emergencies
-              </Button>
+    <PageStack className="gap-5">
+      {/* Primary Management Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 1. Vehicles Card */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate("vehicles")}
+          onKeyDown={(e) => handleKeyNavigation(e, "vehicles")}
+          className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-150 hover:border-primary/50 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none"
+          aria-label="Vehicles module — view and manage fleet"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Vehicles
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform group-hover:scale-110">
+              <Bus className="size-4" />
             </div>
-          }
-        />
-        <div className="grid grid-cols-2 gap-2 px-4 pb-3 sm:grid-cols-3 lg:grid-cols-5 sm:px-5">
-          <StatCell
-            label="Active buses"
-            value={countOrDash(opsReady, activeBuses)}
-            icon={<Bus className="size-3.5" />}
-            tone={activeBuses ? "success" : "default"}
-          />
-          <StatCell
-            label="Total buses"
-            value={countOrDash(opsReady || fleetValid, totalBuses)}
-            icon={<Bus className="size-3.5" />}
-          />
-          <StatCell
-            label="Active drivers"
-            value={countOrDash(opsReady, activeDrivers)}
-            icon={<UserRound className="size-3.5" />}
-          />
-          <StatCell
-            label="Total drivers"
-            value={countOrDash(opsReady || fleetValid, totalDrivers)}
-            icon={<UserRound className="size-3.5" />}
-          />
-          <StatCell
-            label="Students using transport"
-            value={countOrDash(opsReady || fleetValid, studentsUsing)}
-            icon={<Users className="size-3.5" />}
-          />
-          <StatCell
-            label="Active trips"
-            value={countOrDash(opsReady, activeTrips)}
-            icon={<Navigation className="size-3.5" />}
-            tone={activeTrips ? "warning" : "default"}
-          />
-          <StatCell
-            label="Delayed trips"
-            value={countOrDash(opsReady, delayedTrips)}
-            icon={<AlertTriangle className="size-3.5" />}
-            tone={delayedTrips ? "warning" : "default"}
-          />
-          <StatCell
-            label="Emergencies"
-            value={countOrDash(opsReady, openEmergencies)}
-            icon={<Siren className="size-3.5" />}
-            tone={openEmergencies ? "danger" : "default"}
-          />
-          <StatCell
-            label="Buses with stale GPS"
-            value={countOrDash(opsReady, staleGps)}
-            icon={<MapPin className="size-3.5" />}
-            tone={staleGps ? "danger" : "default"}
-          />
-          <StatCell
-            label="Routes"
-            value={countOrDash(
-              fleetValid,
-              analytics?.totalRoutes ?? routesView.items.length,
-            )}
-            icon={<Route className="size-3.5" />}
-          />
+          </div>
+          <div className="mt-4">
+            <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              {totalBuses}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Total vehicles</p>
+          </div>
+          <div className="mt-4 flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-all group-hover:opacity-100 group-hover:translate-x-0.5">
+            <span>Manage vehicles</span>
+            <ArrowRight className="size-3" />
+          </div>
         </div>
-      </Card>
 
-      {instituteId ? (
-        <TransportPendingStopsActionCard
-          instituteId={instituteId}
-          writesEnabled={writesEnabled}
-          onNotify={onNotify}
-          onOpenReviews={() => onNavigate("reviews")}
-        />
-      ) : null}
+        {/* 2. Drivers Card */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate("drivers")}
+          onKeyDown={(e) => handleKeyNavigation(e, "drivers")}
+          className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-150 hover:border-primary/50 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none"
+          aria-label="Drivers module — view and manage drivers"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Drivers
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform group-hover:scale-110">
+              <UserRound className="size-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              {totalDrivers}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Total drivers</p>
+          </div>
+          <div className="mt-4 flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-all group-hover:opacity-100 group-hover:translate-x-0.5">
+            <span>Manage drivers</span>
+            <ArrowRight className="size-3" />
+          </div>
+        </div>
 
+        {/* 3. Routes & Stops Card */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate("routes")}
+          onKeyDown={(e) => handleKeyNavigation(e, "routes")}
+          className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-150 hover:border-primary/50 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none"
+          aria-label="Routes and stops module — view and configure routes"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Routes &amp; Stops
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform group-hover:scale-110">
+              <Route className="size-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              {totalRoutes}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Total routes</p>
+          </div>
+          <div className="mt-4 flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-all group-hover:opacity-100 group-hover:translate-x-0.5">
+            <span>Manage routes</span>
+            <ArrowRight className="size-3" />
+          </div>
+        </div>
+
+        {/* 4. Students Card */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate("students")}
+          onKeyDown={(e) => handleKeyNavigation(e, "students")}
+          className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-150 hover:border-primary/50 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none"
+          aria-label="Students transport module — view and assign students"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Students
+            </span>
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform group-hover:scale-110">
+              <Users className="size-4" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              {studentsUsing}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Students using Transport</p>
+          </div>
+          <div className="mt-4 flex items-center gap-1 text-xs font-medium text-primary opacity-80 transition-all group-hover:opacity-100 group-hover:translate-x-0.5">
+            <span>Manage students</span>
+            <ArrowRight className="size-3" />
+          </div>
+        </div>
+      </div>
+
+      {/* Compact Live Operations Section */}
       <Card>
         <CardHeader
-          title="Active now"
-          hint="Tap Monitor trips for filters, search, and bus detail"
-          action={
-            <Pill tone={activePreview.length ? "warning" : "neutral"}>
-              {activePreview.length} showing
-            </Pill>
-          }
+          title="Live Operations"
+          hint="Real-time operations, vehicle status, and pending approvals"
         />
-        <div className="space-y-2 px-4 pb-4">
-          {activePreview.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No active trips right now. Drivers start trips from the Transport app.
-            </p>
-          ) : (
-            activePreview.map((trip) => (
-              <button
-                key={trip.id}
-                type="button"
-                className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted/40"
-                onClick={() => onNavigate("trips")}
+        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5">
+          {/* Active Trips */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate("trips")}
+            onKeyDown={(e) => handleKeyNavigation(e, "trips")}
+            className="flex items-center justify-between rounded-lg border border-border bg-background/50 p-3.5 transition-all duration-150 hover:border-primary/40 hover:bg-accent/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none group"
+            aria-label="View Active Trips"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Navigation className="size-4" />
+              </div>
+              <div>
+                <div className="text-base font-semibold text-foreground tabular-nums">
+                  {activeTrips}
+                </div>
+                <p className="text-xs text-muted-foreground">Active trips</p>
+              </div>
+            </div>
+            <Pill tone={activeTrips > 0 ? "success" : "neutral"}>
+              {activeTrips > 0 ? `${activeTrips} running` : "Idle"}
+            </Pill>
+          </div>
+
+          {/* Active Buses */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate("vehicles")}
+            onKeyDown={(e) => handleKeyNavigation(e, "vehicles")}
+            className="flex items-center justify-between rounded-lg border border-border bg-background/50 p-3.5 transition-all duration-150 hover:border-primary/40 hover:bg-accent/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none group"
+            aria-label="View Active Buses"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Bus className="size-4" />
+              </div>
+              <div>
+                <div className="text-base font-semibold text-foreground tabular-nums">
+                  {activeBuses}
+                </div>
+                <p className="text-xs text-muted-foreground">Active buses</p>
+              </div>
+            </div>
+            <Pill tone={activeBuses > 0 ? "success" : "neutral"}>
+              {activeBuses > 0 ? `${activeBuses} on road` : "0 on road"}
+            </Pill>
+          </div>
+
+          {/* Emergencies */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate("emergencies")}
+            onKeyDown={(e) => handleKeyNavigation(e, "emergencies")}
+            className="flex items-center justify-between rounded-lg border border-border bg-background/50 p-3.5 transition-all duration-150 hover:border-primary/40 hover:bg-accent/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none group"
+            aria-label="View Transport Emergencies"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex size-8 items-center justify-center rounded-md ${
+                  openEmergencies > 0
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    : "bg-muted text-muted-foreground"
+                }`}
               >
-                <span className="font-medium text-foreground">
-                  {trip.vehicleNumber ?? "Bus"} · {trip.routeName ?? "Route"}
-                </span>
-                <span className="text-muted-foreground">
-                  {trip.driverName ?? "—"} · {trip.phase}
-                  {trip.currentStopName ? ` · ${trip.currentStopName}` : ""}
-                </span>
-              </button>
-            ))
-          )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button size="sm" onClick={() => onNavigate("trips")}>
-              Open live monitor
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate("vehicles")}>
-              Fleet setup
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate("attendance")}>
-              Attendance
-            </Button>
+                <Siren className="size-4" />
+              </div>
+              <div>
+                <div className="text-base font-semibold text-foreground tabular-nums">
+                  {openEmergencies}
+                </div>
+                <p className="text-xs text-muted-foreground">Emergencies</p>
+              </div>
+            </div>
+            <Pill tone={openEmergencies > 0 ? "danger" : "neutral"}>
+              {openEmergencies > 0 ? `${openEmergencies} active` : "Clear"}
+            </Pill>
+          </div>
+
+          {/* Pending Stop Approvals */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate("reviews")}
+            onKeyDown={(e) => handleKeyNavigation(e, "reviews")}
+            className="flex items-center justify-between rounded-lg border border-border bg-background/50 p-3.5 transition-all duration-150 hover:border-primary/40 hover:bg-accent/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary select-none group"
+            aria-label="View Pending Stop Approvals"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex size-8 items-center justify-center rounded-md ${
+                  pendingStopApprovals > 0
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <ClipboardCheck className="size-4" />
+              </div>
+              <div>
+                <div className="text-base font-semibold text-foreground tabular-nums">
+                  {pendingStopApprovals}
+                </div>
+                <p className="text-xs text-muted-foreground">Pending approvals</p>
+              </div>
+            </div>
+            <Pill tone={pendingStopApprovals > 0 ? "warning" : "neutral"}>
+              {pendingStopApprovals > 0 ? `${pendingStopApprovals} pending` : "All reviewed"}
+            </Pill>
           </div>
         </div>
       </Card>

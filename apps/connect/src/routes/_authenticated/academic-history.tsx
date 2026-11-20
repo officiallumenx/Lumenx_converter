@@ -1,11 +1,20 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useApp } from "@/lib/app-state";
-import { StudentAcademicHistoryPage } from "@/student-portal";
+import { RouteLazyFallback } from "@/components/app/RouteLazyFallback";
+
+const StudentAcademicHistoryPage = lazy(() =>
+  import("@/student-portal/features/academic-history").then((m) => ({
+    default: m.StudentAcademicHistoryPage,
+  })),
+);
 
 export const Route = createFileRoute("/_authenticated/academic-history")({
   head: () => ({ meta: [{ title: "Academic History — LumenX Connect" }] }),
   component: () => (
-    <AcademicHistoryRoute />
+    <Suspense fallback={<RouteLazyFallback />}>
+      <AcademicHistoryRoute />
+    </Suspense>
   ),
 });
 

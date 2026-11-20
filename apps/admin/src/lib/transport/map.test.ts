@@ -190,7 +190,8 @@ describe("routeDtoToTransportRoute", () => {
     ]);
     const nullStops = enrollmentDtoToListItem(base, studentsById as never, new Map([[route.id, routes[0]!]]));
     expect(nullStops.pickupStopName).toBe("Stop not assigned");
-    expect(nullStops.dropStopName).toBe("Drop stop not assigned");
+    expect(nullStops.dropStopName).toBe("Stop not assigned");
+    expect(nullStops.stopName).toBe("Stop not assigned");
 
     const orphan = enrollmentDtoToListItem(
       {

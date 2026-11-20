@@ -25,8 +25,9 @@ export function teacherPortalQueryKey(
 
 export async function fetchTeacherPortalRoster(
   instituteId: string,
+  options?: { includeStudents?: boolean },
 ): Promise<TeacherPortalApiData | null> {
-  return loadTeacherPortalApiData(instituteId);
+  return loadTeacherPortalApiData(instituteId, options);
 }
 
 export function invalidateTeacherPortalQueries(
@@ -63,29 +64,44 @@ export async function ensureTeacherPortalRoster(
   if (!isApiAuthMode() || !isInstituteUuid(instituteId)) return null;
 
   if (boundQueryClient && userId) {
+    const key = teacherPortalQueryKey(userId, instituteId);
+    const existing = boundQueryClient.getQueryData<TeacherPortalApiData | null>(key);
+    // Home may have cached a shell roster (no enrollments). Callers of ensure*
+    // need students — do not return shell as if it were complete.
+    if (existing?.instituteId === instituteId && existing.studentsLoaded) {
+      return existing;
+    }
     return boundQueryClient.fetchQuery({
-      queryKey: teacherPortalQueryKey(userId, instituteId),
-      queryFn: () => fetchTeacherPortalRoster(instituteId),
+      queryKey: key,
+      queryFn: () => fetchTeacherPortalRoster(instituteId, { includeStudents: true }),
+      // Force refetch when only the Home shell is present.
+      ...(existing && !existing.studentsLoaded ? { staleTime: 0 } : {}),
     });
   }
 
   const { getTeacherPortalApiCache } = await import("@/lib/teacher-classes/load");
   const cached = getTeacherPortalApiCache();
-  // Never return another institute's module-level roster.
-  if (cached?.instituteId === instituteId) return cached;
-  return fetchTeacherPortalRoster(instituteId);
+  // Never return another institute's module-level roster; never treat shell as full.
+  if (cached?.instituteId === instituteId && cached.studentsLoaded) return cached;
+  return fetchTeacherPortalRoster(instituteId, { includeStudents: true });
 }
 
 export type UseTeacherPortalRosterOptions = {
   instituteId: string | null | undefined;
   userId?: string | null;
   enabled?: boolean;
+  /**
+   * Home passes false so enrollments/photos do not block shell + timetable overlap.
+   * Default true for callers that need student rosters immediately.
+   */
+  includeStudents?: boolean;
 };
 
 export function useTeacherPortalRosterQuery({
   instituteId,
   userId,
   enabled = true,
+  includeStudents = true,
 }: UseTeacherPortalRosterOptions): UseQueryResult<TeacherPortalApiData | null> {
   const id = instituteId ?? "";
   const uid = userId?.trim() || "__none__";
@@ -97,8 +113,9 @@ export function useTeacherPortalRosterQuery({
     uid !== "__none__";
 
   return useQuery({
+    // Shell vs full share the same key so background student fill can upgrade in place.
     queryKey: teacherPortalQueryKey(uid, id),
-    queryFn: () => fetchTeacherPortalRoster(id),
+    queryFn: () => fetchTeacherPortalRoster(id, { includeStudents }),
     enabled: canRun,
   });
 }

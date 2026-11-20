@@ -40,6 +40,7 @@ import {
   mergeInstituteSettingsJson,
   type InstitutePublicProfile,
 } from "./institute-public-profile.js";
+import { ensureTrialSubscriptionForInstitute } from "../subscriptions/ensure-trial.js";
 import type {
   CreateInstituteInput,
   CreateMembershipInput,
@@ -248,6 +249,8 @@ export async function createInstituteForActor(
     timezone: input.timezone,
     locale: input.locale,
   });
+  // Operator-created institutes get the same 60-day trial as approved registrations.
+  await ensureTrialSubscriptionForInstitute(admin, row.id);
   return toInstituteDto(row);
 }
 

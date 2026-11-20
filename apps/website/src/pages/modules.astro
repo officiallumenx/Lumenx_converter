@@ -1,0 +1,69 @@
+---
+import Breadcrumb from "../components/layout/Breadcrumb.astro";
+import Layout from "../layouts/Layout.astro";
+import { CAPABILITIES, PRODUCTS } from "../data/lumenx.js";
+
+const logoByHref = Object.fromEntries(PRODUCTS.map((p) => [p.href, p.logo]));
+const nameByHref = Object.fromEntries(PRODUCTS.map((p) => [p.href, p.name]));
+---
+
+<Layout
+  description="LumenX School ERP modules span academics, administration, fees, attendance, people, exams, homework, notices, timetable, transport, admissions, and careers."
+  title="School ERP Modules & Features"
+>
+  <Breadcrumb>
+    <Fragment slot="title">Modules</Fragment>
+  </Breadcrumb>
+  <section class="pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
+    <div class="container">
+      <div class="mb-12 mx-auto max-w-[560px] text-center lg:mb-[70px]">
+        <span class="mb-2 block text-lg font-semibold text-primary">Everything Included</span>
+        <h2 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]">
+          Everyday school work, made simple
+        </h2>
+        <p class="text-base text-body-color dark:text-dark-6">
+          Explore the features your school can run across Admin, Connect, Transport, Admissions, and Careers.
+        </p>
+      </div>
+      <ul class="-mx-4 flex flex-wrap">
+        {
+          CAPABILITIES.map((cap) => {
+            const appLogo = logoByHref[cap.href];
+            const appName = nameByHref[cap.href];
+            return (
+              <li class="w-full px-4 md:w-1/2 lg:w-1/3 xl:w-1/4">
+                <div class="mb-8 flex h-[calc(100%-2rem)] flex-col justify-between rounded-xl border border-stroke/80 bg-white p-7 shadow-testimonial dark:border-dark-3 dark:bg-dark-2 sm:p-8">
+                  <div>
+                    <div class="mb-4 flex items-center gap-3">
+                      {appLogo && (
+                        <img
+                          src={appLogo}
+                          alt={appName ? `${appName} logo` : ""}
+                          class="h-10 w-10 shrink-0 rounded-xl border border-stroke/60 bg-white object-contain p-0.5 shadow-sm dark:border-dark-3"
+                          width="40"
+                          height="40"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                      {appName && (
+                        <span class="text-xs font-semibold uppercase tracking-wider text-primary">
+                          {appName}
+                        </span>
+                      )}
+                    </div>
+                    <h3 class="mb-2.5 text-xl font-bold text-dark dark:text-white">{cap.title}</h3>
+                    <p class="mb-5 text-sm leading-relaxed text-body-color dark:text-dark-6 sm:text-[15px]">{cap.description}</p>
+                  </div>
+                  <a href={cap.href} class="inline-flex items-center text-sm font-semibold text-primary hover:underline">
+                    View product →
+                  </a>
+                </div>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </div>
+  </section>
+</Layout>

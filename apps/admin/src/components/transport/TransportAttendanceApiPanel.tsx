@@ -3,6 +3,7 @@ import { Card, CardHeader, EmptyState, PageToolbar, Pill, Select } from "@lumenx
 import { ClipboardList } from "lucide-react";
 import { useTransportBoardingMarksQuery } from "@/lib/admin-queries";
 import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   instituteId: string;
@@ -24,7 +25,7 @@ function formatWhen(iso: string | null): string {
 
 export function TransportAttendanceApiPanel({ instituteId }: Props) {
   const [tripFilter, setTripFilter] = useState<string>("all");
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
   const marksQuery = useTransportBoardingMarksQuery(instituteId, today);
   useTransportRealtimeInvalidate(instituteId);
 

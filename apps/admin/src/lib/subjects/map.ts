@@ -23,6 +23,8 @@ export function subjectDtoToListItem(dto: SubjectDto): SubjectListItem {
     category: dto.category?.trim() || "Other",
     periodsPerWeek: dto.periodsPerWeek ?? 0,
     grades,
+    capacity: dto.capacity ?? null,
+    classPeriods: dto.classPeriods ?? {},
     assignedTeacherIds: [],
     status: dto.status ?? "active",
   };

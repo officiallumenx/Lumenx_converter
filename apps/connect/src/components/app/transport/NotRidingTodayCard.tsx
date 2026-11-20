@@ -7,12 +7,14 @@ import {
   type TransportDailyExceptionDto,
   type TransportParticipationDto,
 } from "@/lib/transport";
+import { formatTransportInstant } from "@/lib/transport/format-time";
 
 type Props = {
   instituteId: string;
   studentId: string;
   participation: TransportParticipationDto | null | undefined;
   onChanged: () => void;
+  timeZone?: string;
 };
 
 export function NotRidingTodayCard({
@@ -20,6 +22,7 @@ export function NotRidingTodayCard({
   studentId,
   participation,
   onChanged,
+  timeZone,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -138,9 +141,13 @@ export function NotRidingTodayCard({
         </div>
       )}
 
-      {active && exception && !exception.canUndo ? (
+      {active && exception ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Undo cutoff has passed. Contact the school transport office if this needs changing.
+          {exception.canUndo && exception.undoCutoffAt
+            ? `Undo available until ${formatTransportInstant(exception.undoCutoffAt, { timeZone })}.`
+            : !exception.canUndo
+              ? "Undo cutoff has passed. Contact the school transport office if this needs changing."
+              : null}
         </p>
       ) : null}
     </div>

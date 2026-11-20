@@ -26,6 +26,7 @@ import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvid
 import { TermsAcceptCheckbox } from "@/components/legal/TermsAcceptCheckbox";
 import { PasswordCreateFields } from "@/admissions-portal/features/auth/PasswordCreateFields";
 import { LumenxAdminContinueCard } from "@/admissions-portal/features/auth/LumenxAdminContinueCard";
+import { GetAndroidAppBanner } from "@/admissions-portal/features/auth/GetAndroidAppBanner";
 import {
   signupPasswordSchema,
   signupWithTermsSchema,
@@ -51,6 +52,8 @@ function AccountTypePicker({
       <p className="mt-1 text-sm text-muted-foreground">
         Choose how you want to continue — parent / applicant or institute.
       </p>
+
+      <GetAndroidAppBanner />
 
       <div className="mt-8 space-y-3">
         <button
@@ -983,7 +986,6 @@ export function SignupFlow({ accountType }: { accountType: AdmissionsAccountType
 type ForgotStep = "identifier" | "otp" | "password" | "success";
 
 export function ForgotPasswordFlow() {
-  const { resetPassword } = useAdmissionsAuth();
   const [step, setStep] = useState<ForgotStep>("identifier");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
@@ -992,7 +994,7 @@ export function ForgotPasswordFlow() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
-  const [apiEmail, setApiEmail] = useState("");
+  const [mobileGrant, setMobileGrant] = useState("");
   const [loading, setLoading] = useState(false);
 
   const identifier = `${country.code} ${phone}`;
@@ -1007,58 +1009,55 @@ export function ForgotPasswordFlow() {
       </Link>
       <h1 className="font-display text-2xl font-bold">Reset password</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {isApiAuthMode()
-          ? "Enter your account email and we will send a secure reset link."
-          : "Verify mobile with OTP, then set a strong password."}
+        Verify your mobile with OTP, then set a new password.
       </p>
 
       {step === "identifier" && (
         <div className="mt-8 space-y-4">
-          {isApiAuthMode() ? (
-            <Input
-              type="email"
-              value={apiEmail}
-              onChange={(event) => setApiEmail(event.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-          ) : (
-            <PhoneInput
-              value={phone}
-              onChange={setPhone}
-              country={country}
-              onCountryChange={setCountry}
-            />
-          )}
+          <PhoneInput
+            value={phone}
+            onChange={setPhone}
+            country={country}
+            onCountryChange={setCountry}
+          />
           <Button
             className="w-full"
             disabled={loading}
             onClick={async () => {
-              if (isApiAuthMode()) {
-                setLoading(true);
-                try {
-                  await resetPassword(apiEmail);
-                  toast.success("Password reset email sent");
-                  setStep("success");
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Unable to send reset email");
-                } finally {
-                  setLoading(false);
-                }
-                return;
-              }
               const digits = phone.replace(/\D/g, "");
               if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
-              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.");
+              if (!isApiAuthMode()) {
+                toast.error("API mode is required for password reset.");
+                return;
+              }
+              setLoading(true);
+              try {
+                const { apiRequestPasswordResetOtp } = await import("@/auth/api-auth");
+                const result = await apiRequestPasswordResetOtp(identifier);
+                toast.message(
+                  result.devOtp
+                    ? `OTP sent to ${result.maskedDestination} (dev: ${result.devOtp})`
+                    : `OTP sent to ${result.maskedDestination}`,
+                );
+                setOtp("");
+                setStep("otp");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Unable to send OTP");
+              } finally {
+                setLoading(false);
+              }
             }}
           >
-            {loading ? "Sending…" : isApiAuthMode() ? "Send reset link" : "Send OTP"}
+            {loading ? "Sending…" : "Send OTP"}
           </Button>
         </div>
       )}
 
       {step === "otp" && (
         <div className="mt-8 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Enter the code sent to <span className="font-medium text-foreground">{identifier}</span>
+          </p>
           <InputOTP maxLength={6} value={otp} onChange={setOtp}>
             <InputOTPGroup className="justify-center">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -1068,12 +1067,34 @@ export function ForgotPasswordFlow() {
           </InputOTP>
           <Button
             className="w-full"
-            onClick={() =>
-              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.")
-            }
+            disabled={loading || otp.length !== 6}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                const { apiVerifyPasswordResetOtp } = await import("@/auth/api-auth");
+                const verified = await apiVerifyPasswordResetOtp(identifier, otp);
+                setMobileGrant(verified.grant);
+                toast.success("Mobile verified");
+                setStep("password");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Invalid OTP");
+              } finally {
+                setLoading(false);
+              }
+            }}
           >
-            Verify
+            {loading ? "Verifying…" : "Verify"}
           </Button>
+          <button
+            type="button"
+            className="text-xs text-primary"
+            onClick={() => {
+              setOtp("");
+              setStep("identifier");
+            }}
+          >
+            Change mobile
+          </button>
         </div>
       )}
 
@@ -1092,32 +1113,37 @@ export function ForgotPasswordFlow() {
           />
           <Button
             className="w-full"
-            disabled={password !== confirmPassword}
+            disabled={loading || password !== confirmPassword}
             onClick={async () => {
               const validated = signupPasswordSchema.safeParse({ password, confirmPassword });
               if (!validated.success)
                 return toast.error(validated.error.errors[0]?.message ?? "Invalid password");
+              if (!mobileGrant) return toast.error("Verify mobile OTP again.");
+              setLoading(true);
               try {
-                await resetPassword(identifier, password);
+                const { apiCompletePasswordReset } = await import("@/auth/api-auth");
+                await apiCompletePasswordReset({
+                  identifier,
+                  mobileOtpGrant: mobileGrant,
+                  newPassword: password,
+                });
                 toast.success("Password updated");
                 setStep("success");
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Could not update password");
+              } finally {
+                setLoading(false);
               }
             }}
           >
-            Update password
+            {loading ? "Updating…" : "Update password"}
           </Button>
         </div>
       )}
 
       {step === "success" && (
         <div className="mt-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            {isApiAuthMode()
-              ? "Check your email and open the secure link to choose a new password."
-              : "Your password has been updated."}
-          </p>
+          <p className="text-sm text-muted-foreground">Your password has been updated.</p>
           <Button className="mt-6 w-full" asChild>
             <Link to="/login">Sign in</Link>
           </Button>

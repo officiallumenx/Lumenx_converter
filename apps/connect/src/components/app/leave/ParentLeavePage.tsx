@@ -167,6 +167,7 @@ function ApiParentLeavePage() {
     void loadParentLeaveRequests({
       instituteId: activeInstituteId,
       studentId: leaveChildId || null,
+      includeDecisions: true,
     }).then((result) => {
       if (cancelled) return;
       setStudents(result.students);

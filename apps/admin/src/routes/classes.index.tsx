@@ -1,7 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Plus, Upload } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import type {
+  ClassImportRow,
+  SectionImportRow,
+} from "@/lib/academics/bulk-import-parse";
+import { remainingFailedAfterOuterError } from "@/lib/academics/bulk-import-counts";
+import { RouteChunkFallback } from "@/components/RouteChunkFallback";
+
+const AcademicsBulkImportDialog = lazy(() =>
+  import("@/components/academics/AcademicsBulkImportDialog").then((m) => ({
+    default: m.AcademicsBulkImportDialog,
+  })),
+);
 
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
@@ -10,6 +22,11 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import {
+  outcomeAfterSuccessfulCreate,
+  shouldIgnoreDuplicateCreateClick,
+  type CreateSubmitMode,
+} from "@/lib/forms/create-and-add-another";
 import {
   createClass,
   createSection,
@@ -102,6 +119,12 @@ function ClassesPage() {
     }
   };
   const [creating, setCreating] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportEntity, setBulkImportEntity] = useState<"classes" | "sections">(
+    "classes",
+  );
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [importClassCodes, setImportClassCodes] = useState<string[]>([]);
   const listEnabled =
     apiMode &&
     instituteCtx.status === "ready" &&
@@ -277,8 +300,179 @@ function ClassesPage() {
     return classSectionExists(displayItems, className, sectionName);
   }, [college, customClassName, customSectionName, level, section, displayItems]);
 
-  const addClass = () => {
-    if (!writesEnabled || creating) return;
+  const resetCreateFormFields = (opts?: { keepClassContext?: boolean }) => {
+    // Create & Add Another: keep class/level parent so the next row is another section.
+    if (!opts?.keepClassContext) {
+      setCustomClassName("");
+    }
+    setCustomSectionName("");
+    setRoom("");
+    setStudents("0");
+  };
+
+  const importClasses = (importRows: ClassImportRow[]) => {
+    if (!apiMode) {
+      notify("Bulk import is available in API mode");
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId || !writesEnabled) {
+      notify("Select an institute before importing classes");
+      return;
+    }
+    setBulkImporting(true);
+    void (async () => {
+      let created = 0;
+      let failed = 0;
+      const failures: string[] = [];
+      try {
+        const years = await listAcademicYears({ instituteId });
+        const year = years.find((item) => item.status === "active");
+        if (!year) {
+          notify(
+            years.length === 0
+              ? "Create an academic year before importing classes"
+              : "Activate an academic year before importing classes",
+          );
+          setBulkImporting(false);
+          return;
+        }
+        for (const row of importRows) {
+          try {
+            const sortOrder = row.sortOrder.trim()
+              ? Number(row.sortOrder)
+              : classSortRank(row.name);
+            const cls = await createClass({
+              instituteId,
+              academicYearId: year.id,
+              name: row.name.trim(),
+              code: row.code.trim(),
+              sortOrder,
+            });
+            const sectionName = row.sectionName.trim();
+            if (sectionName) {
+              const sectionCode = (row.sectionCode.trim() || sectionName).slice(0, 50);
+              await createSection({
+                instituteId,
+                academicYearId: year.id,
+                classId: cls.id,
+                name: sectionName,
+                code: sectionCode,
+                sortOrder: sectionSortRank(sectionName),
+              });
+            }
+            created += 1;
+          } catch (err) {
+            failed += 1;
+            failures.push(
+              `${row.code || row.name}: ${formatApiClientError(err, "create failed")}`,
+            );
+          }
+        }
+      } catch (err) {
+        failed += remainingFailedAfterOuterError({
+          totalRows: importRows.length,
+          created,
+          failed,
+        });
+        failures.push(formatApiClientError(err, "import failed"));
+      }
+      setBulkImporting(false);
+      setBulkImportOpen(false);
+      bumpClassesReload();
+      const summary = `${created} classes created${failed ? ` · ${failed} failed` : ""}`;
+      notify(
+        failures.length > 0
+          ? `${summary}. ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? "…" : ""}`
+          : summary,
+      );
+    })();
+  };
+
+  const importSections = (importRows: SectionImportRow[]) => {
+    if (!apiMode) {
+      notify("Bulk import is available in API mode");
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId || !writesEnabled) {
+      notify("Select an institute before importing sections");
+      return;
+    }
+    setBulkImporting(true);
+    void (async () => {
+      let created = 0;
+      let failed = 0;
+      const failures: string[] = [];
+      try {
+        const years = await listAcademicYears({ instituteId });
+        const year = years.find((item) => item.status === "active");
+        if (!year) {
+          notify(
+            years.length === 0
+              ? "Create an academic year before importing sections"
+              : "Activate an academic year before importing sections",
+          );
+          setBulkImporting(false);
+          return;
+        }
+        const classesList = await listClasses({
+          instituteId,
+          academicYearId: year.id,
+        });
+        const byCode = new Map(
+          classesList.map((c) => [c.code.trim().toLowerCase(), c]),
+        );
+        for (const row of importRows) {
+          try {
+            const parent = byCode.get(row.classCode.trim().toLowerCase());
+            if (!parent) {
+              failed += 1;
+              failures.push(`${row.code}: unknown class_code "${row.classCode}"`);
+              continue;
+            }
+            await createSection({
+              instituteId,
+              academicYearId: year.id,
+              classId: parent.id,
+              name: row.name.trim(),
+              code: row.code.trim().slice(0, 50),
+              capacity: row.capacity.trim()
+                ? Math.max(0, Math.floor(Number(row.capacity)))
+                : null,
+              room: row.room.trim() || null,
+              sortOrder: sectionSortRank(row.name),
+            });
+            created += 1;
+          } catch (err) {
+            failed += 1;
+            failures.push(
+              `${row.code || row.name}: ${formatApiClientError(err, "create failed")}`,
+            );
+          }
+        }
+      } catch (err) {
+        failed += remainingFailedAfterOuterError({
+          totalRows: importRows.length,
+          created,
+          failed,
+        });
+        failures.push(formatApiClientError(err, "import failed"));
+      }
+      setBulkImporting(false);
+      setBulkImportOpen(false);
+      bumpClassesReload();
+      const summary = `${created} sections created${failed ? ` · ${failed} failed` : ""}`;
+      notify(
+        failures.length > 0
+          ? `${summary}. ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? "…" : ""}`
+          : summary,
+      );
+    })();
+  };
+
+  const addClass = (mode: CreateSubmitMode = "create") => {
+    if (!writesEnabled || shouldIgnoreDuplicateCreateClick(creating)) return;
     const cap = Number(capacity) || 50;
     const studentCount = Number(students) || 0;
     const typedClass = normalizeSchoolClassName(customClassName || level);
@@ -405,15 +599,16 @@ function ClassesPage() {
           setListStatus("ready");
           setListError(null);
           setResolvedForInstituteId(instituteId);
-          setOpen(false);
-          setCustomClassName("");
-          setCustomSectionName("");
-          setRoom("");
-          setStudents("0");
-          setTeacherId("");
           bumpClassesReload();
           notify("Class section created");
+          const outcome = outcomeAfterSuccessfulCreate(mode);
+          resetCreateFormFields({ keepClassContext: outcome.stayOpen });
+          if (!outcome.stayOpen) {
+            setOpen(false);
+            setTeacherId("");
+          }
         } catch (err) {
+          // Failure: leave entered fields intact for correction / retry.
           notify(
             isConflictError(err) || /already exists/i.test(err instanceof Error ? err.message : "")
               ? "This class and section already exists — change the name"
@@ -465,12 +660,10 @@ function ClassesPage() {
     }
 
     persist([...classes, created]);
-    setOpen(false);
-    setCustomClassName("");
-    setCustomSectionName("");
-    setRoom("");
-    setStudents("0");
     notify("Class section created");
+    const outcome = outcomeAfterSuccessfulCreate(mode);
+    resetCreateFormFields({ keepClassContext: outcome.stayOpen });
+    if (!outcome.stayOpen) setOpen(false);
   };
 
   const openClassDetail = (id: string) => {
@@ -503,9 +696,64 @@ function ClassesPage() {
       }
       actions={
         writesEnabled ? (
-          <Button variant="primary" onClick={() => setOpen(true)}>
-            <Plus className="size-3.5" /> {college ? "New Batch" : "New Class"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {apiMode ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setBulkImportEntity("classes");
+                    setBulkImportOpen(true);
+                  }}
+                  disabled={bulkImporting}
+                >
+                  <Upload className="size-3.5" /> Import Classes
+                </Button>
+                <Button
+                  onClick={() => {
+                    void (async () => {
+                      const instituteId = instituteCtx.activeInstituteId;
+                      if (!instituteId) {
+                        notify("Select an institute first");
+                        return;
+                      }
+                      try {
+                        // Match commit path: only active-year class codes are valid parents.
+                        const years = await listAcademicYears({ instituteId });
+                        const year = years.find((item) => item.status === "active");
+                        if (!year) {
+                          setImportClassCodes([]);
+                          notify(
+                            years.length === 0
+                              ? "Create an academic year before importing sections"
+                              : "Activate an academic year before importing sections",
+                          );
+                          return;
+                        }
+                        const classesList = await listClasses({
+                          instituteId,
+                          academicYearId: year.id,
+                        });
+                        setImportClassCodes(
+                          [...new Set(classesList.map((c) => c.code).filter(Boolean))],
+                        );
+                      } catch {
+                        setImportClassCodes([]);
+                        notify("Could not load class catalog for the active year");
+                      }
+                      setBulkImportEntity("sections");
+                      setBulkImportOpen(true);
+                    })();
+                  }}
+                  disabled={bulkImporting}
+                >
+                  <Upload className="size-3.5" /> Import Sections
+                </Button>
+              </>
+            ) : null}
+            <Button variant="primary" onClick={() => setOpen(true)}>
+              <Plus className="size-3.5" /> {college ? "New Batch" : "New Class"}
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -517,7 +765,7 @@ function ClassesPage() {
             ? `${countLabel(displayItems.length)} sections`
             : academic.classPageSubtitle
         }
-      />
+       helpKey="classes" />
       {college && writesEnabled && (
         <div className="mb-4 flex flex-wrap gap-2">
           {academic.departments.map((department) => (
@@ -663,6 +911,27 @@ function ClassesPage() {
         </div>
       )}
 
+      {apiMode && writesEnabled && bulkImportOpen ? (
+        <Suspense fallback={<RouteChunkFallback label="Loading importer…" />}>
+          <AcademicsBulkImportDialog
+            open={bulkImportOpen}
+            onClose={() => {
+              if (!bulkImporting) setBulkImportOpen(false);
+            }}
+            entity={bulkImportEntity}
+            title={
+              bulkImportEntity === "classes"
+                ? "Import classes"
+                : "Import sections"
+            }
+            importing={bulkImporting}
+            classCodes={importClassCodes}
+            onImportClasses={importClasses}
+            onImportSections={importSections}
+          />
+        </Suspense>
+      ) : null}
+
       {writesEnabled ? (
         <Modal
           open={open}
@@ -671,10 +940,18 @@ function ClassesPage() {
           size="lg"
           footer={
             <>
-              <Button onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={() => setOpen(false)} disabled={creating}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => addClass("create_and_add_another")}
+                disabled={creating || (!college && nameConflict)}
+              >
+                Create &amp; Add Another
+              </Button>
               <Button
                 variant="primary"
-                onClick={addClass}
+                onClick={() => addClass("create")}
                 disabled={creating || (!college && nameConflict)}
               >
                 {creating ? "Creating…" : "Create"}

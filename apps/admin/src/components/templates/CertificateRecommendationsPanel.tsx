@@ -109,7 +109,7 @@ export function CertificateRecommendationsPanel({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link to="/templates" search={{ view: "issue" }}>
+              <Link to="/templates" search={{ view: "templates" }}>
                 <Button type="button" variant="primary" size="sm">
                   Issue
                 </Button>

@@ -20,6 +20,8 @@ export type CreateSubjectInput = {
   category: string;
   periodsPerWeek: number;
   applicableClassCodes: string[];
+  capacity?: number | null;
+  classPeriods?: Record<string, number>;
   status?: SubjectStatus;
   teacherIds?: string[];
 };
@@ -30,6 +32,8 @@ export type UpdateSubjectInput = {
   category?: string;
   periodsPerWeek?: number;
   applicableClassCodes?: string[];
+  capacity?: number | null;
+  classPeriods?: Record<string, number>;
   status?: SubjectStatus;
 };
 
@@ -48,6 +52,8 @@ export async function createSubject(
     category: input.category.trim(),
     periods_per_week: input.periodsPerWeek,
     applicable_class_codes: input.applicableClassCodes,
+    capacity: input.capacity ?? null,
+    class_periods: input.classPeriods ?? {},
     status: input.status,
     teacher_ids: input.teacherIds,
   });
@@ -72,6 +78,8 @@ export async function updateSubject(
   if (input.applicableClassCodes !== undefined) {
     body.applicable_class_codes = input.applicableClassCodes;
   }
+  if (input.capacity !== undefined) body.capacity = input.capacity;
+  if (input.classPeriods !== undefined) body.class_periods = input.classPeriods;
   if (input.status !== undefined) body.status = input.status;
   if (Object.keys(body).length === 0) {
     throw new Error("At least one field is required");

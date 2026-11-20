@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Trophy } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -23,17 +23,18 @@ import {
 } from "@/lib/activity/hierarchy";
 
 const CATEGORIES: SportsCategory[] = ["indoor", "outdoor"];
+const sportsRouteApi = getRouteApi("/_authenticated/activity/sports");
 
 export function ActivitySportsPage() {
-  const search = useSearch({ from: "/activity/sports" });
+  const search = sportsRouteApi.useSearch();
   const nav = useNavigate();
 
-  const category = (search.category as SportsCategory | undefined) ?? undefined;
+  const category = search.category;
   const sportId = search.sport;
   const teamId = search.team;
 
   const go = (next: { category?: SportsCategory; sport?: string; team?: string }) => {
-    nav({ to: "/activity/sports", search: next });
+    void nav({ to: "/activity/sports", search: next });
   };
 
   return (

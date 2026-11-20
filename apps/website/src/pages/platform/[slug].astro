@@ -1,0 +1,41 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import ProductPage from "../../components/product/ProductPage.astro";
+import { PRODUCTS } from "../../data/lumenx.js";
+import { getProductPage } from "../../data/product-pages.js";
+
+export function getStaticPaths() {
+  return PRODUCTS.map((product) => ({
+    params: { slug: product.id },
+    props: { product },
+  }));
+}
+
+const { product } = Astro.props;
+const page = getProductPage(product.id);
+const ogImage = product.image || "/assets/brand/lumenx-ecosystem.jpg";
+const description = page
+  ? `${page.headline} ${page.summary}`
+  : `${product.name}: ${product.tagline}. ${product.body}`;
+---
+
+<Layout description={description} title={product.name} image={ogImage}>
+  {
+    page ? (
+      <ProductPage page={page} />
+    ) : (
+      <section class="pt-20 pb-20 dark:bg-dark lg:pt-[120px]">
+        <div class="container mx-auto max-w-[720px] text-center">
+          <h1 class="mb-4 text-3xl font-bold text-dark dark:text-white">{product.name}</h1>
+          <p class="mb-8 text-base text-body-color dark:text-dark-6">{product.body}</p>
+          <a
+            href="/contact?intent=demo#enquiry"
+            class="inline-flex items-center justify-center rounded-md bg-primary px-7 py-3 text-base font-medium text-white"
+          >
+            Book a Demo
+          </a>
+        </div>
+      </section>
+    )
+  }
+</Layout>

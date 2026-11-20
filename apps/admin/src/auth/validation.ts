@@ -142,7 +142,8 @@ export function validateSignUpStep2(data: SignUpStep2Data): SignUpStep2Errors {
     errors.confirmPassword = "Passwords do not match";
   }
   if (!data.acceptTerms) {
-    errors.acceptTerms = "You must accept the terms to continue";
+    errors.acceptTerms =
+      "You must read and agree to the Privacy Policy and Terms of Service before creating your account.";
   }
   return errors;
 }

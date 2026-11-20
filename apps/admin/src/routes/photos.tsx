@@ -39,6 +39,7 @@ import {
 import {
   isSignedPhotoUrlUsable,
   photoListStaleTimeMs,
+  shouldReplaceCachedSignedPhoto,
 } from "@/lib/photos/signed-url";
 import { invalidateTeachersListCache } from "@/lib/teachers/load";
 import { invalidateStudentsListCache } from "@/lib/students/load";
@@ -192,7 +193,9 @@ function PhotosPage() {
     queryFn: () => listPhotoTeachers({ instituteId: instituteId!, q }),
     staleTime: (query) => photoListStaleTimeMs(query.state.data),
     placeholderData: keepPreviousData,
-    refetchOnMount: true,
+    // Cache-first while signed URLs remain usable; reconnect still refreshes.
+    refetchOnMount: false,
+    refetchOnReconnect: true,
   });
 
   const driversQuery = useQuery({
@@ -201,7 +204,8 @@ function PhotosPage() {
     queryFn: () => listPhotoDrivers({ instituteId: instituteId!, q }),
     staleTime: (query) => photoListStaleTimeMs(query.state.data),
     placeholderData: keepPreviousData,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
   });
 
   const catalogQuery = useCatalogClassesQuery(
@@ -231,7 +235,8 @@ function PhotosPage() {
       }),
     staleTime: (query) => photoListStaleTimeMs(query.state.data),
     placeholderData: keepPreviousData,
-    refetchOnMount: true,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
   });
 
   const teachers = teachersQuery.data ?? [];
@@ -239,9 +244,22 @@ function PhotosPage() {
   const students = studentsQuery.data ?? [];
 
   // Seed per-person signed-url cache from list payloads so other screens reuse them.
+  // Do not overwrite a still-usable cached URL (avoids needless <img> reloads).
   useEffect(() => {
     for (const t of teachers) {
       if (!isSignedPhotoUrlUsable(t.photoSignedUrl, t.photoExpiresAt)) continue;
+      const key = adminQueryKeys.photosSignedUrl("teacher", t.id);
+      const cached = qc.getQueryData<PhotoSignedUrlDto>(key);
+      if (
+        !shouldReplaceCachedSignedPhoto({
+          cachedUrl: cached?.photoSignedUrl,
+          cachedExpiresAt: cached?.photoExpiresAt,
+          nextUrl: t.photoSignedUrl,
+          nextExpiresAt: t.photoExpiresAt,
+        })
+      ) {
+        continue;
+      }
       const payload: PhotoSignedUrlDto = {
         kind: "teacher",
         id: t.id,
@@ -249,13 +267,25 @@ function PhotosPage() {
         photoSignedUrl: t.photoSignedUrl,
         photoExpiresAt: t.photoExpiresAt,
       };
-      qc.setQueryData(adminQueryKeys.photosSignedUrl("teacher", t.id), payload);
+      qc.setQueryData(key, payload);
     }
   }, [qc, teachers]);
 
   useEffect(() => {
     for (const d of drivers) {
       if (!isSignedPhotoUrlUsable(d.photoSignedUrl, d.photoExpiresAt)) continue;
+      const key = adminQueryKeys.photosSignedUrl("driver", d.id);
+      const cached = qc.getQueryData<PhotoSignedUrlDto>(key);
+      if (
+        !shouldReplaceCachedSignedPhoto({
+          cachedUrl: cached?.photoSignedUrl,
+          cachedExpiresAt: cached?.photoExpiresAt,
+          nextUrl: d.photoSignedUrl,
+          nextExpiresAt: d.photoExpiresAt,
+        })
+      ) {
+        continue;
+      }
       const payload: PhotoSignedUrlDto = {
         kind: "driver",
         id: d.id,
@@ -263,13 +293,25 @@ function PhotosPage() {
         photoSignedUrl: d.photoSignedUrl,
         photoExpiresAt: d.photoExpiresAt,
       };
-      qc.setQueryData(adminQueryKeys.photosSignedUrl("driver", d.id), payload);
+      qc.setQueryData(key, payload);
     }
   }, [qc, drivers]);
 
   useEffect(() => {
     for (const s of students) {
       if (!isSignedPhotoUrlUsable(s.photoSignedUrl, s.photoExpiresAt)) continue;
+      const key = adminQueryKeys.photosSignedUrl("student", s.id);
+      const cached = qc.getQueryData<PhotoSignedUrlDto>(key);
+      if (
+        !shouldReplaceCachedSignedPhoto({
+          cachedUrl: cached?.photoSignedUrl,
+          cachedExpiresAt: cached?.photoExpiresAt,
+          nextUrl: s.photoSignedUrl,
+          nextExpiresAt: s.photoExpiresAt,
+        })
+      ) {
+        continue;
+      }
       const payload: PhotoSignedUrlDto = {
         kind: "student",
         id: s.id,
@@ -277,7 +319,7 @@ function PhotosPage() {
         photoSignedUrl: s.photoSignedUrl,
         photoExpiresAt: s.photoExpiresAt,
       };
-      qc.setQueryData(adminQueryKeys.photosSignedUrl("student", s.id), payload);
+      qc.setQueryData(key, payload);
     }
   }, [qc, students]);
 
@@ -382,10 +424,16 @@ function PhotosPage() {
       }
       if (err instanceof PhotoPermissionDeniedError) {
         toast(
-          "Camera permission denied. Enable Camera for LumenX Admin in device Settings, then try again.",
+          kind === "camera"
+            ? "Camera permission denied. Enable Camera for LumenX Admin in device Settings (or the browser site settings), then try again."
+            : "Photos permission denied. Use the system photo picker, or enable Photos for LumenX Admin in device Settings, then try again.",
           "error",
         );
-        setStatusMsg("Camera permission denied — open device Settings to enable");
+        setStatusMsg(
+          kind === "camera"
+            ? "Camera permission denied — open Settings to enable"
+            : "Photos permission denied — retry with the system picker",
+        );
         return;
       }
       const message =
@@ -423,7 +471,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Profile photo management"
-        />
+         helpKey="photos" />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Photos require API auth mode with a live institute.
@@ -440,7 +488,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Profile photo management"
-        />
+         helpKey="photos" />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Select an institute to manage profile photos.
@@ -460,7 +508,7 @@ function PhotosPage() {
           eyebrow="People"
           title={M.photos}
           subtitle="Assign staff, student, and driver profile photos"
-        />
+         helpKey="photos" />
 
         <Card>
           <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">

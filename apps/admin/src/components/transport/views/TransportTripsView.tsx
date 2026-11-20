@@ -17,6 +17,7 @@ import {
   type TripSlot,
   type TripStatus,
 } from "@/lib/transport-store";
+import { transportServiceDateToday } from "@/lib/transport/service-date";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -60,7 +61,7 @@ export function TransportTripsView({ snapshot }: Props) {
     listActiveTransportEmergencies,
   );
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => transportServiceDateToday(), []);
 
   useEffect(() => {
     ensureTripsForDate(today);

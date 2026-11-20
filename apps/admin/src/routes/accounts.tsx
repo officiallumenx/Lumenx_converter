@@ -440,7 +440,7 @@ function AccountsPage() {
           eyebrow="People"
           title={M.accounts}
           subtitle="Staff Admin accounts · institute memberships · roles managed under Roles & Access"
-        />
+         helpKey="accounts" />
         <AccountsApiStaffPanel />
         <div className="mt-6">
           <AccountsApiMembershipsPanel />
@@ -471,7 +471,7 @@ function AccountsPage() {
             ? `${list.length} accounts · ${scopeLabel}${rollNo.trim() ? ` · Roll ${rollNo.trim()}` : ""}`
             : "Manage credentials, portal access and identity lifecycle"
         }
-      />
+       helpKey="accounts" />
       <AccountsKpiStrip total={rows.length} active={activeToday} suspended={suspended} />
 
       <Card>

@@ -275,19 +275,14 @@ function CertificatesPage() {
   const subtitle = useMemo(() => {
     const base = CERT_VIEW_SUBTITLES[view];
     if (!apiMode) return base;
-    if (view === "templates" || view === "overview") {
-      const catalogPart = catalogListView.rowsValid
+    if (view === "templates") {
+      return catalogListView.rowsValid
         ? `${catalogListView.items.length} templates`
         : catalogHint ?? "…";
-      if (view === "templates") return catalogPart;
-      const issuedPart = issuedListView.rowsValid
-        ? `${issuedListView.items.length} issued`
-        : issuedHint ?? "…";
-      return `${catalogPart} · ${issuedPart}`;
     }
-    if (view === "issued") {
+    if (view === "published") {
       return issuedListView.rowsValid
-        ? `${issuedListView.items.length} issued certificates`
+        ? `${issuedListView.items.length} published certificates`
         : issuedHint ?? "…";
     }
     return base;
@@ -324,7 +319,7 @@ function CertificatesPage() {
                 <ExternalLink className="size-3.5" />
               </Button>
             </a>
-            <Link to="/documents" search={{ view: "official" }}>
+            <Link to="/documents" search={{ view: "templates" }}>
               <Button variant="outline">Official school documents (incl. TC)</Button>
             </Link>
           </div>
@@ -339,7 +334,7 @@ function CertificatesPage() {
         eyebrow="Institute"
         title={CERT_VIEW_TITLES[view]}
         subtitle={subtitle}
-      />
+       helpKey="templates" />
       <CertHubNav active={view} />
       <PublishedCertificateCatalogView
         section={view}

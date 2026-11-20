@@ -423,7 +423,7 @@ function LeavePage() {
         </>
       }
     >
-      <ModuleHero eyebrow="Services" title={M.leave} subtitle={pageSubtitle} />
+      <ModuleHero eyebrow="Services" title={M.leave} subtitle={pageSubtitle}  helpKey="leave" />
       <PageStack>
         <KpiGrid cols={4}>
           <Kpi

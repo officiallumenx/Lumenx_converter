@@ -1,11 +1,20 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useApp } from "@/lib/app-state";
-import { StudentCertificatesPage } from "@/student-portal";
+import { RouteLazyFallback } from "@/components/app/RouteLazyFallback";
+
+const StudentCertificatesPage = lazy(() =>
+  import("@/student-portal/features/certificates").then((m) => ({
+    default: m.StudentCertificatesPage,
+  })),
+);
 
 export const Route = createFileRoute("/_authenticated/certificates")({
   head: () => ({ meta: [{ title: "Certificates — LumenX Connect" }] }),
   component: () => (
-    <CertificatesRoute />
+    <Suspense fallback={<RouteLazyFallback />}>
+      <CertificatesRoute />
+    </Suspense>
   ),
 });
 

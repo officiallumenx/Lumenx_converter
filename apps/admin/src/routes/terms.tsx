@@ -3,7 +3,7 @@ import { ADMIN_TERMS } from "@lumenx/legal";
 import { LegalDocumentPage } from "@/components/legal/LegalDocumentPage";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({ meta: [{ title: "Terms & Conditions — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: "Terms of Service — LumenX Admin" }] }),
   component: AdminTermsPage,
 });
 

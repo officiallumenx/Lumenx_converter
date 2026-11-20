@@ -1,9 +1,17 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
+import {
+  classifySupabaseRefreshFailure,
+  isSessionRefreshSuccess,
+  type SessionRefreshOutcome,
+} from "@lumenx/auth";
 
 let client: SupabaseClient | null = null;
 let runtimeConfig: { url: string; anonKey: string } | null = null;
+let refreshInFlight: Promise<SessionRefreshOutcome> | null = null;
+let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
 
 const AUTH_STORAGE_KEY = "lumenx.nexus.supabase.auth.v1";
+const REFRESH_SKEW_MS = 60_000;
 
 /** Strip CI paste noise (quotes / newlines) that breaks browser fetch headers. */
 function sanitizeEnvValue(raw: string | undefined): string {
@@ -93,11 +101,105 @@ export async function syncSupabaseBrowserClientFromApi(
 export function resetSupabaseBrowserClientForTests(): void {
   client = null;
   runtimeConfig = null;
+  refreshInFlight = null;
+  cachedAccessToken = null;
 }
 
+function hasStoredRefreshToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { refresh_token?: unknown };
+    return typeof parsed.refresh_token === "string" && parsed.refresh_token.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function cacheToken(session: Session | null): string | null {
+  const token = session?.access_token ?? null;
+  if (!token) {
+    cachedAccessToken = null;
+    return null;
+  }
+  cachedAccessToken = {
+    token,
+    expiresAtMs: (session?.expires_at ?? 0) * 1000 || Date.now() + 55_000,
+  };
+  return token;
+}
+
+export async function tryRefreshSupabaseSession(): Promise<SessionRefreshOutcome> {
+  if (!hasStoredRefreshToken()) return { kind: "unavailable" };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return { kind: "transient" };
+  }
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session?.access_token) {
+        cacheToken(data.session);
+        return { kind: "refreshed" as const };
+      }
+      if (!error && !data.session) {
+        return { kind: "invalid" as const };
+      }
+      if (error) {
+        const classified = classifySupabaseRefreshFailure(error);
+        if (classified === "transient") return { kind: "transient" as const };
+        if (classified === "invalid") return { kind: "invalid" as const };
+        return { kind: "unknown" as const };
+      }
+      return { kind: "unknown" as const };
+    } catch (err) {
+      const classified = classifySupabaseRefreshFailure(err);
+      if (classified === "invalid") return { kind: "invalid" as const };
+      if (classified === "transient") return { kind: "transient" as const };
+      return { kind: "unknown" as const };
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+/**
+ * Return a usable access JWT, refreshing when within the expiry skew window.
+ * Background tabs can miss Supabase autoRefresh — callers must not permanently
+ * cache an expired token.
+ */
 export async function getSupabaseAccessToken(): Promise<string | null> {
+  if (
+    cachedAccessToken &&
+    Date.now() < cachedAccessToken.expiresAtMs - REFRESH_SKEW_MS
+  ) {
+    return cachedAccessToken.token;
+  }
+
+  if (!hasStoredRefreshToken()) {
+    cachedAccessToken = null;
+    return null;
+  }
+
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) return null;
-  return data.session?.access_token ?? null;
+  let session = data.session;
+  if (!session?.access_token) return null;
+
+  const expiresAtMs = (session.expires_at ?? 0) * 1000;
+  if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
+    const outcome = await tryRefreshSupabaseSession();
+    if (isSessionRefreshSuccess(outcome)) {
+      const refreshed = await supabase.auth.getSession();
+      session = refreshed.data.session ?? session;
+    } else if (!expiresAtMs || expiresAtMs <= Date.now()) {
+      cachedAccessToken = null;
+      return null;
+    }
+  }
+  return cacheToken(session);
 }

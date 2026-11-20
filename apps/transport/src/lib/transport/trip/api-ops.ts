@@ -100,17 +100,13 @@ export async function confirmStartTripViaApi(
       driverId: scope.driverId,
       tripDate: today,
       slot,
+      phase: "running",
       clientEventId,
     });
     if (!isUuid(created.id)) {
       throw new Error("Server returned an invalid trip id");
     }
-    const phaseId = newClientEventId("tphase");
-    const running = await updateTransportTripPhase(created.id, {
-      phase: "running",
-      clientEventId: phaseId,
-    });
-    return syncTripFromApiDto(running);
+    return syncTripFromApiDto(created);
   } catch (err) {
     abortStartTripSession();
     throw err;
@@ -121,8 +117,12 @@ export async function setLifecyclePhaseViaApi(
   phase: "running" | "boarding" | "dropping",
 ): Promise<TripActionResult> {
   const scope = driverScopeOrThrow();
-  const active = await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
-  const tripId = active?.id;
+  const session = getTripSessionSnapshot();
+  const active =
+    session.tripId && isTripActive(session.phase)
+      ? null
+      : await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
+  const tripId = session.tripId || active?.id;
   if (!tripId) throw new Error("No active trip");
   const clientEventId = newClientEventId("tphase");
 
@@ -133,18 +133,15 @@ export async function setLifecyclePhaseViaApi(
       clientEventId,
       payload: { phase },
     });
-    if (active) {
-      return syncTripFromApiDto({
-        id: active.id,
-        phase,
-        startedAt: active.startedAt,
-        completedAt: active.completedAt,
-        vehicleId: active.vehicleId,
-        routeId: active.routeId,
-        currentStopIndex: active.currentStopIndex,
-      });
-    }
-    throw new Error("Offline — phase change queued.");
+    return syncTripFromApiDto({
+      id: tripId,
+      phase,
+      startedAt: session.startedAt ?? active?.startedAt ?? new Date().toISOString(),
+      completedAt: active?.completedAt ?? null,
+      vehicleId: scope.vehicleId,
+      routeId: scope.routeId,
+      currentStopIndex: session.currentStopIndex ?? active?.currentStopIndex ?? 0,
+    });
   }
 
   const updated = await updateTransportTripPhase(tripId, { phase, clientEventId });
@@ -153,31 +150,38 @@ export async function setLifecyclePhaseViaApi(
 
 export async function advanceStopViaApi(): Promise<TripActionResult> {
   const scope = driverScopeOrThrow();
-  const active = await getActiveTripForVehicle(scope.vehicleId);
-  if (!active) throw new Error("No active trip");
-  const nextIndex = active.currentStopIndex + 1;
+  const session = getTripSessionSnapshot();
+  const active =
+    session.tripId && isTripActive(session.phase)
+      ? null
+      : await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
+  const tripId = session.tripId || active?.id;
+  if (!tripId) throw new Error("No active trip");
+  const currentPhase = session.phase ?? active?.phase ?? "running";
+  const currentIndex = session.currentStopIndex ?? active?.currentStopIndex ?? 0;
+  const nextIndex = currentIndex + 1;
   const clientEventId = newClientEventId("tadv");
 
   if (!isOpsOutboxOnline()) {
     enqueueOpsEvent({
       eventType: "trip_phase",
-      tripId: active.id,
+      tripId,
       clientEventId,
-      payload: { phase: active.phase, currentStopIndex: nextIndex },
+      payload: { phase: currentPhase, currentStopIndex: nextIndex },
     });
     return syncTripFromApiDto({
-      id: active.id,
-      phase: active.phase as "running" | "boarding" | "dropping" | "starting" | "ready" | "completed",
-      startedAt: active.startedAt,
-      completedAt: active.completedAt,
-      vehicleId: active.vehicleId,
-      routeId: active.routeId,
+      id: tripId,
+      phase: currentPhase as "running" | "boarding" | "dropping" | "starting" | "ready" | "completed",
+      startedAt: session.startedAt ?? active?.startedAt ?? null,
+      completedAt: active?.completedAt ?? null,
+      vehicleId: scope.vehicleId,
+      routeId: scope.routeId,
       currentStopIndex: nextIndex,
     });
   }
 
-  const updated = await updateTransportTripPhase(active.id, {
-    phase: active.phase,
+  const updated = await updateTransportTripPhase(tripId, {
+    phase: currentPhase,
     currentStopIndex: nextIndex,
     clientEventId,
   });
@@ -186,26 +190,42 @@ export async function advanceStopViaApi(): Promise<TripActionResult> {
 
 export async function endTripViaApi(): Promise<TripActionResult> {
   const scope = driverScopeOrThrow();
-  const active = await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
-  if (!active) throw new Error("No active trip");
+  const snap = getTripSessionSnapshot();
+  const activeTrip =
+    snap.tripId && isTripActive(snap.phase)
+      ? { id: snap.tripId, slot: snap.slot ?? "morning" }
+      : await getActiveTripForVehicle(scope.vehicleId).catch(() => null);
+  if (!activeTrip?.id) throw new Error("No active trip");
   const clientEventId = newClientEventId("tend");
 
   if (!isOpsOutboxOnline()) {
     enqueueOpsEvent({
       eventType: "trip_end",
-      tripId: active.id,
+      tripId: activeTrip.id,
       clientEventId,
-      payload: { slot: active.slot },
+      payload: { slot: activeTrip.slot },
     });
     // Keep local phase active; do not set morning/evening completed until ack.
     return markTripEndSyncPending();
   }
 
   clearTripEndSyncPending();
-  const updated = await endTransportTrip(active.id, clientEventId);
+  const updated = await endTransportTrip(activeTrip.id, clientEventId);
   syncTripFromApiDto(updated);
-  // Day flags must come from list-trips before Home re-renders next action.
-  await hydrateActiveTripFromApi();
+
+  // Directly apply completion flags from authoritative end response
+  const isMorning = updated.slot === "morning";
+  const isEvening = updated.slot === "evening";
+  applyTodayTripCompletions({
+    morningCompleted: isMorning || snap.morningCompletedToday,
+    eveningCompleted: isEvening || snap.eveningCompletedToday,
+    authoritative: false,
+  });
+  dismissCompletedTripSession();
+
+  // Background non-blocking reconciliation for day flags/outbox flush
+  void hydrateActiveTripFromApi();
+
   return {
     ok: true,
     session: getTripSessionSnapshot(),

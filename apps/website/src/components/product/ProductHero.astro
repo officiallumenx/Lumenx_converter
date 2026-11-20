@@ -1,0 +1,137 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const product = page.product;
+const heroImage = page.gallery?.[0]?.src || product.image;
+const heroAlt = page.gallery?.[0]?.caption || product.imageAlt || product.name;
+const isPortrait = page.gallery?.[0]?.orientation === "portrait";
+---
+
+<section class="relative overflow-hidden border-b border-stroke/60 bg-gradient-to-b from-[#F8FAFC] to-white pt-[108px] pb-14 dark:border-dark-3 dark:from-[#0B132B] dark:via-[#111928] dark:to-[#111928] sm:pt-[124px] sm:pb-16 lg:pt-[144px] lg:pb-20">
+  <div class="container">
+    <div class="-mx-4 flex flex-wrap items-center">
+      <div class="w-full px-4 lg:w-1/2">
+        <div class="mb-10 lg:mb-0" data-reveal>
+          <div class="mb-4 flex items-center gap-3.5">
+            {product.logo && (
+              <span class="inline-flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-stroke/80 bg-white p-0.5 shadow-sm dark:border-dark-3 sm:h-14 sm:w-14">
+                <img
+                  src={product.logo}
+                  alt={`${product.name} logo`}
+                  class="h-full w-full rounded-xl object-contain"
+                  width="56"
+                  height="56"
+                  decoding="async"
+                />
+              </span>
+            )}
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary sm:text-sm">
+                {product.category} · {product.shortName}
+              </p>
+              <span class="text-sm font-bold text-dark dark:text-white">{product.name}</span>
+            </div>
+          </div>
+          <h1 class="mb-4 font-heading font-bold text-dark dark:text-white">
+            {page.headline}
+          </h1>
+          <p class="mb-4 max-w-[540px] text-[15px] leading-relaxed text-body-color dark:text-dark-6 sm:text-base">
+            {page.summary}
+          </p>
+          <p class="mb-7 max-w-[520px] text-xs leading-relaxed text-body-color/85 dark:text-dark-6/90 sm:text-sm">
+            {page.delivery}
+          </p>
+          <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <a
+              href="/contact?intent=demo#enquiry"
+              class="lx-btn inline-flex items-center justify-center rounded-lg bg-primary px-7 py-3.5 text-center font-semibold text-white shadow-sm transition hover:bg-blue-dark"
+            >
+              Book a Demo
+            </a>
+            <a
+              href="#modules"
+              class="lx-btn inline-flex items-center justify-center rounded-lg border border-stroke bg-white px-7 py-3.5 text-center font-semibold text-dark transition hover:border-primary hover:text-primary dark:border-dark-3 dark:bg-dark-2 dark:text-white dark:hover:border-primary"
+            >
+              Explore Modules
+            </a>
+            {
+              page.gallery?.length > 1 && (
+                <a
+                  href="#walkthrough"
+                  class="lx-btn inline-flex items-center justify-center rounded-lg px-5 py-3 text-center font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  View Screens →
+                </a>
+              )
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="w-full px-4 lg:w-1/2" data-reveal>
+        {
+          heroImage ? (
+            <div
+              class={`mx-auto overflow-hidden rounded-xl border border-stroke bg-white p-2 shadow-lg dark:border-dark-3 dark:bg-dark-2 sm:p-3 ${
+                isPortrait ? "max-w-[300px] sm:max-w-[320px]" : "max-w-[560px]"
+              }`}
+            >
+              <img
+                src={heroImage}
+                alt={heroAlt}
+                class="mx-auto block h-auto w-full rounded-lg object-contain"
+                width={isPortrait ? 609 : 1918}
+                height={isPortrait ? 1301 : 1054}
+                fetchpriority="high"
+                decoding="async"
+              />
+            </div>
+          ) : (
+            /* Clean Light/Dark adaptive interface visual for Nexus Service Gateway */
+            <div class="mx-auto max-w-[520px] rounded-2xl border border-stroke bg-white p-5 text-dark shadow-lg dark:border-dark-3 dark:bg-dark-2 dark:text-white sm:p-6">
+              <div class="mb-4 flex items-center justify-between border-b border-stroke pb-3 dark:border-dark-3">
+                <div class="flex items-center gap-2.5">
+                  <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">
+                    N
+                  </span>
+                  <div>
+                    <span class="block text-sm font-semibold text-dark dark:text-white">{product.name}</span>
+                    <span class="block text-xs text-body-color dark:text-dark-6">Your Gateway to Smarter Services</span>
+                  </div>
+                </div>
+                <span class="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-sky-300">
+                  Service Platform
+                </span>
+              </div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="rounded-xl border border-stroke/80 bg-[#F8FAFC] p-3.5 dark:border-dark-3 dark:bg-dark">
+                  <span class="text-xs font-semibold uppercase tracking-wider text-primary dark:text-sky-300">Quality Services</span>
+                  <p class="mt-1 text-sm font-semibold text-dark dark:text-white">Reliable Delivery</p>
+                  <p class="mt-1 text-xs text-body-color dark:text-dark-6">Professional and dependable service experiences across LumenX.</p>
+                </div>
+                <div class="rounded-xl border border-stroke/80 bg-[#F8FAFC] p-3.5 dark:border-dark-3 dark:bg-dark">
+                  <span class="text-xs font-semibold uppercase tracking-wider text-primary dark:text-sky-300">Quick Actions</span>
+                  <p class="mt-1 text-sm font-semibold text-dark dark:text-white">Fast Service Access</p>
+                  <p class="mt-1 text-xs text-body-color dark:text-dark-6">Easy access to important services, entitlements, and requests.</p>
+                </div>
+                <div class="rounded-xl border border-stroke/80 bg-[#F8FAFC] p-3.5 dark:border-dark-3 dark:bg-dark">
+                  <span class="text-xs font-semibold uppercase tracking-wider text-primary dark:text-sky-300">Faster Responses</span>
+                  <p class="mt-1 text-sm font-semibold text-dark dark:text-white">Responsive Assistance</p>
+                  <p class="mt-1 text-xs text-body-color dark:text-dark-6">Timely communication and dedicated support when needed.</p>
+                </div>
+                <div class="rounded-xl border border-stroke/80 bg-[#F8FAFC] p-3.5 dark:border-dark-3 dark:bg-dark">
+                  <span class="text-xs font-semibold uppercase tracking-wider text-primary dark:text-sky-300">Connected Support</span>
+                  <p class="mt-1 text-sm font-semibold text-dark dark:text-white">Simple Workflows</p>
+                  <p class="mt-1 text-xs text-body-color dark:text-dark-6">Clear navigation connecting users with relevant LumenX services.</p>
+                </div>
+              </div>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </div>
+</section>

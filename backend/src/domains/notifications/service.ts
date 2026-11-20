@@ -416,15 +416,26 @@ async function emitNotificationInternal(
     targetApps,
   };
 
-  const notification = await insertNotification(admin, {
+  const { notification, created } = await insertNotification(admin, {
     ...input,
     instituteId,
     title,
     body,
     payload,
+    dedupeKey: input.dedupeKey?.trim() ? input.dedupeKey.trim() : null,
     priority: escalatePriorityFromDueAt(input.priority ?? "normal", input.dueAt),
     createdByUserProfileId,
   });
+
+  // Idempotent replay / concurrent winner: return existing recipients — do not
+  // re-insert recipients or enqueue another FCM fan-out for the same dedupe key.
+  if (!created) {
+    const existingRecipients = await listRecipientsForNotification(
+      admin,
+      notification.id,
+    );
+    return existingRecipients.map((r) => toInboxItemDto(r, notification));
+  }
 
   const recipients = await insertRecipients(admin, {
     instituteId,

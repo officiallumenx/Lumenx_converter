@@ -121,6 +121,12 @@ export function TransportEtaBanner({
                     ? assignment
                       ? `Driver trip is active · waiting for live GPS near ${assignment.pickupStop.name}`
                       : "Driver trip is active · waiting for live GPS."
+                    : tracking.gpsFreshness === "stale" ||
+                        tracking.gpsFreshness === "offline" ||
+                        tracking.etaDisplayMode === "stale"
+                      ? assignment
+                        ? `${assignment.pickupStop.name} · Waiting for fresh GPS from driver`
+                        : "Waiting for fresh GPS from driver"
                     : assignment && hasGps
                       ? `${formatApproachEta({
                           minutes: tracking.etaMinutes,

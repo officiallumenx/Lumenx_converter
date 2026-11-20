@@ -148,7 +148,12 @@ export type MockDb = {
   student_transfer_request: Row[];
 };
 
-export type MockDbError = { code: string; message?: string };
+export type MockDbError = {
+  code: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
 
 type PendingError = MockDbError | null;
 
@@ -395,7 +400,8 @@ class QueryBuilder {
               error: {
                 code: "23505",
                 message:
-                  "duplicate key value violates unique constraint \"notification_institute_dedupe_uidx\"",
+                  'duplicate key value violates unique constraint "notification_institute_dedupe_uidx"',
+                details: `Key (institute_id, dedupe_key)=(${String(row.institute_id)}, ${String(key)}) already exists.`,
               },
             };
           }

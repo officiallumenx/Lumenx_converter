@@ -68,7 +68,7 @@ export function TransportAttendanceView() {
     <div className="space-y-4">
       <PageToolbar>
         <p className="text-sm text-muted-foreground">
-          Shared mock boarding/dropping from Transport (this browser).
+          Demo view only — not the API boarding source of truth.
         </p>
         <Pill tone={activeTrip ? "warning" : "neutral"}>
           {activeTrip ? "Trip live" : `${marks.length} marks`}
@@ -115,7 +115,7 @@ export function TransportAttendanceView() {
       {rows.length === 0 ? (
         <EmptyState
           title="No boarding marks yet"
-          hint="When a driver starts a trip and marks students in Transport, records appear here via shared localStorage."
+          hint="Demo attendance view only. In API mode, use Transport → Attendance (API boarding marks). Shared localStorage is not an operational source of truth."
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border">

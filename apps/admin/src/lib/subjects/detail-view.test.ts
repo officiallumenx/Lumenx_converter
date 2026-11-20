@@ -13,6 +13,8 @@ const detailA: SubjectDetailItem = {
   category: "Core",
   periodsPerWeek: 5,
   grades: ["Grade 10"],
+  capacity: null,
+  classPeriods: {},
   assignedTeacherIds: [],
   status: "active",
   updatedAt: "2026-06-01T10:00:00Z",

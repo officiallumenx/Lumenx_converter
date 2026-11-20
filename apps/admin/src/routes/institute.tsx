@@ -672,7 +672,7 @@ export function InstituteDemoPage({ embedded = false }: { embedded?: boolean }) 
         eyebrow="Settings"
         title="Institute profile"
         subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
-      />
+       helpKey="institute" />
       {body}
     </AppShell>
   );

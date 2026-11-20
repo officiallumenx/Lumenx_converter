@@ -624,7 +624,7 @@ function EventsPage() {
             ? "Create / publish / cancel events"
             : "Institute events owned by Admin · Activity events stay with Activity Teacher"
         }
-      />
+       helpKey="events" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           {apiMode && !listView.rowsValid ? (

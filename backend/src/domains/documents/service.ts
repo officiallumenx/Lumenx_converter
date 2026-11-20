@@ -12,12 +12,16 @@ import {
 } from "../students/repository.js";
 import { listLinksForStudent, findParentById } from "../parents/repository.js";
 import { findTeacherById } from "../teachers/repository.js";
+import { allowDocumentNumberMaxFallback, loadEnv } from "../../config/env.js";
 import {
+  allocateDocumentNumberRpc,
+  findGeneratedByGenerationKey,
   findGeneratedDocumentById,
   findTemplateById,
   insertGeneratedDocument,
   insertTemplate,
   listGeneratedDocuments,
+  listReservedDocumentNumbers,
   listTemplates,
   softDeleteGeneratedDocument,
   softDeleteTemplate,
@@ -31,6 +35,15 @@ import {
   resolveLinkedAssetSignedUrl,
 } from "./persist-file.js";
 import { renderDocumentPdf } from "./render-pdf.js";
+import {
+  documentNumberYear,
+  extractGenerationKey,
+  formatDocumentNumber,
+  isUniqueNumberConflict,
+  isValidGenerationKey,
+  nextSequenceFromNumbers,
+  resolvePreservedDocumentNumber,
+} from "./numbering.js";
 import type { AssetSignedUrlDto } from "../assets/service.js";
 import type {
   CreateGeneratedInput,
@@ -40,6 +53,7 @@ import type {
   GeneratedWorkflowState,
   ListGeneratedFilter,
   ListTemplatesFilter,
+  RepublishGeneratedInput,
   TemplateDto,
   TemplateRow,
   TemplateType,
@@ -502,6 +516,35 @@ export async function createGeneratedForActor(
 
   const title = (input.title?.trim() || template.name).trim();
 
+  // Permanent numbers are assigned only at publish — never on draft create.
+  const basePayload =
+    input.payload && typeof input.payload === "object" && !Array.isArray(input.payload)
+      ? { ...(input.payload as Record<string, unknown>) }
+      : {};
+  delete basePayload.documentNumber;
+  delete basePayload.certificateNumber;
+  delete basePayload.certificate_number;
+
+  const generationKey =
+    (input.generationKey?.trim() || extractGenerationKey(basePayload) || "").trim() ||
+    null;
+  if (generationKey && !isValidGenerationKey(generationKey)) {
+    throw AppError.validation("Referenced resource is invalid", {
+      generation_key: ["Invalid generation key"],
+    });
+  }
+  if (generationKey) {
+    const existingDraft = await findGeneratedByGenerationKey(
+      admin,
+      instituteId,
+      generationKey,
+    );
+    if (existingDraft) {
+      return toGeneratedDocumentDto(existingDraft);
+    }
+    basePayload.generationKey = generationKey;
+  }
+
   const row = await insertGeneratedDocument(admin, {
     instituteId,
     templateId: template.id,
@@ -511,8 +554,8 @@ export async function createGeneratedForActor(
     teacherId,
     recipientName,
     recipientRef: input.recipientRef,
-    certificateNumber: input.certificateNumber,
-    payload: input.payload,
+    certificateNumber: null,
+    payload: basePayload,
     generatedByUserId: actor.userId,
     workflowState: "draft",
   });
@@ -522,6 +565,7 @@ export async function createGeneratedForActor(
 function nextAllowedStates(
   type: TemplateType,
   current: GeneratedWorkflowState,
+  opts?: { writerPublish?: boolean },
 ): GeneratedWorkflowState[] {
   if (current === "rejected" || current === "published") return [];
 
@@ -529,7 +573,58 @@ function nextAllowedStates(
   const idx = flow.indexOf(current);
   if (idx < 0 || idx >= flow.length - 1) return [];
   const forward = flow[idx + 1]!;
-  return [forward, "rejected"];
+  const allowed: GeneratedWorkflowState[] = [forward, "rejected"];
+  // Institute writers may publish directly after preview (skip report intermediates).
+  if (opts?.writerPublish && !allowed.includes("published")) {
+    allowed.push("published");
+  }
+  return allowed;
+}
+
+/**
+ * Resolve or allocate DOC/{year}/{seq} for publish.
+ * - Valid stamped/legacy DOC numbers are preserved (never silently renumbered).
+ * - Invalid stamped values reject publish with an actionable error.
+ * - New allocation prefers RPC; max+1 only when DOCUMENT_NUMBER_ALLOW_MAX_FALLBACK
+ *   allows it AND the RPC is confirmed missing (not concurrent-safe).
+ */
+async function allocateDocumentNumber(
+  admin: SupabaseClient,
+  instituteId: string,
+  existingNumber: string | null,
+): Promise<string> {
+  try {
+    const preserved = resolvePreservedDocumentNumber(existingNumber);
+    if (preserved) return preserved;
+  } catch (err) {
+    throw AppError.validation("Referenced resource is invalid", {
+      certificate_number: [
+        err instanceof Error ? err.message : "Invalid document number",
+      ],
+    });
+  }
+
+  const year = documentNumberYear();
+  const rpc = await allocateDocumentNumberRpc(admin, instituteId, year);
+  if (rpc.kind === "allocated") return rpc.number;
+
+  if (rpc.kind === "error") {
+    throw AppError.internal(
+      `Document number allocation failed: ${rpc.message}`,
+    );
+  }
+
+  // rpc.kind === "unavailable"
+  const env = loadEnv();
+  if (!allowDocumentNumberMaxFallback(env)) {
+    throw AppError.internal(
+      "Document number RPC allocate_document_number is not available. Apply the document numbering migration (or set DOCUMENT_NUMBER_ALLOW_MAX_FALLBACK=true only for explicit pre-migration environments). Concurrent safety requires the unique index.",
+    );
+  }
+
+  const numbers = await listReservedDocumentNumbers(admin, instituteId);
+  const sequence = nextSequenceFromNumbers(numbers, year);
+  return formatDocumentNumber(year, sequence);
 }
 
 async function canTransitionGenerated(
@@ -538,10 +633,13 @@ async function canTransitionGenerated(
   row: GeneratedDocumentRow,
   next: GeneratedWorkflowState,
 ): Promise<boolean> {
-  const allowed = nextAllowedStates(row.type, row.workflow_state);
+  const writer = isWriter(actor, row.institute_id);
+  const allowed = nextAllowedStates(row.type, row.workflow_state, {
+    writerPublish: writer,
+  });
   if (!allowed.includes(next)) return false;
 
-  if (isWriter(actor, row.institute_id)) return true;
+  if (writer) return true;
 
   // Teachers may approve report teacher_review → admin_review only when
   // assigned to the student's section(s).
@@ -601,6 +699,24 @@ export async function transitionGeneratedForActor(
     patch.published_at = new Date().toISOString();
     patch.rejection_reason = null;
 
+    // Assign DOC/{year}/{seq} at publish. Preview/cancel do not allocate.
+    // Stamp the number on the draft before PDF/external work so retries reuse it.
+    // Gap policy: a stamped-but-unpublished number remains reserved (accepted).
+    // PDF storage and notifications are outside the DB transaction.
+    let assignedNumber = await allocateDocumentNumber(
+      admin,
+      existing.institute_id,
+      existing.certificate_number,
+    );
+    patch.certificate_number = assignedNumber;
+
+    if (!existing.certificate_number?.trim()) {
+      const stamped = await updateGeneratedDocumentFields(admin, id, {
+        certificate_number: assignedNumber,
+      });
+      if (!stamped) throw AppError.notFound("Generated document not found");
+    }
+
     if (!existing.asset_path) {
       const template = await findTemplateById(admin, existing.template_id);
       if (!template) {
@@ -615,7 +731,13 @@ export async function transitionGeneratedForActor(
         recipientRef: existing.recipient_ref,
         category: template.category,
         documentType: existing.type,
-        payload: existing.payload,
+        payload: {
+          ...(typeof existing.payload === "object" && existing.payload
+            ? (existing.payload as Record<string, unknown>)
+            : {}),
+          documentNumber: assignedNumber,
+          certificateNumber: assignedNumber,
+        },
       });
       const file = await persistInstitutePdfAsset(admin, actor, {
         instituteId: existing.institute_id,
@@ -628,6 +750,30 @@ export async function transitionGeneratedForActor(
       });
       patch.asset_path = file.objectPath;
     }
+
+    // Retry when unique index rejects a raced number (post-migration).
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const updated = await updateGeneratedDocumentFields(admin, id, patch);
+        if (!updated) throw AppError.notFound("Generated document not found");
+        await emitGeneratedDocumentPublishedNotification(admin, actor, updated);
+        return toGeneratedDocumentDto(updated);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!isUniqueNumberConflict(message) || attempt === 4) throw err;
+        // Conflict: allocate a fresh number, restamp, retry publish (not duplicate publish).
+        assignedNumber = await allocateDocumentNumber(
+          admin,
+          existing.institute_id,
+          null,
+        );
+        patch.certificate_number = assignedNumber;
+        await updateGeneratedDocumentFields(admin, id, {
+          certificate_number: assignedNumber,
+        });
+      }
+    }
+    throw AppError.internal("Failed to allocate document number");
   } else if (input.workflowState === "rejected") {
     patch.rejection_reason = input.rejectionReason!.trim();
     patch.portal_student = false;
@@ -638,11 +784,6 @@ export async function transitionGeneratedForActor(
 
   const updated = await updateGeneratedDocumentFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Generated document not found");
-
-  if (input.workflowState === "published") {
-    await emitGeneratedDocumentPublishedNotification(admin, actor, updated);
-  }
-
   return toGeneratedDocumentDto(updated);
 }
 
@@ -650,6 +791,7 @@ async function emitGeneratedDocumentPublishedNotification(
   admin: SupabaseClient,
   actor: Actor,
   row: Awaited<ReturnType<typeof updateGeneratedDocumentFields>> & object,
+  opts?: { republish?: boolean },
 ): Promise<void> {
   if (!row) return;
   const recipientIds = new Set<string>();
@@ -674,20 +816,116 @@ async function emitGeneratedDocumentPublishedNotification(
     "../notifications/service.js"
   );
 
+  const republish = Boolean(opts?.republish);
   try {
     await emitNotificationForInstituteSystem(admin, actor.userId, {
       instituteId: row.institute_id,
       recipientUserIds: [...recipientIds],
       category: "documents",
       priority: "normal",
-      title: "Document ready",
+      title: republish ? "Document updated" : "Document ready",
       body: `${row.title?.trim() || "Document"} for ${row.recipient_name} is ready to download.`,
       deepLink: "/documents",
-      dedupeKey: `gen-doc-published:${row.id}`,
+      dedupeKey: republish
+        ? `gen-doc-republished:${row.id}:${row.updated_at}`
+        : `gen-doc-published:${row.id}`,
     });
   } catch {
     /* notification delivery must not block publish */
   }
+}
+
+/**
+ * Explicit republish of an already-published document.
+ * Preserves the assigned document number; regenerates PDF; notifies only when requested.
+ */
+export async function republishGeneratedForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+  input: RepublishGeneratedInput = {},
+): Promise<GeneratedDocumentDto> {
+  const existing = await findGeneratedDocumentById(admin, id);
+  if (!existing) throw AppError.notFound("Generated document not found");
+  assertInstituteAccess(actor, existing.institute_id);
+
+  if (!isWriter(actor, existing.institute_id)) {
+    throw AppError.forbidden("Insufficient document write access");
+  }
+  if (existing.workflow_state !== "published") {
+    throw AppError.conflict("Only published documents can be republished");
+  }
+
+  const title = input.title?.trim() || existing.title;
+  const payload =
+    input.payload !== undefined ? input.payload : existing.payload;
+
+  let documentNumber: string;
+  try {
+    const preserved = resolvePreservedDocumentNumber(existing.certificate_number);
+    if (!preserved) {
+      throw new Error(
+        "Published document is missing a document number. Republish will not invent a new number; correct the record with approval first.",
+      );
+    }
+    documentNumber = preserved;
+  } catch (err) {
+    throw AppError.validation("Referenced resource is invalid", {
+      certificate_number: [
+        err instanceof Error ? err.message : "Invalid document number",
+      ],
+    });
+  }
+
+  const template = await findTemplateById(admin, existing.template_id);
+  if (!template) {
+    throw AppError.validation("Referenced resource is invalid", {
+      template_id: ["Template not found"],
+    });
+  }
+
+  const pdfBytes = renderDocumentPdf({
+    title,
+    templateName: template.name,
+    recipientName: existing.recipient_name,
+    recipientRef: existing.recipient_ref,
+    category: template.category,
+    documentType: existing.type,
+    payload: {
+      ...(typeof payload === "object" && payload
+        ? (payload as Record<string, unknown>)
+        : {}),
+      documentNumber,
+      certificateNumber: documentNumber,
+    },
+  });
+  const file = await persistInstitutePdfAsset(admin, actor, {
+    instituteId: existing.institute_id,
+    bucket: "generated-documents",
+    category: "generated_document",
+    fileName: `${existing.id}.pdf`,
+    body: pdfBytes,
+    linkedEntityKind: "generated_document",
+    linkedEntityId: existing.id,
+  });
+
+  const updated = await updateGeneratedDocumentFields(admin, id, {
+    title,
+    payload: payload ?? {},
+    asset_path: file.objectPath,
+    published_at: new Date().toISOString(),
+    // Preserve historical number — do not re-allocate.
+    certificate_number: documentNumber,
+  });
+  if (!updated) throw AppError.notFound("Generated document not found");
+
+  if (input.notify !== false) {
+    await emitGeneratedDocumentPublishedNotification(admin, actor, updated, {
+      republish: true,
+    });
+  }
+
+  return toGeneratedDocumentDto(updated);
 }
 
 export async function deleteGeneratedForActor(

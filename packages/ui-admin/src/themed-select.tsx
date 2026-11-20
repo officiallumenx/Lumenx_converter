@@ -122,6 +122,8 @@ export function ThemedSelect({
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement> & { fieldSize?: FieldSize }) {
   const autoId = useId();
+  const resolvedId = id ?? autoId;
+  const resolvedName = name ?? resolvedId;
   const listboxId = `${autoId}-listbox`;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -143,8 +145,8 @@ export function ThemedSelect({
     return (
       <select
         {...rest}
-        id={id}
-        name={name}
+        id={resolvedId}
+        name={resolvedName}
         required={required}
         disabled={disabled}
         multiple={multiple}
@@ -164,8 +166,8 @@ export function ThemedSelect({
     if (!controlled) setUncontrolled(next);
     if (onChange) {
       const synthetic = {
-        target: { value: next, name: name ?? "" },
-        currentTarget: { value: next, name: name ?? "" },
+        target: { value: next, name: resolvedName },
+        currentTarget: { value: next, name: resolvedName },
       } as ChangeEvent<HTMLSelectElement>;
       onChange(synthetic);
     }
@@ -224,12 +226,12 @@ export function ThemedSelect({
 
   return (
     <div className={`relative min-w-0 ${className.includes("w-") ? "" : "w-full"}`.trim()}>
-      {name ? <input type="hidden" name={name} value={current} required={required} /> : null}
+      <input type="hidden" id={`${resolvedId}-value`} name={resolvedName} value={current} required={required} readOnly aria-hidden />
       <button
         {...(rest as object)}
         ref={triggerRef}
         type="button"
-        id={id}
+        id={resolvedId}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -257,7 +259,7 @@ export function ThemedSelect({
               ref={menuRef}
               id={listboxId}
               role="listbox"
-              aria-labelledby={id}
+              aria-labelledby={resolvedId}
               style={menuStyle}
               className="lx-themed-menu overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-pop"
             >

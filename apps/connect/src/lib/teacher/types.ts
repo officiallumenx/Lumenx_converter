@@ -1,4 +1,5 @@
 import type { AttendanceMarkStatus, AttendanceMethod } from "@lumenx/module-attendance";
+import type { LeaveStatus } from "@lumenx/types";
 
 export type AttendanceStatus = "present" | "absent";
 export type MarkStatus = "draft" | "submitted" | "published";
@@ -252,7 +253,7 @@ export interface TeacherLeaveRequest {
   fromDate: string;
   toDate: string;
   reason: string;
-  status: "pending" | "approved" | "rejected" | "ignored";
+  status: LeaveStatus;
   submittedAt: string;
   reviewedNote?: string;
 }

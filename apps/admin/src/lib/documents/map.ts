@@ -108,9 +108,29 @@ export function documentTemplateDtosToTemplateRecords(
   return rows.map(documentTemplateDtoToTemplateRecord);
 }
 
+function classSectionFromPayload(payload: unknown): {
+  classLabel: string | null;
+  sectionLabel: string | null;
+} {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { classLabel: null, sectionLabel: null };
+  }
+  const row = payload as Record<string, unknown>;
+  const classLabel =
+    typeof row.classLabel === "string" && row.classLabel.trim()
+      ? row.classLabel.trim()
+      : null;
+  const sectionLabel =
+    typeof row.sectionLabel === "string" && row.sectionLabel.trim()
+      ? row.sectionLabel.trim()
+      : null;
+  return { classLabel, sectionLabel };
+}
+
 export function generatedDocumentDtoToGeneratedDocument(
   dto: GeneratedDocumentDto,
 ): GeneratedDocument {
+  const { classLabel, sectionLabel } = classSectionFromPayload(dto.payload);
   return {
     id: dto.id,
     templateId: dto.templateId,
@@ -118,6 +138,8 @@ export function generatedDocumentDtoToGeneratedDocument(
     kind: dto.type,
     recipientName: dto.recipientName,
     recipientRef: dto.recipientRef?.trim() || "—",
+    classLabel,
+    sectionLabel,
     generatedAt: dto.createdAt,
     generatedBy: shortRef(dto.generatedByUserId, "User"),
     status: dto.status,

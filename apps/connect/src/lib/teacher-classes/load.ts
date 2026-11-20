@@ -1,8 +1,10 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { getTeacherSelfPortal } from "@/lib/teachers/api";
+import type { PortalTeacherSelfDto } from "@/lib/teachers/types";
 import type { TeacherClass, TeacherStudent } from "@/lib/teacher/types";
 import {
+  clearTeacherCatalogCache,
   fetchMe,
   listClasses,
   listEnrollments,
@@ -22,19 +24,59 @@ import {
 export type TeacherPortalApiData = {
   instituteId: string;
   teacherId: string;
+  /** Self-portal DTO from roster — reused by Home base + session (no second portal/me). */
+  portalSelf: PortalTeacherSelfDto | null;
   classes: TeacherClass[];
   studentsBySection: Map<string, TeacherStudent[]>;
   allStudents: TeacherStudent[];
+  /**
+   * False when Home shell skipped enrollments/photos for faster paint.
+   * Background fill sets this true without blocking the shell.
+   */
+  studentsLoaded: boolean;
+};
+
+export type LoadTeacherPortalApiOptions = {
+  /**
+   * When false, skip enrollments + student photos (Home shell).
+   * Classes still resolve from assignments / portal / class-teacher links.
+   * Default true for My Classes / search callers.
+   */
+  includeStudents?: boolean;
 };
 
 let cached: TeacherPortalApiData | null = null;
+/** Bumped on clear / institute switch so in-flight loads cannot clobber a newer roster. */
+let rosterCacheEpoch = 0;
 
 export function getTeacherPortalApiCache(): TeacherPortalApiData | null {
   return cached;
 }
 
-export function clearTeacherPortalApiCache(): void {
+/** Drop module roster only (keeps catalog TTL). Use on institute switch. */
+export function bumpTeacherPortalRosterEpoch(): void {
+  rosterCacheEpoch += 1;
   cached = null;
+}
+
+export function clearTeacherPortalApiCache(): void {
+  bumpTeacherPortalRosterEpoch();
+  // Optional so unit tests can mock ./api without exporting the clearer.
+  if (typeof clearTeacherCatalogCache === "function") {
+    clearTeacherCatalogCache();
+  }
+}
+
+function commitRosterCache(
+  epoch: number,
+  next: TeacherPortalApiData,
+): TeacherPortalApiData {
+  if (epoch !== rosterCacheEpoch) {
+    // Stale load after clear/switch — return data to the caller but do not publish.
+    return next;
+  }
+  cached = next;
+  return cached;
 }
 
 function normalizeSectionLabel(value: string): string {
@@ -92,16 +134,110 @@ async function settledValue<T>(promise: Promise<T>, fallback: T): Promise<T> {
 
 export async function loadTeacherPortalApiData(
   instituteId: string,
+  options?: LoadTeacherPortalApiOptions,
 ): Promise<TeacherPortalApiData | null> {
   if (!isApiAuthMode() || !isInstituteUuid(instituteId)) {
-    cached = null;
+    bumpTeacherPortalRosterEpoch();
     return null;
+  }
+  const epoch = rosterCacheEpoch;
+  const includeStudents = options?.includeStudents !== false;
+
+  // Reuse in-memory roster when scope matches (same institute + freshness needs).
+  // Full roster satisfies shell callers; shell must not satisfy student consumers.
+  if (cached?.instituteId === instituteId) {
+    if (cached.studentsLoaded) return cached;
+    if (!includeStudents) return cached;
+  }
+
+  // Upgrade Home shell → full students without a second me/catalog/portal/me round-trip.
+  if (
+    includeStudents &&
+    cached?.instituteId === instituteId &&
+    !cached.studentsLoaded &&
+    cached.teacherId
+  ) {
+    const shell = cached;
+    const teacherId = shell.teacherId;
+    const sectionIds = [...new Set(shell.classes.map((c) => c.id))];
+    const [sections, classes, enrollmentResults] = await Promise.all([
+      settledValue(listSections(instituteId), []),
+      settledValue(listClasses(instituteId), []),
+      Promise.allSettled(
+        sectionIds.map((sectionId) => listEnrollments({ instituteId, sectionId })),
+      ),
+    ]);
+    const enrollments = enrollmentResults.flatMap((result) =>
+      result.status === "fulfilled" ? result.value : [],
+    );
+
+    const studentsBySection = new Map<string, TeacherStudent[]>();
+    for (const sectionId of sectionIds) {
+      const sectionEnrollments = enrollments.filter((e) => e.sectionId === sectionId);
+      studentsBySection.set(
+        sectionId,
+        enrollmentsToTeacherStudents(sectionEnrollments, sections, classes),
+      );
+    }
+
+    const photoResults = await Promise.allSettled(
+      sectionIds.map(async (sectionId) => {
+        const section = sections.find((s) => s.id === sectionId);
+        const classId =
+          section?.classId ??
+          shell.classes.find((c) => c.id === sectionId)?.classRecordId;
+        if (!classId || !isInstituteUuid(classId)) {
+          return { sectionId, map: new Map<string, string>() };
+        }
+        const rows = await listSectionStudentPhotos({
+          instituteId,
+          classId,
+          sectionId,
+        });
+        const map = new Map<string, string>();
+        for (const row of rows) {
+          if (row.photoSignedUrl?.trim()) map.set(row.id, row.photoSignedUrl.trim());
+        }
+        return { sectionId, map };
+      }),
+    );
+    for (const result of photoResults) {
+      if (result.status !== "fulfilled") continue;
+      const { sectionId, map } = result.value;
+      const current = studentsBySection.get(sectionId);
+      if (!current) continue;
+      studentsBySection.set(sectionId, applyStudentPhotoUrls(current, map));
+    }
+
+    const photoByStudent = new Map<string, string>();
+    for (const list of studentsBySection.values()) {
+      for (const s of list) {
+        if (s.photoUrl) photoByStudent.set(s.id, s.photoUrl);
+      }
+    }
+    const allStudents = applyStudentPhotoUrls(
+      enrollmentsToTeacherStudents(enrollments, sections, classes),
+      photoByStudent,
+    );
+    const teacherClasses = shell.classes.map((c) => ({
+      ...c,
+      studentCount: enrollments.filter((e) => e.sectionId === c.id).length,
+    }));
+    return commitRosterCache(epoch, {
+      instituteId,
+      teacherId,
+      portalSelf: shell.portalSelf,
+      classes: teacherClasses,
+      studentsBySection,
+      allStudents,
+      studentsLoaded: true,
+    });
   }
 
   const me = await fetchMe();
   const teacherId = resolveTeacherIdForInstitute(me, instituteId);
   if (!teacherId) {
-    cached = null;
+    if (epoch === rosterCacheEpoch) cached = null;
     return null;
   }
 
@@ -139,13 +275,17 @@ export async function loadTeacherPortalApiData(
     ]),
   ];
 
-  // Soft-fail enrollments: keep classes even when roster fetches fail.
-  const enrollmentResults = await Promise.allSettled(
-    sectionIds.map((sectionId) => listEnrollments({ instituteId, sectionId })),
-  );
-  const enrollments = enrollmentResults.flatMap((result) =>
-    result.status === "fulfilled" ? result.value : [],
-  );
+  // Home shell skips enrollments/photos — those block timetable overlap and are
+  // non-essential for "classes today" paint. My Classes loads them via includeStudents.
+  let enrollments: Awaited<ReturnType<typeof listEnrollments>> = [];
+  if (includeStudents) {
+    const enrollmentResults = await Promise.allSettled(
+      sectionIds.map((sectionId) => listEnrollments({ instituteId, sectionId })),
+    );
+    enrollments = enrollmentResults.flatMap((result) =>
+      result.status === "fulfilled" ? result.value : [],
+    );
+  }
 
   const teacherClasses = assignmentsToTeacherClasses(
     assignments,
@@ -211,30 +351,34 @@ export async function loadTeacherPortalApiData(
     );
   }
 
-  // One photos/students request per section (batched), never N signed-url calls.
-  const photoResults = await Promise.allSettled(
-    sectionIds.map(async (sectionId) => {
-      const section = sections.find((s) => s.id === sectionId);
-      const classId = section?.classId;
-      if (!classId || !isInstituteUuid(classId)) return { sectionId, map: new Map<string, string>() };
-      const rows = await listSectionStudentPhotos({
-        instituteId,
-        classId,
-        sectionId,
-      });
-      const map = new Map<string, string>();
-      for (const row of rows) {
-        if (row.photoSignedUrl?.trim()) map.set(row.id, row.photoSignedUrl.trim());
-      }
-      return { sectionId, map };
-    }),
-  );
-  for (const result of photoResults) {
-    if (result.status !== "fulfilled") continue;
-    const { sectionId, map } = result.value;
-    const current = studentsBySection.get(sectionId);
-    if (!current) continue;
-    studentsBySection.set(sectionId, applyStudentPhotoUrls(current, map));
+  if (includeStudents) {
+    // One photos/students request per section (batched), never N signed-url calls.
+    const photoResults = await Promise.allSettled(
+      sectionIds.map(async (sectionId) => {
+        const section = sections.find((s) => s.id === sectionId);
+        const classId = section?.classId;
+        if (!classId || !isInstituteUuid(classId)) {
+          return { sectionId, map: new Map<string, string>() };
+        }
+        const rows = await listSectionStudentPhotos({
+          instituteId,
+          classId,
+          sectionId,
+        });
+        const map = new Map<string, string>();
+        for (const row of rows) {
+          if (row.photoSignedUrl?.trim()) map.set(row.id, row.photoSignedUrl.trim());
+        }
+        return { sectionId, map };
+      }),
+    );
+    for (const result of photoResults) {
+      if (result.status !== "fulfilled") continue;
+      const { sectionId, map } = result.value;
+      const current = studentsBySection.get(sectionId);
+      if (!current) continue;
+      studentsBySection.set(sectionId, applyStudentPhotoUrls(current, map));
+    }
   }
 
   const photoByStudent = new Map<string, string>();
@@ -247,14 +391,15 @@ export async function loadTeacherPortalApiData(
     enrollmentsToTeacherStudents(enrollments, sections, classes),
     photoByStudent,
   );
-  cached = {
+  return commitRosterCache(epoch, {
     instituteId,
     teacherId,
+    portalSelf,
     classes: teacherClasses,
     studentsBySection,
     allStudents,
-  };
-  return cached;
+    studentsLoaded: includeStudents,
+  });
 }
 
 export function getTeacherStudentsForSection(sectionId: string): TeacherStudent[] {

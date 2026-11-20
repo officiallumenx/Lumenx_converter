@@ -817,7 +817,7 @@ export function TimetableApiPage() {
         eyebrow="Academics"
         title={selectedSectionId ? "Timetable" : "Timetables"}
         subtitle={subtitle}
-      />
+       helpKey="timetable" />
       {!loadView.rowsValid || !loadView.bundle ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
           {loadHint ?? "Loading timetable…"}

@@ -1,3 +1,4 @@
+import type { LeaveStatus } from "@lumenx/types";
 import type { TeacherLeaveRequest } from "@/lib/teacher/types";
 import type {
   ConnectLeaveRequest,
@@ -99,10 +100,7 @@ export function leaveDtoToTeacherLeaveRequest(
     fromDate: dto.startDate,
     toDate: dto.endDate,
     reason: dto.reason,
-    status:
-      dto.status === "cancelled"
-        ? "rejected"
-        : (dto.status as TeacherLeaveRequest["status"]),
+    status: dto.status,
     submittedAt: formatAppliedAt(dto.createdAt),
     reviewedNote: decision?.note?.trim() || undefined,
   };
@@ -119,13 +117,7 @@ export function leaveDtosToTeacherLeaveRequests(
     );
 }
 
-/** Map API ignored status for LeaveRequest badge compatibility. */
-export function toLeaveBadgeStatus(
-  status: ConnectLeaveRequest["status"],
-): "pending" | "approved" | "rejected" | "ignored" {
-  if (status === "cancelled") return "rejected";
-  if (status === "ignored") return "ignored";
-  if (status === "approved") return "approved";
-  if (status === "rejected") return "rejected";
-  return "pending";
+/** Badge statuses match the shared LeaveStatus contract (including cancelled). */
+export function toLeaveBadgeStatus(status: ConnectLeaveRequest["status"]): LeaveStatus {
+  return status;
 }

@@ -8,6 +8,7 @@ import type {
 import type { DriverDto, RouteDto, StopDto, TransportEnrollmentDto, TransportSettingsDto, VehicleDto } from "./types";
 import type { StudentListItem } from "@/lib/students/types";
 import type { TransportEnrollmentListItem } from "./types";
+import { STOP_RADIUS_DEFAULT_M } from "./stop-radius";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -86,18 +87,23 @@ export function stopDtoToAdminRouteStop(
 
 export function stopDtosToAdminRouteStops(
   rows: StopDto[],
-  enrollments: Array<Pick<TransportEnrollmentDto, "pickupStopId" | "studentId" | "status">> = [],
+  enrollments: Array<
+    Pick<TransportEnrollmentDto, "pickupStopId" | "studentId" | "status"> & {
+      dropStopId?: string | null;
+    }
+  > = [],
 ): AdminRouteStop[] {
   if (!Array.isArray(rows)) {
     throw new TypeError("Transport stops API response must be an array");
   }
   const studentIdsByStop = new Map<string, string[]>();
   for (const enrollment of enrollments) {
-    if (!enrollment.pickupStopId) continue;
+    const stopId = enrollment.pickupStopId || enrollment.dropStopId;
+    if (!stopId) continue;
     if (enrollment.status && enrollment.status !== "active") continue;
-    const list = studentIdsByStop.get(enrollment.pickupStopId) ?? [];
+    const list = studentIdsByStop.get(stopId) ?? [];
     list.push(enrollment.studentId);
-    studentIdsByStop.set(enrollment.pickupStopId, list);
+    studentIdsByStop.set(stopId, list);
   }
   return rows
     .filter(
@@ -115,7 +121,9 @@ export function routeDtoToTransportRoute(
   dto: RouteDto,
   stops: StopDto[],
   enrollments: Array<
-    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status">
+    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status"> & {
+      dropStopId?: string | null;
+    }
   > = [],
 ): TransportRoute {
   const routeEnrollments = enrollments.filter(
@@ -143,7 +151,9 @@ export async function routeDtosToTransportRoutes(
   rows: RouteDto[],
   fetchStops: (routeId: string) => Promise<StopDto[]>,
   enrollments: Array<
-    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status">
+    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status"> & {
+      dropStopId?: string | null;
+    }
   > = [],
 ): Promise<TransportRoute[]> {
   if (!Array.isArray(rows)) {
@@ -169,7 +179,8 @@ export function transportSettingsDtoToTransportSettings(
     schoolLocationLabel: dto.schoolLocationLabel ?? null,
     schoolLatitude: dto.schoolLatitude ?? null,
     schoolLongitude: dto.schoolLongitude ?? null,
-    schoolNotificationRadiusM: dto.schoolNotificationRadiusM ?? 150,
+    schoolNotificationRadiusM:
+      dto.schoolNotificationRadiusM ?? STOP_RADIUS_DEFAULT_M,
   };
 }
 
@@ -200,6 +211,11 @@ export function enrollmentDtoToListItem(
 ): TransportEnrollmentListItem {
   const student = studentsById.get(dto.studentId);
   const route = routesById.get(dto.routeId);
+  const commonStopId =
+    dto.commonStopId ||
+    dto.pickupStopId ||
+    dto.dropStopId ||
+    null;
   return {
     id: dto.id,
     studentId: dto.studentId,
@@ -208,16 +224,21 @@ export function enrollmentDtoToListItem(
     classLabel: student?.classLabel ?? null,
     sectionLabel: student?.sectionLabel ?? null,
     routeName: route?.name ?? shortRef(dto.routeId, "Route"),
+    stopName: route
+      ? stopNameById([route], commonStopId, "Stop not assigned")
+      : commonStopId
+        ? "Assigned stop missing"
+        : "Stop not assigned",
     pickupStopName: route
-      ? stopNameById([route], dto.pickupStopId, "Stop not assigned")
-      : dto.pickupStopId
+      ? stopNameById([route], commonStopId, "Stop not assigned")
+      : commonStopId
         ? "Assigned stop missing"
         : "Stop not assigned",
     dropStopName: route
-      ? stopNameById([route], dto.dropStopId, "Drop stop not assigned")
-      : dto.dropStopId
+      ? stopNameById([route], commonStopId, "Stop not assigned")
+      : commonStopId
         ? "Assigned stop missing"
-        : "Drop stop not assigned",
+        : "Stop not assigned",
     status: dto.status,
   };
 }

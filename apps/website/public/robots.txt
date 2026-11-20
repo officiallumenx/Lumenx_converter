@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow incomplete stub surfaces from indexing priority
+Disallow: /signin
+Disallow: /signup
+Disallow: /blog
+
+Sitemap: https://lumenxtech.in/sitemap.xml

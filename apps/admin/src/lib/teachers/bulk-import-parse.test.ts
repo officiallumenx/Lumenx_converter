@@ -78,6 +78,39 @@ describe("teacher bulk import parse", () => {
     expect(errors.some((e) => e.includes("assigned_sections"))).toBe(true);
   });
 
+  it("fails closed when section labels are present but catalog is empty", () => {
+    const errors = validateTeacherImportRow(
+      {
+        displayName: "A",
+        phone: "9876501234",
+        department: "General",
+        email: "",
+        employeeId: "",
+        qualification: "",
+        teachingScope: "subject_teacher",
+        subjects: "",
+        assignedSections: "G10-A",
+        classTeacherSections: "",
+        dateOfBirth: "",
+        joinedOn: "",
+      },
+      2,
+      { sectionLabels: [], subjectNames: [] },
+    );
+    expect(errors.some((e) => e.includes("loaded class catalog"))).toBe(true);
+  });
+
+  it("rejects duplicate phones within the same import file", () => {
+    const result = parseTeacherCsv(
+      [
+        "display_name,phone",
+        "Ada Lovelace,9876501234",
+        "Ada Clone,9876501234",
+      ].join("\n"),
+    );
+    expect(result.errors.some((e) => e.includes("duplicate phone"))).toBe(true);
+  });
+
   it("maps teaching scope aliases", () => {
     expect(parseTeachingScope("activity-coordinator")).toBe("activity_coordinator");
     expect(parseTeachingScope("class_teacher")).toBe("subject_teacher");

@@ -292,7 +292,7 @@ function ClassDetailDemo({ id }: { id: string }) {
   if (!classSection || !detail) {
     return (
       <AppShell title="Class not found" subtitle={id}>
-        <ModuleHero eyebrow="Academics" title="Class not found" subtitle={id} />
+        <ModuleHero eyebrow="Academics" title="Class not found" subtitle={id}  helpKey="classes" />
         <Card className="p-8 text-center">
           <p className="text-sm">This class or section is not available.</p>
           <Link
@@ -356,7 +356,7 @@ function ClassDetailDemo({ id }: { id: string }) {
         eyebrow="Academics"
         title={classSection.name}
         subtitle={`${detail.levelLabel} · Section ${classSection.section}`}
-      />
+       helpKey="classes" />
       {editing && draft && (
         <Card className="mb-5">
           <CardHeader

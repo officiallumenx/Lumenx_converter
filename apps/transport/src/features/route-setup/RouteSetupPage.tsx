@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { FeatureHero } from "@/components/ui/feature-hero";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { useRouteSetup } from "@/hooks/use-route-setup";
-import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
@@ -18,6 +17,7 @@ import {
   assignEnrollmentDropStop,
   assignEnrollmentPickupStop,
 } from "@/lib/transport/route-setup/api-sync";
+import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import {
   canEditStop,
@@ -50,16 +50,9 @@ export function RouteSetupPage() {
   const { user } = useTransportAuth();
   const queryClient = useQueryClient();
 
+  // Roster refreshes via app-level TransportRealtimeSync → invalidateQueries.
   useDriverRosterQuery(user?.instituteId, assignment.status === "ready");
 
-  const refreshFromRealtime = useCallback(() => {
-    if (!user?.instituteId) return;
-    void queryClient.invalidateQueries({
-      queryKey: transportQueryKeys.roster(user.instituteId),
-    });
-  }, [queryClient, user?.instituteId]);
-
-  useTransportRealtimeRefresh(user?.instituteId, refreshFromRealtime);
   const driverId = user?.id ?? assignment.account?.id ?? "";
   const vehicleId = assignment.bus?.vehicleId ?? "";
   const busLabel = assignment.bus?.busNumber ?? "—";
@@ -134,8 +127,15 @@ export function RouteSetupPage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Could not get GPS. Turn on location and try again.";
-      toast.error("Location needed", { description: message });
+          : "Could not get GPS fix.";
+      // Indoor mode fallback: allow entering coordinates manually or retrying GPS outdoors
+      setPendingGps(null);
+      setEditing(null);
+      setIsChangeRequest(false);
+      setView("form");
+      toast.message("Indoor Mode: GPS unavailable", {
+        description: `${message} Enter location details manually or tap Update GPS outdoors.`,
+      });
     } finally {
       setCapturing(false);
     }
@@ -203,7 +203,7 @@ export function RouteSetupPage() {
     });
   };
 
-  if (view === "form" && pendingGps) {
+  if (view === "form") {
     const progressLabel = isChangeRequest
       ? `Request change · ${editing?.name ?? "stop"}`
       : editing
@@ -484,10 +484,7 @@ export function RouteSetupPage() {
               }
               setAssigningEnrollmentId(enrollmentId);
               void assignEnrollmentPickupStop(scope, enrollmentId, pickupStopId)
-                .then(async () => {
-                  await queryClient.invalidateQueries({
-                    queryKey: transportQueryKeys.roster(scope.instituteId!),
-                  });
+                .then(() => {
                   toast.success("Pickup stop assigned");
                   setAssignmentsTab("approved");
                 })
@@ -506,10 +503,7 @@ export function RouteSetupPage() {
               }
               setAssigningEnrollmentId(enrollmentId);
               void assignEnrollmentDropStop(scope, enrollmentId, dropStopId)
-                .then(async () => {
-                  await queryClient.invalidateQueries({
-                    queryKey: transportQueryKeys.roster(scope.instituteId!),
-                  });
+                .then(() => {
                   toast.success("Drop stop assigned");
                   setAssignmentsTab("approved");
                 })

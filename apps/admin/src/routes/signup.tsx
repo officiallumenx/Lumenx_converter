@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ArrowRight, ChevronLeft, Check,
   Building2, Globe, Mail, Phone, User, MapPin, Hash,
@@ -17,11 +17,23 @@ import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
 import { OtpInput } from "@/auth/components/OtpInput";
 import { useAuth } from "@/auth/AuthContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { resolvePostSignupRoute } from "@/auth/signup-routing";
+import {
+  shouldIgnoreDuplicateSignupSubmit,
+  shouldReleaseSignupSubmitLockAfterSuccess,
+} from "@/auth/signup-submit-guard";
+import {
+  SIGNUP_CONSENT_CHECKBOX_ID,
+  SIGNUP_CONSENT_REQUIRED_MESSAGE,
+  SIGNUP_LEGAL_LINKS,
+  loadSignupFormDraft,
+  saveSignupFormDraft,
+  validateSignupLegalConsent,
+} from "@/auth/signup-legal-consent";
 import {
   requestSignupOtp,
   verifySignupOtp,
 } from "@lumenx/auth";
+import { getApiBaseUrl } from "@/lib/admin-api";
 import { IconChip } from "@/components/IconChip";
 import {
   getPasswordErrors,
@@ -196,7 +208,8 @@ function validateStep4(d: Step4): Errors<Step4> {
   else if (!/^\d{6}$/.test(d.pin)) e.pin = "PIN must be exactly 6 digits";
   if (!d.confirmPin) e.confirmPin = "Please re-enter your PIN";
   else if (d.pin !== d.confirmPin) e.confirmPin = "PINs do not match";
-  if (!d.acceptTerms) e.acceptTerms = "You must accept the terms to continue";
+  const consentError = validateSignupLegalConsent(d.acceptTerms);
+  if (consentError) e.acceptTerms = consentError;
   return e;
 }
 
@@ -825,101 +838,224 @@ function StepSecurity({
         />
       </div>
 
-      <div>
-        <label className="group flex cursor-pointer items-start gap-2.5">
-          <input
-            type="checkbox"
-            checked={data.acceptTerms}
-            onChange={(e) => onChange("acceptTerms", e.target.checked)}
-            className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
-          />
-          <span className="text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground">
-            I agree to the{" "}
-            <Link to="/terms" className="text-primary hover:underline">
-              Terms & Conditions
-            </Link>
-            ,{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-            , and{" "}
-            <Link to="/cookies" className="text-primary hover:underline">
-              Cookie Policy
-            </Link>
-            . I confirm the information provided is accurate.
-          </span>
-        </label>
-        {errors.acceptTerms ? (
-          <p role="alert" className="mt-1.5 flex items-center gap-1 text-[11px] text-destructive">
-            <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
-            {errors.acceptTerms}
-          </p>
-        ) : null}
+      <div className="space-y-2 rounded-lg border border-border/80 bg-surface-hover/40 p-3">
+        <p className="text-[11px] font-medium text-foreground">
+          Legal agreements
+        </p>
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {SIGNUP_LEGAL_LINKS.map((doc) => (
+            <li key={doc.to}>
+              <Link
+                to={doc.to}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+                onClick={(e) => {
+                  // Opening a document must never count as consent.
+                  e.stopPropagation();
+                }}
+              >
+                {doc.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Terms of Service is the binding user agreement for LumenX Admin. Privacy Policy
+          acceptance is required to register. Cookie Policy is linked for transparency
+          (necessary cookies are described there). Links open in a new tab so your
+          registration progress is kept.
+        </p>
+        <div>
+          <label
+            htmlFor={SIGNUP_CONSENT_CHECKBOX_ID}
+            className="group flex cursor-pointer items-start gap-2.5"
+          >
+            <input
+              id={SIGNUP_CONSENT_CHECKBOX_ID}
+              type="checkbox"
+              checked={data.acceptTerms}
+              onChange={(e) => onChange("acceptTerms", e.target.checked)}
+              aria-invalid={Boolean(errors.acceptTerms)}
+              aria-describedby={
+                errors.acceptTerms ? `${SIGNUP_CONSENT_CHECKBOX_ID}-error` : undefined
+              }
+              className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+            />
+            <span className="text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground">
+              I have read and agree to the{" "}
+              <Link
+                to="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Privacy Policy
+              </Link>{" "}
+              and{" "}
+              <Link
+                to="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Terms of Service
+              </Link>
+              . I have reviewed the{" "}
+              <Link
+                to="/cookies"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Cookie Policy
+              </Link>
+              . I confirm the information provided is accurate.
+            </span>
+          </label>
+          {errors.acceptTerms ? (
+            <p
+              id={`${SIGNUP_CONSENT_CHECKBOX_ID}-error`}
+              role="alert"
+              className="mt-1.5 flex items-center gap-1 text-[11px] text-destructive"
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
+              {errors.acceptTerms}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
+}
+
+const EMPTY_STEP1: Step1 = {
+  instituteName: "",
+  instituteCode: "",
+  instituteType: "",
+  educationBoard: "",
+  logoFile: null,
+  logoPreview: "",
+  schoolPhone: "",
+  website: "",
+  schoolEmail: "",
+};
+
+const EMPTY_STEP2: Step2 = {
+  country: "India",
+  state: "",
+  district: "",
+  city: "",
+  area: "",
+  street: "",
+  landmark: "",
+  pincode: "",
+};
+
+const EMPTY_STEP3: Step3 = {
+  role: "",
+  firstName: "",
+  lastName: "",
+  username: "",
+  mobile: "",
+  email: "",
+  country: "India",
+  state: "",
+  district: "",
+  city: "",
+  address: "",
+  pincode: "",
+};
+
+const EMPTY_STEP4: Step4 = {
+  password: "",
+  confirmPassword: "",
+  pin: "",
+  confirmPin: "",
+  acceptTerms: false,
+};
+
+function restoreSignupStateFromDraft() {
+  const draft = loadSignupFormDraft();
+  if (!draft) {
+    return {
+      step: 1,
+      s1: EMPTY_STEP1,
+      s2: EMPTY_STEP2,
+      s3: EMPTY_STEP3,
+      s4: EMPTY_STEP4,
+      mobileGrant: "",
+      maskedOtpDest: "",
+    };
+  }
+  const s1Restored: Step1 = {
+    ...EMPTY_STEP1,
+    ...(draft.s1 as Partial<Step1>),
+    logoFile: null,
+  };
+  const s4Restored: Step4 = {
+    ...EMPTY_STEP4,
+    ...(draft.s4 as Partial<Step4>),
+    // Never restore consent as checked — user must re-confirm in this session UX;
+    // passwords may restore for same-tab return from legal docs.
+  };
+  return {
+    step: typeof draft.step === "number" && draft.step >= 1 && draft.step <= 4 ? draft.step : 1,
+    s1: s1Restored,
+    s2: { ...EMPTY_STEP2, ...(draft.s2 as Partial<Step2>) },
+    s3: { ...EMPTY_STEP3, ...(draft.s3 as Partial<Step3>) },
+    s4: s4Restored,
+    mobileGrant: draft.mobileGrant ?? "",
+    maskedOtpDest: draft.maskedOtpDest ?? "",
+  };
 }
 
 function SignUpPage() {
   const navigate = useNavigate();
   const { signUp, error: authError, clearError } = useAuth();
   const apiMode = isApiAuthMode();
-  const [step, setStep] = useState(1);
+  const restoredRef = useRef(restoreSignupStateFromDraft());
+  const [step, setStep] = useState(restoredRef.current.step);
   const [loading, setLoading] = useState(false);
   const submittingRef = useRef(false);
   const [signupOtp, setSignupOtp] = useState("");
-  const [maskedOtpDest, setMaskedOtpDest] = useState("");
+  const [maskedOtpDest, setMaskedOtpDest] = useState(restoredRef.current.maskedOtpDest);
   const [devSignupOtp, setDevSignupOtp] = useState<string | undefined>();
-  const [mobileGrant, setMobileGrant] = useState("");
+  const [mobileGrant, setMobileGrant] = useState(restoredRef.current.mobileGrant);
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
-  const [s1, setS1] = useState<Step1>({
-    instituteName: "",
-    instituteCode: "",
-    instituteType: "",
-    educationBoard: "",
-    logoFile: null,
-    logoPreview: "",
-    schoolPhone: "",
-    website: "",
-    schoolEmail: "",
-  });
-  const [s2, setS2] = useState<Step2>({
-    country: "India",
-    state: "",
-    district: "",
-    city: "",
-    area: "",
-    street: "",
-    landmark: "",
-    pincode: "",
-  });
-  const [s3, setS3] = useState<Step3>({
-    role: "",
-    firstName: "",
-    lastName: "",
-    username: "",
-    mobile: "",
-    email: "",
-    country: "India",
-    state: "",
-    district: "",
-    city: "",
-    address: "",
-    pincode: "",
-  });
-  const [s4, setS4] = useState<Step4>({
-    password: "",
-    confirmPassword: "",
-    pin: "",
-    confirmPin: "",
-    acceptTerms: false,
-  });
+  const [s1, setS1] = useState<Step1>(restoredRef.current.s1);
+  const [s2, setS2] = useState<Step2>(restoredRef.current.s2);
+  const [s3, setS3] = useState<Step3>(restoredRef.current.s3);
+  const [s4, setS4] = useState<Step4>(restoredRef.current.s4);
 
   const [e1, setE1] = useState<Errors<Step1>>({});
   const [e2, setE2] = useState<Errors<Step2>>({});
   const [e3, setE3] = useState<Errors<Step3>>({});
   const [e4, setE4] = useState<Errors<Step4>>({});
+
+  // Persist draft so same-tab visits to legal pages (or accidental refresh) keep progress.
+  useEffect(() => {
+    const { logoFile: _logoFile, ...s1Safe } = s1;
+    saveSignupFormDraft({
+      step,
+      s1: s1Safe,
+      s2,
+      s3,
+      s4: {
+        password: s4.password,
+        confirmPassword: s4.confirmPassword,
+        pin: s4.pin,
+        confirmPin: s4.confirmPin,
+        acceptTerms: s4.acceptTerms,
+      },
+      mobileGrant,
+      maskedOtpDest,
+    });
+  }, [step, s1, s2, s3, s4, mobileGrant, maskedOtpDest]);
 
   const change1 = (field: keyof Step1, value: string) => {
     setS1((p) => ({ ...p, [field]: value }));
@@ -946,10 +1082,7 @@ function SignUpPage() {
   };
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
-    /\/+$/,
-    "",
-  );
+  const apiBaseUrl = getApiBaseUrl();
   const subjectKey = s3.email.trim().toLowerCase();
   const fullName = `${s3.firstName} ${s3.lastName}`.trim();
 
@@ -1042,12 +1175,15 @@ function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submittingRef.current) return;
+    if (shouldIgnoreDuplicateSignupSubmit(submittingRef.current)) return;
     if (apiMode && !mobileGrant) {
       setVerifyError("Verify your mobile number before creating the account.");
       return;
     }
     const errs = validateStep4(s4);
+    if (!s4.acceptTerms) {
+      errs.acceptTerms = SIGNUP_CONSENT_REQUIRED_MESSAGE;
+    }
     if (hasErrors(errs)) { setE4(errs); return; }
     setE4({});
     submittingRef.current = true;
@@ -1098,8 +1234,10 @@ function SignUpPage() {
         instituteName: s1.instituteName,
         registrationPayload,
       });
-      if (isApiAuthMode()) {
-        navigate({ to: resolvePostSignupRoute(true), replace: true });
+      // API mode: AuthGate owns post-auth navigation (pending → /pending-verification).
+      // Avoid a second competing navigate() that can race to "/" when gate is "allow".
+      if (!shouldReleaseSignupSubmitLockAfterSuccess(isApiAuthMode())) {
+        // Keep submittingRef/loading until unmount so Create account cannot double-fire.
         return;
       }
       const { saveOtpPending } = await import("@/auth/otp-service");
@@ -1134,9 +1272,12 @@ function SignUpPage() {
         lastSavedAt: null,
       });
       navigate({ to: "/verify-email-otp", replace: true });
+      // Demo OTP path: release lock after navigate so a genuine retry can run if user returns.
+      submittingRef.current = false;
+      setLoading(false);
+      return;
     } catch {
-      // authError set by context
-    } finally {
+      // authError set by context — genuine failure must unlock for retry.
       submittingRef.current = false;
       setLoading(false);
     }
@@ -1197,8 +1338,8 @@ function SignUpPage() {
         {step === 3 && (
           <StepAdmin data={s3} errors={e3} onChange={change3} />
         )}
-        {step === 4 && (
-          <form id="step4-form" onSubmit={handleSubmit}>
+        {step === 4 ? (
+          <form id="step4-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
             <StepSecurity
               data={s4}
               errors={e4}
@@ -1217,55 +1358,71 @@ function SignUpPage() {
               onResendOtp={() => void startMobileVerify()}
               devSignupOtp={devSignupOtp}
             />
+
+            {authError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
+                {authError}
+              </div>
+            ) : null}
+
+            {/* Submit lives inside the form — form="" association outside caused flaky first-click submits. */}
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={loading}
+                className="flex h-10 items-center gap-1.5 rounded-lg border border-border px-4 text-sm transition-colors hover:bg-surface-hover"
+              >
+                <ChevronLeft className="size-4" /> Back
+              </button>
+              <AuthButton
+                type="submit"
+                loading={loading}
+                fullWidth={false}
+                className="flex-1"
+                disabled={(apiMode && !mobileGrant) || !s4.acceptTerms}
+              >
+                Create account
+              </AuthButton>
+            </div>
           </form>
+        ) : (
+          <>
+            {authError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
+                {authError}
+              </div>
+            ) : null}
+            {step === 3 && verifyError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
+                {verifyError}
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-3 pt-1">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  disabled={loading}
+                  className="flex h-10 items-center gap-1.5 rounded-lg border border-border px-4 text-sm transition-colors hover:bg-surface-hover"
+                >
+                  <ChevronLeft className="size-4" /> Back
+                </button>
+              ) : null}
+
+              <AuthButton
+                type="button"
+                onClick={() => void handleNext()}
+                loading={loading}
+                fullWidth={step === 1}
+                className={step > 1 ? "flex-1" : undefined}
+              >
+                Continue <ArrowRight className="size-4" />
+              </AuthButton>
+            </div>
+          </>
         )}
-
-        {authError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
-            {authError}
-          </div>
-        )}
-        {step === 3 && verifyError ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
-            {verifyError}
-          </div>
-        ) : null}
-
-        <div className="flex items-center gap-3 pt-1">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={handleBack}
-              disabled={loading}
-              className="flex h-10 items-center gap-1.5 rounded-lg border border-border px-4 text-sm transition-colors hover:bg-surface-hover"
-            >
-              <ChevronLeft className="size-4" /> Back
-            </button>
-          )}
-
-          {step < 4 ? (
-            <AuthButton
-              type="button"
-              onClick={() => void handleNext()}
-              loading={loading}
-              fullWidth={step === 1}
-              className={step > 1 ? "flex-1" : undefined}
-            >
-              Continue <ArrowRight className="size-4" />
-            </AuthButton>
-          ) : (
-            <AuthButton
-              type="submit"
-              form="step4-form"
-              loading={loading}
-              fullWidth={false}
-              className="flex-1"
-              disabled={apiMode && !mobileGrant}
-            >
-              Create account
-            </AuthButton>
-          )}
-        </div>
       </div>
     </AuthLayout>
   );

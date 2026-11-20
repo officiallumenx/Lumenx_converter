@@ -52,13 +52,18 @@ import {
   rejectTransportStop,
 } from "@/lib/transport/approval-mutations";
 import {
+  assignStopStudents,
   createDriver,
   createEnrollment,
+  createStop,
   createVehicle,
   deleteDriver,
   deleteEnrollment,
+  deleteRoute,
   deleteStop,
   deleteVehicle,
+  listTransportEnrollments,
+  moveStopStudents,
   resolveTransportDriversListView,
   resolveTransportEnrollmentsListView,
   resolveTransportRoutesListView,
@@ -236,6 +241,29 @@ function TransportPage() {
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.transport),
       });
     }
+  };
+
+  /** Enrollment assign/delete — refresh enrollments (+ routes for stop labels) only. */
+  const invalidateTransportEnrollments = () => {
+    const instituteIdForCache = instituteCtx.activeInstituteId;
+    if (!instituteIdForCache) return;
+    invalidateAdminCache("admin:transport");
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteIdForCache, "enrollments"),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteIdForCache, "routes"),
+    });
+  };
+
+  /** Route/stop CRUD — refresh routes (+ stop list) without reloading unrelated vehicles/drivers/settings. */
+  const invalidateTransportRoutes = () => {
+    const instituteIdForCache = instituteCtx.activeInstituteId;
+    if (!instituteIdForCache) return;
+    invalidateAdminCache("admin:transport");
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteIdForCache, "routes"),
+    });
   };
 
   const [apiVehicles, setApiVehicles] = useState<TransportVehicle[]>([]);
@@ -681,7 +709,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "students") return;
+    if (!apiMode || (view !== "students" && view !== "routes")) return;
 
     if (
       instituteCtx.status === "loading" ||
@@ -916,7 +944,7 @@ function TransportPage() {
         eyebrow="Services"
         title={pageTitle}
         subtitle={pageSubtitle}
-      />
+       helpKey="transport" />
       <TransportHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" ? (
@@ -1040,7 +1068,7 @@ function TransportPage() {
             snapshot={stopsSnapshot}
             onChange={setSnapshot}
             writesEnabled={writesEnabled}
-            allowCreate={!apiMode}
+            allowCreate={writesEnabled}
             listBlocked={apiMode && !routesListView.rowsValid}
             listHint={stopsListHint}
             routeOptions={
@@ -1058,13 +1086,25 @@ function TransportPage() {
                     if (!instituteId) {
                       throw new Error("Select an institute before saving a stop");
                     }
-                    if (!input.id) {
-                      throw new Error(
-                        "Admin cannot create stops — approve driver submissions in Reviews",
-                      );
-                    }
                     if (!input.routeId) {
                       throw new Error("Select a route for this stop");
+                    }
+                    if (!input.id) {
+                      const countOnRoute = stopsSnapshot.stops.filter(
+                        (s) => s.routeId === input.routeId,
+                      ).length;
+                      await createStop({
+                        instituteId,
+                        routeId: input.routeId,
+                        name: input.name,
+                        locationLabel: input.locationLabel,
+                        latitude: input.lat,
+                        longitude: input.lng,
+                        routeOrder: countOnRoute + 1,
+                        notificationRadiusM: input.notificationRadiusM,
+                      });
+                      invalidateTransportRoutes();
+                      return;
                     }
                     await updateStop(input.id, {
                       name: input.name,
@@ -1073,7 +1113,7 @@ function TransportPage() {
                       longitude: input.lng,
                       notificationRadiusM: input.notificationRadiusM,
                     });
-                    bumpTransportReload();
+                    invalidateTransportRoutes();
                   }
                 : undefined
             }
@@ -1081,7 +1121,7 @@ function TransportPage() {
               apiMode
                 ? async (id) => {
                     await deleteStop(id);
-                    bumpTransportReload();
+                    invalidateTransportRoutes();
                   }
                 : undefined
             }
@@ -1089,7 +1129,7 @@ function TransportPage() {
               apiMode
                 ? async (id) => {
                     await approveTransportStop(id);
-                    bumpTransportReload();
+                    invalidateTransportRoutes();
                   }
                 : undefined
             }
@@ -1097,7 +1137,7 @@ function TransportPage() {
               apiMode
                 ? async (id, reason) => {
                     await rejectTransportStop(id, reason);
-                    bumpTransportReload();
+                    invalidateTransportRoutes();
                   }
                 : undefined
             }
@@ -1110,6 +1150,52 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !routesListView.rowsValid}
             listHint={routesListHint}
+            onCreateStop={
+              apiMode && instituteCtx.activeInstituteId
+                ? async (routeId: string, input) => {
+                    const instId = instituteCtx.activeInstituteId!;
+                    const stop = await createStop({
+                      instituteId: instId,
+                      routeId,
+                      name: input.name,
+                      locationLabel: input.locationLabel,
+                      latitude: input.latitude,
+                      longitude: input.longitude,
+                      routeOrder: input.routeOrder,
+                    });
+                    if (input.studentIds && input.studentIds.length > 0) {
+                      await assignStopStudents({
+                        instituteId: instId,
+                        routeId,
+                        stopId: stop.id,
+                        studentIds: input.studentIds,
+                      });
+                    }
+                    invalidateTransportEnrollments();
+                  }
+                : undefined
+            }
+            onUpdateStop={
+              apiMode
+                ? async (stopId: string, input) => {
+                    await updateStop(stopId, {
+                      name: input.name,
+                      locationLabel: input.locationLabel,
+                      latitude: input.latitude,
+                      longitude: input.longitude,
+                    });
+                    invalidateTransportRoutes();
+                  }
+                : undefined
+            }
+            onDeleteStop={
+              apiMode
+                ? async (stopId: string) => {
+                    await deleteStop(stopId);
+                    invalidateTransportRoutes();
+                  }
+                : undefined
+            }
             onLockRoute={
               apiMode
                 ? async (routeId) => {
@@ -1126,6 +1212,49 @@ function TransportPage() {
                   }
                 : undefined
             }
+            onDeleteRoute={
+              apiMode
+                ? async (routeId) => {
+                    await deleteRoute(routeId);
+                    bumpTransportReload();
+                  }
+                : undefined
+            }
+            onAssignStopStudents={
+              apiMode && instituteCtx.activeInstituteId
+                ? async (routeId: string, stopId: string, studentIds: string[]) => {
+                    const instId = instituteCtx.activeInstituteId!;
+                    await assignStopStudents({
+                      instituteId: instId,
+                      routeId,
+                      stopId,
+                      studentIds,
+                    });
+                    invalidateTransportEnrollments();
+                  }
+                : undefined
+            }
+            onMoveStudents={
+              apiMode && instituteCtx.activeInstituteId
+                ? async (
+                    routeId: string,
+                    fromStopId: string,
+                    toStopId: string,
+                    studentIds: string[],
+                  ) => {
+                    const instId = instituteCtx.activeInstituteId!;
+                    await moveStopStudents({
+                      instituteId: instId,
+                      routeId,
+                      fromStopId,
+                      toStopId,
+                      studentIds,
+                    });
+                    invalidateTransportEnrollments();
+                  }
+                : undefined
+            }
+            studentsCatalog={studentsCatalog}
           />
         )}
         {view === "students" ? (
@@ -1173,7 +1302,7 @@ function TransportPage() {
                         pickupStopId: null,
                         dropStopId: null,
                       });
-                      bumpTransportReload();
+                      invalidateTransportEnrollments();
                     }
                   : undefined
               }
@@ -1196,7 +1325,8 @@ function TransportPage() {
                       },
                     );
                   }
-                  bumpTransportReload();
+                  // Optimistic local + cache already applied; soft-refresh enrollments only.
+                  void invalidateTransportEnrollments();
                   notify("Enrollment ended");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to update enrollment");
@@ -1221,7 +1351,7 @@ function TransportPage() {
                       },
                     );
                   }
-                  bumpTransportReload();
+                  void invalidateTransportEnrollments();
                   notify("Enrollment deleted");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to delete enrollment");

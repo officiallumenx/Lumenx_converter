@@ -164,11 +164,39 @@ export const envSchema = z.object({
   ONLINE_PAYMENT_PROVIDER: z.enum(["none", "demo", "webhook"]).default("none"),
   ONLINE_PAYMENT_WEBHOOK_SECRET: optionalString,
   ONLINE_PAYMENT_CHECKOUT_BASE_URL: optionalString,
+
+  /**
+   * Pre-migration escape hatch for document numbering.
+   * When true, publish may fall back to max+1 if allocate_document_number RPC
+   * is confirmed missing. Concurrent safety is NOT guaranteed in this mode.
+   * When false/unset in production, RPC failures fail closed.
+   * Explicit true/false always wins; otherwise defaults to NODE_ENV !== production.
+   */
+  DOCUMENT_NUMBER_ALLOW_MAX_FALLBACK: z
+    .enum(["true", "false", "1", "0", "on", "off", "yes", "no"])
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === null) return undefined;
+      const t = String(v).trim().toLowerCase();
+      return t === "true" || t === "1" || t === "on" || t === "yes";
+    }),
 });
 
 // ── Derived types ───────────────────────────────────────────────────
 
 export type Env = z.infer<typeof envSchema>;
+
+/**
+ * Whether publish may use max+1 when allocate_document_number is confirmed absent.
+ * Explicit env wins; otherwise non-production defaults to true for local/test.
+ * Never claim concurrent safety while this returns true.
+ */
+export function allowDocumentNumberMaxFallback(env: Env): boolean {
+  if (env.DOCUMENT_NUMBER_ALLOW_MAX_FALLBACK !== undefined) {
+    return env.DOCUMENT_NUMBER_ALLOW_MAX_FALLBACK;
+  }
+  return env.NODE_ENV !== "production";
+}
 
 // ── Loader ──────────────────────────────────────────────────────────
 

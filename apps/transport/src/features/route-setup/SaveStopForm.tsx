@@ -69,6 +69,12 @@ export function SaveStopForm({
   );
   const [studentIds, setStudentIds] = useState<string[]>(initialStudentIds);
   const [gps, setGps] = useState<GpsFix | null>(initialGps ?? null);
+  const [manualLat, setManualLat] = useState(
+    initialGps ? String(initialGps.latitude) : "",
+  );
+  const [manualLng, setManualLng] = useState(
+    initialGps ? String(initialGps.longitude) : "",
+  );
   const [radiusM, setRadiusM] = useState(String(initialNotificationRadiusM));
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,7 +84,11 @@ export function SaveStopForm({
     try {
       const fix = await captureCurrentGps({ allowDemo: false });
       setGps(fix);
-      setLocationLabel(`${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)}`);
+      setManualLat(String(fix.latitude));
+      setManualLng(String(fix.longitude));
+      if (!locationLabel) {
+        setLocationLabel(`${fix.latitude.toFixed(5)}, ${fix.longitude.toFixed(5)}`);
+      }
       toast.success("GPS updated");
     } catch (err) {
       const message =
@@ -96,9 +106,27 @@ export function SaveStopForm({
       toast.error("Enter a stop name");
       return;
     }
-    if (!gps) {
-      toast.error("GPS location missing. Capture location first.");
-      return;
+    let lat: number;
+    let lng: number;
+    if (gps) {
+      lat = gps.latitude;
+      lng = gps.longitude;
+    } else {
+      const parsedLat = parseFloat(manualLat);
+      const parsedLng = parseFloat(manualLng);
+      if (
+        isNaN(parsedLat) ||
+        isNaN(parsedLng) ||
+        parsedLat < -90 ||
+        parsedLat > 90 ||
+        parsedLng < -180 ||
+        parsedLng > 180
+      ) {
+        toast.error("Valid GPS coordinates required (-90..90, -180..180). Capture GPS or enter coordinates manually.");
+        return;
+      }
+      lat = parsedLat;
+      lng = parsedLng;
     }
     const radius = parseStopRadiusInput(radiusM);
     if (!radius.ok) {
@@ -109,10 +137,10 @@ export function SaveStopForm({
     try {
       await onSave({
         name: name.trim(),
-        locationLabel: locationLabel.trim(),
+        locationLabel: locationLabel.trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
         studentIds,
-        latitude: gps.latitude,
-        longitude: gps.longitude,
+        latitude: lat,
+        longitude: lng,
         notificationRadiusM: radius.meters,
       });
     } catch (err) {
@@ -130,32 +158,63 @@ export function SaveStopForm({
         <p className="mt-0.5 font-display text-lg font-semibold text-foreground">{progressLabel}</p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
         <div className="flex items-start gap-2">
           <MapPin className="mt-0.5 size-4 shrink-0 text-transport" aria-hidden />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-foreground">GPS captured</p>
+            <p className="text-sm font-semibold text-foreground">
+              {gps ? "GPS captured" : "Indoor / Manual Location"}
+            </p>
             {gps ? (
               <p className="mt-1 font-mono text-xs text-muted-foreground">
                 {gps.latitude.toFixed(5)}, {gps.longitude.toFixed(5)}
                 {gps.accuracyM != null ? ` · ±${Math.round(gps.accuracyM)}m` : ""}
               </p>
             ) : (
-              <p className="mt-1 text-xs text-muted-foreground">No fix yet</p>
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                No satellite fix. Enter coordinates below or capture outdoors.
+              </p>
             )}
           </div>
         </div>
-        {allowGpsRefresh ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            loading={refreshing}
-            onClick={() => void refreshGps()}
-          >
-            <RefreshCw className="size-3.5" aria-hidden />
-            Update Current GPS
-          </Button>
+        {allowGpsRefresh || !gps ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              loading={refreshing}
+              onClick={() => void refreshGps()}
+            >
+              <RefreshCw className="size-3.5" aria-hidden />
+              {gps ? "Update Current GPS" : "Capture Current GPS"}
+            </Button>
+          </div>
+        ) : null}
+
+        {!gps ? (
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+            <FormField id="manual-lat" label="Latitude" hint="-90 to 90">
+              <Input
+                id="manual-lat"
+                type="number"
+                step="any"
+                placeholder="e.g. 17.38504"
+                value={manualLat}
+                onChange={(e) => setManualLat(e.target.value)}
+              />
+            </FormField>
+            <FormField id="manual-lng" label="Longitude" hint="-180 to 180">
+              <Input
+                id="manual-lng"
+                type="number"
+                step="any"
+                placeholder="e.g. 78.48667"
+                value={manualLng}
+                onChange={(e) => setManualLng(e.target.value)}
+              />
+            </FormField>
+          </div>
         ) : null}
       </div>
 

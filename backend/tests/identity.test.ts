@@ -215,7 +215,8 @@ const jsonHeaders = (token: string) => ({
 
 describe("identity — institutes", () => {
   it("lists member institutes; platform creates; members cannot create", async () => {
-    const app = appWithDb(baseDb());
+    const db = baseDb();
+    const app = appWithDb(db);
 
     const list = await app.request("/api/v1/institutes", { headers: auth("token-admin") });
     expect(list.status).toBe(200);
@@ -240,6 +241,9 @@ describe("identity — institutes", () => {
     expect(created.status).toBe(201);
     const createdBody = await json(created);
     expect(createdBody.data.code).toBe("LX-C");
+    const createdId = createdBody.data.id as string;
+    const trial = db.subscription.find((s) => s.institute_id === createdId);
+    expect(trial?.lifecycle_status).toBe("trial_active");
 
     expect(
       (await app.request(`/api/v1/institutes/${INST_B}`, { headers: auth("token-admin") })).status,

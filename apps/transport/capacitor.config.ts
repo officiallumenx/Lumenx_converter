@@ -9,4 +9,11 @@ const config = createCapacitorConfig({
   hostname: "transport.lumenxtech.in",
 });
 
+config.plugins = {
+  ...config.plugins,
+  CapacitorHttp: {
+    enabled: true,
+  },
+} as any;
+
 export default config;

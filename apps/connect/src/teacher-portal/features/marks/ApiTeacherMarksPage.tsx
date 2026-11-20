@@ -135,29 +135,34 @@ export function ApiTeacherMarksPage() {
 
   const saveDraftFn = useCallback(async () => {
     if (!activeInstituteId || !sheet || !sectionId || !examId || !subjectId) return;
-    const scores = rows.map((r) => ({
-      enrollmentId: r.enrollmentId,
-      marks: r.marks,
-      internalMarks: r.internalMarks,
-      externalMarks: r.externalMarks,
-    }));
-    await saveTeacherMarkSheet({
-      entryId: sheet.entryId,
-      createInput: sheet.entryId
-        ? null
-        : {
-            instituteId: activeInstituteId,
-            academicYearId: sheet.academicYearId,
-            classId: sheet.classId,
-            sectionId,
-            examId,
-            subjectId,
-            maxMarks: sheet.maxMarks,
-          },
-      updateInput: { maxMarks: sheet.maxMarks, scores },
-    });
-    toast.success("Draft saved");
-    refreshSheet();
+    try {
+      const scores = rows.map((r) => ({
+        enrollmentId: r.enrollmentId,
+        marks: r.marks,
+        internalMarks: r.internalMarks,
+        externalMarks: r.externalMarks,
+      }));
+      await saveTeacherMarkSheet({
+        entryId: sheet.entryId,
+        createInput: sheet.entryId
+          ? null
+          : {
+              instituteId: activeInstituteId,
+              academicYearId: sheet.academicYearId,
+              classId: sheet.classId,
+              sectionId,
+              examId,
+              subjectId,
+              maxMarks: sheet.maxMarks,
+            },
+        updateInput: { maxMarks: sheet.maxMarks, scores },
+      });
+      toast.success("Draft saved");
+      refreshSheet();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save marks draft");
+      throw err;
+    }
   }, [activeInstituteId, sheet, sectionId, examId, subjectId, rows, refreshSheet]);
 
   const submitFn = useCallback(async () => {

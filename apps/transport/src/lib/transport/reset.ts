@@ -1,6 +1,7 @@
 import { resetAlertsStore } from "./alerts";
 import { resetAttendanceStore, setAttendanceVehicleScope } from "./attendance/store";
 import { clearApiDriverRoster } from "./api-roster";
+import { resetDriverSessionHydrateGate } from "./hydrate-driver-session";
 import { stopLocationTracking } from "./location-tracking";
 import { resetRouteSetupStore } from "./route-setup/store";
 import { resetSettingsStore } from "./settings";
@@ -14,5 +15,6 @@ export function resetTransportStores() {
   resetSettingsStore();
   resetTripSession();
   resetRouteSetupStore();
+  resetDriverSessionHydrateGate();
   void stopLocationTracking();
 }

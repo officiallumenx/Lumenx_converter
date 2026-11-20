@@ -58,7 +58,7 @@ function EnrollmentsPage() {
           eyebrow="Academics"
           title={M.enrollments}
           subtitle="Section rosters · enroll / transfer / status"
-        />
+         helpKey="enrollments" />
         <EnrollmentsApiPage
           initialSectionId={search.sectionId}
           initialAcademicYearId={search.academicYearId}
@@ -112,7 +112,7 @@ function EnrollmentsDemoPage() {
         eyebrow="Academics"
         title={M.enrollments}
         subtitle="Academic year section rosters"
-      />
+       helpKey="enrollments" />
       <div className="space-y-4">
         <PageToolbar>
           <SearchInput

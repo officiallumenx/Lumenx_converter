@@ -1,9 +1,22 @@
+import { createAuthSessionClock } from "@lumenx/auth";
 import { createApiClient, type AdmissionsApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { getSupabaseAccessToken } from "@/lib/supabase-browser";
+import {
+  getSupabaseAccessToken,
+  tryRefreshSupabaseSession,
+} from "@/lib/supabase-browser";
 
 let onUnauthorizedHandler: (() => void) | null = null;
 let client: AdmissionsApiClient | null = null;
+const authSessionClock = createAuthSessionClock();
+
+export function bumpAdmissionsAuthSessionGeneration(): number {
+  return authSessionClock.bump();
+}
+
+export function getAdmissionsAuthSessionGeneration(): number {
+  return authSessionClock.current();
+}
 
 export function setAdmissionsApiUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorizedHandler = handler;
@@ -21,6 +34,11 @@ export function getAdmissionsApiClient(): AdmissionsApiClient {
       if (!isApiAuthMode()) return null;
       return getSupabaseAccessToken();
     },
+    tryRefreshSession: async () => {
+      if (!isApiAuthMode()) return { kind: "unavailable" };
+      return tryRefreshSupabaseSession();
+    },
+    getSessionGeneration: () => authSessionClock.current(),
     onUnauthorized: () => {
       onUnauthorizedHandler?.();
     },
@@ -31,4 +49,5 @@ export function getAdmissionsApiClient(): AdmissionsApiClient {
 export function resetAdmissionsApiClientForTests(): void {
   client = null;
   onUnauthorizedHandler = null;
+  authSessionClock.resetForTests();
 }

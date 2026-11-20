@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import { requireInstituteId, assertInstituteAccess } from "../../authorization/index.js";
-import { findStudentById, listGuardianStudentIds, listStudents } from "../students/repository.js";
+import { findStudentById, findStudentsByIds, listGuardianStudentIds, listStudents } from "../students/repository.js";
 import {
   assertCanDeleteRejected,
   assertCanReview,
@@ -16,6 +16,7 @@ import {
   listActiveDailyExceptionsForStudents,
 } from "./daily-exception-repository.js";
 import { resolveInstituteServiceDate } from "./daily-exception-service.js";
+import { resolveCommonLocationStopId } from "./common-location.js";
 import { findInstituteSettings } from "../identity/repository.js";
 import {
   findDriverById,
@@ -25,6 +26,7 @@ import {
   findStopById,
   findVehicleById,
   listEnrollments,
+  listEnrollmentsForRoute,
   listRoutes,
   listStopsForRoute,
   softDeleteEnrollment,
@@ -56,6 +58,8 @@ export type LearnerTransportStop = {
   locationLabel: string;
   routeOrder: number;
   kind?: "waypoint" | "school" | "parking";
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type LearnerTransportSummary = {
@@ -76,6 +80,8 @@ export type LearnerTransportSummary = {
   pickupStop: LearnerTransportStop | null;
   dropStop: LearnerTransportStop | null;
   stops: LearnerTransportStop[];
+  /** Configured institute IANA timezone (e.g. Asia/Kolkata). */
+  timezone?: string;
 };
 
 export type TeacherClassTransportRow = {
@@ -366,6 +372,12 @@ export type DriverRouteRoster = {
   routeId: string | null;
   routeName: string | null;
   vehicleId: string | null;
+  /** Bus label for the assigned vehicle (avoids listing all vehicles on cold open). */
+  vehicleNumber: string | null;
+  /** Seat capacity when known; null if vehicle missing or unset. */
+  vehicleCapacity: number | null;
+  /** Route approval so drivers can operate without listing all routes. */
+  routeApprovalStatus: TransportApprovalStatus | null;
   locked: boolean;
   stops: DriverRouteRosterStop[];
   students: DriverRouteRosterStudent[];
@@ -415,6 +427,9 @@ export async function getDriverRouteRosterForActor(
       routeId: null,
       routeName: null,
       vehicleId: null,
+      vehicleNumber: null,
+      vehicleCapacity: null,
+      routeApprovalStatus: null,
       locked: false,
       stops: [],
       students: [],
@@ -423,6 +438,17 @@ export async function getDriverRouteRosterForActor(
       expectedOnboardCount: 0,
     };
   }
+
+  const vehicle = route.vehicle_id
+    ? await findVehicleById(admin, route.vehicle_id)
+    : null;
+  const vehicleNumber = vehicle?.vehicle_number?.trim() || null;
+  const vehicleCapacity =
+    typeof vehicle?.capacity === "number" &&
+    Number.isFinite(vehicle.capacity) &&
+    vehicle.capacity > 0
+      ? vehicle.capacity
+      : null;
 
   const stopRows = await listStopsForRoute(admin, route.id);
   const visibleStops = isTransportWriter(actor, id)
@@ -433,16 +459,22 @@ export async function getDriverRouteRosterForActor(
           s.submitted_by_user_id === actor.userId,
       );
 
-  const enrollments = (await listEnrollments(admin, id)).filter(
+  const enrollments = (
+    await listEnrollmentsForRoute(admin, id, route.id, { activeOnly: true })
+  ).filter(
     (e) =>
-      e.route_id === route.id &&
-      e.status === "active" &&
-      (isOperationallyUsable(e.approval_status) ||
-        e.submitted_by_user_id === actor.userId ||
-        isTransportWriter(actor, id)),
+      isOperationallyUsable(e.approval_status) ||
+      e.submitted_by_user_id === actor.userId ||
+      isTransportWriter(actor, id),
   );
 
-  const students = await listStudents(admin, { instituteId: id });
+  const studentIds = [
+    ...new Set(enrollments.map((e) => e.student_id).filter(Boolean)),
+  ];
+  const students =
+    studentIds.length > 0
+      ? await findStudentsByIds(admin, id, studentIds)
+      : [];
   const studentById = new Map(students.map((s) => [s.id, s]));
   const stopNameById = new Map(visibleStops.map((s) => [s.id, s.name]));
   const serviceDate = await resolveInstituteServiceDate(admin, id);
@@ -459,6 +491,12 @@ export async function getDriverRouteRosterForActor(
   const studentsMapped = enrollments.map((e) => {
       const student = studentById.get(e.student_id);
       const exception = exceptionByStudent.get(e.student_id);
+      const commonStopId = resolveCommonLocationStopId({
+        pickupStopId: e.pickup_stop_id,
+        dropStopId: e.drop_stop_id,
+      });
+      const resolvedStopId = commonStopId ?? "";
+      const resolvedStopName = commonStopId ? (stopNameById.get(commonStopId) ?? null) : null;
       return {
         enrollmentId: e.id,
         studentId: e.student_id,
@@ -468,16 +506,13 @@ export async function getDriverRouteRosterForActor(
           "Student",
         rollNo: student?.roll_no?.trim() || "—",
         classLabel: student?.class_label?.trim() || "—",
-        pickupStopId: e.pickup_stop_id ?? "",
-        dropStopId: e.drop_stop_id ?? "",
-        pickupStopName: e.pickup_stop_id
-          ? (stopNameById.get(e.pickup_stop_id) ?? null)
-          : null,
-        dropStopName: e.drop_stop_id
-          ? (stopNameById.get(e.drop_stop_id) ?? null)
-          : null,
+        pickupStopId: resolvedStopId,
+        dropStopId: resolvedStopId,
+        pickupStopName: resolvedStopName,
+        dropStopName: resolvedStopName,
         status: e.status,
         approvalStatus: e.approval_status,
+        rejectionReason: e.rejection_reason ?? null,
         notRidingToday: Boolean(exception),
         rideExceptionId: exception?.id ?? null,
       };
@@ -488,6 +523,9 @@ export async function getDriverRouteRosterForActor(
     routeId: route.id,
     routeName: route.name,
     vehicleId: route.vehicle_id,
+    vehicleNumber,
+    vehicleCapacity,
+    routeApprovalStatus: route.approval_status,
     locked: route.config_status === "locked",
     stops: visibleStops
       .slice()
@@ -609,6 +647,8 @@ function stopSummary(row: {
   location_label: string;
   route_order: number;
   kind?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }): LearnerTransportStop {
   const kind =
     row.kind === "school" || row.kind === "parking" || row.kind === "waypoint"
@@ -620,6 +660,14 @@ function stopSummary(row: {
     locationLabel: row.location_label,
     routeOrder: row.route_order,
     kind,
+    latitude:
+      typeof row.latitude === "number" && Number.isFinite(row.latitude)
+        ? row.latitude
+        : null,
+    longitude:
+      typeof row.longitude === "number" && Number.isFinite(row.longitude)
+        ? row.longitude
+        : null,
   };
 }
 
@@ -640,6 +688,9 @@ export async function getLearnerTransportForActor(
     student.display_name?.trim() ||
     `${student.first_name ?? ""} ${student.surname ?? ""}`.trim() ||
     "Student";
+
+  const instituteSettings = await findInstituteSettings(admin, instituteId);
+  const timezone = instituteSettings?.timezone?.trim() || "Asia/Kolkata";
 
   const enrollments = await listEnrollments(admin, instituteId, [input.studentId]);
   const enrollment =
@@ -665,6 +716,7 @@ export async function getLearnerTransportForActor(
       pickupStop: null,
       dropStop: null,
       stops: [],
+      timezone,
     };
   }
 
@@ -686,6 +738,7 @@ export async function getLearnerTransportForActor(
       pickupStop: null,
       dropStop: null,
       stops: [],
+      timezone,
     };
   }
 
@@ -708,6 +761,7 @@ export async function getLearnerTransportForActor(
       pickupStop: null,
       dropStop: null,
       stops: [],
+      timezone,
     };
   }
 
@@ -721,8 +775,26 @@ export async function getLearnerTransportForActor(
     .filter((s) => isOperationallyUsable(s.approval_status))
     .sort((a, b) => a.route_order - b.route_order);
 
-  const pickup = usableStops.find((s) => s.id === enrollment.pickup_stop_id) ?? null;
-  const drop = usableStops.find((s) => s.id === enrollment.drop_stop_id) ?? null;
+  const commonStopId = resolveCommonLocationStopId({
+    pickupStopId: enrollment.pickup_stop_id,
+    dropStopId: enrollment.drop_stop_id,
+  });
+  // Prefer live columns; when next_* is queued and no active trip for this learner view,
+  // still show the current (pre-promotion) assignment until the next trip starts.
+  let common =
+    (commonStopId
+      ? usableStops.find((s) => s.id === commonStopId) ?? null
+      : null) ??
+    usableStops.find((s) => s.id === enrollment.pickup_stop_id) ??
+    usableStops.find((s) => s.id === enrollment.drop_stop_id) ??
+    null;
+
+  if (!common && commonStopId) {
+    const directStop = await findStopById(admin, commonStopId);
+    if (directStop && isOperationallyUsable(directStop.approval_status)) {
+      common = directStop;
+    }
+  }
 
   return {
     studentId: student.id,
@@ -743,8 +815,10 @@ export async function getLearnerTransportForActor(
         : null,
     driverName: driver?.display_name ?? null,
     driverPhone: driver?.phone ?? null,
-    pickupStop: pickup ? stopSummary(pickup) : null,
-    dropStop: drop ? stopSummary(drop) : null,
+    // Common-location product rule: one stop for pickup and drop.
+    pickupStop: common ? stopSummary(common) : null,
+    dropStop: common ? stopSummary(common) : null,
     stops: usableStops.map(stopSummary),
+    timezone,
   };
 }

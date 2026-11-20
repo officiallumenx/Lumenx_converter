@@ -457,7 +457,7 @@ export function TemplateGenerateView({ initialTemplateId }: GenerateViewProps) {
                 Batch reference: <span className="font-mono">{batchId}</span>
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
-                <Link to="/templates" search={{ view: "issued" }}>
+                <Link to="/templates" search={{ view: "published" }}>
                   <Button variant="primary">View generated documents</Button>
                 </Link>
                 <Button

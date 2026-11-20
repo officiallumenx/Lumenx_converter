@@ -20,6 +20,7 @@ import {
   listGeneratedForActor,
   listTemplatesForActor,
   transitionGeneratedForActor,
+  republishGeneratedForActor,
   updateTemplateForActor,
   getGeneratedDocumentSignedUrlForActor,
 } from "../../domains/documents/service.js";
@@ -220,7 +221,8 @@ documents.post("/generated", async (c) => {
       teacher_id: uuid.nullable().optional(),
       recipient_name: z.string().min(1).max(300),
       recipient_ref: z.string().max(100).nullable().optional(),
-      certificate_number: z.string().max(100).nullable().optional(),
+      /** Draft idempotency key for a generation batch item — not a document number. */
+      generation_key: z.string().min(8).max(200).nullable().optional(),
       payload: z.unknown().optional(),
     }),
     await c.req.json(),
@@ -234,7 +236,7 @@ documents.post("/generated", async (c) => {
     teacherId: body.teacher_id,
     recipientName: body.recipient_name,
     recipientRef: body.recipient_ref,
-    certificateNumber: body.certificate_number,
+    generationKey: body.generation_key,
     payload: body.payload,
   });
   return c.json({ data }, 201);
@@ -280,6 +282,27 @@ documents.post("/generated/:id/transition", async (c) => {
   const data = await transitionGeneratedForActor(admin, actor, id, {
     workflowState: body.workflow_state,
     rejectionReason: body.rejection_reason,
+  });
+  return c.json({ data });
+});
+
+documents.post("/generated/:id/republish", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      title: z.string().min(1).max(300).optional(),
+      payload: z.unknown().optional(),
+      notify: z.boolean().optional(),
+    }),
+    await c.req.json().catch(() => ({})),
+  );
+
+  const data = await republishGeneratedForActor(admin, actor, id, {
+    title: body.title,
+    payload: body.payload,
+    notify: body.notify,
   });
   return c.json({ data });
 });

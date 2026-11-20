@@ -1,0 +1,86 @@
+---
+interface Props {
+  page: any;
+}
+
+const { page } = Astro.props;
+const gallery = page.gallery || [];
+const hasGallery = gallery.length > 0;
+---
+
+{
+  hasGallery ? (
+    <section id="walkthrough" class="lx-section bg-white dark:bg-dark">
+      <div class="container">
+        <div class="lx-section-intro mx-auto max-w-[620px] text-center" data-reveal>
+          <span class="lx-section-eyebrow">Product Walkthrough</span>
+          <h2 class="lx-section-title">
+            Inside {page.product.name}
+          </h2>
+          <p class="lx-section-lead">
+            Explore real interface screens from {page.product.shortName}.
+          </p>
+        </div>
+
+        <div class="lx-product-gallery mx-auto max-w-[960px]" data-product-gallery data-reveal>
+          <div
+            class="mb-6 flex flex-wrap justify-center gap-2"
+            role="tablist"
+            aria-label={`${page.product.name} screenshots`}
+          >
+            {gallery.map((item, index) => (
+              <button
+                type="button"
+                role="tab"
+                id={`gallery-tab-${page.id}-${index}`}
+                aria-selected={index === 0 ? "true" : "false"}
+                aria-controls={`gallery-panel-${page.id}-${index}`}
+                tabindex={index === 0 ? 0 : -1}
+                data-gallery-tab
+                data-index={index}
+                class={`lx-gallery-tab min-h-[40px] rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  index === 0
+                    ? "bg-primary text-white"
+                    : "bg-gray-1 text-dark hover:bg-primary/10 dark:bg-dark-2 dark:text-white"
+                }`}
+              >
+                {item.title}
+              </button>
+            ))}
+          </div>
+
+          {gallery.map((item, index) => (
+            <div
+              id={`gallery-panel-${page.id}-${index}`}
+              role="tabpanel"
+              aria-labelledby={`gallery-tab-${page.id}-${index}`}
+              data-gallery-panel
+              data-index={index}
+              hidden={index !== 0}
+              class="outline-none"
+            >
+              <div
+                class={`mx-auto overflow-hidden rounded-xl border border-stroke bg-[#E8EEF6] p-2.5 shadow-1 dark:border-dark-3 dark:bg-[#DBE4F0] sm:p-4 ${
+                  item.orientation === "portrait" ? "max-w-[320px] sm:max-w-[360px]" : "max-w-[920px]"
+                }`}
+              >
+                <img
+                  src={item.src}
+                  alt={item.caption}
+                  class="mx-auto block h-auto max-h-[68vh] w-full rounded-lg object-contain"
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              </div>
+              <p class="mx-auto mt-4 max-w-[600px] text-center text-sm text-body-color dark:text-dark-6 sm:text-base">
+                <span class="font-semibold text-dark dark:text-white">{item.title}:</span>
+                {" "}
+                {item.caption}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  ) : null
+}

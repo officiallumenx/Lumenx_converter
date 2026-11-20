@@ -14,9 +14,11 @@ export function defaultAttendanceTabForSlot(
 
 /**
  * Resolve the stop id for a Drop mark.
- * Prefer enrollment drop stop, then last route stop (drop endpoint), never invent "".
- * Do not silently prefer pickup when a route endpoint exists — that fails backend
- * "must be dropped at assigned drop stop" validation.
+ * Prefer enrollment drop stop; then enrollment pickup (home gate for afternoon when
+ * drop_stop_id is unset); only then last route stop. Never invent "".
+ *
+ * Preferring last route stop first incorrectly labeled many drops as "School"
+ * when enrollments lacked an explicit drop_stop_id.
  */
 export function resolveDropStopIdForMark(input: {
   dropStopId?: string | null;
@@ -25,10 +27,11 @@ export function resolveDropStopIdForMark(input: {
 }): string | null {
   const assigned = input.dropStopId?.trim();
   if (assigned) return assigned;
+  const pickup = input.pickupStopId?.trim();
+  if (pickup) return pickup;
   for (let i = input.routeStopIds.length - 1; i >= 0; i -= 1) {
     const id = input.routeStopIds[i]?.trim();
     if (id) return id;
   }
-  const pickup = input.pickupStopId?.trim();
-  return pickup || null;
+  return null;
 }

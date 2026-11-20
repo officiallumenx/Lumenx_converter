@@ -62,6 +62,16 @@ const registrationPayloadSchema = z.object({
   logoPreview: z.string().max(MAX_REGISTRATION_LOGO_DATA_URL_CHARS).optional(),
 });
 
+const legalConsentDocumentSchema = z.object({
+  id: z.enum(["admin_terms", "admin_privacy", "cookie_policy"]),
+  version: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const legalConsentSchema = z.object({
+  accepted: z.literal(true),
+  documents: z.array(legalConsentDocumentSchema).min(1).max(8),
+});
+
 const createRegistrationSchema = z.object({
   applicant_name: z.string().min(1).max(200),
   email: z.string().email().max(320),
@@ -69,12 +79,14 @@ const createRegistrationSchema = z.object({
   phone: z.string().max(30).nullable().optional(),
   pin: z.string().regex(/^\d{6}$/),
   payload: registrationPayloadSchema,
+  legal_consent: legalConsentSchema,
 });
 
 const resubmitRegistrationSchema = z.object({
   applicant_name: z.string().min(1).max(200).optional(),
   phone: z.string().max(30).nullable().optional(),
   payload: registrationPayloadSchema,
+  legal_consent: legalConsentSchema,
 });
 
 const registrations = new Hono<AppBindings>();
@@ -94,6 +106,7 @@ registrations.post("/", async (c) => {
     phone: body.phone,
     pin: body.pin,
     payload: body.payload,
+    legalConsent: body.legal_consent,
   });
   return c.json({ data }, 201);
 });
@@ -118,6 +131,7 @@ me.post("/resubmit", async (c) => {
     applicantName: body.applicant_name,
     phone: body.phone,
     payload: body.payload,
+    legalConsent: body.legal_consent,
   });
   return c.json({ data });
 });

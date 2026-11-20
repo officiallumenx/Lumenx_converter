@@ -1,6 +1,7 @@
 export {
   assertInstituteAccess,
   assertInstituteMember,
+  parseInstituteId,
   requireInstituteId,
 } from "./tenant.js";
 export {

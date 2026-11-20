@@ -1,3 +1,5 @@
+import type { RegistrationLegalConsentInput } from "./legal-consent.js";
+
 /** Aligns with Admin demo payload shape in @lumenx/utils institute-registration-store. */
 // A 2 MiB image expands to roughly 2.8M characters when encoded as a data URL.
 export const MAX_REGISTRATION_LOGO_DATA_URL_CHARS = 3_000_000;
@@ -100,10 +102,23 @@ export type CreateRegistrationInput = {
   phone?: string | null;
   pin?: string | null;
   payload: InstituteRegistrationPayload;
+  /** Explicit client consent assertion; validated and persisted server-side. */
+  legalConsent?: RegistrationLegalConsentInput | null;
 };
 
 export type ResubmitRegistrationInput = {
   applicantName?: string;
   phone?: string | null;
   payload: InstituteRegistrationPayload;
+  legalConsent?: RegistrationLegalConsentInput | null;
+};
+
+export type InstituteRegistrationLegalConsentRow = {
+  id: string;
+  registration_id: string;
+  document_id: string;
+  document_version: string;
+  action: string;
+  accepted_at: string;
+  created_at: string;
 };

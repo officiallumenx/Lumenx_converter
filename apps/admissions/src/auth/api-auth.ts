@@ -79,12 +79,49 @@ async function hydrateFromAccessToken(
 }
 
 export async function apiSignInWithPassword(
-  email: string,
+  identifier: string,
   password: string,
+  options: { accountType?: AdmissionsAccountType } = {},
 ): Promise<ApiAuthHydration> {
-  const normalized = email.trim().toLowerCase();
+  const digits = identifier.replace(/\D/g, "").slice(-10);
+  const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+    /\/+$/,
+    "",
+  );
+
+  // Primary: mobile + password via API (email is recovery/details only).
+  if (digits.length === 10) {
+    const response = await fetch(`${apiBase}/api/v1/auth/signup/password-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app: "admissions",
+        phone: digits,
+        password,
+        account_type: options.accountType,
+      }),
+    });
+    const json = (await response.json().catch(() => ({}))) as {
+      data?: {
+        access_token?: string;
+        refresh_token?: string;
+      };
+      error?: { message?: string };
+    };
+    if (!response.ok || !json.data?.access_token) {
+      throw new Error(json.error?.message ?? "Invalid mobile number or password.");
+    }
+    await setSupabaseSession(json.data.access_token, json.data.refresh_token);
+    return hydrateFromAccessToken(json.data.access_token, {
+      forceAccountType: options.accountType,
+      phone: digits,
+    });
+  }
+
+  // Fallback: email + password (legacy / recovery).
+  const normalized = identifier.trim().toLowerCase();
   if (!normalized.includes("@")) {
-    throw new Error("API sign-in requires an email address.");
+    throw new Error("Sign in with your mobile number.");
   }
 
   const supabase = getSupabaseBrowserClient();
@@ -94,10 +131,12 @@ export async function apiSignInWithPassword(
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(error?.message ?? "Sign-in failed. Check your email and password.");
+    throw new Error(error?.message ?? "Sign-in failed. Check your mobile and password.");
   }
 
-  return hydrateFromAccessToken(data.session.access_token);
+  return hydrateFromAccessToken(data.session.access_token, {
+    forceAccountType: options.accountType,
+  });
 }
 
 export type ApiSignUpInput = {
@@ -142,11 +181,87 @@ export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
   return hydrateFromAccessToken(data.session.access_token);
 }
 
-export async function apiRequestPasswordReset(email: string): Promise<void> {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized.includes("@")) throw new Error("Enter your email address.");
-  const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(normalized);
-  if (error) throw new Error(error.message);
+function admissionsApiBase(): string {
+  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+}
+
+function phoneDigitsFromIdentifier(identifier: string): string {
+  const digits = identifier.replace(/\D/g, "").slice(-10);
+  if (digits.length !== 10) throw new Error("Enter a valid 10-digit mobile number.");
+  return digits;
+}
+
+export async function apiRequestPasswordResetOtp(identifier: string): Promise<{
+  maskedDestination: string;
+  devOtp?: string;
+}> {
+  const phone = phoneDigitsFromIdentifier(identifier);
+  const response = await fetch(`${admissionsApiBase()}/api/v1/auth/signup/forgot-password/request-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app: "admissions", phone }),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    data?: { maskedDestination?: string; devOtp?: string };
+    error?: { message?: string };
+  };
+  if (!response.ok || !json.data?.maskedDestination) {
+    throw new Error(json.error?.message ?? "Unable to send OTP.");
+  }
+  return {
+    maskedDestination: json.data.maskedDestination,
+    devOtp: json.data.devOtp,
+  };
+}
+
+export async function apiVerifyPasswordResetOtp(
+  identifier: string,
+  otp: string,
+): Promise<{ grant: string; expiresAt: string }> {
+  const phone = phoneDigitsFromIdentifier(identifier);
+  const response = await fetch(`${admissionsApiBase()}/api/v1/auth/signup/forgot-password/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app: "admissions", phone, otp }),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    data?: { grant?: string; expiresAt?: string };
+    error?: { message?: string };
+  };
+  if (!response.ok || !json.data?.grant || !json.data.expiresAt) {
+    throw new Error(json.error?.message ?? "Incorrect or expired code.");
+  }
+  return { grant: json.data.grant, expiresAt: json.data.expiresAt };
+}
+
+export async function apiCompletePasswordReset(input: {
+  identifier: string;
+  mobileOtpGrant: string;
+  newPassword: string;
+}): Promise<void> {
+  const phone = phoneDigitsFromIdentifier(input.identifier);
+  const response = await fetch(`${admissionsApiBase()}/api/v1/auth/signup/forgot-password/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      app: "admissions",
+      phone,
+      mobile_otp_grant: input.mobileOtpGrant,
+      new_password: input.newPassword,
+    }),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    data?: { ok?: boolean };
+    error?: { message?: string };
+  };
+  if (!response.ok || !json.data?.ok) {
+    throw new Error(json.error?.message ?? "Unable to update password.");
+  }
+}
+
+/** @deprecated Prefer mobile OTP reset helpers above. */
+export async function apiRequestPasswordReset(identifier: string): Promise<void> {
+  await apiRequestPasswordResetOtp(identifier);
 }
 
 export async function applyAdminHandoffSession(input: {

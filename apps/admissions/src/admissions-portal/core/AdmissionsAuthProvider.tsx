@@ -23,7 +23,10 @@ import {
   apiRequestPasswordReset,
   tryHydrateApiSession,
 } from "@/auth/api-auth";
-import { setAdmissionsApiUnauthorizedHandler } from "@/lib/admissions-api";
+import {
+  bumpAdmissionsAuthSessionGeneration,
+  setAdmissionsApiUnauthorizedHandler,
+} from "@/lib/admissions-api";
 import { getAdmissionsApiClient } from "@/lib/admissions-api";
 import { ApiClientError } from "@/lib/api";
 import { setLumenXFeedbackTransport } from "@lumenx/utils";
@@ -64,6 +67,7 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearLocal = useCallback(() => {
+    bumpAdmissionsAuthSessionGeneration();
     signOutUser();
     setUser(null);
   }, []);
@@ -139,6 +143,7 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
         instituteName: input.instituteName,
         verificationGrants: input.verificationGrants ?? [],
       });
+      bumpAdmissionsAuthSessionGeneration();
       setUser(result.user);
       return result.user;
     },
@@ -154,15 +159,14 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
       if (!isApiAuthMode()) {
         throw new Error("Admissions authentication requires API mode.");
       }
-      const email = identifier.trim().toLowerCase();
-      if (!email.includes("@")) {
-        throw new Error("Sign in with your email address.");
-      }
-      const result = await apiSignInWithPassword(email, password);
+      const result = await apiSignInWithPassword(identifier, password, {
+        accountType: expectedAccountType,
+      });
       if (expectedAccountType && result.user.accountType !== expectedAccountType) {
         await apiSignOut();
         throw new Error(`This account is not registered as ${expectedAccountType.replace("_", " ")}.`);
       }
+      bumpAdmissionsAuthSessionGeneration();
       setUser(result.user);
       return result.user;
     },

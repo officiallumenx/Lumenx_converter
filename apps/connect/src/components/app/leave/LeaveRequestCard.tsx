@@ -29,13 +29,14 @@ export function LeaveRequestCard({
   compact?: boolean;
   onAction?: () => void;
   apiMode?: boolean;
-  onApprove?: (id: string) => void | Promise<void>;
-  onIgnore?: (id: string, note: string) => void | Promise<void>;
+  onApprove?: (id: string) => void | Promise<unknown>;
+  onIgnore?: (id: string, note: string) => void | Promise<unknown>;
   requireIgnoreNote?: boolean;
 }) {
   const isPending = request.status === "pending";
   const [ignoring, setIgnoring] = useState(false);
   const [note, setNote] = useState("");
+  const [deciding, setDeciding] = useState(false);
   const badgeStatus = toLeaveBadgeStatus(request.status);
 
   const act = (fn: () => void, message: string) => {
@@ -48,12 +49,16 @@ export function LeaveRequestCard({
 
   const handleApprove = async () => {
     if (apiMode && onApprove) {
+      if (deciding) return;
+      setDeciding(true);
       try {
         await onApprove(request.id);
         toast.success("Leave accepted");
         onAction?.();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to approve leave");
+      } finally {
+        setDeciding(false);
       }
       return;
     }
@@ -70,6 +75,8 @@ export function LeaveRequestCard({
       return;
     }
     if (apiMode && onIgnore) {
+      if (deciding) return;
+      setDeciding(true);
       try {
         await onIgnore(request.id, trimmed);
         toast.success("Leave ignored");
@@ -78,6 +85,8 @@ export function LeaveRequestCard({
         onAction?.();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to ignore leave");
+      } finally {
+        setDeciding(false);
       }
       return;
     }
@@ -140,6 +149,7 @@ export function LeaveRequestCard({
               className="h-8 w-8 p-0 shrink-0"
               aria-label="Accept"
               title="Accept"
+              disabled={deciding}
               onClick={() => void handleApprove()}
             >
               <Check className="size-4" />
@@ -150,6 +160,7 @@ export function LeaveRequestCard({
               className="h-8 w-8 p-0 shrink-0 shadow"
               aria-label="Ignore"
               title="Ignore"
+              disabled={deciding}
               onClick={() => {
                 setIgnoring(true);
                 setNote("");
@@ -183,12 +194,18 @@ export function LeaveRequestCard({
               autoFocus
             />
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => void confirmIgnore()}>
-                Ignore{note.trim() ? " with note" : ""}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deciding}
+                onClick={() => void confirmIgnore()}
+              >
+                {deciding ? "Saving…" : `Ignore${note.trim() ? " with note" : ""}`}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
+                disabled={deciding}
                 onClick={() => {
                   setIgnoring(false);
                   setNote("");

@@ -21,6 +21,11 @@ function parseIso(iso: string) {
   return { year: y, month: m - 1, day: d };
 }
 
+/** Terminal statuses that must not paint active leave days on the calendar. */
+export function isInactiveLeaveCalendarStatus(status: LeaveRequest["status"]): boolean {
+  return status === "rejected" || status === "ignored" || status === "cancelled";
+}
+
 export function LeaveRequestCalendar({
   year,
   month,
@@ -50,7 +55,7 @@ export function LeaveRequestCalendar({
   const leaveDays = useMemo(() => {
     const set = new Set<string>();
     for (const req of requests) {
-      if (req.status === "rejected" || req.status === "ignored") continue;
+      if (isInactiveLeaveCalendarStatus(req.status)) continue;
       let cur = req.leaveStartDate;
       while (cur <= req.leaveEndDate) {
         set.add(cur);

@@ -229,6 +229,8 @@ export type LearnerTransportLiveDto = {
   notRidingToday: boolean;
   /** Institute default pickup clock HH:MM when configured. */
   expectedPickupTime: string | null;
+  /** Authoritative institute timezone (e.g. "Asia/Kolkata"). */
+  timezone?: string;
 };
 
 export type LearnerTransportHistoryDayDto = {
@@ -253,6 +255,7 @@ export type StartTripInput = {
   slot?: TripSlot;
   tripDate?: string;
   clientEventId?: string | null;
+  phase?: TripPhase;
 };
 
 export type UpdateTripPhaseInput = {

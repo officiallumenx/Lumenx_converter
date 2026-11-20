@@ -160,7 +160,13 @@ function DemoParentHomeworkPage() {
 }
 
 function ApiParentHomeworkPage() {
-  const { role, activeInstituteId, activeChildId, setActiveChildId } = useApp();
+  const {
+    role,
+    activeInstituteId,
+    activeChildId,
+    setActiveChildId,
+    linkedChildren,
+  } = useApp();
   const studentPortal = useStudentPortal();
   const [tab, setTab] = useState<WorkTab>("assignment");
   const [selected, setSelected] = useState<StudentAssignmentDetail | null>(null);
@@ -184,6 +190,10 @@ function ApiParentHomeworkPage() {
     portalStudentId,
     role === "student",
   );
+  const linkedStudentIds = useMemo(
+    () => linkedChildren.map((c) => c.id).filter(Boolean),
+    [linkedChildren],
+  );
 
   useEffect(() => {
     if (role !== "student") return;
@@ -200,12 +210,16 @@ function ApiParentHomeworkPage() {
       return;
     }
 
-    let cancelled = false;
+    const ac = new AbortController();
     const hasCached = students.length > 0 || itemsByStudentId.size > 0;
     if (!hasCached) setLoading(true);
 
-    void loadParentHomeworkItems({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
+    void loadParentHomeworkItems({
+      instituteId: activeInstituteId,
+      studentIds: linkedStudentIds.length > 0 ? linkedStudentIds : undefined,
+      signal: ac.signal,
+    }).then((result) => {
+      if (ac.signal.aborted || result.errorMessage === "Aborted") return;
       setStudents(result.students);
       setItemsByStudentId(result.itemsByStudentId);
       if (result.students.length > 0) {
@@ -220,10 +234,10 @@ function ApiParentHomeworkPage() {
       setLoading(false);
     });
     return () => {
-      cancelled = true;
+      ac.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- warm refresh keeps prior parent lists
-  }, [activeInstituteId, role, activeChildId, setActiveChildId]);
+  }, [activeInstituteId, role, activeChildId, setActiveChildId, linkedStudentIds]);
 
   useEffect(() => {
     if (role !== "parent") return;

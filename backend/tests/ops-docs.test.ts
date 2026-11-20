@@ -104,6 +104,8 @@ describe("ops docs (Phase 1 Step 6)", () => {
       "20260905151000_blueprint_compat_views.sql",
       "20260905152000_blueprint_derived_views.sql",
       "20260905153000_blueprint_materialized_rollups.sql",
+      "20261016130000_blueprint_compat_views_security_invoker.sql",
+      "20261016140000_blueprint_derived_views_security_invoker.sql",
     ];
     for (const m of migrations) {
       expect(existsSync(join(migrationsDir, m))).toBe(true);
@@ -119,6 +121,31 @@ describe("ops docs (Phase 1 Step 6)", () => {
     expect(compatViews).toMatch(/trip/);
     expect(compatViews).toMatch(/boarding_event/);
     expect(compatViews).toMatch(/emergency/);
+
+    const compatViewsInvoker = readFileSync(
+      join(migrationsDir, "20261016130000_blueprint_compat_views_security_invoker.sql"),
+      "utf8",
+    );
+    expect(compatViewsInvoker).toMatch(/security_invoker\s*=\s*true/);
+    expect(compatViewsInvoker).toMatch(/diary_submission/);
+    expect(compatViewsInvoker).toMatch(/role_permission/);
+    expect(compatViewsInvoker).toMatch(/boarding_event/);
+    expect(compatViewsInvoker).toMatch(/emergency/);
+    expect(
+      (compatViewsInvoker.match(/CREATE OR REPLACE VIEW public\.\w+\s+WITH \(security_invoker = true\)/g) ?? [])
+        .length,
+    ).toBe(5);
+
+    const derivedViewsInvoker = readFileSync(
+      join(migrationsDir, "20261016140000_blueprint_derived_views_security_invoker.sql"),
+      "utf8",
+    );
+    expect(derivedViewsInvoker).toMatch(/attendance_pending/);
+    expect(derivedViewsInvoker).toMatch(/fee_dues/);
+    expect(
+      (derivedViewsInvoker.match(/CREATE OR REPLACE VIEW public\.\w+\s+WITH \(security_invoker = true\)/g) ?? [])
+        .length,
+    ).toBe(11);
 
     const rollups = readFileSync(
       join(migrationsDir, "20260905153000_blueprint_materialized_rollups.sql"),

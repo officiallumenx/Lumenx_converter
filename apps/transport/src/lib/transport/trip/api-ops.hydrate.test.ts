@@ -31,6 +31,8 @@ const DRIVER = "745cbc31-d53c-45d9-b59e-bbf0d41018fd";
 const listTransportTrips = vi.fn();
 const getActiveTripForVehicle = vi.fn();
 const endTransportTrip = vi.fn();
+const startTransportTrip = vi.fn();
+const updateTransportTripPhase = vi.fn();
 const flushOpsOutbox = vi.fn();
 const isOpsOutboxOnline = vi.fn(() => true);
 
@@ -38,8 +40,8 @@ vi.mock("@/lib/transport-api", () => ({
   listTransportTrips: (...args: unknown[]) => listTransportTrips(...args),
   getActiveTripForVehicle: (...args: unknown[]) => getActiveTripForVehicle(...args),
   endTransportTrip: (...args: unknown[]) => endTransportTrip(...args),
-  startTransportTrip: vi.fn(),
-  updateTransportTripPhase: vi.fn(),
+  startTransportTrip: (...args: unknown[]) => startTransportTrip(...args),
+  updateTransportTripPhase: (...args: unknown[]) => updateTransportTripPhase(...args),
   listTripBoardingEvents: vi.fn(),
   markTripBoarding: vi.fn(),
   markTripDropping: vi.fn(),
@@ -76,6 +78,114 @@ function tripDto(
   };
 }
 
+async function seedScope() {
+  const {
+    setRouteSetupDriverScope,
+    applyApiApprovedHydration,
+    resetRouteSetupStore,
+  } = await import("../route-setup/store");
+  resetRouteSetupStore();
+  setRouteSetupDriverScope({
+    routeId: ROUTE,
+    routeCode: "BUS",
+    routeName: "bus-01 route",
+    vehicleId: VEHICLE,
+    vehicleNumber: "bus-01",
+    driverId: DRIVER,
+    driverName: "srinu",
+    driverPhone: "9182670362",
+    employeeId: "EMP-1",
+    licenseNumber: "LIC-1",
+    instituteId: INSTITUTE,
+    timezone: "Asia/Kolkata",
+  });
+  applyApiApprovedHydration({
+    lockedByAdmin: true,
+    stops: [
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        name: "Gate",
+        locationLabel: "Gate",
+        latitude: 17.4,
+        longitude: 78.4,
+        routeOrder: 0,
+        notificationRadiusM: 80,
+        kind: "waypoint",
+        approvalStatus: "approved",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        name: "School",
+        locationLabel: "School",
+        latitude: 17.41,
+        longitude: 78.41,
+        routeOrder: 1,
+        notificationRadiusM: 80,
+        kind: "school",
+        approvalStatus: "approved",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    students: [
+      {
+        enrollmentId: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+        studentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+        studentName: "loki vella",
+        classLabel: "10-A",
+        pickupStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        approvalStatus: "approved",
+      },
+    ],
+  });
+  const { setApiDriverRoster } = await import("../api-roster");
+  setApiDriverRoster(
+    {
+      driverId: DRIVER,
+      routeId: ROUTE,
+      routeName: "bus-01 route",
+      vehicleId: VEHICLE,
+      locked: true,
+      expectedCount: 1,
+      notRidingCount: 0,
+      expectedOnboardCount: 1,
+      stops: [],
+      students: [
+        {
+          enrollmentId: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+          studentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+          studentName: "loki vella",
+          classLabel: "10-A",
+          rollNo: "1",
+          pickupStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+          pickupStopName: "Gate",
+          dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+          dropStopName: "Gate",
+          status: "active",
+          approvalStatus: "approved",
+          notRidingToday: false,
+          rideExceptionId: null,
+        },
+      ],
+    },
+    { vehicleId: VEHICLE, vehicleNumber: "bus-01" },
+  );
+  const { setApiAttendanceRoster } = await import("../attendance/store");
+  setApiAttendanceRoster([
+    {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      name: "loki vella",
+      grade: "10-A",
+      stopName: "Gate",
+      stopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      dropStopName: "Gate",
+      rollNo: "1",
+    },
+  ]);
+}
+
 describe("hydrateActiveTripFromApi day-state", () => {
   beforeEach(() => {
     memory.clear();
@@ -83,113 +193,11 @@ describe("hydrateActiveTripFromApi day-state", () => {
     listTransportTrips.mockReset();
     getActiveTripForVehicle.mockReset();
     endTransportTrip.mockReset();
+    startTransportTrip.mockReset();
+    updateTransportTripPhase.mockReset();
     flushOpsOutbox.mockReset();
     isOpsOutboxOnline.mockReturnValue(true);
   });
-
-  async function seedScope() {
-    const {
-      setRouteSetupDriverScope,
-      applyApiApprovedHydration,
-      resetRouteSetupStore,
-    } = await import("../route-setup/store");
-    resetRouteSetupStore();
-    setRouteSetupDriverScope({
-      routeId: ROUTE,
-      routeCode: "BUS",
-      routeName: "bus-01 route",
-      vehicleId: VEHICLE,
-      vehicleNumber: "bus-01",
-      driverId: DRIVER,
-      driverName: "srinu",
-      driverPhone: "9182670362",
-      employeeId: "EMP-1",
-      licenseNumber: "LIC-1",
-      instituteId: INSTITUTE,
-      timezone: "Asia/Kolkata",
-    });
-    applyApiApprovedHydration({
-      lockedByAdmin: true,
-      stops: [
-        {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-          name: "Gate",
-          locationLabel: "Gate",
-          latitude: 17.4,
-          longitude: 78.4,
-          routeOrder: 0,
-          notificationRadiusM: 80,
-          kind: "waypoint",
-          approvalStatus: "approved",
-        },
-        {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
-          name: "School",
-          locationLabel: "School",
-          latitude: 17.41,
-          longitude: 78.41,
-          routeOrder: 1,
-          notificationRadiusM: 80,
-          kind: "school",
-          approvalStatus: "approved",
-        },
-      ],
-      students: [
-        {
-          studentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
-          studentName: "loki vella",
-          classLabel: "10-A",
-          rollNo: "1",
-          pickupStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-          dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-          approvalStatus: "approved",
-        },
-      ],
-    });
-    const { setApiDriverRoster } = await import("../api-roster");
-    setApiDriverRoster(
-      {
-        routeId: ROUTE,
-        routeName: "bus-01 route",
-        vehicleId: VEHICLE,
-        locked: true,
-        expectedCount: 1,
-        notRidingCount: 0,
-        expectedOnboardCount: 1,
-        stops: [],
-        students: [
-          {
-            enrollmentId: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
-            studentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
-            studentName: "loki vella",
-            classLabel: "10-A",
-            rollNo: "1",
-            pickupStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-            pickupStopName: "Gate",
-            dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-            dropStopName: "Gate",
-            approvalStatus: "approved",
-            notRidingToday: false,
-            rideExceptionId: null,
-          },
-        ],
-      },
-      { vehicleId: VEHICLE, vehicleNumber: "bus-01" },
-    );
-    const { setApiAttendanceRoster } = await import("../attendance/store");
-    setApiAttendanceRoster([
-      {
-        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
-        name: "loki vella",
-        grade: "10-A",
-        stopName: "Gate",
-        stopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-        dropStopId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-        dropStopName: "Gate",
-        rollNo: "1",
-      },
-    ]);
-  }
 
   it("completed Pickup only → Start Drop after hydrate (and after refresh)", async () => {
     await seedScope();
@@ -220,6 +228,7 @@ describe("hydrateActiveTripFromApi day-state", () => {
 
     const blockedPickup = beginStartTripSession("morning");
     expect(blockedPickup.ok).toBe(false);
+    if (blockedPickup.ok) throw new Error("expected morning start to be blocked");
     expect(blockedPickup.reason).toMatch(/Pickup is already completed/i);
 
     const dropStart = beginStartTripSession("evening");
@@ -398,3 +407,87 @@ describe("hydrateActiveTripFromApi day-state", () => {
     expect(getTripSessionSnapshot().homeAction).toBe("start_drop");
   });
 });
+
+describe("optimized trip start & end operations", () => {
+  beforeEach(() => {
+    memory.clear();
+    vi.resetModules();
+    listTransportTrips.mockReset();
+    getActiveTripForVehicle.mockReset();
+    endTransportTrip.mockReset();
+    startTransportTrip.mockReset();
+    updateTransportTripPhase.mockReset();
+    flushOpsOutbox.mockReset();
+    isOpsOutboxOnline.mockReturnValue(true);
+    getActiveTripForVehicle.mockResolvedValue(null);
+  });
+
+  it("confirms trip start atomically in a single request with phase: running", async () => {
+    await seedScope();
+    const { confirmStartTripViaApi } = await import("./api-ops");
+    const { getTripSessionSnapshot } = await import("./store");
+
+    const atomicTripId = "11111111-2222-4333-8444-555555555555";
+    startTransportTrip.mockResolvedValue(
+      tripDto({ id: atomicTripId, slot: "morning", phase: "running" }),
+    );
+
+    const result = await confirmStartTripViaApi("morning");
+    expect(result.ok).toBe(true);
+    expect(startTransportTrip).toHaveBeenCalledTimes(1);
+    expect(startTransportTrip).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: "running",
+        slot: "morning",
+        instituteId: INSTITUTE,
+        routeId: ROUTE,
+        vehicleId: VEHICLE,
+      }),
+    );
+    // Crucially: no second PATCH call to transition starting -> running
+    expect(updateTransportTripPhase).not.toHaveBeenCalled();
+    expect(getTripSessionSnapshot().tripId).toBe(atomicTripId);
+    expect(getTripSessionSnapshot().phase).toBe("running");
+  });
+
+  it("ends trip using local tripId in 1 request without blocking on rehydration", async () => {
+    await seedScope();
+    const { syncTripFromApiDto, getTripSessionSnapshot } = await import("./store");
+    const { endTripViaApi } = await import("./api-ops");
+
+    const activeTripId = "22222222-3333-4444-8555-666666666666";
+    // Seed local store with active running trip
+    syncTripFromApiDto({
+      id: activeTripId,
+      slot: "morning",
+      phase: "running",
+      vehicleId: VEHICLE,
+      routeId: ROUTE,
+      startedAt: "2026-10-10T02:00:00.000Z",
+      completedAt: null,
+      currentStopIndex: 0,
+    });
+    expect(getTripSessionSnapshot().tripId).toBe(activeTripId);
+
+    let endTripCalled = false;
+    endTransportTrip.mockImplementation(async (id: string) => {
+      endTripCalled = true;
+      return tripDto({ id, slot: "morning", phase: "completed" });
+    });
+    getActiveTripForVehicle.mockImplementation(async () => {
+      // If getActiveTripForVehicle was called, it must ONLY be during background hydration AFTER endTransportTrip
+      expect(endTripCalled).toBe(true);
+      return null;
+    });
+    listTransportTrips.mockResolvedValue([
+      tripDto({ id: activeTripId, slot: "morning", phase: "completed" }),
+    ]);
+
+    const result = await endTripViaApi();
+    expect(result.ok).toBe(true);
+    expect(endTransportTrip).toHaveBeenCalledWith(activeTripId, expect.any(String));
+    // Completion applied directly without waiting for background rehydration
+    expect(getTripSessionSnapshot().morningCompletedToday).toBe(true);
+  });
+});
+

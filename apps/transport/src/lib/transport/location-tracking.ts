@@ -21,6 +21,7 @@ export type LocationTrackState = {
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+const statusListeners = new Set<Listener>();
 
 let state: LocationTrackState = {
   status: "unknown",
@@ -45,9 +46,23 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
+function emitStatus() {
+  statusListeners.forEach((listener) => listener());
+}
+
 function setState(next: LocationTrackState) {
+  const statusChanged = state.status !== next.status;
+  const changed =
+    statusChanged ||
+    state.message !== next.message ||
+    state.lastFixAt !== next.lastFixAt;
   state = next;
-  emit();
+  if (statusChanged) {
+    emitStatus();
+  }
+  if (changed) {
+    emit();
+  }
 }
 
 function isRecentFix(iso: string | null, now = Date.now()): boolean {
@@ -224,6 +239,19 @@ export function subscribeLocationTrack(listener: Listener) {
 
 export function getLocationTrackSnapshot(): LocationTrackState {
   return state;
+}
+
+export function subscribeLocationStatus(listener: Listener) {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+export function getLocationStatusSnapshot(): LocationTrackStatus {
+  return state.status;
+}
+
+export function isLocationBlockedSnapshot(): boolean {
+  return state.status === "off";
 }
 
 async function checkLocationServiceNow() {

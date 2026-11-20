@@ -163,6 +163,21 @@ describe("resolveRegistrationGate API pending status", { timeout: 20_000 }, () =
     const { resolveRegistrationGate } = await import("./registration-gate");
     expect(resolveRegistrationGate(user).kind).toBe("allow");
   });
+
+  it("keeps unverified users pending when registration snapshot is null", async () => {
+    mockRegistrationView({
+      loaded: true,
+      snapshot: null,
+      syncError: null,
+    });
+    const { resolveRegistrationGate, registrationGatePath } = await import(
+      "./registration-gate"
+    );
+    expect(
+      resolveRegistrationGate({ ...user, isVerified: false }).kind,
+    ).toBe("pending");
+    expect(registrationGatePath("pending")).toBe("/pending-verification");
+  });
 });
 
 describe("getApplicationStatusForEmail API mode", () => {

@@ -168,6 +168,17 @@ export function isCriticalOpsEvent(eventType: OpsEventType): boolean {
   return CRITICAL_EVENT_TYPES.has(eventType);
 }
 
+/** Flush order: critical attendance/lifecycle before GPS (Issue 4). */
+export function compareOpsFlushPriority(
+  a: { eventType: OpsEventType; sequence: number },
+  b: { eventType: OpsEventType; sequence: number },
+): number {
+  const aCrit = isCriticalOpsEvent(a.eventType) ? 0 : 1;
+  const bCrit = isCriticalOpsEvent(b.eventType) ? 0 : 1;
+  if (aCrit !== bCrit) return aCrit - bCrit;
+  return a.sequence - b.sequence;
+}
+
 /**
  * GPS may be coalesced for long offline periods.
  * Always keep latest per trip, first sample, and ~2–3s movement history.
@@ -198,6 +209,41 @@ export function isTerminalGpsValidationError(err: unknown): boolean {
     lower.includes("captured_at is too far in the future") ||
     lower.includes("gps_point_too_old") ||
     lower.includes("gps_point_too_future")
+  );
+}
+
+/**
+ * Permanent business validation or authorization errors — never retry,
+ * dead-letter immediately to prevent silent loops.
+ */
+export function isTerminalBusinessError(err: unknown): boolean {
+  const status =
+    err instanceof TransportApiError
+      ? err.status
+      : typeof (err as { status?: unknown })?.status === "number"
+        ? (err as { status: number }).status
+        : null;
+
+  if (status !== null) {
+    // 408 Timeout, 429 Rate limited, and 5xx Server Errors are temporary/retryable.
+    if (status === 408 || status === 429 || status >= 500) {
+      return false;
+    }
+    // 400 Bad Request, 403 Forbidden, 404 Not Found, 422 Unprocessable are permanent client/validation errors.
+    // 409 is handled as a conflict earlier.
+    if (status >= 400 && status < 500 && status !== 409) {
+      return true;
+    }
+  }
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("not assigned") ||
+    lower.includes("not enrolled") ||
+    lower.includes("invalid stop") ||
+    lower.includes("missing trip/student/stop") ||
+    lower.includes("forbidden") ||
+    lower.includes("unauthorized")
   );
 }
 
@@ -572,7 +618,25 @@ export function discardPendingGpsEvents(tripId?: string | null): number {
   return removed;
 }
 
-async function dispatchEvent(event: OpsOutboxEvent): Promise<void> {
+/**
+ * Retrieve pending or retrying attendance outbox operations for an active trip.
+ * Used during session/roster hydration to preserve in-flight attendance marks
+ * across page refreshes and app backgrounding before server confirmation.
+ */
+export function getPendingAttendanceOps(tripId?: string): OpsOutboxEvent[] {
+  hydrate();
+  return events.filter(
+    (e) =>
+      (!tripId || e.tripId === tripId) &&
+      (e.eventType === "boarding" ||
+        e.eventType === "not_boarded" ||
+        e.eventType === "drop" ||
+        e.eventType === "not_dropped") &&
+      (e.status === "pending" || e.status === "sending" || e.status === "failed"),
+  );
+}
+
+async function dispatchEvent(event: OpsOutboxEvent): Promise<unknown> {
   const p = event.payload;
   switch (event.eventType) {
     case "gps": {
@@ -587,33 +651,49 @@ async function dispatchEvent(event: OpsOutboxEvent): Promise<void> {
         sequenceNumber: event.sequence,
       });
       lastGpsUploadedAt = new Date().toISOString();
-      return;
+      return undefined;
     }
     case "boarding":
     case "not_boarded": {
       if (!event.tripId || !event.studentId || !event.stopId) {
         throw new Error("Boarding event missing trip/student/stop");
       }
-      await markTripBoarding(event.tripId, {
+      const rawStatus = p.boardingStatus;
+      const boardingStatus =
+        rawStatus === "pending" ||
+        rawStatus === "boarded" ||
+        rawStatus === "not_boarded"
+          ? rawStatus
+          : event.eventType === "boarding"
+            ? "boarded"
+            : "not_boarded";
+      return await markTripBoarding(event.tripId, {
         studentId: event.studentId,
         stopId: event.stopId,
-        boardingStatus: event.eventType === "boarding" ? "boarded" : "not_boarded",
+        boardingStatus,
         clientEventId: event.clientEventId,
       });
-      return;
     }
     case "drop":
     case "not_dropped": {
       if (!event.tripId || !event.studentId || !event.stopId) {
         throw new Error("Drop event missing trip/student/stop");
       }
-      await markTripDropping(event.tripId, {
+      const rawStatus = p.droppingStatus;
+      const droppingStatus =
+        rawStatus === "pending" ||
+        rawStatus === "dropped" ||
+        rawStatus === "not_dropped"
+          ? rawStatus
+          : event.eventType === "drop"
+            ? "dropped"
+            : "not_dropped";
+      return await markTripDropping(event.tripId, {
         studentId: event.studentId,
         stopId: event.stopId,
-        droppingStatus: event.eventType === "drop" ? "dropped" : "not_dropped",
+        droppingStatus,
         clientEventId: event.clientEventId,
       });
-      return;
     }
     case "trip_start": {
       const slotRaw = p.slot === "evening" || p.slot === "morning" ? p.slot : undefined;
@@ -701,7 +781,8 @@ export async function flushOpsOutbox(): Promise<void> {
     const due = events
       .filter((e) => e.status === "pending" || e.status === "failed")
       .filter((e) => !e.nextRetryAt || Date.parse(e.nextRetryAt) <= now)
-      .sort((a, b) => a.sequence - b.sequence);
+      // Attendance/lifecycle before GPS so marks are not stuck behind a GPS backlog.
+      .sort(compareOpsFlushPriority);
 
     for (const event of due) {
       // Local pre-check: never upload GPS the server will permanently reject.
@@ -727,7 +808,7 @@ export async function flushOpsOutbox(): Promise<void> {
       markEvent(event.clientEventId, { status: "sending" });
       emit();
       try {
-        await withDispatchTimeout(
+        const dto = await withDispatchTimeout(
           dispatchEvent(event),
           event.eventType === "gps" ? "GPS upload" : "Ops upload",
         );
@@ -745,6 +826,7 @@ export async function flushOpsOutbox(): Promise<void> {
                 eventType: event.eventType,
                 studentId: event.studentId,
                 tripId: event.tripId,
+                dto,
               },
             }),
           );
@@ -812,6 +894,50 @@ export async function flushOpsOutbox(): Promise<void> {
           continue;
         }
 
+        // Permanent attendance/ops business failure — dead-letter immediately, do not retry.
+        if (
+          (event.eventType === "boarding" ||
+            event.eventType === "not_boarded" ||
+            event.eventType === "drop" ||
+            event.eventType === "not_dropped") &&
+          isTerminalBusinessError(err)
+        ) {
+          const msg =
+            err instanceof Error ? err.message : "Attendance operation was rejected by server.";
+          markEvent(event.clientEventId, {
+            status: "rejected",
+            lastError: msg,
+            nextRetryAt: null,
+          });
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("lumenx-transport-ops-failed", {
+                detail: {
+                  clientEventId: event.clientEventId,
+                  eventType: event.eventType,
+                  studentId: event.studentId,
+                  message: msg,
+                  giveUp: true,
+                  rejected: true,
+                },
+              }),
+            );
+            window.dispatchEvent(
+              new CustomEvent("lumenx-transport-ops-rejected", {
+                detail: {
+                  clientEventId: event.clientEventId,
+                  eventType: event.eventType,
+                  studentId: event.studentId,
+                  message: msg,
+                  code:
+                    err instanceof TransportApiError ? err.code : "BUSINESS_REJECTION",
+                },
+              }),
+            );
+          }
+          continue;
+        }
+
         const message = actionableConflictMessage(err, event.eventType);
         const retryCount = event.retryCount + 1;
         const giveUp = retryCount >= MAX_RETRIES;
@@ -833,6 +959,7 @@ export async function flushOpsOutbox(): Promise<void> {
                 studentId: event.studentId,
                 message,
                 giveUp,
+                rejected: false,
               },
             }),
           );

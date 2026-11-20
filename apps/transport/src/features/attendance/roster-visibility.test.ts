@@ -56,13 +56,14 @@ describe("evening Drop tab + stop resolution (regression)", () => {
     expect(defaultAttendanceTabForSlot("evening")).toBe("dropping");
   });
 
-  it("does not send pickup stop when route has a later drop endpoint", () => {
+  it("prefers enrollment pickup over later route school when dropStopId is unset", () => {
+    // Matches drop-stop.ts: missing drop_stop_id must not invent "School".
     expect(
       resolveDropStopIdForMark({
         dropStopId: undefined,
         pickupStopId: "2d2cb67b-pickup",
         routeStopIds: ["2d2cb67b-pickup", "school-stop"],
       }),
-    ).toBe("school-stop");
+    ).toBe("2d2cb67b-pickup");
   });
 });

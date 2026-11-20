@@ -670,7 +670,7 @@ describe("diary — soft delete", () => {
     ).toBe(404);
   });
 
-  it("emits end-of-day diary reminder notifications for teachers on list", async () => {
+  it("GET list does not mutate notifications (reminders are worker-only)", async () => {
     const db = baseDb();
     db.diary_day = db.diary_day.filter((d) => d.id !== DAY_SUBMITTED);
     db.notification = [];
@@ -682,16 +682,12 @@ describe("diary — soft delete", () => {
     const yesterdayKey = yesterday.toISOString().slice(0, 10);
 
     const res = await app.request(
-      `/api/v1/diary?institute_id=${INST_A}&diary_date=${yesterdayKey}`,
+      `/api/v1/diary?institute_id=${INST_A}&diary_date=${yesterdayKey}&scope=subject`,
       { headers: { Authorization: "Bearer token-teacher" } },
     );
     expect(res.status).toBe(200);
-    expect(db.notification.length).toBeGreaterThan(0);
-    // Diary reminders emit under the homework notification category.
-    expect(db.notification.some((n) => n.category === "homework")).toBe(true);
-    expect(
-      db.notification_recipient.some((r) => r.user_profile_id === USER_TEACHER),
-    ).toBe(true);
+    expect(db.notification).toHaveLength(0);
+    expect(db.notification_recipient).toHaveLength(0);
   });
 });
 

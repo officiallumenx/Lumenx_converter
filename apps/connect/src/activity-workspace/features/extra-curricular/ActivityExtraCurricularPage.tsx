@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -20,15 +20,17 @@ import {
   type HierarchyStudent,
 } from "@/lib/activity/hierarchy";
 
+const ecaRouteApi = getRouteApi("/_authenticated/activity/extra-curricular");
+
 export function ActivityExtraCurricularPage() {
-  const search = useSearch({ from: "/activity/extra-curricular" });
+  const search = ecaRouteApi.useSearch();
   const nav = useNavigate();
 
   const activityId = search.activity;
   const groupId = search.group;
 
   const go = (next: { activity?: string; group?: string }) => {
-    nav({ to: "/activity/extra-curricular", search: next });
+    void nav({ to: "/activity/extra-curricular", search: next });
   };
 
   return (

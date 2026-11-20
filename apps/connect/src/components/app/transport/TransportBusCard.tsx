@@ -3,6 +3,40 @@ import { SectionCard } from "@/components/app/SectionCard";
 import type { BusDetails, StudentTransportAssignment } from "@/lib/transport/types";
 import { Badge, cn } from "@lumenx/ui";
 
+function formatStopDetail(
+  stop: { id?: string; name: string; address?: string; scheduledTime?: string },
+): string {
+  const isUnassigned =
+    stop.id === "pickup-unassigned" ||
+    stop.id === "drop-unassigned" ||
+    !stop.name ||
+    stop.name.toLowerCase().includes("not assigned");
+  if (isUnassigned) {
+    return "Stop not assigned · School assignment pending";
+  }
+  const cleanName = stop.name.trim();
+  const cleanAddr = stop.address?.trim() ?? "";
+  let extraDetail = "";
+  if (
+    cleanAddr &&
+    !cleanAddr.toLowerCase().includes("not been assigned") &&
+    cleanAddr.toLowerCase() !== cleanName.toLowerCase()
+  ) {
+    if (cleanAddr.toLowerCase().startsWith(cleanName.toLowerCase())) {
+      const remainder = cleanAddr.slice(cleanName.length).replace(/^[,\s-]+/, "").trim();
+      if (remainder) extraDetail = remainder;
+    } else {
+      extraDetail = cleanAddr;
+    }
+  }
+
+  const stopDisplay = extraDetail ? `${cleanName} (${extraDetail})` : cleanName;
+  if (stop.scheduledTime && stop.scheduledTime !== "Not scheduled") {
+    return `${stopDisplay} · ${stop.scheduledTime}`;
+  }
+  return stopDisplay;
+}
+
 export function TransportBusCard({
   assignment,
   className,
@@ -11,8 +45,8 @@ export function TransportBusCard({
     | StudentTransportAssignment
     | {
         bus: BusDetails;
-        pickupStop: { name: string; scheduledTime: string };
-        dropStop: { name: string; scheduledTime: string };
+        pickupStop: { id?: string; name: string; address?: string; scheduledTime?: string };
+        dropStop: { id?: string; name: string; address?: string; scheduledTime?: string };
         morningPickupTime: string;
         afternoonDropTime: string;
       };
@@ -40,12 +74,8 @@ export function TransportBusCard({
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Detail
-          label="Morning pickup"
-          value={`${assignment.pickupStop.name} · ${assignment.morningPickupTime}`}
-        />
-        <Detail
-          label="Afternoon drop"
-          value={`${assignment.dropStop.name} · ${assignment.afternoonDropTime}`}
+          label="Assigned stop"
+          value={formatStopDetail(assignment.pickupStop || assignment.dropStop)}
         />
         <Detail label="Driver" value={bus.driverName} icon={User} />
         <Detail
