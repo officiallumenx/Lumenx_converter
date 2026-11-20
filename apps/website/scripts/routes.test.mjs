@@ -18,7 +18,10 @@ function test(name, fn) {
 
 function distPathFor(urlPath) {
   if (urlPath === "/") return join(dist, "index.html");
-  return join(dist, urlPath.replace(/^\//, ""), "index.html");
+  const clean = urlPath.replace(/^\//, "");
+  const flatFile = join(dist, `${clean}.html`);
+  if (existsSync(flatFile)) return flatFile;
+  return join(dist, clean, "index.html");
 }
 
 console.log("Routes, redirects, sitemap");
