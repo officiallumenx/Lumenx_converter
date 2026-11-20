@@ -2,8 +2,8 @@
 
 **Date:** 2026-10-26  
 **Scope:** Read-only verification only. No deploy, DNS, Worker, secret, or product-app changes.  
-**Upstream audit:** `docs/lumenx-two-website-audit.md` (Play Astro project)  
-**Play project:** Play Astro project root (this repository)  
+**Upstream audit:** `docs/lumenx-two-website-audit.md` (LumenX Website project)  
+**Play project:** LumenX Website project root (this repository)  
 **Live marketing source:** monorepo `apps/website` (Worker `lumenx-website`)
 
 Evidence labels used below: **VERIFIED** (ran/observed in this session) · **BLOCKED** (cannot proceed without owner/dashboard action) · **NOT VERIFIED** (not proven; do not treat as ready).
@@ -234,7 +234,7 @@ Rules: destinations exist in Play `dist/` or are explicit **404/410 / DECISION R
 
 ### 4.1 Exact steps (not executed)
 
-1. Create a **new** Cloudflare Pages project (suggested name: `lumenx-marketing-astro` — final name owner choice).
+1. Create a **new** Cloudflare Pages project (suggested name: `lumenx-website` — final name owner choice).
 2. Connect a Git repo for Play **or** use Direct Upload of `dist/` + ensure `functions/` is included in the Pages project root (Wrangler Pages upload from Play root).
 3. Build settings if Git-connected:
    - **Root directory:** Play project root  

@@ -1,7 +1,7 @@
-# LumenX Astro — Staging Preparation Report
+# LumenX Website — Staging Preparation Report
 
 **Date:** 2026-10-26  
-**Project:** Play Astro project root (this repository)  
+**Project:** LumenX Website project root (this repository)  
 **Scope:** Staging-preparation implementation only. **No** Cloudflare deploy, GitHub push, DNS, production secrets, or Worker changes.
 
 Upstream docs: `docs/lumenx-two-website-audit.md`, `docs/lumenx-migration-readiness.md`.
@@ -84,7 +84,7 @@ Upstream docs: `docs/lumenx-two-website-audit.md`, `docs/lumenx-migration-readin
 
 | Setting | Value |
 |---------|--------|
-| Suggested project name | `lumenx-marketing-astro` (owner choice) |
+| Suggested project name | `lumenx-website` (owner choice) |
 | Framework | None / Astro static |
 | **Build command** | `npm run build` |
 | **Output directory** | `dist` |
@@ -156,7 +156,7 @@ After creating a **separate** Pages project on `*.pages.dev` only:
 
 ## 7. Dashboard / manual actions still required
 
-1. Create private GitHub repo `officiallumenx/lumenx-marketing-astro` (when approved).  
+1. Create private GitHub repo `officiallumenx/lumenx-website` (when approved).  
 2. Create Cloudflare Pages project; connect repo or Direct Upload; **do not** attach `lumenxtech.in` yet.  
 3. Set Preview (then Production) delivery secrets — names in §4.  
 4. Confirm Workers Builds for monorepo `lumenx-website` will not fight the future cutover.  
@@ -185,16 +185,16 @@ After creating a **separate** Pages project on `*.pages.dev` only:
 **When you approve publish:**
 
 ```bash
-cd <play-astro-project-root>
+cd <lumenx-website-project-root>
 # Review: ensure no .env with secrets
 git add -A
 git status   # confirm .env not staged
-git commit -m "Prepare LumenX Astro marketing site for Cloudflare Pages staging."
+git commit -m "Prepare LumenX Website marketing site for Cloudflare Pages staging."
 
 # Create private repo (example — run only with approval):
-gh repo create officiallumenx/lumenx-marketing-astro --private --source=. --remote=origin --push
+gh repo create officiallumenx/lumenx-website --private --source=. --remote=origin --push
 # Or manually:
-# git remote add origin git@github.com:officiallumenx/lumenx-marketing-astro.git
+# git remote add origin git@github.com:officiallumenx/lumenx-website.git
 # git branch -M main
 # git push -u origin main
 ```

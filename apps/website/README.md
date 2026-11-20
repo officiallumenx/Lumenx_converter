@@ -1,39 +1,30 @@
-# Play - Free Tailwind CSS & Astro SaaS Starter Website Template
-#### Preview
+# LumenX — Official Marketing & Platform Website
 
- - [Demo](https://themewagon.github.io/play-astro/)
+Official marketing website for the **LumenX** (`https://lumenxtech.in`) School ERP, School Management System, and Institute Management Platform.
 
-#### Download
- - [Download from ThemeWagon](https://themewagon.com/themes/play-astro/)
+## Ecosystem Products Covered
 
-## Getting Started
+- **LumenX Admin:** School administration, academics, attendance, fees, and campus operations.
+- **LumenX Connect:** Parent, teacher, and student communication app.
+- **LumenX Transport:** Driver route execution, GPS tracking, and student boarding.
+- **LumenX Admissions:** Online student intake and admissions portal.
+- **LumenX Careers:** Teacher and staff recruitment portal.
+- **LumenX Nexus:** Central service platform connecting users with LumenX services and responsive assistance.
 
-1. Clone Repository
-```
-git clone https://github.com/themewagon/play-astro.git
-```
-2. Install Dependencies
-```
-npm i
-```
-3. Run the development server:
+## Development & Build Commands
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+# Start local development server (http://localhost:4321)
+npm.cmd --workspace=@lumenx/app-website run dev
 
-## Author 
-```
-Design and code is completely written by Tailgrids and development team. 
+# Build static production output (dist/)
+npm.cmd --workspace=@lumenx/app-website run build
+
+# Run route, sitemap, and pricing verification tests
+npm.cmd --workspace=@lumenx/app-website run test:routes
+npm.cmd --workspace=@lumenx/app-website run test:pricing
 ```
 
 ## License
 
- - Design and Code is Copyright &copy; <a href="https://tailgrids.com/" target="_blank">Tailgrids</a>
- - Distributed by <a href="https://themewagon.com" target="_blank">ThemeWagon</a>
+Copyright © LumenX Technologies. All rights reserved by LumenX.

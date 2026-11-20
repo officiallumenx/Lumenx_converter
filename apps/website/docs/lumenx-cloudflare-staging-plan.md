@@ -1,7 +1,7 @@
-# LumenX Astro — Cloudflare Pages Staging Plan
+# LumenX Website — Cloudflare Pages Staging Plan
 
 **Date:** 2026-10-26  
-**Repo:** https://github.com/officiallumenx/lumenx-marketing-astro (**PRIVATE**)  
+**Repo:** https://github.com/officiallumenx/lumenx-website (**PRIVATE**)  
 **Status:** Upgrade **merged to `master`**. Pages staging **not created** (no authenticated Cloudflare API in this session). Apex cutover **not started**.
 
 ---
@@ -34,8 +34,8 @@ Build-time only through `astro-compress` (`svgo`, `deepmerge-ts`, globs, PostCSS
 
 No Cloudflare CLI/MCP auth available → **create in dashboard**:
 
-1. Workers & Pages → Create → Pages → Connect Git → `officiallumenx/lumenx-marketing-astro`  
-2. Project name e.g. `lumenx-marketing-astro`  
+1. Workers & Pages → Create → Pages → Connect Git → `officiallumenx/lumenx-website`  
+2. Project name e.g. `lumenx-website`  
 3. Production branch **`master`** · Build **`npm run build`** · Output **`dist`** · root `/`  
 4. Optional: `NODE_VERSION=22`  
 5. **Do not** add custom domain / `lumenxtech.in`  

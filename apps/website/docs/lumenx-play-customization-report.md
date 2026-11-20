@@ -1,12 +1,12 @@
-# LumenX Play Astro customization report
+# LumenX LumenX Website customization report
 
-**Project:** Play Astro project root (this repository)  
+**Project:** LumenX Website project root (this repository)  
 **Date:** 2026-10-26  
-**Approach:** Content and branding customization of ThemeWagon Play Astro while preserving Play layouts, typography, spacing, components, and responsive behavior.
+**Approach:** Content and branding customization of ThemeWagon LumenX Website while preserving Play layouts, typography, spacing, components, and responsive behavior.
 
 ## Summary
 
-The standalone Play Astro template was customized into a LumenX marketing site. Demo SaaS copy, fake stats/testimonials/clients, and Play branding were replaced with verified LumenX product, pricing, and contact information. Authentic Admin/Connect/Transport/Admissions/Careers screenshots and ecosystem imagery were copied from the LumenX website assets. The React monorepo was not modified or overwritten. No deployment was performed.
+The standalone LumenX Website template was customized into a LumenX marketing site. Demo SaaS copy, fake stats/testimonials/clients, and Play branding were replaced with verified LumenX product, pricing, and contact information. Authentic Admin/Connect/Transport/Admissions/Careers screenshots and ecosystem imagery were copied from the LumenX website assets. The React monorepo was not modified or overwritten. No deployment was performed.
 
 ## Pages and components customized
 
@@ -98,7 +98,7 @@ Template license attribution (TailGrids / ThemeWagon) is retained in the footer.
 | Face | Status | Source / license |
 |------|--------|------------------|
 | **Prata** (body / UI) | Installed | `@fontsource/prata@5.3.0` — SIL OFL 1.1; weight **400 only**; WOFF2 + `font-display: swap` via Fontsource CSS |
-| **Luma Studio** (headings) | **Not in repo** | No `.woff` / `.woff2` / `.ttf` / `.otf` under Play Astro, LumenX monorepo, or searched system folders. Commercial face — not on Google Fonts. Do not load from unauthorized mirrors. |
+| **Luma Studio** (headings) | **Not in repo** | No `.woff` / `.woff2` / `.ttf` / `.otf` under LumenX Website, LumenX monorepo, or searched system folders. Commercial face — not on Google Fonts. Do not load from unauthorized mirrors. |
 
 Drop-in path for licensed Luma Studio WOFF2: `public/fonts/luma-studio/` (see `public/fonts/README.md`). `@font-face` rules live commented in `src/styles/luma-studio.css` so missing files never 404.
 
@@ -751,7 +751,7 @@ Delivery order: `/api/enquiry` (Pages Function with `WEB3FORMS_ACCESS_KEY` / `RE
 | CDP polish pass | `scripts/polish-ui-verify.mjs` — **POLISH UI PASS** |
 | Lint / format scripts | Not defined in Play `package.json` (`dev` / `build` / `preview` / `test:pricing`) |
 | TypeScript project check | N/A as a separate script; Astro content types generated successfully |
-| Homepage demo residue scan | No “Play Astro” / Lorem / ThemeWagon marketing claims in `dist/index.html` body content (footer keeps required distributor credit) |
+| Homepage demo residue scan | No “LumenX Website” / Lorem / ThemeWagon marketing claims in `dist/index.html` body content (footer keeps required distributor credit) |
 | Responsive screenshots | Motion: `motion-home-{360,390,768,1024,1440}.png`; typography: `type-home-*`; showcase: `showcase-home-*`; copy pass: `qa-artifacts/copy-pass/*-cdp.png` |
 
 **Not claimed:** automated a11y suite, full E2E nav click-through, or production deploy.
@@ -777,7 +777,7 @@ Delivery order: `/api/enquiry` (Pages Function with `WEB3FORMS_ACCESS_KEY` / `RE
 ## How to run locally
 
 ```bash
-cd <play-astro-project-root>
+cd <lumenx-website-project-root>
 npm install
 npm run dev
 # or

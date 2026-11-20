@@ -5,7 +5,7 @@
  *
  * Website-specific adaptations (called out in document intros / cookie §2):
  * - Correspondence address wording (no claim of incorporation / registered company).
- * - Marketing Astro site cookie/font behaviour verified against this codebase.
+ * - Marketing LumenX site cookie/font behaviour verified against this codebase.
  */
 
 export const LEGAL_COMPANY = {
@@ -50,7 +50,7 @@ export const COOKIE_POLICY = {
       paragraphs: [
         `${C.legalName} sets first-party cookies and storage required to operate the Services.`,
         "If we use trusted infrastructure providers (for example authentication or hosting tooling), they may set technical cookies strictly necessary for security or delivery of the Service.",
-        "Website-specific note (this Astro marketing site, verified in source): fonts are self-hosted via @fontsource packages (not loaded from fonts.googleapis.com). Theme preference may be stored in localStorage. As of the staging-preparation inspection, this marketing site does not load analytics, advertising, or tracking scripts and does not set analytics or advertising cookies.",
+        "Website-specific note (this LumenX marketing site, verified in source): fonts are self-hosted via @fontsource packages (not loaded from fonts.googleapis.com). Theme preference may be stored in localStorage. As of the staging-preparation inspection, this marketing site does not load analytics, advertising, or tracking scripts and does not set analytics or advertising cookies.",
       ],
     },
     {

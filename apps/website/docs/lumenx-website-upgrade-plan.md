@@ -1,9 +1,9 @@
-# LumenX Astro — Security Upgrade Plan
+# LumenX Website — Security Upgrade Plan
 
 **Date:** 2026-10-26  
 **Status:** Plan on `master`; **implementation complete on local branch** `security/astro-upgrade` — **not pushed**; **no** Cloudflare create/deploy  
 
-**Project:** Play Astro (`officiallumenx/lumenx-marketing-astro`)  
+**Project:** LumenX Website (`officiallumenx/lumenx-website`)  
 **Related:** `docs/lumenx-cloudflare-staging-plan.md`
 
 **Honesty:** Clearing the Astro critical audit aggregation requires a modern Astro. After upgrade, **do not** claim the app is vulnerability-free (transitive deps remain).
@@ -174,8 +174,8 @@ Optional follow-up (separate approval): drop or replace `astro-compress`, or wai
 
 | Item | Value |
 |------|--------|
-| Remote branch | https://github.com/officiallumenx/lumenx-marketing-astro/tree/security/astro-upgrade |
-| Compare to master | https://github.com/officiallumenx/lumenx-marketing-astro/compare/master...security/astro-upgrade |
+| Remote branch | https://github.com/officiallumenx/lumenx-website/tree/security/astro-upgrade |
+| Compare to master | https://github.com/officiallumenx/lumenx-website/compare/master...security/astro-upgrade |
 | Remote tip (upgrade commit) | **`69f764ab8cbaa3045e285621aa7d079f57fee8de`** (`git ls-remote` matched) |
 | Force-push | **No** |
 | Repo visibility | **PRIVATE** |

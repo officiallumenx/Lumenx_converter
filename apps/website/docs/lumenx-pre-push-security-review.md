@@ -1,7 +1,7 @@
-# LumenX Play Astro — Pre-Push Security Review
+# LumenX LumenX Website — Pre-Push Security Review
 
 **Date:** 2026-10-26  
-**Project:** Play Astro project root (this repository)  
+**Project:** LumenX Website project root (this repository)  
 **Overall status:** **PUSHED — PRIVATE REPO LIVE**
 
 ---
@@ -13,8 +13,8 @@
 | Initial commit | `faded226baeacb8971345f9e199e6f923988f377` |
 | Commit message | `Initial LumenX marketing website` |
 | Branch | `master` (tracks `origin/master`) |
-| Remote | `https://github.com/officiallumenx/lumenx-marketing-astro.git` |
-| Repository URL | https://github.com/officiallumenx/lumenx-marketing-astro |
+| Remote | `https://github.com/officiallumenx/lumenx-website.git` |
+| Repository URL | https://github.com/officiallumenx/lumenx-website |
 | Visibility | **PRIVATE** (`isPrivate: true`, `visibility: PRIVATE` via `gh repo view --json`) |
 | Owner | `officiallumenx` |
 | Default branch | `master` |

@@ -25,7 +25,7 @@ LumenX is a multi-tenant education management and operations platform for school
 - **LumenX Transport (`apps/transport`):** Driver application with offline outbox, GPS tracking engine, and student boarding checklists.
 - **LumenX Admissions (`apps/admissions`):** Standalone public applicant portal for school admissions.
 - **LumenX Careers (`apps/careers`):** Standalone institutional recruitment and faculty hiring portal.
-- **LumenX Website (`apps/website`):** Public marketing site built with Astro, Cloudflare Pages, pricing calculator, and download center.
+- **LumenX Website (`apps/website`):** Public marketing site built for Cloudflare Pages (`lumenx-website`), pricing calculator, and download center.
 - **LumenX Backend API (`backend/`):** Hono REST API, actor authorization, FCM outbox worker, and PostgreSQL repository.
 - **Desktop Shells (`apps/admin-desktop`, `apps/nexus-desktop`):** Electron Windows NSIS installers.
 - **Downloads Host (`apps/downloads-host`):** Cloudflare Worker serving compiled APK and EXE binaries.
@@ -78,7 +78,7 @@ npm.cmd run dist:admin-desktop                     # Package Admin Windows insta
 
 ## 6. Deployment Boundaries
 - **Cloudflare Workers:** Edge SSR and static bundle serving for `admin`, `nexus`, `connect`, `transport`, `admissions`, `careers`, `downloads-host`, `legal-host`.
-- **Cloudflare Pages:** Public marketing website (`lumenx-marketing-astro`).
+- **Cloudflare Pages:** Public marketing website (`lumenx-website`).
 - **Railway:** Backend API container (`@lumenx/api`).
 - **Supabase Cloud:** PostgreSQL 15+, Supabase Auth, Storage Buckets, and Realtime WebSocket channels.
 - **Google Firebase:** Cloud Messaging (FCM) HTTP v1 API.

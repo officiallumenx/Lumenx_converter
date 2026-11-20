@@ -14,7 +14,7 @@
 | Live app identity | Cloudflare Worker name **`lumenx-website`** in monorepo Wrangler config; docs describe Workers Builds for this Worker | **PARTIALLY VERIFIED** (local config + docs; dashboard custom-domain attachment not inspected live) |
 | Live source repo | Monorepo workspace → GitHub `officiallumenx/Lumenx_converter` · app `@lumenx/app-website` | **VERIFIED** |
 | Live stack | React 19 + TanStack Start/Router + Vite 7 + Nitro Cloudflare module Worker + Tailwind 4 | **VERIFIED** (`apps/website/package.json`, `vite.config.ts`, `wrangler.jsonc`) |
-| New replacement candidate | Standalone Astro 3.6 Play template (this Play Astro project root) | **VERIFIED** |
+| New replacement candidate | Standalone Astro 3.6 Play template (this LumenX Website project root) | **VERIFIED** |
 | New stack | Astro static (`output` default) + Tailwind 3 + `astro-compress`; optional CF Pages Function for enquiries | **VERIFIED** |
 | Play Git | **No `.git` directory** — not a Git repo | **VERIFIED** |
 | Safe cutover recommendation | Deploy Astro to a **new Cloudflare Pages project**, preview on a staging hostname, then migrate `lumenxtech.in` only after checklist pass | **Recommended (A)** |
@@ -29,7 +29,7 @@
 | Role | Absolute path | Repo / remote | App package |
 |------|---------------|---------------|-------------|
 | **Current live marketing website (old)** | Monorepo workspace root | `https://github.com/officiallumenx/Lumenx_converter.git` (`origin` / `lumenx_converter`) | `apps/website` → `@lumenx/app-website` |
-| **New Play Astro website (replacement candidate)** | Play Astro project root | **NOT FOUND** at audit time (no git remotes; Git initialized later during staging prep) | `play-astro` |
+| **New LumenX Website website (replacement candidate)** | LumenX Website project root | **NOT FOUND** at audit time (no git remotes; Git initialized later during staging prep) | `lumenx-website` |
 
 **Branch (old monorepo, at audit time):** `fix/cloudflare-workers-build-upload` tracking `origin/fix/cloudflare-workers-build-upload` — **VERIFIED**. Dirty tree with untracked `qa-artifacts/*` and `apps/admin-desktop/dist-out/` — **VERIFIED**.
 
@@ -66,7 +66,7 @@ Worker config excerpt (names only):
 
 ---
 
-## 4. Verified architecture of the new website (Play Astro)
+## 4. Verified architecture of the new website (LumenX Website)
 
 | # | Topic | Finding | Source | Confidence |
 |---|--------|---------|--------|------------|
@@ -141,7 +141,7 @@ Worker config excerpt (names only):
 
 ### Live old website (`lumenxtech.in`) — VERIFIED HTTP where noted
 
-| Path | Purpose | Live | Backend deps | In Play Astro? | Cutover action |
+| Path | Purpose | Live | Backend deps | In LumenX Website? | Cutover action |
 |------|---------|------|--------------|----------------|----------------|
 | `/` | Homepage | 200 | — | Yes | Migrate / replace |
 | `/pricing` | Calculator | 200 | shared pricing utils | Yes | Migrate (verify copy parity) |
@@ -164,7 +164,7 @@ Worker config excerpt (names only):
 | `/robots.txt`, `/sitemap.xml` | SEO | 200 | Worker | robots yes; sitemap weak | Must ship SEO on cutover |
 | `/platform/nexus` | Nexus product | (assumed via slug) | — | Yes | Migrate |
 
-### Play Astro routes (static) — VERIFIED from `src/pages`
+### LumenX Website routes (static) — VERIFIED from `src/pages`
 
 | Path | Purpose | Notes |
 |------|---------|-------|
@@ -293,7 +293,7 @@ Old monorepo: `packages/utils` subscription pricing selftest also encodes ₹8,0
 
 | Project | Git | Deploy trigger | Risk if you push |
 |---------|-----|----------------|------------------|
-| Play Astro | **No git** | None configured | Push N/A until repo created |
+| LumenX Website | **No git** | None configured | Push N/A until repo created |
 | Monorepo | GitHub `Lumenx_converter` | Manual `npm run deploy:website` / CF Workers Builds (documented) | Pushing to a branch connected to Workers Builds **could** publish — confirm dashboard before pushing website changes |
 
 **Safety:** This audit did **not** commit, push, reset, or deploy.
@@ -349,7 +349,7 @@ Old monorepo: `packages/utils` subscription pricing selftest also encodes ₹8,0
 ## 17. Step-by-step future cutover plan (NOT executed)
 
 1. Put Play under Git; tag release candidates.  
-2. Create Cloudflare Pages project `lumenx-marketing-astro` (name TBD).  
+2. Create Cloudflare Pages project `lumenx-website` (name TBD).  
 3. Build `npm run build`; publish `dist/` + `functions/`.  
 4. Attach **staging** hostname only; run full QA (pricing, downloads, forms POST, mobile).  
 5. Add redirects for old-only paths (`/products/*` → `/platform/*`, `/data-request`, etc.).  

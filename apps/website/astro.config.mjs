@@ -4,14 +4,15 @@ import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 
 // Static site for Cloudflare Pages (`dist/` + repo-root `functions/`).
-// Tailwind 3 via Vite PostCSS — @astrojs/tailwind is unsupported on Astro 6+.
+// Tailwind 3 via Vite PostCSS.
 export default defineConfig({
   site: "https://lumenxtech.in",
   trailingSlash: "never",
   build: {
     format: "file",
+    assets: "_lumenx",
   },
-  // Preserve HTML-aware whitespace (Astro 7 default is 'jsx').
+  // Preserve HTML-aware whitespace.
   compressHTML: true,
   integrations: [compress()],
   vite: {

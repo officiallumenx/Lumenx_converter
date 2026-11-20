@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "prebuild": "node scripts/generate-sitemap.mjs",
-    "build": "astro build",
+    "build": "astro build && node scripts/postbuild-lumenx.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "typecheck": "node -e \"console.log('@lumenx/app-website: LumenX static site — no separate typecheck project; use build.');\"",

@@ -1,6 +1,6 @@
 /**
  * Browser-side Web3Forms helper (official FormData submit pattern).
- * Access keys are public by design — supply via Astro `PUBLIC_WEB3FORMS_ACCESS_KEY`
+ * Access keys are public by design — supply via LumenX `PUBLIC_WEB3FORMS_ACCESS_KEY`
  * (never commit the value; never log it).
  */
 
