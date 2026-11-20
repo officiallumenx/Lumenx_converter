@@ -138,8 +138,31 @@ const legalLinks = [
     </div>
 
     <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-stroke pt-6 text-xs text-body-color dark:border-white/10 dark:text-gray-7 sm:flex-row">
-      <p>© {new Date().getFullYear()} {SITE.company}. All rights reserved.</p>
-      <p>Connected institutional operations across Web, Android, and Windows.</p>
+      <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-start">
+        <a
+          href="/terms"
+          class="font-medium text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+        >
+          Terms of Use
+        </a>
+        <span class="text-stroke dark:text-white/20" aria-hidden="true">•</span>
+        <a
+          href="/privacy"
+          class="font-medium text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+        >
+          Privacy Policy
+        </a>
+        <span class="text-stroke dark:text-white/20" aria-hidden="true">•</span>
+        <a
+          href="/cookies"
+          class="font-medium text-body-color transition hover:text-primary dark:text-gray-7 dark:hover:text-white"
+        >
+          Cookie Policy
+        </a>
+      </div>
+      <p class="text-center sm:text-right">
+        © {new Date().getFullYear()} LumenX. All rights reserved by <span class="font-semibold text-dark dark:text-white">LumenX</span>.
+      </p>
     </div>
   </div>
 </footer>
