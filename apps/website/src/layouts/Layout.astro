@@ -9,16 +9,94 @@ import "../styles/motion.css";
 import Footer from '../components/layout/Footer.astro';
 import Header from '../components/layout/Header.astro';
 import BackToTop from '../components/layout/BackToTop.astro';
-import { SITE } from '../data/lumenx.js';
+import { SITE, FAQS, PRICING } from '../data/lumenx.js';
 
 interface Props {
   description: string;
   title: string;
   image?: string;
+  keywords?: string;
 }
 
-const { description, title, image = '/assets/brand/lumenx-ecosystem.jpg' } = Astro.props;
+const {
+  description,
+  title,
+  image = '/assets/brand/lumenx-ecosystem.jpg',
+  keywords = SITE.keywords,
+} = Astro.props;
+
 const fullTitle = title.includes('LumenX') ? title : `${title} | LumenX`;
+const cleanPath = Astro.url.pathname === "/" ? "/" : Astro.url.pathname.replace(/\/$/, "");
+const canonicalUrl = `${SITE.productionOrigin}${cleanPath}`;
+const absoluteImage = image.startsWith("http") ? image : `${SITE.productionOrigin}${image}`;
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE.productionOrigin}/#organization`,
+      "name": SITE.name,
+      "legalName": SITE.company,
+      "url": SITE.productionOrigin,
+      "logo": {
+        "@type": "ImageObject",
+        "url": `${SITE.productionOrigin}/assets/logo/lumenx-mark.png`,
+      },
+      "email": "lumenxtech.official@gmail.com",
+      "description": SITE.description,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.productionOrigin}/#website`,
+      "url": SITE.productionOrigin,
+      "name": `${SITE.name} — Best School ERP & Institutional Management Platform`,
+      "publisher": {
+        "@id": `${SITE.productionOrigin}/#organization`,
+      },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE.productionOrigin}/#software`,
+      "name": "LumenX School ERP & Campus Management Ecosystem",
+      "applicationCategory": "EducationalApplication, BusinessApplication",
+      "operatingSystem": "Web, Android, Windows",
+      "url": SITE.productionOrigin,
+      "description":
+        "LumenX is an integrated School ERP and education management platform uniting LumenX Admin, Connect, Transport, Admissions, Careers, and Nexus for schools and educational institutions.",
+      "offers": {
+        "@type": "Offer",
+        "price": String(PRICING.rateMin),
+        "priceCurrency": "INR",
+        "description": `Per-student pricing starting at ₹${PRICING.rateMin}/student/month with a ₹${PRICING.minimumMonthly.toLocaleString("en-IN")}/month campus minimum and ${PRICING.trialDays}-day free trial.`,
+      },
+      "featureList": [
+        "LumenX Admin — School ERP & Office Operations",
+        "LumenX Connect — Parent, Teacher & Student App",
+        "LumenX Transport — School Bus GPS & Boarding Management",
+        "LumenX Admissions — Online Student Intake Portal",
+        "LumenX Careers — Teacher & Staff Recruitment Portal",
+        "LumenX Nexus — Central Service Platform",
+      ],
+    },
+    ...(cleanPath === "/" || cleanPath === "/pricing" || cleanPath === "/resources/faq"
+      ? [
+          {
+            "@type": "FAQPage",
+            "@id": `${canonicalUrl}#faq`,
+            "mainEntity": FAQS.map((item) => ({
+              "@type": "Question",
+              "name": item.title,
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": item.description,
+              },
+            })),
+          },
+        ]
+      : []),
+  ],
+};
 ---
 
 <!DOCTYPE html>
@@ -26,23 +104,30 @@ const fullTitle = title.includes('LumenX') ? title : `${title} | LumenX`;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" type="image/png" href="/assets/logo/lumenx-mark.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="generator" content={Astro.generator} />
+    <meta name="generator" content="LumenX" />
+    <meta name="application-name" content="LumenX" />
+    <meta name="author" content={SITE.company} />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
     <meta name="theme-color" content="#3758F9" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={image} />
+    <meta property="og:image" content={absoluteImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image" content={absoluteImage} />
     <title>{fullTitle}</title>
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
     <script is:inline>
       try {
         if (localStorage.getItem("theme") === "dark") {

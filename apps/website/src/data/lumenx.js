@@ -2,9 +2,12 @@
 
 export const SITE = {
   name: "LumenX",
+  company: "LumenX Technologies",
   tagline: "One Connected Ecosystem for Smarter Institutions",
   description:
-    "Manage your institution, connect teachers and parents, and simplify everyday operations through one integrated digital platform.",
+    "LumenX is the modern School ERP and institutional management platform to manage your school, connect teachers and parents, run bus transport, and simplify everyday operations.",
+  keywords:
+    "LumenX, School ERP, best ERP for schools, school management software, education ERP India, institute management system, student information system, parent teacher communication app, school transport management software, LumenX Admin, LumenX Connect, LumenX Transport, LumenX Nexus, LumenX Admissions, LumenX Careers",
   productionOrigin: "https://lumenxtech.in",
 };
 
@@ -193,6 +196,11 @@ export const ROLES = [
 export { PRICING } from "../utils/pricing.js";
 
 export const FAQS = [
+  {
+    title: "What makes LumenX the best ERP for schools?",
+    description:
+      "Unlike traditional, disconnected school ERP software, LumenX unites your entire campus in one ecosystem: LumenX Admin for school office and academic management, LumenX Connect for teachers, parents, and students, LumenX Transport for bus GPS and boarding, Admissions for online student intake, Careers for educator hiring, and LumenX Nexus for connected service access.",
+  },
   {
     title: "How is pricing calculated?",
     description:

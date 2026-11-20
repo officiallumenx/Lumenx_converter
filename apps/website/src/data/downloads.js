@@ -1,5 +1,5 @@
 /**
- * LumenX Downloads matrix for the Play Astro marketing site.
+ * LumenX Downloads matrix for the LumenX official marketing website.
  *
  * Platform offers follow the approved matrix (do not expand casually).
  * Artifact / web URLs come from PUBLIC_* env overrides when set; otherwise
